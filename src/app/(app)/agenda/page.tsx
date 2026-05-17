@@ -67,6 +67,7 @@ export default function AgendaPage() {
   const [filterDate, setFilterDate] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [selected, setSelected] = useState<Appointment | null>(null)
+  const [selectedGcal, setSelectedGcal] = useState<GCalEvent | null>(null)
   const [gcalEvents, setGcalEvents] = useState<GCalEvent[]>([])
   const [gcalConnected, setGcalConnected] = useState(false)
   const [gcalError, setGcalError] = useState('')
@@ -189,6 +190,12 @@ export default function AgendaPage() {
   })
 
   function handleEventClick(id: string) {
+    if (id.startsWith('gcal-')) {
+      const gcalId = id.replace('gcal-', '')
+      const ev = gcalEvents.find((e) => e.id === gcalId)
+      if (ev) setSelectedGcal(ev)
+      return
+    }
     const appt = appointments.find((a) => a.id === id)
     if (appt) setSelected(appt)
   }
@@ -410,6 +417,49 @@ export default function AgendaPage() {
             )
           })}
         </div>
+      )}
+
+      {/* GCal event detail panel */}
+      {selectedGcal && (
+        <Portal>
+          <div className={styles.overlay} onClick={() => setSelectedGcal(null)}>
+            <div className={styles.detailPanel} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.detailHeader}>
+                <div className={styles.detailPatientInfo}>
+                  <div className={styles.detailAvatar} style={{ background: '#4285F4' }}>📅</div>
+                  <div>
+                    <h3 className={styles.detailName}>{selectedGcal.summary}</h3>
+                    <span className={`${styles.detailStatusBadge} ${styles.badge_confirmado}`}>Google Calendar</span>
+                  </div>
+                </div>
+                <button className={styles.btnClose} onClick={() => setSelectedGcal(null)}>✕</button>
+              </div>
+              <div className={styles.detailInfoGrid}>
+                {selectedGcal.start.dateTime && (
+                  <InfoCard icon="📅" label="Início" value={new Date(selectedGcal.start.dateTime).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} />
+                )}
+                {selectedGcal.end.dateTime && (
+                  <InfoCard icon="🏁" label="Término" value={new Date(selectedGcal.end.dateTime).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} />
+                )}
+                {selectedGcal.description && (
+                  <InfoCard icon="📝" label="Descrição" value={selectedGcal.description} fullWidth />
+                )}
+              </div>
+              <div className={styles.detailFooter}>
+                {selectedGcal.htmlLink && (
+                  <a
+                    href={selectedGcal.htmlLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.btnGcalLarge}
+                  >
+                    📅 Abrir no Google Calendar
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </Portal>
       )}
 
       {/* Detail panel */}
