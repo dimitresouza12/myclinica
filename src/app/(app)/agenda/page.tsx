@@ -8,7 +8,7 @@ import { getGCalToken, isGCalConnected, silentRefreshGCal, fetchGCalEvents, crea
 import { Portal } from '@/components/ui/Portal'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import type { Appointment, Patient, Professional } from '@/types'
-import { statusColor, type CalendarEvent } from '@/components/agenda/FullCalendarWrapper'
+import { type CalendarEvent } from '@/components/agenda/FullCalendarWrapper'
 import styles from './agenda.module.css'
 
 const FullCalendarWrapper = dynamic(
@@ -32,6 +32,26 @@ const BLANK: NewAppt = {
 }
 
 type ViewMode = 'calendar' | 'lista'
+
+// Paleta de cores para profissionais (estilo Google Calendar)
+const PROF_COLORS = [
+  '#4285F4', // Google Blue
+  '#0F9D58', // Google Green
+  '#DB4437', // Google Red
+  '#F4B400', // Google Yellow
+  '#AB47BC', // Purple
+  '#00ACC1', // Cyan
+  '#FF7043', // Deep Orange
+  '#5C6BC0', // Indigo
+  '#26A69A', // Teal
+  '#EC407A', // Pink
+]
+
+function profColor(profId: string | null, profIndex: Record<string, number>): string {
+  if (!profId) return '#6B7280'
+  const idx = profIndex[profId] ?? 0
+  return PROF_COLORS[idx % PROF_COLORS.length]
+}
 
 export default function AgendaPage() {
   const { clinic } = useAuthStore()
@@ -128,6 +148,13 @@ export default function AgendaPage() {
     }
   }
 
+  // Map each professional id to a stable color index
+  const profColorIndex = useMemo<Record<string, number>>(() => {
+    const map: Record<string, number> = {}
+    professionals.forEach((p, i) => { map[p.id] = i })
+    return map
+  }, [professionals])
+
   const calendarEvents = useMemo<CalendarEvent[]>(() => {
     const clinicEvents: CalendarEvent[] = appointments.map((a) => {
       const start = a.scheduled_at
@@ -139,7 +166,7 @@ export default function AgendaPage() {
         title: `${a.patients?.name ?? 'Paciente'} — ${a.procedure_name ?? 'Consulta'}`,
         start,
         end,
-        color: statusColor(a.status ?? ''),
+        color: profColor(a.professional_id, profColorIndex),
         extendedProps: { appt: a },
       }
     })
@@ -152,7 +179,7 @@ export default function AgendaPage() {
       extendedProps: { gcal: true, link: e.htmlLink },
     }))
     return [...clinicEvents, ...gEvents]
-  }, [appointments, gcalEvents])
+  }, [appointments, gcalEvents, profColorIndex])
 
   const filtered = appointments.filter((a) => {
     const matchStatus = !filterStatus || a.status === filterStatus
@@ -283,6 +310,20 @@ export default function AgendaPage() {
         <p className={styles.loading}>Carregando...</p>
       ) : viewMode === 'calendar' ? (
         <div className={styles.calendarWrap}>
+          {professionals.length > 1 && (
+            <div className={styles.profLegend}>
+              <span className={styles.profLegendItem} style={{ color: 'var(--text-secondary)' }}>
+                <span className={styles.profDot} style={{ background: '#6B7280' }} />
+                Sem profissional
+              </span>
+              {professionals.map((p, i) => (
+                <span key={p.id} className={styles.profLegendItem}>
+                  <span className={styles.profDot} style={{ background: PROF_COLORS[i % PROF_COLORS.length] }} />
+                  {p.name}
+                </span>
+              ))}
+            </div>
+          )}
           <FullCalendarWrapper
             events={calendarEvents}
             onEventClick={handleEventClick}

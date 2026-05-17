@@ -17,6 +17,32 @@
 .gcalCheck { display:flex; align-items:center; gap:.5rem; font-size:.855rem; color:var(--text-primary); cursor:pointer; padding:.5rem .75rem; background:var(--bg-secondary); border-radius:var(--radius-md); }
 .calendarWrap { background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--card-shadow); }
 
+.profLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+.profLegendItem {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.profDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 @media (max-width: 768px) {
   .calendarWrap { padding: 0.5rem; border-radius: var(--radius-md); }
   .header { gap: 0.5rem; }
