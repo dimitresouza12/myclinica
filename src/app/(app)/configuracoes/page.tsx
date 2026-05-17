@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { connectGoogleCalendar, disconnectGoogleCalendar, getGCalToken } from '@/lib/googleCalendar'
+import { connectGoogleCalendar, disconnectGoogleCalendar, isGCalConnected } from '@/lib/googleCalendar'
 import styles from './configuracoes.module.css'
 
 export default function ConfiguracoesPage() {
@@ -18,7 +18,7 @@ export default function ConfiguracoesPage() {
   const [gcalError, setGcalError] = useState('')
 
   useEffect(() => {
-    setGcalConnected(!!getGCalToken())
+    setGcalConnected(isGCalConnected())
   }, [])
 
   async function handleSave(e: React.FormEvent) {

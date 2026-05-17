@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatPhone } from '@/lib/utils'
-import { getGCalToken, fetchGCalEvents, createGCalEvent, connectGoogleCalendar, type GCalEvent } from '@/lib/googleCalendar'
+import { getGCalToken, isGCalConnected, silentRefreshGCal, fetchGCalEvents, createGCalEvent, connectGoogleCalendar, type GCalEvent } from '@/lib/googleCalendar'
 import { Portal } from '@/components/ui/Portal'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import type { Appointment, Patient, Professional } from '@/types'
@@ -88,7 +88,8 @@ export default function AgendaPage() {
   }, [clinic?.id])
 
   useEffect(() => {
-    setGcalConnected(!!getGCalToken())
+    // Initialize connected state from intent flag (survives token expiry)
+    setGcalConnected(isGCalConnected())
   }, [])
 
   const loadGCalEvents = useCallback(async (token: string, profs: Professional[]) => {
@@ -106,8 +107,14 @@ export default function AgendaPage() {
 
   useEffect(() => {
     if (!gcalConnected) return
-    const token = getGCalToken()
-    if (token) loadGCalEvents(token, professionals)
+    async function tryLoad() {
+      // Use valid token or try to silently refresh if expired
+      let token = getGCalToken()
+      if (!token) token = await silentRefreshGCal()
+      if (token) loadGCalEvents(token, professionals)
+      else setGcalConnected(false)
+    }
+    tryLoad()
   }, [gcalConnected, professionals, loadGCalEvents])
 
   async function handleConnectGCal() {

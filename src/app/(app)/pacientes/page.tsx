@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatPhone, getStatusClass } from '@/lib/utils'
@@ -11,8 +12,9 @@ import styles from './pacientes.module.css'
 
 type ActiveTab = 'atendimentos' | 'pacientes'
 
-export default function PacientesPage() {
+function PacientesContent() {
   const { clinic } = useAuthStore()
+  const searchParams = useSearchParams()
   const [tab, setTab] = useState<ActiveTab>('atendimentos')
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
@@ -45,8 +47,19 @@ export default function PacientesPage() {
       supabase.from('patients').select('*').eq('clinic_id', clinic.id).eq('is_active', true).order('name'),
     ])
     setAppointments((apptRes.data ?? []) as Appointment[])
-    setPatients((patRes.data ?? []) as Patient[])
+    const pats = (patRes.data ?? []) as Patient[]
+    setPatients(pats)
     setLoading(false)
+
+    // Open prontuário directly if ?patient=<id> is in URL
+    const targetId = searchParams.get('patient')
+    if (targetId) {
+      const target = pats.find(p => p.id === targetId)
+      if (target) {
+        setTab('pacientes')
+        setProntuarioPatient(target)
+      }
+    }
   }
 
   const filteredAppointments = useMemo(() => {
@@ -212,5 +225,13 @@ export default function PacientesPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function PacientesPage() {
+  return (
+    <Suspense fallback={<div />}>
+      <PacientesContent />
+    </Suspense>
   )
 }

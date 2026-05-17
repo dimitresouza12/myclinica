@@ -380,6 +380,20 @@
   cursor: default;
 }
 
+.btnAtendimento {
+  width: 100%;
+  padding: 0.7rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btnAtendimento:hover { background: var(--bg-tertiary); }
+
 .msgOk   { font-size: 0.8rem; color: #059669; text-align: center; }
 .msgWarn { font-size: 0.8rem; color: #D97706; text-align: center; }
 .msgErr  { font-size: 0.8rem; color: #DC2626; text-align: center; }

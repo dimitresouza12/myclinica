@@ -8,6 +8,8 @@ import { Portal } from '@/components/ui/Portal'
 import { formatDate, cleanPhone } from '@/lib/utils'
 import styles from './crm.module.css'
 
+interface PatientRow { id: string; phone: string }
+
 interface Lead {
   phone: string
   conversation_id: string
@@ -65,6 +67,7 @@ export default function CRMPage() {
   const [converting, setConverting] = useState(false)
   const [convertMsg, setConvertMsg] = useState('')
   const [existingPatients, setExistingPatients] = useState<Set<string>>(new Set())
+  const [patientIdMap, setPatientIdMap] = useState<Record<string, string>>({})
 
   // Gate: CRM é exclusivo do plano Plus
   useEffect(() => {
@@ -121,9 +124,16 @@ export default function CRMPage() {
 
   async function loadExistingPatients() {
     if (!clinic) return
-    const { data } = await supabase.from('patients').select('phone').eq('clinic_id', clinic.id)
-    const phones = new Set((data ?? []).map(p => cleanPhone(p.phone)).filter(Boolean))
+    const { data } = await supabase.from('patients').select('id, phone').eq('clinic_id', clinic.id)
+    const rows = (data ?? []) as PatientRow[]
+    const phones = new Set(rows.map(p => cleanPhone(p.phone)).filter(Boolean))
+    const idMap: Record<string, string> = {}
+    for (const p of rows) {
+      const clean = cleanPhone(p.phone)
+      if (clean) idMap[clean] = p.id
+    }
     setExistingPatients(phones)
+    setPatientIdMap(idMap)
   }
 
   async function openLead(lead: Lead) {
@@ -184,6 +194,8 @@ export default function CRMPage() {
     } else {
       setConvertMsg('ok')
       setExistingPatients(prev => new Set([...prev, clean]))
+      // Reload patients to get the new ID for the "Ver Atendimento" button
+      loadExistingPatients()
       loadLeads()
     }
     setConverting(false)
@@ -338,7 +350,17 @@ export default function CRMPage() {
                 {convertMsg === 'already' && <p className={styles.msgWarn}>Telefone já cadastrado como paciente.</p>}
                 {convertMsg === 'error' && <p className={styles.msgErr}>Erro ao criar paciente.</p>}
                 {existingPatients.has(cleanPhone(selected.phone)) ? (
-                  <button className={styles.btnPatientExists} disabled>✓ Já é paciente</button>
+                  <>
+                    <button className={styles.btnPatientExists} disabled>✓ Já é paciente</button>
+                    {patientIdMap[cleanPhone(selected.phone)] && (
+                      <button
+                        className={styles.btnAtendimento}
+                        onClick={() => router.push(`/pacientes?patient=${patientIdMap[cleanPhone(selected.phone)]}`)}
+                      >
+                        📋 Ver Atendimento
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <button className={styles.btnConvert} onClick={convertToPatient} disabled={converting}>
                     {converting ? 'Convertendo...' : '+ Converter em Paciente'}

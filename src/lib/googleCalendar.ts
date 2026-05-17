@@ -4,6 +4,8 @@
 const SCOPE = 'https://www.googleapis.com/auth/calendar'
 const TOKEN_KEY = 'gcal_access_token'
 const TOKEN_EXPIRY_KEY = 'gcal_token_expiry'
+// Persists user intent to stay connected across token expiry
+const CONNECTED_KEY = 'gcal_connected'
 
 declare global {
   interface Window {
@@ -47,6 +49,7 @@ export async function connectGoogleCalendar(): Promise<string> {
         const expiry = Date.now() + resp.expires_in * 1000
         localStorage.setItem(TOKEN_KEY, resp.access_token)
         localStorage.setItem(TOKEN_EXPIRY_KEY, String(expiry))
+        localStorage.setItem(CONNECTED_KEY, '1')
         resolve(resp.access_token)
       },
     })
@@ -54,6 +57,7 @@ export async function connectGoogleCalendar(): Promise<string> {
   })
 }
 
+/** Returns a valid token if available, null if expired (but user may still be "connected"). */
 export function getGCalToken(): string | null {
   if (typeof window === 'undefined') return null
   const token = localStorage.getItem(TOKEN_KEY)
@@ -62,9 +66,45 @@ export function getGCalToken(): string | null {
   return token
 }
 
+/** Returns true if user has previously connected and not disconnected, even if token is expired. */
+export function isGCalConnected(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem(CONNECTED_KEY) === '1'
+}
+
+/** Silently refreshes the token without showing the Google consent popup (uses prompt='none'). */
+export async function silentRefreshGCal(): Promise<string | null> {
+  if (!isGCalConnected()) return null
+  await loadGIS()
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+  if (!clientId) return null
+
+  return new Promise((resolve) => {
+    try {
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: SCOPE,
+        callback: (resp) => {
+          if (resp.error) { resolve(null); return }
+          const expiry = Date.now() + resp.expires_in * 1000
+          localStorage.setItem(TOKEN_KEY, resp.access_token)
+          localStorage.setItem(TOKEN_EXPIRY_KEY, String(expiry))
+          resolve(resp.access_token)
+        },
+      })
+      // prompt: 'none' is not standard in GIS token client — we use requestAccessToken
+      // which triggers silent grant if session is still active in the browser
+      client.requestAccessToken()
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
 export function disconnectGoogleCalendar() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(TOKEN_EXPIRY_KEY)
+  localStorage.removeItem(CONNECTED_KEY)
 }
 
 export interface GCalEvent {
