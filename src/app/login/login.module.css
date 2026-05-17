@@ -295,6 +295,47 @@
   font-weight: 500;
 }
 
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+}
+
+.madeby {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.3);
+  text-align: center;
+  margin-top: 1rem;
+}
+.madebyLink {
+  color: rgba(94,234,212,0.7);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+.madebyLink:hover { color: #5EEAD4; }
+
+.btnLink {
+  background: none;
+  border: none;
+  color: rgba(94,234,212,0.7);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: center;
+  padding: 0;
+  transition: color 0.15s;
+}
+.btnLink:hover { color: #5EEAD4; }
+
+.resetDesc {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.5);
+  text-align: center;
+  line-height: 1.6;
+}
+
 .slugHint {
   font-size: 0.72rem;
   color: rgba(94,234,212,0.8);

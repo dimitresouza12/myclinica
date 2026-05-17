@@ -14,8 +14,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
-    if (_hydrated && (!clinic || !user)) {
-      router.replace('/login')
+    if (!_hydrated) return
+    if (!clinic || !user) { router.replace('/login'); return }
+    if (clinic.trialEndsAt && new Date() > new Date(clinic.trialEndsAt) && !user.isSuperAdmin) {
+      router.replace('/trial-expirado')
     }
   }, [_hydrated, clinic, user, router])
 

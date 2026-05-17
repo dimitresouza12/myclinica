@@ -15,6 +15,11 @@ const STATUSES: { value: ClinicStatus; label: string }[] = [
   { value: 'suspended', label: 'Suspensa (inadimplência)' },
 ]
 
+function toDateInputValue(iso: string | null | undefined): string {
+  if (!iso) return ''
+  return iso.slice(0, 10)
+}
+
 interface Props {
   clinic: Clinic
   onClose: () => void
@@ -25,12 +30,19 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   const [plan, setPlan] = useState(clinic.plan ?? 'basico')
   const [maxPatients, setMaxPatients] = useState(clinic.max_patients ?? 200)
   const [status, setStatus] = useState<ClinicStatus>(clinic.status ?? 'active')
+  const [trialMode, setTrialMode] = useState<'trial' | 'permanente'>(
+    clinic.trial_ends_at ? 'trial' : 'permanente'
+  )
+  const [trialDate, setTrialDate] = useState(toDateInputValue(clinic.trial_ends_at))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSave() {
     setSaving(true)
     setError('')
+    const trial_ends_at = trialMode === 'permanente'
+      ? null
+      : trialDate ? new Date(trialDate + 'T23:59:59').toISOString() : null
     const { error: err } = await supabase
       .from('clinics')
       .update({
@@ -38,6 +50,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
         max_patients: maxPatients,
         status,
         is_active: status === 'active',
+        trial_ends_at,
       })
       .eq('id', clinic.id)
     if (err) { setError(err.message); setSaving(false); return }
@@ -97,6 +110,42 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className={styles.field}>
+            <label>Período de teste</label>
+            <div className={styles.statusBtnGroup}>
+              <button
+                type="button"
+                className={`${styles.statusChoiceBtn} ${trialMode === 'trial' ? styles.statusChoiceBtnActive : ''}`}
+                onClick={() => setTrialMode('trial')}
+              >
+                ⏳ Trial com data limite
+              </button>
+              <button
+                type="button"
+                className={`${styles.statusChoiceBtn} ${trialMode === 'permanente' ? styles.statusChoiceBtnActive : ''}`}
+                onClick={() => setTrialMode('permanente')}
+              >
+                ✅ Acesso permanente
+              </button>
+            </div>
+            {trialMode === 'trial' && (
+              <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Data de expiração do trial</span>
+                <input
+                  type="date"
+                  className={styles.fieldInput}
+                  value={trialDate}
+                  onChange={(e) => setTrialDate(e.target.value)}
+                />
+              </div>
+            )}
+            {trialMode === 'permanente' && (
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                A clínica não será bloqueada por expiração de trial.
+              </p>
+            )}
           </div>
 
           {error && <p className={styles.fieldError}>{error}</p>}

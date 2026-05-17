@@ -60,6 +60,23 @@ function LoginContent() {
   const [mode, setMode] = useState<Mode>(() =>
     searchParams.get('mode') === 'register' ? 'register' : 'login'
   )
+  const [showReset, setShowReset] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetSent, setResetSent] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetError, setResetError] = useState('')
+
+  async function handleReset(e: React.FormEvent) {
+    e.preventDefault()
+    setResetError('')
+    setResetLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+      redirectTo: `${window.location.origin}/login`,
+    })
+    setResetLoading(false)
+    if (error) { setResetError('E-mail não encontrado ou erro ao enviar. Verifique e tente novamente.'); return }
+    setResetSent(true)
+  }
 
   // Login state
   const [credential, setCredential] = useState('')
@@ -179,6 +196,7 @@ function LoginContent() {
         color: clinicUser.clinics.primary_color ?? '#0D9488', slug: clinicUser.clinics.slug,
         plan: (clinicUser.clinics.plan === 'plus' ? 'plus' : 'basico'),
         status: clinicStatus,
+        trialEndsAt: clinicUser.clinics.trial_ends_at ?? null,
       }
       const user: AuthUser = {
         id: clinicUser.user_id, role: clinicUser.role,
@@ -264,6 +282,7 @@ function LoginContent() {
 
   return (
     <div className={styles.page}>
+      <div className={styles.wrap}>
       <div className={styles.card}>
         <div className={styles.brand}>
           <span className={styles.brandName}>My<strong>Clinica</strong></span>
@@ -279,7 +298,37 @@ function LoginContent() {
           </button>
         </div>
 
-        {mode === 'login' ? (
+        {mode === 'login' && showReset ? (
+          <div className={styles.form}>
+            {resetSent ? (
+              <div className={styles.successBox}>
+                <div className={styles.successIcon}>✉️</div>
+                <h3 className={styles.successTitle}>E-mail enviado!</h3>
+                <p className={styles.successMsg}>Verifique sua caixa de entrada e siga o link para redefinir sua senha.</p>
+                <button className={styles.btnOutline} onClick={() => { setShowReset(false); setResetSent(false); setResetEmail('') }}>
+                  Voltar ao login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleReset} className={styles.form}>
+                <p className={styles.resetDesc}>Digite seu e-mail cadastrado e enviaremos um link para redefinir sua senha.</p>
+                <div className={styles.field}>
+                  <label htmlFor="resetEmail">E-mail</label>
+                  <input id="resetEmail" type="email" value={resetEmail}
+                    onChange={e => setResetEmail(e.target.value)}
+                    placeholder="email@clinica.com" required autoComplete="email" />
+                </div>
+                {resetError && <p className={styles.error}>{resetError}</p>}
+                <button type="submit" className={styles.btn} disabled={resetLoading}>
+                  {resetLoading ? 'Enviando...' : 'Enviar link de redefinição'}
+                </button>
+                <button type="button" className={styles.btnLink} onClick={() => { setShowReset(false); setResetError('') }}>
+                  Voltar ao login
+                </button>
+              </form>
+            )}
+          </div>
+        ) : mode === 'login' ? (
           <form onSubmit={handleLogin} className={styles.form}>
             <div className={styles.field}>
               <label htmlFor="credential">Usuário ou E-mail</label>
@@ -297,6 +346,9 @@ function LoginContent() {
             {step && <p className={styles.step}>{step}</p>}
             <button type="submit" className={styles.btn} disabled={loading}>
               {loading ? (step || 'Autenticando...') : 'Entrar'}
+            </button>
+            <button type="button" className={styles.btnLink} onClick={() => { setShowReset(true); setResetError(''); setResetSent(false) }}>
+              Esqueci minha senha
             </button>
           </form>
         ) : regSuccess ? (
@@ -427,6 +479,13 @@ function LoginContent() {
             </button>
           </form>
         )}
+      </div>
+      <p className={styles.madeby}>
+        feito por{' '}
+        <a href="https://otimizai.net.br" target="_blank" rel="noopener noreferrer" className={styles.madebyLink}>
+          Otimiza AÍ
+        </a>
+      </p>
       </div>
     </div>
   )

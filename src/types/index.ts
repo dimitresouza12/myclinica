@@ -21,6 +21,7 @@ export interface Clinic {
   is_active: boolean
   status: ClinicStatus
   created_at: string
+  trial_ends_at: string | null
 }
 
 export interface SystemAlert {
@@ -73,6 +74,7 @@ export interface Patient {
   pet_coat: string | null
   pet_neutered: boolean | null
   notes: string | null
+  avatar_url: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -230,6 +232,7 @@ export interface AuthClinic {
   slug: string
   plan: ClinicPlan
   status: ClinicStatus
+  trialEndsAt: string | null
 }
 
 export interface AuthUser {

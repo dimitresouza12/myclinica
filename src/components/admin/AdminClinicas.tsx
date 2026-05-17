@@ -129,6 +129,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
               <th>Tipo</th>
               <th>Plano</th>
               <th>Status</th>
+              <th>Trial</th>
               <th>Pacientes</th>
               <th>Criada</th>
               <th>Ações</th>
@@ -136,7 +137,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={7} className={styles.empty}>Nenhuma clínica encontrada.</td></tr>
+              <tr><td colSpan={8} className={styles.empty}>Nenhuma clínica encontrada.</td></tr>
             ) : filtered.map((c) => (
               <tr key={c.id} className={styles.clinicRow}>
                 <td>
@@ -160,6 +161,17 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                   </span>
                 </td>
                 <td><StatusBadge status={c.status ?? 'active'} /></td>
+                <td>
+                  {!c.trial_ends_at ? (
+                    <span style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 600 }}>Permanente</span>
+                  ) : new Date() > new Date(c.trial_ends_at) ? (
+                    <span style={{ fontSize: '0.75rem', color: '#EF4444', fontWeight: 600 }}>Expirado</span>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', color: '#F59E0B', fontWeight: 600 }}>
+                      até {new Date(c.trial_ends_at).toLocaleDateString('pt-BR')}
+                    </span>
+                  )}
+                </td>
                 <td className={styles.patientCount}>{c.max_patients ?? 200}</td>
                 <td className={styles.dateCell}>{formatDate(c.created_at, true)}</td>
                 <td>

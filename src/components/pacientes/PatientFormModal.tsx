@@ -101,8 +101,9 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
+          <p className={styles.requiredNote}><span className={styles.requiredStar}>*</span> Campo obrigatório</p>
           <div className={styles.grid2}>
-            <Field label="Nome *" required value={form.name} onChange={(v) => set('name', v)} />
+            <Field label="Nome" required value={form.name} onChange={(v) => set('name', v)} />
             <Field label="Telefone" value={form.phone} onChange={(v) => set('phone', v)} placeholder="(11) 99999-9999" />
             <Field label="E-mail" type="email" value={form.email} onChange={(v) => set('email', v)} />
             <Field label="CPF" value={form.cpf} onChange={(v) => set('cpf', v)} />
@@ -169,7 +170,10 @@ function Field({
 }) {
   return (
     <div className={styles.fieldGroup}>
-      <label>{label}</label>
+      <label>
+        {label}
+        {required && <span className={styles.requiredStar}> *</span>}
+      </label>
       <input
         type={type}
         value={value}

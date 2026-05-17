@@ -88,6 +88,8 @@
 .statusBtn { padding: 0.3rem 0.75rem; border: 1px solid var(--border-color); background: none; border-radius: 999px; font-size: 0.8rem; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; text-transform: capitalize; }
 .statusBtn:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
 .statusBtnActive { background: var(--brand-primary); color: #fff; border-color: var(--brand-primary); }
+.btnWhatsApp { display: block; padding: 0.55rem 1rem; background: #25D366; color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; transition: opacity 0.15s; }
+.btnWhatsApp:hover { opacity: 0.9; }
 .btnGcalLarge { padding: 0.55rem 1rem; background: #4285F4; color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
 
 /* New appt modal */

@@ -398,6 +398,18 @@ export default function AgendaPage() {
                   </button>
                 ))}
               </div>
+              {selected.patients?.phone && (
+                <a
+                  className={styles.btnWhatsApp}
+                  href={`https://wa.me/55${selected.patients.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                    `Olá ${selected.patients.name}! Passando para lembrar da sua consulta em ${formatDate(selected.scheduled_at)}. Qualquer dúvida, estamos à disposição! 😊`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  📲 Enviar lembrete no WhatsApp
+                </a>
+              )}
               <button className={styles.btnGcalLarge} onClick={() => openGCal(selected)}>
                 📅 Adicionar ao Google Calendar
               </button>

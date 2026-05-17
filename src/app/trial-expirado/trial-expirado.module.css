@@ -1,0 +1,73 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 60% 50% at 8% 18%, rgba(125,211,205,0.45) 0%, rgba(34,86,98,0.30) 30%, transparent 60%),
+    radial-gradient(ellipse 70% 60% at 75% 30%, rgba(14,52,72,0.7) 0%, transparent 65%),
+    linear-gradient(165deg, #02101a 0%, #051826 35%, #06202f 65%, #020b14 100%);
+  padding: 1rem;
+}
+
+.card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 20px;
+  padding: 3rem 2.5rem;
+  width: 100%;
+  max-width: 420px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.icon {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.3;
+}
+
+.desc {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.55);
+  line-height: 1.7;
+  margin-bottom: 0.5rem;
+}
+
+.btnContact {
+  display: inline-block;
+  padding: 0.85rem 2rem;
+  background: linear-gradient(135deg, #0D9488 0%, #5EEAD4 100%);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.15s, transform 0.1s;
+  box-shadow: 0 4px 16px rgba(13,148,136,0.3);
+  width: 100%;
+}
+.btnContact:hover { opacity: 0.9; transform: translateY(-1px); }
+
+.linkBack {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.3);
+  text-decoration: none;
+  margin-top: 0.25rem;
+  transition: color 0.15s;
+}
+.linkBack:hover { color: rgba(255,255,255,0.6); }

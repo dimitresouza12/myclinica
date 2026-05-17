@@ -8,6 +8,7 @@ import { syncLeadAppointments } from '@/lib/sync-leads'
 import type { Patient, Appointment } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
+import { GlobalSearch } from '@/components/layout/GlobalSearch'
 import styles from './pacientes.module.css'
 
 type ActiveTab = 'atendimentos' | 'pacientes'
@@ -100,9 +101,12 @@ function PacientesContent() {
               : `${filteredPatients.length} pacientes`}
           </p>
         </div>
-        <button className={styles.btnPrimary} onClick={() => setShowNewPatient(true)}>
-          + Novo Paciente
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <GlobalSearch />
+          <button className={styles.btnPrimary} onClick={() => setShowNewPatient(true)}>
+            + Novo Paciente
+          </button>
+        </div>
       </div>
 
       <div className={styles.toolbar}>

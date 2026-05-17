@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { StockItem, StockMovement } from '@/types'
+import { Portal } from '@/components/ui/Portal'
 import styles from './estoque.module.css'
 
 const CATEGORIES = ['material', 'medicamento', 'descartavel', 'equipamento', 'outro']
@@ -322,6 +323,7 @@ export default function EstoquePage() {
 
       {/* Modal Produto */}
       {modal === 'item' && (
+        <Portal>
         <div className={styles.overlay} onClick={closeModal}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
@@ -381,10 +383,12 @@ export default function EstoquePage() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* Modal Entrada / Saída */}
       {(modal === 'entrada' || modal === 'saida') && selectedItem && (
+        <Portal>
         <div className={styles.overlay} onClick={closeModal}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
@@ -424,6 +428,7 @@ export default function EstoquePage() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   )

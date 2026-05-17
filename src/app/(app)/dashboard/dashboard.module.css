@@ -178,3 +178,6 @@
   padding: 3rem !important;
   font-size: 0.875rem;
 }
+
+.chartWrap { padding: 1rem 1.25rem 1.25rem; }
+.chartLoading { padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 0.875rem; }

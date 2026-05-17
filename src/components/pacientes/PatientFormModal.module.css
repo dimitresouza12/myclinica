@@ -76,6 +76,17 @@
   letter-spacing: 0.04em;
 }
 
+.requiredStar {
+  color: #DC2626;
+  font-weight: 700;
+}
+
+.requiredNote {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin: -0.25rem 0 0;
+}
+
 .fieldGroup input,
 .fieldGroup select,
 .fieldGroup textarea {
