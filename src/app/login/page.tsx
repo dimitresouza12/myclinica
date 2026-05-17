@@ -197,6 +197,7 @@ function LoginContent() {
         plan: (clinicUser.clinics.plan === 'plus' ? 'plus' : 'basico'),
         status: clinicStatus,
         trialEndsAt: clinicUser.clinics.trial_ends_at ?? null,
+        gcalConnected: clinicUser.clinics.gcal_connected ?? false,
       }
       const user: AuthUser = {
         id: clinicUser.user_id, role: clinicUser.role,

@@ -22,6 +22,7 @@ export interface Clinic {
   status: ClinicStatus
   created_at: string
   trial_ends_at: string | null
+  gcal_connected: boolean
 }
 
 export interface SystemAlert {
@@ -91,6 +92,7 @@ export interface Appointment {
   duration_minutes: number
   notes: string | null
   created_at: string
+  gcal_event_id: string | null
   patients?: Pick<Patient, 'id' | 'name' | 'phone'>
   clinic_users?: Pick<ClinicUser, 'id' | 'display_name'>
 }
@@ -233,6 +235,7 @@ export interface AuthClinic {
   plan: ClinicPlan
   status: ClinicStatus
   trialEndsAt: string | null
+  gcalConnected: boolean
 }
 
 export interface AuthUser {

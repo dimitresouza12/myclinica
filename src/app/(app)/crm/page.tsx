@@ -20,6 +20,7 @@ interface Lead {
   created_at: string | null
   ai_service: string | null
   contexto: string | null
+  memoria_contexto: string | null
 }
 
 interface ChatMessage {
@@ -114,8 +115,24 @@ export default function CRMPage() {
       if (error) console.error('[CRM] chats query error:', error)
       const rows = (data ?? []) as Lead[]
       const filtered = rows.filter(r => r.phone && r.phone !== '=' && r.phone.length > 5)
+
+      // Extrair nome do memoria_contexto para leads que ainda não têm nome
+      const semNome = filtered.filter(r => !r.nome && r.memoria_contexto)
+      for (const lead of semNome) {
+        const match = lead.memoria_contexto!.match(/Nome:\s*(.+)/i)
+        if (!match) continue
+        const nome = match[1].trim()
+        const invalido = !nome || nome.startsWith('[') || nome === 'Não informado' || nome === 'Desconhecido'
+        if (invalido) continue
+        // Atualiza a coluna nome no banco do n8n
+        await n8nClient
+          .from('chats')
+          .update({ nome })
+          .eq('conversation_id', lead.conversation_id)
+        lead.nome = nome // atualiza localmente também
+      }
+
       setLeads(filtered)
-      // Se a query retornou sem erro mas sem nenhum registro, automação não está configurada
       setAutomacaoAtiva(!error && (data?.length ?? 0) > 0)
     } finally {
       setLoading(false)

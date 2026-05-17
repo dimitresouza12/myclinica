@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatPhone } from '@/lib/utils'
-import { getGCalToken, isGCalConnected, silentRefreshGCal, fetchGCalEvents, createGCalEvent, connectGoogleCalendar, type GCalEvent } from '@/lib/googleCalendar'
+import { getGCalToken, isGCalConnected, silentRefreshGCal, fetchGCalEvents, createGCalEvent, updateGCalEvent, connectGoogleCalendar, disconnectGoogleCalendar, type GCalEvent } from '@/lib/googleCalendar'
 import { Portal } from '@/components/ui/Portal'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import type { Appointment, Patient, Professional } from '@/types'
@@ -54,7 +54,7 @@ function profColor(profId: string | null, profIndex: Record<string, number>): st
 }
 
 export default function AgendaPage() {
-  const { clinic } = useAuthStore()
+  const { clinic, user, setSession } = useAuthStore()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [professionals, setProfessionals] = useState<Professional[]>([])
@@ -108,9 +108,9 @@ export default function AgendaPage() {
   }, [clinic?.id])
 
   useEffect(() => {
-    // Initialize connected state from intent flag (survives token expiry)
-    setGcalConnected(isGCalConnected())
-  }, [])
+    // Fonte primária: banco (via store). Fallback: localStorage para sessões antigas.
+    setGcalConnected(isGCalConnected(clinic?.gcalConnected))
+  }, [clinic?.gcalConnected])
 
   const loadGCalEvents = useCallback(async (token: string, profs: Professional[]) => {
     try {
@@ -122,15 +122,15 @@ export default function AgendaPage() {
       setGcalEvents(events)
     } catch {
       setGcalConnected(false)
+      await disconnectGoogleCalendar(clinic?.id)
     }
-  }, [])
+  }, [clinic?.id])
 
   useEffect(() => {
     if (!gcalConnected) return
     async function tryLoad() {
-      // Use valid token or try to silently refresh if expired
       let token = getGCalToken()
-      if (!token) token = await silentRefreshGCal()
+      if (!token) token = await silentRefreshGCal(gcalConnected)
       if (token) loadGCalEvents(token, professionals)
       else setGcalConnected(false)
     }
@@ -142,6 +142,7 @@ export default function AgendaPage() {
     try {
       const token = await connectGoogleCalendar()
       setGcalConnected(true)
+      setSession({ ...clinic!, gcalConnected: true }, user!)
       await loadGCalEvents(token, professionals)
     } catch (err: unknown) {
       setGcalError(err instanceof Error ? err.message : 'Erro ao conectar')
@@ -200,10 +201,15 @@ export default function AgendaPage() {
   async function handleSave() {
     if (!clinic || !form.patient_id || !form.scheduled_at) return
     setSaving(true)
-    await supabase.from('appointments').insert([{ ...form, clinic_id: clinic.id }])
+
+    const { data: inserted } = await supabase
+      .from('appointments')
+      .insert([{ ...form, clinic_id: clinic.id }])
+      .select('id')
+      .single()
 
     // Sync to Google Calendar if connected and checkbox checked
-    if (syncToGCal && gcalConnected) {
+    if (syncToGCal && gcalConnected && inserted) {
       const token = getGCalToken()
       if (token) {
         const patient = patients.find(p => p.id === form.patient_id)
@@ -215,6 +221,10 @@ export default function AgendaPage() {
             start: form.scheduled_at,
             end,
           })
+          // Salva o ID do evento GCal para sincronização futura
+          if (event.id) {
+            await supabase.from('appointments').update({ gcal_event_id: event.id }).eq('id', inserted.id)
+          }
           await loadGCalEvents(token, professionals)
           if (event.htmlLink) window.open(event.htmlLink, '_blank')
         } catch { /* ignore gcal errors */ }
@@ -229,6 +239,28 @@ export default function AgendaPage() {
 
   async function updateStatus(id: string, status: string) {
     await supabase.from('appointments').update({ status }).eq('id', id).eq('clinic_id', clinic!.id)
+
+    // Se o agendamento tem gcal_event_id e GCal está conectado, atualiza o título do evento
+    const appt = appointments.find(a => a.id === id)
+    if (appt?.gcal_event_id && gcalConnected) {
+      const token = getGCalToken()
+      if (token) {
+        const statusLabel: Record<string, string> = {
+          agendado: '🕐', confirmado: '✅', concluido: '🎉', cancelado: '❌', faltou: '😔',
+        }
+        const emoji = statusLabel[status] ?? ''
+        const end = new Date(new Date(appt.scheduled_at).getTime() + (appt.duration_minutes ?? 60) * 60000).toISOString()
+        try {
+          await updateGCalEvent(token, appt.gcal_event_id, {
+            summary: `${emoji} ${appt.procedure_name || 'Consulta'} — ${appt.patients?.name ?? 'Paciente'}`,
+            description: appt.notes || undefined,
+            start: appt.scheduled_at,
+            end,
+          })
+        } catch { /* ignore gcal errors */ }
+      }
+    }
+
     loadData()
     setSelected(null)
   }
@@ -263,16 +295,24 @@ export default function AgendaPage() {
               Lista
             </button>
           </div>
-          {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
+          {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
             gcalConnected ? (
-              <button className={styles.btnGcalSmall} title={`${gcalEvents.length} evento(s) sincronizado(s)`}>
-                <span className={styles.gcalDot} /> GCal
-              </button>
+              <div className={styles.gcalStatus}>
+                <span className={styles.gcalDot} />
+                <span>Google Calendar vinculado</span>
+                <span className={styles.gcalEventsCount}>{gcalEvents.length} evento(s)</span>
+              </div>
             ) : (
-              <button className={styles.btnGcalSmall} onClick={handleConnectGCal}>
+              <button className={styles.btnGcalConnect} onClick={handleConnectGCal}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 Vincular Google Calendar
               </button>
             )
+          ) : (
+            <div className={styles.gcalUnlinked}>
+              <span className={styles.gcalDotOff} />
+              <span>Google Calendar não vinculado</span>
+            </div>
           )}
           <button className={styles.btnPrimary} onClick={() => setShowModal(true)}>
             + Novo Agendamento
@@ -332,39 +372,43 @@ export default function AgendaPage() {
           <p className={styles.calHint}>Clique em um evento para ver detalhes. Selecione uma data para criar agendamento.</p>
         </div>
       ) : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Paciente</th>
-                <th>Telefone</th>
-                <th>Procedimento</th>
-                <th>Profissional</th>
-                <th>Data</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={7} className={styles.empty}>Nenhum agendamento encontrado.</td></tr>
-              ) : filtered.map((a) => (
-                <tr key={a.id} className={styles.row} onClick={() => setSelected(a)}>
-                  <td className={styles.bold}>{a.patients?.name ?? '-'}</td>
-                  <td>{formatPhone(a.patients?.phone)}</td>
-                  <td>{a.procedure_name ?? '-'}</td>
-                  <td>{a.clinic_users?.display_name ?? '-'}</td>
-                  <td>{formatDate(a.scheduled_at)}</td>
-                  <td><span className={`status-badge status-${a.status ?? 'pendente'}`}>{a.status ?? 'pendente'}</span></td>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <button className={styles.btnGcal} onClick={() => openGCal(a)} title="Adicionar ao Google Calendar">
-                      📅 GCal
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className={styles.listWrap}>
+          {filtered.length === 0 ? (
+            <div className={styles.emptyState}>
+              <span className={styles.emptyIcon}>📅</span>
+              <p>Nenhum agendamento encontrado.</p>
+            </div>
+          ) : filtered.map((a) => {
+            const color = profColor(a.professional_id, profColorIndex)
+            return (
+              <div key={a.id} className={styles.listCard} onClick={() => setSelected(a)}>
+                <div className={styles.listCardAccent} style={{ background: color }} />
+                <div className={styles.listCardAvatar} style={{ background: color }}>
+                  {(a.patients?.name ?? 'P').split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
+                </div>
+                <div className={styles.listCardMain}>
+                  <span className={styles.listCardName}>{a.patients?.name ?? '-'}</span>
+                  <span className={styles.listCardProc}>{a.procedure_name ?? 'Consulta'}</span>
+                </div>
+                <div className={styles.listCardMeta}>
+                  <span className={styles.listCardDate}>{STATUS_ICONS[a.status ?? ''] ?? '🕐'} {formatDate(a.scheduled_at)}</span>
+                  {a.clinic_users?.display_name && (
+                    <span className={styles.listCardProf}>{a.clinic_users.display_name}</span>
+                  )}
+                </div>
+                <span className={`${styles.listCardBadge} ${styles[`badge_${a.status ?? 'agendado'}`]}`}>
+                  {STATUS_LABELS[a.status ?? ''] ?? a.status}
+                </span>
+                <button
+                  className={styles.listCardGcal}
+                  onClick={(e) => { e.stopPropagation(); openGCal(a) }}
+                  title="Google Calendar"
+                >
+                  📅
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -373,31 +417,52 @@ export default function AgendaPage() {
         <Portal>
         <div className={styles.overlay} onClick={() => setSelected(null)}>
           <div className={styles.detailPanel} onClick={(e) => e.stopPropagation()}>
+            {/* Header com avatar */}
             <div className={styles.detailHeader}>
-              <h3>{selected.patients?.name ?? 'Agendamento'}</h3>
+              <div className={styles.detailPatientInfo}>
+                <div
+                  className={styles.detailAvatar}
+                  style={{ background: profColor(selected.professional_id, profColorIndex) }}
+                >
+                  {(selected.patients?.name ?? 'P').split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
+                </div>
+                <div>
+                  <h3 className={styles.detailName}>{selected.patients?.name ?? 'Agendamento'}</h3>
+                  <span className={`${styles.detailStatusBadge} ${styles[`badge_${selected.status ?? 'agendado'}`]}`}>
+                    {STATUS_LABELS[selected.status ?? ''] ?? selected.status}
+                  </span>
+                </div>
+              </div>
               <button className={styles.btnClose} onClick={() => setSelected(null)}>✕</button>
             </div>
-            <div className={styles.detailBody}>
-              <Row label="Procedimento" value={selected.procedure_name ?? '-'} />
-              <Row label="Data" value={formatDate(selected.scheduled_at)} />
-              <Row label="Duração" value={`${selected.duration_minutes ?? 60} min`} />
-              <Row label="Telefone" value={formatPhone(selected.patients?.phone)} />
-              <Row label="Status atual" value={selected.status ?? '-'} />
-              {selected.notes && <Row label="Observações" value={selected.notes} />}
+
+            {/* Info cards */}
+            <div className={styles.detailInfoGrid}>
+              <InfoCard icon="🩺" label="Procedimento" value={selected.procedure_name ?? '-'} />
+              <InfoCard icon="📅" label="Data e hora" value={formatDate(selected.scheduled_at)} />
+              <InfoCard icon="⏱️" label="Duração" value={`${selected.duration_minutes ?? 60} min`} />
+              <InfoCard icon="📞" label="Telefone" value={formatPhone(selected.patients?.phone)} />
+              {selected.notes && <InfoCard icon="📝" label="Observações" value={selected.notes} fullWidth />}
             </div>
+
+            {/* Alterar status */}
             <div className={styles.detailActions}>
-              <p className={styles.detailActionsLabel}>Alterar status:</p>
+              <p className={styles.detailActionsLabel}>Alterar status</p>
               <div className={styles.statusBtns}>
-                {['agendado','confirmado','concluido','cancelado','faltou'].map((s) => (
+                {(['agendado','confirmado','concluido','cancelado','faltou'] as const).map((s) => (
                   <button
                     key={s}
-                    className={`${styles.statusBtn} ${selected.status === s ? styles.statusBtnActive : ''}`}
+                    className={`${styles.statusBtn} ${styles[`statusBtn_${s}`]} ${selected.status === s ? styles.statusBtnActive : ''}`}
                     onClick={() => updateStatus(selected.id, s)}
                   >
-                    {s}
+                    {STATUS_ICONS[s]} {STATUS_LABELS[s]}
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Ações */}
+            <div className={styles.detailFooter}>
               {selected.patients?.phone && (
                 <a
                   className={styles.btnWhatsApp}
@@ -407,11 +472,11 @@ export default function AgendaPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  📲 Enviar lembrete no WhatsApp
+                  📲 Lembrete WhatsApp
                 </a>
               )}
               <button className={styles.btnGcalLarge} onClick={() => openGCal(selected)}>
-                📅 Adicionar ao Google Calendar
+                📅 Google Calendar
               </button>
             </div>
           </div>
@@ -487,11 +552,30 @@ export default function AgendaPage() {
   )
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+const STATUS_LABELS: Record<string, string> = {
+  agendado: 'Agendado',
+  confirmado: 'Confirmado',
+  concluido: 'Concluído',
+  cancelado: 'Cancelado',
+  faltou: 'Faltou',
+}
+
+const STATUS_ICONS: Record<string, string> = {
+  agendado: '🕐',
+  confirmado: '✅',
+  concluido: '🎉',
+  cancelado: '❌',
+  faltou: '😔',
+}
+
+function InfoCard({ icon, label, value, fullWidth = false }: { icon: string; label: string; value: string; fullWidth?: boolean }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '0.75rem' }}>
-      <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>{label}</span>
-      <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{value}</span>
+    <div className={`${styles.infoCard} ${fullWidth ? styles.infoCardFull : ''}`}>
+      <span className={styles.infoCardIcon}>{icon}</span>
+      <div>
+        <span className={styles.infoCardLabel}>{label}</span>
+        <span className={styles.infoCardValue}>{value}</span>
+      </div>
     </div>
   )
 }

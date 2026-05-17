@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { connectGoogleCalendar, disconnectGoogleCalendar, isGCalConnected } from '@/lib/googleCalendar'
+import type { AuthClinic } from '@/types'
 import styles from './configuracoes.module.css'
 
 export default function ConfiguracoesPage() {
@@ -13,13 +14,15 @@ export default function ConfiguracoesPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  const [gcalConnected, setGcalConnected] = useState(false)
+  const [gcalConnected, setGcalConnected] = useState(isGCalConnected(clinic?.gcalConnected))
   const [gcalLoading, setGcalLoading] = useState(false)
   const [gcalError, setGcalError] = useState('')
 
-  useEffect(() => {
-    setGcalConnected(isGCalConnected())
-  }, [])
+  const [pwCurrent, setPwCurrent] = useState('')
+  const [pwNew, setPwNew] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwMsg, setPwMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -38,6 +41,7 @@ export default function ConfiguracoesPage() {
     try {
       await connectGoogleCalendar()
       setGcalConnected(true)
+      setSession({ ...clinic!, gcalConnected: true } as AuthClinic, user!)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setGcalError(msg)
@@ -46,9 +50,41 @@ export default function ConfiguracoesPage() {
     }
   }
 
-  function handleDisconnectGCal() {
-    disconnectGoogleCalendar()
+  async function handleDisconnectGCal() {
+    await disconnectGoogleCalendar(clinic?.id)
     setGcalConnected(false)
+    setSession({ ...clinic!, gcalConnected: false } as AuthClinic, user!)
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setPwMsg(null)
+    if (pwNew.length < 6) return setPwMsg({ type: 'error', text: 'A nova senha deve ter pelo menos 6 caracteres.' })
+    if (pwNew !== pwConfirm) return setPwMsg({ type: 'error', text: 'As senhas não coincidem.' })
+    setPwSaving(true)
+    try {
+      // Re-autenticar com senha atual para validar
+      const { data: userData } = await supabase.auth.getUser()
+      const email = userData.user?.email
+      if (email && pwCurrent) {
+        const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: pwCurrent })
+        if (signInErr) {
+          setPwMsg({ type: 'error', text: 'Senha atual incorreta.' })
+          setPwSaving(false)
+          return
+        }
+      }
+      const { error } = await supabase.auth.updateUser({ password: pwNew })
+      if (error) throw error
+      setPwMsg({ type: 'ok', text: 'Senha alterada com sucesso!' })
+      setPwCurrent('')
+      setPwNew('')
+      setPwConfirm('')
+    } catch (err: unknown) {
+      setPwMsg({ type: 'error', text: err instanceof Error ? err.message : 'Erro ao alterar senha.' })
+    } finally {
+      setPwSaving(false)
+    }
   }
 
   const hasClientId = !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
@@ -111,6 +147,32 @@ export default function ConfiguracoesPage() {
             <p className={styles.gcalHint}>Você será redirecionado para autenticar sua conta Google.</p>
           </div>
         )}
+      </div>
+
+      <div className={styles.card}>
+        <h2 className={styles.cardTitle}>Segurança</h2>
+        <form onSubmit={handleChangePassword} className={styles.form}>
+          <div className={styles.field}>
+            <label>Senha atual</label>
+            <input type="password" value={pwCurrent} onChange={(e) => setPwCurrent(e.target.value)} autoComplete="current-password" />
+          </div>
+          <div className={styles.field}>
+            <label>Nova senha</label>
+            <input type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)} autoComplete="new-password" />
+          </div>
+          <div className={styles.field}>
+            <label>Confirmar nova senha</label>
+            <input type="password" value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} autoComplete="new-password" />
+          </div>
+          {pwMsg && (
+            <p className={pwMsg.type === 'ok' ? styles.savedMsg : styles.pwError}>{pwMsg.text}</p>
+          )}
+          <div className={styles.saveRow}>
+            <button type="submit" className={styles.btnSave} disabled={pwSaving || !pwCurrent || !pwNew || !pwConfirm}>
+              {pwSaving ? 'Alterando...' : 'Alterar Senha'}
+            </button>
+          </div>
+        </form>
       </div>
 
       <div className={styles.card}>
