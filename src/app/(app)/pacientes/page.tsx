@@ -14,6 +14,8 @@ import styles from './pacientes.module.css'
 
 type ActiveTab = 'atendimentos' | 'pacientes'
 
+const BLANK_APPT = { patient_id: '', professional_id: '', procedure_name: '', scheduled_at: '', duration_minutes: 60, status: 'agendado', notes: '' }
+
 function PacientesContent() {
   const { clinic } = useAuthStore()
   const searchParams = useSearchParams()
@@ -29,7 +31,6 @@ function PacientesContent() {
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
 
-  const BLANK_APPT = { patient_id: '', professional_id: '', procedure_name: '', scheduled_at: '', duration_minutes: 60, status: 'agendado', notes: '' }
   const [showNewAppt, setShowNewAppt] = useState(false)
   const [apptForm, setApptForm] = useState(BLANK_APPT)
   const [apptSaving, setApptSaving] = useState(false)
@@ -103,7 +104,9 @@ function PacientesContent() {
   }
 
   async function handleSaveAppt() {
-    if (!clinic || !apptForm.patient_id || !apptForm.scheduled_at) return
+    if (!clinic) { setApptError('Clínica não carregada. Recarregue a página.'); return }
+    if (!apptForm.patient_id) { setApptError('Selecione um paciente.'); return }
+    if (!apptForm.scheduled_at) { setApptError('Informe a data e hora.'); return }
     setApptSaving(true)
     setApptError('')
     const { data: inserted, error } = await supabase.from('appointments').insert([{
@@ -111,12 +114,12 @@ function PacientesContent() {
       patient_id: apptForm.patient_id,
       professional_id: apptForm.professional_id || null,
       procedure_name: apptForm.procedure_name || null,
-      scheduled_at: apptForm.scheduled_at,
+      scheduled_at: new Date(apptForm.scheduled_at).toISOString(),
       duration_minutes: apptForm.duration_minutes,
       status: apptForm.status,
       notes: apptForm.notes || null,
     }]).select('id').single()
-    if (error) { setApptSaving(false); setApptError('Erro ao salvar agendamento. Tente novamente.'); return }
+    if (error) { setApptSaving(false); setApptError(`Erro: ${error.message}`); return }
 
     if (syncToGCal && gcalConnected && inserted) {
       const token = getGCalToken()
