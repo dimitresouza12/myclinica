@@ -35,6 +35,7 @@ export default function FinanceiroPage() {
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<'todos' | 'receita' | 'despesa'>('todos')
+  const [filterPeriod, setFilterPeriod] = useState<'diario' | 'semanal' | 'mensal' | 'geral'>('mensal')
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7))
 
   useEffect(() => {
@@ -59,14 +60,32 @@ export default function FinanceiroPage() {
     setLoading(false)
   }
 
-  const stats = useMemo(() => {
+  const periodRecords = useMemo(() => {
     const now = new Date()
-    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    const monthly = records.filter(r => r.created_at?.startsWith(monthStr))
-    const receitas = monthly.filter(r => r.type === 'receita').reduce((s, r) => s + (r.total_amount ?? 0), 0)
-    const despesas = monthly.filter(r => r.type === 'despesa').reduce((s, r) => s + (r.total_amount ?? 0), 0)
-    return { receitas, despesas, saldo: receitas - despesas, count: monthly.length }
-  }, [records])
+    if (filterPeriod === 'geral') return records
+    if (filterPeriod === 'mensal') {
+      const monthStr = filterMonth
+      return records.filter(r => r.created_at?.startsWith(monthStr))
+    }
+    if (filterPeriod === 'semanal') {
+      const startOfWeek = new Date(now)
+      startOfWeek.setDate(now.getDate() - now.getDay())
+      startOfWeek.setHours(0, 0, 0, 0)
+      return records.filter(r => {
+        const d = new Date(r.created_at)
+        return d >= startOfWeek
+      })
+    }
+    // diario
+    const todayStr = now.toISOString().slice(0, 10)
+    return records.filter(r => r.created_at?.startsWith(todayStr))
+  }, [records, filterPeriod, filterMonth])
+
+  const stats = useMemo(() => {
+    const receitas = periodRecords.filter(r => r.type === 'receita').reduce((s, r) => s + (r.total_amount ?? 0), 0)
+    const despesas = periodRecords.filter(r => r.type === 'despesa').reduce((s, r) => s + (r.total_amount ?? 0), 0)
+    return { receitas, despesas, saldo: receitas - despesas, count: periodRecords.length }
+  }, [periodRecords])
 
   // Build monthly data for last 6 months
   const monthlyData = useMemo(() => {
@@ -86,23 +105,17 @@ export default function FinanceiroPage() {
     return months
   }, [records])
 
-  // Category breakdown for current month
+  // Category breakdown for selected period
   const categoryData = useMemo(() => {
-    const monthStr = filterMonth
-    const monthly = records.filter(r => r.created_at?.startsWith(monthStr) && r.type === 'receita')
     const map: Record<string, number> = {}
-    monthly.forEach(r => {
+    periodRecords.filter(r => r.type === 'receita').forEach(r => {
       const k = r.category ?? 'Outros'
       map[k] = (map[k] ?? 0) + (r.total_amount ?? 0)
     })
     return Object.entries(map).map(([name, value]) => ({ name, value }))
-  }, [records, filterMonth])
+  }, [periodRecords])
 
-  const filtered = records.filter(r => {
-    const matchType = filterType === 'todos' || r.type === filterType
-    const matchMonth = !filterMonth || r.created_at?.startsWith(filterMonth)
-    return matchType && matchMonth
-  })
+  const filtered = periodRecords.filter(r => filterType === 'todos' || r.type === filterType)
 
   function openModal(type: 'receita' | 'despesa') {
     setModalType(type)
@@ -163,14 +176,61 @@ export default function FinanceiroPage() {
 
   const categorias = form.type === 'receita' ? CATEGORIAS_RECEITA : CATEGORIAS_DESPESA
 
+  const periodLabel =
+    filterPeriod === 'diario' ? 'hoje' :
+    filterPeriod === 'semanal' ? 'esta semana' :
+    filterPeriod === 'mensal' ? 'do mês' :
+    'geral'
+
+  async function exportXLSX() {
+    const { utils, writeFile } = await import('xlsx')
+    const today = new Date()
+    const dd = String(today.getDate()).padStart(2, '0')
+    const mm = String(today.getMonth() + 1).padStart(2, '0')
+    const yyyy = today.getFullYear()
+    const periodName =
+      filterPeriod === 'diario' ? `${dd}-${mm}-${yyyy}` :
+      filterPeriod === 'semanal' ? `semana-${dd}-${mm}-${yyyy}` :
+      filterPeriod === 'mensal' ? filterMonth :
+      `geral-${yyyy}`
+
+    const data = [
+      ['Tipo', 'Data', 'Paciente', 'Categoria', 'Descrição', 'Método de Pagamento', 'Valor (R$)'],
+      ...filtered.map(r => [
+        r.type === 'receita' ? 'Receita' : 'Despesa',
+        new Date(r.created_at).toLocaleDateString('pt-BR'),
+        r.patients?.name ?? '',
+        r.category ?? '',
+        r.notes ?? '',
+        r.payment_method ?? '',
+        r.total_amount ?? 0,
+      ]),
+    ]
+
+    const ws = utils.aoa_to_sheet(data)
+    ws['!cols'] = [10, 12, 24, 16, 30, 20, 14].map(wch => ({ wch }))
+
+    const wb = utils.book_new()
+    utils.book_append_sheet(wb, ws, 'Financeiro')
+    writeFile(wb, `financeiro-${periodName}.xlsx`)
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Financeiro</h1>
-          <p className={styles.sub}>{filtered.length} lançamentos em {new Date(filterMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</p>
+          <p className={styles.sub}>{filtered.length} lançamentos — {
+            filterPeriod === 'diario' ? 'hoje' :
+            filterPeriod === 'semanal' ? 'esta semana' :
+            filterPeriod === 'mensal' ? new Date(filterMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) :
+            'todos os períodos'
+          }</p>
         </div>
         <div className={styles.headerActions}>
+          <button className={styles.btnExport} onClick={exportXLSX} disabled={filtered.length === 0} title="Exportar planilha Excel">
+            ⬇ Exportar
+          </button>
           <button className={styles.btnDespesa} onClick={() => openModal('despesa')}>− Despesa</button>
           <button className={styles.btnReceita} onClick={() => openModal('receita')}>+ Receita</button>
         </div>
@@ -182,14 +242,14 @@ export default function FinanceiroPage() {
           <div className={styles.cardIcon} style={{ background: '#ECFDF5' }}>📈</div>
           <div className={styles.cardBody}>
             <span className={styles.cardValue}>{formatCurrency(stats.receitas)}</span>
-            <span className={styles.cardLabel}>Receitas do mês</span>
+            <span className={styles.cardLabel}>Receitas {periodLabel}</span>
           </div>
         </div>
         <div className={styles.card} style={{ '--c': '#EF4444' } as React.CSSProperties}>
           <div className={styles.cardIcon} style={{ background: '#FEF2F2' }}>📉</div>
           <div className={styles.cardBody}>
             <span className={styles.cardValue}>{formatCurrency(stats.despesas)}</span>
-            <span className={styles.cardLabel}>Despesas do mês</span>
+            <span className={styles.cardLabel}>Despesas {periodLabel}</span>
           </div>
         </div>
         <div className={styles.card} style={{ '--c': stats.saldo >= 0 ? '#0D9488' : '#F59E0B' } as React.CSSProperties}>
@@ -198,7 +258,7 @@ export default function FinanceiroPage() {
             <span className={styles.cardValue} style={{ color: stats.saldo >= 0 ? '#059669' : '#DC2626' }}>
               {formatCurrency(stats.saldo)}
             </span>
-            <span className={styles.cardLabel}>Saldo do mês</span>
+            <span className={styles.cardLabel}>Saldo {periodLabel}</span>
           </div>
         </div>
         <div className={styles.card} style={{ '--c': '#0EA5E9' } as React.CSSProperties}>
@@ -216,19 +276,30 @@ export default function FinanceiroPage() {
       {/* Filters + Table */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <div className={styles.filterTabs}>
-            {(['todos', 'receita', 'despesa'] as const).map(t => (
-              <button key={t} className={`${styles.filterTab} ${filterType === t ? styles.filterTabActive : ''}`} onClick={() => setFilterType(t)}>
-                {t === 'todos' ? 'Todos' : t === 'receita' ? '📈 Receitas' : '📉 Despesas'}
-              </button>
-            ))}
+          <div className={styles.filterRow}>
+            <div className={styles.filterTabs}>
+              {(['todos', 'receita', 'despesa'] as const).map(t => (
+                <button key={t} className={`${styles.filterTab} ${filterType === t ? styles.filterTabActive : ''}`} onClick={() => setFilterType(t)}>
+                  {t === 'todos' ? 'Todos' : t === 'receita' ? '📈 Receitas' : '📉 Despesas'}
+                </button>
+              ))}
+            </div>
+            <div className={styles.periodTabs}>
+              {(['diario', 'semanal', 'mensal', 'geral'] as const).map(p => (
+                <button key={p} className={`${styles.periodTab} ${filterPeriod === p ? styles.periodTabActive : ''}`} onClick={() => setFilterPeriod(p)}>
+                  {p === 'diario' ? 'Diário' : p === 'semanal' ? 'Semanal' : p === 'mensal' ? 'Mensal' : 'Geral'}
+                </button>
+              ))}
+            </div>
           </div>
-          <input
-            type="month"
-            value={filterMonth}
-            onChange={e => setFilterMonth(e.target.value)}
-            className={styles.monthInput}
-          />
+          {filterPeriod === 'mensal' && (
+            <input
+              type="month"
+              value={filterMonth}
+              onChange={e => setFilterMonth(e.target.value)}
+              className={styles.monthInput}
+            />
+          )}
         </div>
         {loading ? <p className={styles.loading}>Carregando...</p> : (
           <div className={styles.tableWrap}>

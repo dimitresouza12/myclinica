@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
+import { supabase } from '@/lib/supabase'
+import { silentRefreshGCal } from '@/lib/googleCalendar'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { TopBar } from '@/components/layout/TopBar'
 import { SystemAlertBanner } from '@/components/layout/SystemAlertBanner'
@@ -10,18 +12,75 @@ import styles from './app.module.css'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { clinic, user, _hydrated } = useAuthStore()
+  const { clinic, user, _hydrated, setSession, clearSession } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  // Verifica/renova sessão Supabase ao montar — evita redirect desnecessário para /login
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        // Tenta refresh antes de deslogar
+        supabase.auth.refreshSession().then(({ data }) => {
+          if (!data.session) {
+            clearSession()
+            router.replace('/login')
+          }
+          setAuthChecked(true)
+        })
+      } else {
+        setAuthChecked(true)
+      }
+    })
+
+    // Mantém sessão atualizada enquanto o app está aberto
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        clearSession()
+        router.replace('/login')
+      }
+    })
+    return () => subscription.unsubscribe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
-    if (!_hydrated) return
+    if (!_hydrated || !authChecked) return
     if (!clinic || !user) { router.replace('/login'); return }
     if (clinic.trialEndsAt && new Date() > new Date(clinic.trialEndsAt) && !user.isSuperAdmin) {
       router.replace('/trial-expirado')
     }
-  }, [_hydrated, clinic, user, router])
+  }, [_hydrated, authChecked, clinic, user, router])
 
-  if (!_hydrated) return null
+  // Ao montar o app, sincroniza gcal_connected do banco e tenta refresh silencioso do token
+  useEffect(() => {
+    if (!_hydrated || !clinic || !user) return
+
+    // 1. Sincroniza flag gcal_connected do banco
+    supabase
+      .from('clinics')
+      .select('gcal_connected')
+      .eq('id', clinic.id)
+      .single()
+      .then(({ data }) => {
+        const connected = data?.gcal_connected ?? false
+        if (connected !== clinic.gcalConnected) {
+          setSession({ ...clinic, gcalConnected: connected }, user)
+        }
+        // 2. Se conectado, tenta renovar o token silenciosamente agora
+        if (connected) silentRefreshGCal(true)
+      })
+
+    // 3. Renova o token a cada 45 min para nunca deixar expirar durante o uso
+    const interval = setInterval(() => {
+      if (clinic.gcalConnected) silentRefreshGCal(true)
+    }, 45 * 60 * 1000)
+
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_hydrated])
+
+  if (!_hydrated || !authChecked) return null
   if (!clinic || !user) return null
 
   return (

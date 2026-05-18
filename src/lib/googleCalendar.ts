@@ -97,12 +97,14 @@ export async function silentRefreshGCal(gcalConnected: boolean): Promise<string 
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: SCOPE,
+        // prompt vazio = silent refresh sem popup (usa sessão Google já ativa no browser)
+        prompt: '',
         callback: (resp) => {
           if (resp.error) { resolve(null); return }
           saveTokenLocally(resp.access_token, resp.expires_in)
           resolve(resp.access_token)
         },
-      })
+      } as Parameters<typeof window.google.accounts.oauth2.initTokenClient>[0])
       client.requestAccessToken()
     } catch {
       resolve(null)

@@ -38,3 +38,16 @@
 .btnGConnect:hover:not(:disabled) { opacity:.9; transform:translateY(-1px); }
 .btnGConnect:disabled { opacity:.6; cursor:not-allowed; }
 .gcalHint { font-size:.75rem; color:var(--text-secondary); }
+
+/* Modelos de documentos */
+.docTemplateList { display: flex; flex-direction: column; gap: 0.625rem; margin-top: 1rem; }
+.docTemplateRow { display: flex; align-items: center; justify-content: space-between; padding: 0.625rem 0.875rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); gap: 0.75rem; flex-wrap: wrap; }
+.docTemplateLabel { font-size: 0.875rem; font-weight: 600; color: var(--text-primary); flex: 1; min-width: 160px; }
+.docTemplateActions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.docTemplateStatus { font-size: 0.78rem; color: #059669; font-weight: 600; }
+.docTemplateStatusEmpty { font-size: 0.78rem; color: var(--text-secondary); }
+.docTemplateSaved { font-size: 0.78rem; color: #059669; font-weight: 600; }
+.docTemplateError { font-size: 0.78rem; color: #DC2626; }
+.btnDocUpload { padding: 0.35rem 0.875rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all .15s; white-space: nowrap; }
+.btnDocUpload:hover:not(:disabled) { border-color: var(--brand-primary); color: var(--brand-primary); }
+.btnDocUpload:disabled { opacity: 0.5; cursor: wait; }

@@ -1,4 +1,4 @@
-export type ClinicType = 'odonto' | 'medico' | 'estetica' | 'vet'
+export type ClinicType = 'odonto' | 'medico' | 'estetica' | 'vet' | 'fisio' | 'psico' | 'nutri'
 export type UserRole = 'recepcao' | 'dentista' | 'medico' | 'admin' | 'superadmin'
 export type AppointmentStatus = 'agendado' | 'confirmado' | 'concluido' | 'cancelado' | 'faltou'
 export type PaymentMethod = 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'convenio' | 'outro'
@@ -220,6 +220,17 @@ export interface StockMovement {
   user_name: string | null
   created_at: string
   stock_items?: Pick<StockItem, 'id' | 'name' | 'unit'>
+}
+
+export type DocumentTemplateType = 'receita_comum' | 'receita_especial' | 'declaracao_comparecimento' | 'atestado'
+
+export interface ClinicDocumentTemplate {
+  id: string
+  clinic_id: string
+  type: DocumentTemplateType
+  pdf_url: string
+  created_at: string
+  updated_at: string
 }
 
 // Auth store types

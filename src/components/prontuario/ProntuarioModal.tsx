@@ -7,11 +7,12 @@ import { TabFicha } from './TabFicha'
 import { TabOdontograma } from './TabOdontograma'
 import { TabTimeline } from './TabTimeline'
 import { TabChatIA } from './TabChatIA'
+import { TabDocumentos } from './TabDocumentos'
 import { Portal } from '@/components/ui/Portal'
 import { printProntuario } from '@/lib/print'
 import styles from './ProntuarioModal.module.css'
 
-type Tab = 'ficha' | 'odontograma' | 'timeline' | 'chat'
+type Tab = 'ficha' | 'odontograma' | 'timeline' | 'documentos' | 'chat'
 
 interface Props {
   patient: Patient
@@ -67,6 +68,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
     { key: 'ficha', label: '📋 Ficha Clínica' },
     ...(clinic.type === 'odonto' ? [{ key: 'odontograma' as Tab, label: '🦷 Odontograma' }] : []),
     { key: 'timeline', label: '📝 Evolução' },
+    { key: 'documentos', label: '📄 Documentos' },
     { key: 'chat', label: '💬 Chat IA' },
   ]
 
@@ -147,6 +149,9 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
                   clinicId={clinicId}
                   onSaved={loadRecord}
                 />
+              )}
+              {tab === 'documentos' && (
+                <TabDocumentos patient={patient} />
               )}
               {tab === 'chat' && (
                 <TabChatIA phone={patient.phone} />

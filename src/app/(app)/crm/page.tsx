@@ -37,9 +37,18 @@ const COLUMNS: { key: string; label: string; color: string }[] = [
   { key: 'Concluído', label: 'Concluído',   color: '#10B981' },
 ]
 
-function colKey(status: string | null) {
+function normalizeStatus(status: string | null): string {
   if (!status) return 'novo'
+  const s = status.toLowerCase()
+  if (s === 'agendado') return 'Agendado'
+  if (s === 'concluído' || s === 'concluido') return 'Concluído'
   return status
+}
+
+function colKey(status: string | null) {
+  const n = normalizeStatus(status)
+  if (n === 'Agendado' || n === 'Concluído') return n
+  return 'novo'
 }
 
 function initials(name: string | null, phone: string) {
@@ -114,7 +123,12 @@ export default function CRMPage() {
         .order('created_at', { ascending: false })
       if (error) console.error('[CRM] chats query error:', error)
       const rows = (data ?? []) as Lead[]
-      const filtered = rows.filter(r => r.phone && r.phone !== '=' && r.phone.length > 5)
+      const filtered = rows.filter(r => {
+        if (!r.phone || r.phone === '=' || r.phone.length <= 5) return false
+        if (r.phone.includes('@g.us')) return false   // grupos WhatsApp
+        if (r.phone.includes('@lid')) return false    // dispositivos linked
+        return true
+      })
 
       // Extrair nome do memoria_contexto para leads que ainda não têm nome
       const semNome = filtered.filter(r => !r.nome && r.memoria_contexto)
@@ -222,8 +236,8 @@ export default function CRMPage() {
 
   const stats = {
     total: leads.length,
-    agendados: leads.filter(l => l.status === 'Agendado').length,
-    concluidos: leads.filter(l => l.status === 'Concluído').length,
+    agendados: leads.filter(l => normalizeStatus(l.status) === 'Agendado').length,
+    concluidos: leads.filter(l => normalizeStatus(l.status) === 'Concluído').length,
     semNome: leads.filter(l => !l.nome).length,
   }
 

@@ -16,17 +16,29 @@ interface Props {
   onSaved: () => void
 }
 
-const CONTRACT_TEMPLATE = (clinic: string, patient: string) => `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ODONTOLÓGICOS
+const CONTRACT_TEMPLATE = (clinic: string, patient: string, clinicType?: string) => {
+  const serviceLabel: Record<string, string> = {
+    odonto: 'odontológicos',
+    medico: 'médicos',
+    estetica: 'estéticos',
+    vet: 'veterinários',
+    fisio: 'de fisioterapia',
+    psico: 'de psicologia',
+    nutri: 'de nutrição',
+  }
+  const label = serviceLabel[clinicType ?? ''] ?? 'de saúde'
+  return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS
 
 CONTRATADA: ${clinic}
 CONTRATANTE: ${patient}
 
-CLÁUSULA 1ª: O presente contrato tem por objeto a prestação de serviços odontológicos conforme plano de tratamento anexo.
+CLÁUSULA 1ª: O presente contrato tem por objeto a prestação de serviços ${label} conforme plano de tratamento anexo.
 CLÁUSULA 2ª: O CONTRATANTE compromete-se a comparecer nas datas e horários agendados.
 CLÁUSULA 3ª: Em caso de desistência, o CONTRATANTE deverá comunicar com antecedência mínima de 24 horas.
 
 Assinatura: __________________________________
 Data: ${new Date().toLocaleDateString('pt-BR')}`
+}
 
 export function TabFicha({ patient, record, entries, clinic, clinicId, clinicName, onSaved }: Props) {
   const [anamnesis, setAnamnesis] = useState<Record<string, string>>({})
@@ -41,9 +53,9 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       setAnamnesis(record.anamnesis ?? {})
       setClinicalExam(record.clinical_exam ?? {})
       setTreatmentPlan(record.treatment_plan ?? '')
-      setContractText(record.contract_text ?? CONTRACT_TEMPLATE(clinicName, patient.name))
+      setContractText(record.contract_text ?? CONTRACT_TEMPLATE(clinicName, patient.name, clinic.type))
     } else {
-      setContractText(CONTRACT_TEMPLATE(clinicName, patient.name))
+      setContractText(CONTRACT_TEMPLATE(clinicName, patient.name, clinic.type))
     }
   }, [record, clinicName, patient.name])
 
@@ -105,75 +117,185 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
   const anamnesisFields: Record<string, [string, string][]> = {
     odonto: [
+      ['a-queixa', 'Queixa principal / Motivo da consulta'],
       ['a-saude', 'Estado geral de saúde'],
       ['a-tratamento', 'Em tratamento médico? Qual?'],
       ['a-medicamentos', 'Medicamentos em uso'],
-      ['a-alergia', 'Alergias'],
-      ['a-pressao', 'Pressão arterial'],
+      ['a-alergia', 'Alergias (medicamentos, látex, anestésicos)'],
+      ['a-pressao', 'Pressão arterial / Cardiopatias'],
       ['a-fumante', 'Fumante / Álcool'],
-      ['a-gengiva', 'Sangramento gengival'],
-      ['a-habitos', 'Hábitos bucais'],
+      ['a-gengiva', 'Sangramento gengival / Dor dentária'],
+      ['a-hist_odonto', 'Histórico odontológico (última consulta, prótese, implante)'],
+      ['a-bruxismo', 'Bruxismo / Ranger de dentes'],
+      ['a-habitos', 'Hábitos bucais (chupar dedo, morder objetos)'],
     ],
     medico: [
-      ['a-motivo', 'Motivo da consulta (Queixa principal)'],
-      ['a-hist_familiar', 'Histórico familiar'],
-      ['a-comorbidades', 'Comorbidades'],
-      ['a-cirurgias', 'Cirurgias anteriores'],
+      ['a-motivo', 'Queixa principal / Motivo da consulta'],
+      ['a-hist_doenca', 'História da doença atual (início, evolução, intensidade)'],
+      ['a-comorbidades', 'Comorbidades (Diabetes, HAS, Cardiopatia, etc.)'],
+      ['a-hist_familiar', 'Histórico familiar de doenças relevantes'],
+      ['a-cirurgias', 'Cirurgias / Internações anteriores'],
       ['a-medicamentos', 'Medicamentos em uso'],
-      ['a-alergia', 'Alergias'],
-      ['a-habitos', 'Hábitos de vida (Fumo/Álcool/Ativ. Física)'],
+      ['a-alergia', 'Alergias (medicamentos, alimentos, outros)'],
+      ['a-habitos', 'Hábitos de vida (Fumo / Álcool / Atividade física)'],
+      ['a-sono', 'Qualidade do sono'],
+      ['a-sintomas', 'Sintomas associados (febre, dor, náusea, etc.)'],
     ],
     estetica: [
-      ['a-queixa', 'Queixa principal'],
+      ['a-queixa', 'Queixa principal / Região de interesse'],
+      ['a-expectativa', 'Expectativas com o tratamento'],
       ['a-trat_anteriores', 'Tratamentos estéticos anteriores'],
-      ['a-cosmeticos', 'Uso de cosméticos / Ácidos'],
-      ['a-exposicao_solar', 'Exposição solar (Usa protetor?)'],
-      ['a-alergia', 'Alergias (A cosméticos ou outros)'],
-      ['a-queloides', 'Histórico de queloides'],
-      ['a-cicatrizes', 'Cicatrizes recentes?'],
+      ['a-cosmeticos', 'Uso de cosméticos / Ácidos / Retinol'],
+      ['a-isotretinoina', 'Uso de isotretinoína (últimos 6 meses?)'],
+      ['a-anticoagulantes', 'Uso de anticoagulantes / AAS'],
+      ['a-exposicao_solar', 'Exposição solar (usa protetor solar?)'],
+      ['a-alergia', 'Alergias (cosméticos, anestésicos, látex)'],
+      ['a-queloides', 'Histórico de queloides / Cicatrização ruim'],
       ['a-gestante', 'Gestante / Lactante?'],
+      ['a-doencas', 'Doenças de pele (rosácea, psoríase, dermatite)'],
     ],
     vet: [
-      ['a-queixa', 'Motivo da consulta / Queixa'],
-      ['a-alimentacao', 'Alimentação / Dieta'],
-      ['a-ambiente', 'Ambiente onde vive'],
-      ['a-hist_doencas', 'Histórico de doenças / Cirurgias'],
-      ['a-vacinas', 'Vacinação e Vermifugação em dia?'],
+      ['a-queixa', 'Motivo da consulta / Queixa principal'],
+      ['a-alimentacao', 'Alimentação / Dieta (tipo, frequência, marca)'],
+      ['a-ambiente', 'Ambiente onde vive (interno / externo)'],
+      ['a-hist_doencas', 'Histórico de doenças / Cirurgias anteriores'],
+      ['a-vacinas', 'Vacinação e vermifugação em dia?'],
+      ['a-reproducao', 'Histórico reprodutivo (fêmeas: gestações, cio)'],
       ['a-medicamentos', 'Medicamentos em uso'],
       ['a-alergia', 'Alergias conhecidas'],
+      ['a-contato', 'Contato com outros animais'],
+    ],
+    fisio: [
+      ['a-queixa', 'Queixa principal'],
+      ['a-diagnostico', 'Diagnóstico médico / Encaminhamento'],
+      ['a-regiao', 'Região acometida'],
+      ['a-inicio', 'Início e causa (trauma, postura, esforço, cirurgia)'],
+      ['a-dor', 'Intensidade da dor (0–10) e tipo (queimação, pontada, etc.)'],
+      ['a-fatores', 'Fatores que pioram / melhoram'],
+      ['a-cirurgias', 'Cirurgias ou fraturas anteriores'],
+      ['a-comorbidades', 'Comorbidades (Diabetes, HAS, Osteoporose, etc.)'],
+      ['a-medicamentos', 'Medicamentos em uso'],
+      ['a-exames', 'Exames de imagem disponíveis (RX, RM, USG)'],
+      ['a-sessoes', 'Número de sessões previstas / Frequência'],
+      ['a-alergia', 'Alergias'],
+    ],
+    psico: [
+      ['a-queixa', 'Queixa principal / Motivo da busca'],
+      ['a-hist_pessoal', 'Histórico pessoal relevante (infância, traumas, perdas)'],
+      ['a-dinamica_familiar', 'Dinâmica familiar atual'],
+      ['a-trat_anteriores', 'Tratamentos psicológicos ou psiquiátricos anteriores'],
+      ['a-medicamentos', 'Medicamentos em uso (psiquiátricos ou outros)'],
+      ['a-substancias', 'Uso de álcool, tabaco ou outras substâncias'],
+      ['a-sono', 'Qualidade do sono (insônia, hipersonia, pesadelos)'],
+      ['a-relacionamentos', 'Relacionamentos (familiar, social, afetivo)'],
+      ['a-trabalho', 'Situação profissional / escolar'],
+      ['a-objetivos', 'Objetivos com a terapia'],
+      ['a-risco', 'Triagem de risco (ideação suicida / autolesão)'],
+    ],
+    nutri: [
+      ['a-queixa', 'Objetivo principal / Queixa'],
+      ['a-hist_clinico', 'Histórico clínico (Diabetes, HAS, dislipidemia, tireóide)'],
+      ['a-cirurgias', 'Cirurgias / Internações anteriores'],
+      ['a-medicamentos', 'Medicamentos em uso'],
+      ['a-alergia', 'Alergias ou intolerâncias alimentares'],
+      ['a-habitos', 'Hábitos alimentares (refeições/dia, horários, local)'],
+      ['a-recordatorio', 'Recordatório alimentar 24h (o que comeu ontem)'],
+      ['a-restricoes', 'Restrições alimentares (religiosas, preferências, aversões)'],
+      ['a-hidratacao', 'Ingestão hídrica diária'],
+      ['a-atividade', 'Prática de atividade física (tipo, frequência, duração)'],
+      ['a-intestino', 'Funcionamento intestinal (frequência, consistência)'],
+      ['a-hist_peso', 'Histórico de peso (máximo, mínimo, variações recentes)'],
     ]
   }
 
   const clinicalExamFields: Record<string, [string, string][]> = {
     odonto: [
-      ['e-higiene', 'Higiene bucal'],
+      ['e-higiene', 'Higiene bucal (placa, tártaro)'],
       ['e-halitose', 'Halitose'],
-      ['e-mucosa', 'Mucosa'],
-      ['e-palato', 'Palato'],
+      ['e-mucosa', 'Mucosa oral (cor, lesões, úlceras)'],
+      ['e-palato', 'Palato / Língua / Assoalho bucal'],
+      ['e-oclusao', 'Oclusão / Articulação temporomandibular (ATM)'],
+      ['e-mobilidade', 'Mobilidade dentária'],
+      ['e-sondagem', 'Profundidade de sondagem / Sangramento à sondagem'],
+      ['e-dor', 'Dor à percussão / Sensibilidade ao frio/calor'],
+      ['e-hipotese', 'Hipótese diagnóstica / Plano radiográfico'],
       ['e-obs', 'Observações gerais'],
     ],
     medico: [
-      ['e-pressao', 'Pressão Arterial'],
-      ['e-fc', 'Frequência Cardíaca'],
+      ['e-pressao', 'Pressão Arterial (mmHg)'],
+      ['e-fc', 'Frequência Cardíaca (bpm)'],
+      ['e-fr', 'Frequência Respiratória (irpm)'],
+      ['e-temp', 'Temperatura (°C)'],
+      ['e-spo2', 'Saturação O₂ (%)'],
+      ['e-glicemia', 'Glicemia capilar (mg/dL)'],
       ['e-antropometria', 'Peso / Altura / IMC'],
       ['e-ausculta', 'Ausculta Cardíaca / Pulmonar'],
-      ['e-exame_fisico', 'Exame Físico Específico'],
+      ['e-exame_fisico', 'Exame físico específico (região de queixa)'],
+      ['e-hipotese', 'Hipótese diagnóstica (CID)'],
+      ['e-conduta', 'Conduta / Solicitação de exames'],
       ['e-obs', 'Observações gerais'],
     ],
     estetica: [
-      ['e-tipo_pele', 'Tipo de pele'],
-      ['e-fototipo', 'Fototipo'],
+      ['e-tipo_pele', 'Tipo de pele (Normal, Seca, Oleosa, Mista)'],
+      ['e-fototipo', 'Fototipo (Fitzpatrick I–VI)'],
       ['e-hidratacao', 'Grau de hidratação'],
-      ['e-lesoes', 'Lesões visíveis / Flacidez / Celulite'],
+      ['e-regiao', 'Região de interesse / Área a tratar'],
+      ['e-manchas', 'Manchas / Melasma / Hiperpigmentação'],
+      ['e-flacidez', 'Grau de flacidez / Celulite'],
+      ['e-lesoes', 'Lesões visíveis (acne, rosácea, cicatrizes)'],
+      ['e-procedimento', 'Procedimento proposto / Protocolo'],
+      ['e-contraindicacoes', 'Contraindicações identificadas'],
       ['e-obs', 'Observações gerais'],
     ],
     vet: [
-      ['e-temperatura', 'Temperatura'],
-      ['e-mucosas', 'Mucosas'],
-      ['e-hidratacao', 'Hidratação'],
-      ['e-fc', 'Frequência Cardíaca (FC)'],
-      ['e-fr', 'Frequência Respiratória (FR)'],
-      ['e-linfonodos', 'Linfonodos'],
+      ['e-temperatura', 'Temperatura retal (°C)'],
+      ['e-mucosas', 'Mucosas (cor, TPC)'],
+      ['e-hidratacao', 'Grau de desidratação'],
+      ['e-fc', 'Frequência Cardíaca (bpm)'],
+      ['e-fr', 'Frequência Respiratória (mpm)'],
+      ['e-linfonodos', 'Linfonodos (tamanho, consistência)'],
+      ['e-peso', 'Peso (kg) / Escore corporal'],
+      ['e-ausculta', 'Ausculta cardíaca / Pulmonar'],
+      ['e-abd', 'Palpação abdominal'],
+      ['e-hipotese', 'Hipótese diagnóstica / Exames solicitados'],
+      ['e-obs', 'Observações gerais'],
+    ],
+    fisio: [
+      ['e-postura', 'Avaliação postural (anteriorização, escoliose, etc.)'],
+      ['e-adm', 'ADM — Amplitude de Movimento (graus)'],
+      ['e-forca', 'Força muscular (escala 0–5)'],
+      ['e-sensibilidade', 'Sensibilidade / Parestesia / Dormência'],
+      ['e-testes', 'Testes especiais (Lasègue, Phalen, Ortolani, etc.)'],
+      ['e-palpacao', 'Dor à palpação / Pontos-gatilho'],
+      ['e-edema', 'Edema / Inflamação / Temperatura local'],
+      ['e-marcha', 'Avaliação de marcha / Equilíbrio'],
+      ['e-hipotese', 'Diagnóstico fisioterapêutico'],
+      ['e-obs', 'Observações gerais'],
+    ],
+    psico: [
+      ['e-apresentacao', 'Apresentação geral (aparência, higiene, postura, contato visual)'],
+      ['e-humor', 'Humor e afeto (eutímico, deprimido, eufórico, ansioso)'],
+      ['e-pensamento', 'Curso e conteúdo do pensamento (acelerado, lento, ruminações)'],
+      ['e-percepcao', 'Percepção (alucinações auditivas/visuais, ilusões)'],
+      ['e-cognicao', 'Memória, atenção, concentração e orientação'],
+      ['e-critica', 'Crítica e julgamento (insight sobre a condição)'],
+      ['e-escala_phq', 'Escala PHQ-9 / GAD-7 (pontuação se aplicada)'],
+      ['e-hipotese', 'Hipótese diagnóstica (CID-10 / DSM-5)'],
+      ['e-plano', 'Plano terapêutico / Abordagem utilizada'],
+      ['e-obs', 'Observações da sessão'],
+    ],
+    nutri: [
+      ['e-peso', 'Peso atual (kg)'],
+      ['e-altura', 'Altura (cm)'],
+      ['e-imc', 'IMC (kg/m²)'],
+      ['e-cc', 'Circunferência abdominal (cm)'],
+      ['e-cq', 'Relação cintura/quadril'],
+      ['e-gordura', 'Percentual de gordura corporal (%)'],
+      ['e-massa_magra', 'Massa magra (kg)'],
+      ['e-pressao', 'Pressão arterial'],
+      ['e-exames_lab', 'Exames laboratoriais (glicose, HbA1c, colesterol, TG, TSH)'],
+      ['e-meta_calorica', 'Meta calórica / VET prescrito (kcal/dia)'],
+      ['e-plano', 'Plano alimentar / Orientações prescritas'],
       ['e-obs', 'Observações gerais'],
     ]
   }

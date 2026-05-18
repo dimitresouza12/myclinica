@@ -1,10 +1,17 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { connectGoogleCalendar, disconnectGoogleCalendar, isGCalConnected } from '@/lib/googleCalendar'
-import type { AuthClinic } from '@/types'
+import type { AuthClinic, ClinicDocumentTemplate, DocumentTemplateType } from '@/types'
 import styles from './configuracoes.module.css'
+
+const DOC_TEMPLATE_TYPES: { type: DocumentTemplateType; label: string }[] = [
+  { type: 'receita_comum',             label: 'Receita Comum' },
+  { type: 'receita_especial',          label: 'Receita Especial' },
+  { type: 'declaracao_comparecimento', label: 'Declaração de Comparecimento' },
+  { type: 'atestado',                  label: 'Atestado' },
+]
 
 export default function ConfiguracoesPage() {
   const { clinic, user, setSession } = useAuthStore()
@@ -23,6 +30,38 @@ export default function ConfiguracoesPage() {
   const [pwConfirm, setPwConfirm] = useState('')
   const [pwSaving, setPwSaving] = useState(false)
   const [pwMsg, setPwMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+
+  const [docTemplates, setDocTemplates] = useState<ClinicDocumentTemplate[]>([])
+  const [docUploading, setDocUploading] = useState<DocumentTemplateType | null>(null)
+  const [docMsg, setDocMsg] = useState<{ type: DocumentTemplateType; ok: boolean } | null>(null)
+  const docInputRefs = useRef<Partial<Record<DocumentTemplateType, HTMLInputElement | null>>>({})
+
+  useEffect(() => {
+    if (!clinic?.id) return
+    supabase.from('clinic_document_templates').select('*').eq('clinic_id', clinic.id)
+      .then(({ data }) => setDocTemplates((data ?? []) as ClinicDocumentTemplate[]))
+  }, [clinic?.id])
+
+  async function handleDocUpload(type: DocumentTemplateType, file: File) {
+    if (!clinic?.id) return
+    setDocUploading(type)
+    setDocMsg(null)
+    const isPdf = file.type === 'application/pdf'
+    const ext = isPdf ? 'pdf' : file.name.split('.').pop()?.toLowerCase() ?? 'png'
+    const path = `${clinic.id}/${type}.${ext}`
+    const { error: upErr } = await supabase.storage.from('document-templates').upload(path, file, { upsert: true, contentType: file.type })
+    if (upErr) { setDocUploading(null); setDocMsg({ type, ok: false }); return }
+    const { data: urlData } = supabase.storage.from('document-templates').getPublicUrl(path)
+    const pdf_url = urlData.publicUrl + '?t=' + Date.now()
+    await supabase.from('clinic_document_templates').upsert({ clinic_id: clinic.id, type, pdf_url }, { onConflict: 'clinic_id,type' })
+    setDocTemplates(prev => {
+      const rest = prev.filter(t => t.type !== type)
+      return [...rest, { id: '', clinic_id: clinic.id, type, pdf_url, created_at: '', updated_at: '' }]
+    })
+    setDocUploading(null)
+    setDocMsg({ type, ok: true })
+    setTimeout(() => setDocMsg(null), 3000)
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -147,6 +186,50 @@ export default function ConfiguracoesPage() {
             <p className={styles.gcalHint}>Você será redirecionado para autenticar sua conta Google.</p>
           </div>
         )}
+      </div>
+
+      {/* Modelos de Documentos */}
+      <div className={styles.card}>
+        <h2 className={styles.cardTitle}>Modelos de Documentos</h2>
+        <p className={styles.gcalDesc}>Faça upload do PDF com seu papel timbrado. Ele será usado como fundo ao emitir receitas e atestados no prontuário.</p>
+        <div className={styles.docTemplateList}>
+          {DOC_TEMPLATE_TYPES.map(({ type, label }) => {
+            const existing = docTemplates.find(t => t.type === type)
+            const uploading = docUploading === type
+            const msg = docMsg?.type === type ? docMsg : null
+            return (
+              <div key={type} className={styles.docTemplateRow}>
+                <span className={styles.docTemplateLabel}>{label}</span>
+                <div className={styles.docTemplateActions}>
+                  {existing
+                    ? <span className={styles.docTemplateStatus}>✓ Modelo cadastrado</span>
+                    : <span className={styles.docTemplateStatusEmpty}>Sem modelo</span>
+                  }
+                  {msg?.ok && <span className={styles.docTemplateSaved}>Salvo!</span>}
+                  {msg && !msg.ok && <span className={styles.docTemplateError}>Erro no upload</span>}
+                  <button
+                    className={styles.btnDocUpload}
+                    disabled={uploading}
+                    onClick={() => docInputRefs.current[type]?.click()}
+                  >
+                    {uploading ? 'Enviando...' : existing ? 'Trocar PDF' : 'Enviar PDF'}
+                  </button>
+                  <input
+                    type="file"
+                    accept=".pdf,image/*"
+                    style={{ display: 'none' }}
+                    ref={el => { docInputRefs.current[type] = el }}
+                    onChange={e => {
+                      const file = e.target.files?.[0]
+                      e.target.value = ''
+                      if (file) handleDocUpload(type, file)
+                    }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       <div className={styles.card}>
