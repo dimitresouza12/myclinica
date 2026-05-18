@@ -209,26 +209,33 @@ export default function AgendaPage() {
     if (!clinic || !form.patient_id || !form.scheduled_at) return
     setSaving(true)
 
-    const { data: inserted } = await supabase
+    const scheduledAtISO = new Date(form.scheduled_at).toISOString()
+
+    const { data: inserted, error: insertErr } = await supabase
       .from('appointments')
-      .insert([{ ...form, clinic_id: clinic.id }])
+      .insert([{ ...form, scheduled_at: scheduledAtISO, clinic_id: clinic.id }])
       .select('id')
       .single()
+
+    if (insertErr) {
+      setSaving(false)
+      alert(`Erro ao salvar agendamento: ${insertErr.message}`)
+      return
+    }
 
     // Sync to Google Calendar if connected and checkbox checked
     if (syncToGCal && gcalConnected && inserted) {
       const token = getGCalToken()
       if (token) {
         const patient = patients.find(p => p.id === form.patient_id)
-        const end = new Date(new Date(form.scheduled_at).getTime() + form.duration_minutes * 60000).toISOString()
+        const end = new Date(new Date(scheduledAtISO).getTime() + form.duration_minutes * 60000).toISOString()
         try {
           const event = await createGCalEvent(token, {
             summary: `${form.procedure_name || 'Consulta'} — ${patient?.name ?? 'Paciente'}`,
             description: form.notes || undefined,
-            start: form.scheduled_at,
+            start: scheduledAtISO,
             end,
           })
-          // Salva o ID do evento GCal para sincronização futura
           if (event.id) {
             await supabase.from('appointments').update({ gcal_event_id: event.id }).eq('id', inserted.id)
           }
