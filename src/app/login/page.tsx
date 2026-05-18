@@ -94,6 +94,8 @@ function LoginContent() {
   const [regError, setRegError] = useState('')
   const [regSuccess, setRegSuccess] = useState(false)
   const [regLoading, setRegLoading] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
 
   // Rate limiting: 5 attempts → 60s lockout (persisted in localStorage)
   function getRateLimitKey(cred: string) { return `rl:${cred.toLowerCase().trim()}` }
@@ -225,6 +227,7 @@ function LoginContent() {
 
     if (!reg.plan)           return setRegError('Selecione o plano.')
     if (!reg.clinic_type)   return setRegError('Selecione o tipo de clínica.')
+    if (!acceptedTerms)     return setRegError('Você precisa aceitar os Termos de Uso para continuar.')
     if (!reg.clinic_name.trim()) return setRegError('Nome da clínica é obrigatório.')
     if (!reg.admin_name.trim())  return setRegError('Seu nome é obrigatório.')
     const usernameClean = normalizeUsername(reg.username)
@@ -476,13 +479,84 @@ function LoginContent() {
               />
             </div>
 
+            <label className={styles.termsCheck}>
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={e => setAcceptedTerms(e.target.checked)}
+              />
+              <span>
+                Li e aceito os{' '}
+                <button type="button" className={styles.termsLink} onClick={() => setShowTerms(true)}>
+                  Termos de Uso
+                </button>
+                {' '}— trial gratuito por 7 dias
+              </span>
+            </label>
+
             {regError && <p className={styles.error}>{regError}</p>}
-            <p className={styles.regNote}>Ao criar sua conta você concorda com os termos de uso. Plano trial gratuito por 7 dias</p>
-            <button type="submit" className={styles.btn} disabled={regLoading}>
+            <button type="submit" className={styles.btn} disabled={regLoading || !acceptedTerms}>
               {regLoading ? 'Criando clínica...' : 'Criar minha clínica'}
             </button>
           </form>
         )}
+
+        {showTerms && (
+            <div className={styles.termsOverlay} onClick={() => setShowTerms(false)}>
+              <div className={styles.termsModal} onClick={e => e.stopPropagation()}>
+                <div className={styles.termsHeader}>
+                  <h2 className={styles.termsTitle}>Termos de Uso — My Clinica</h2>
+                  <button className={styles.termsClose} onClick={() => setShowTerms(false)}>✕</button>
+                </div>
+                <div className={styles.termsBody}>
+                  <p className={styles.termsDate}>Versão vigente: maio de 2026</p>
+
+                  <h3>1. Aceitação dos Termos</h3>
+                  <p>Ao se cadastrar na plataforma My Clinica, você declara ter lido, compreendido e concordado com estes Termos de Uso. Caso não concorde com qualquer disposição, não prossiga com o cadastro.</p>
+
+                  <h3>2. Descrição do Serviço</h3>
+                  <p>My Clinica é uma plataforma SaaS de gestão clínica que oferece funcionalidades de agenda, prontuário eletrônico, financeiro, estoque, CRM e integrações com ferramentas externas.</p>
+
+                  <h3>3. Período de Teste Gratuito (Trial)</h3>
+                  <p>Ao realizar o cadastro, você terá acesso gratuito à plataforma por <strong>7 (sete) dias corridos</strong>, contados a partir da aprovação do cadastro pelo administrador. Durante o trial, todas as funcionalidades do plano contratado estarão disponíveis sem custo.</p>
+                  <p>Após o encerramento do período de teste, o acesso será mantido somente mediante contratação de um dos planos pagos disponíveis. Não há cobrança automática ao término do trial — o acesso simplesmente será suspenso até a regularização.</p>
+
+                  <h3>4. Planos e Pagamentos</h3>
+                  <p>Os planos disponíveis (Básico e Plus) possuem valores e condições definidos na página de planos da plataforma. Os preços podem ser alterados mediante aviso prévio de 30 dias. O não pagamento dentro do prazo acordado pode resultar na suspensão do acesso.</p>
+
+                  <h3>5. Dados e Privacidade</h3>
+                  <p>Os dados inseridos na plataforma (pacientes, prontuários, financeiro) são de propriedade da clínica cadastrada. A My Clinica não compartilha, vende ou utiliza esses dados para fins comerciais. As informações são armazenadas de forma segura, em conformidade com a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018).</p>
+                  <p>O usuário é responsável por manter a confidencialidade de suas credenciais de acesso e por todas as ações realizadas em sua conta.</p>
+
+                  <h3>6. Responsabilidades do Usuário</h3>
+                  <p>O usuário compromete-se a utilizar a plataforma exclusivamente para fins lícitos, não praticar engenharia reversa, não compartilhar acessos não autorizados e manter os dados dos pacientes em conformidade com as normas do Conselho Federal de sua categoria profissional.</p>
+
+                  <h3>7. Disponibilidade do Serviço</h3>
+                  <p>A My Clinica envidará esforços para manter a plataforma disponível 24 horas por dia, 7 dias por semana. Interrupções programadas para manutenção serão comunicadas com antecedência. Não nos responsabilizamos por indisponibilidades causadas por falhas de infraestrutura de terceiros (provedores de nuvem, internet).</p>
+
+                  <h3>8. Cancelamento</h3>
+                  <p>O usuário pode solicitar o cancelamento da conta a qualquer momento pelo suporte. Dados poderão ser exportados mediante solicitação antes do encerramento definitivo da conta. Após o cancelamento, os dados serão mantidos por 30 dias e então excluídos.</p>
+
+                  <h3>9. Limitação de Responsabilidade</h3>
+                  <p>A My Clinica não se responsabiliza por decisões clínicas tomadas com base nas informações registradas na plataforma. O sistema é uma ferramenta de gestão, não substitui o julgamento profissional do usuário.</p>
+
+                  <h3>10. Alterações nos Termos</h3>
+                  <p>Estes termos podem ser atualizados periodicamente. O usuário será notificado por e-mail sobre mudanças relevantes. O uso continuado da plataforma após a notificação implica aceitação das novas condições.</p>
+
+                  <h3>11. Contato</h3>
+                  <p>Dúvidas sobre estes termos podem ser enviadas para o suporte da My Clinica.</p>
+                </div>
+                <div className={styles.termsFooter}>
+                  <button
+                    className={styles.btn}
+                    onClick={() => { setAcceptedTerms(true); setShowTerms(false) }}
+                  >
+                    Li e aceito os Termos de Uso
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
       </div>
       <p className={styles.madeby}>
         feito por{' '}
