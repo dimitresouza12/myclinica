@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatPhone, getStatusClass } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
-import type { Patient, Appointment } from '@/types'
+import type { Patient, Appointment, Professional } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
@@ -23,9 +23,16 @@ function PacientesContent() {
   const [filterStatus, setFilterStatus] = useState('')
   const [loading, setLoading] = useState(true)
 
+  const [professionals, setProfessionals] = useState<Professional[]>([])
   const [prontuarioPatient, setProntuarioPatient] = useState<Patient | null>(null)
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
+
+  const BLANK_APPT = { patient_id: '', professional_id: '', procedure_name: '', scheduled_at: '', duration_minutes: 60, status: 'agendado', notes: '' }
+  const [showNewAppt, setShowNewAppt] = useState(false)
+  const [apptForm, setApptForm] = useState(BLANK_APPT)
+  const [apptSaving, setApptSaving] = useState(false)
+  const [apptError, setApptError] = useState('')
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -43,13 +50,15 @@ function PacientesContent() {
     if (clinic.plan === 'plus') {
       await syncLeadAppointments(clinic.id, clinic.slug)
     }
-    const [apptRes, patRes] = await Promise.all([
+    const [apptRes, patRes, profRes] = await Promise.all([
       supabase.from('appointments').select('*, patients(id, name, phone)').eq('clinic_id', clinic.id).order('scheduled_at', { ascending: false }),
       supabase.from('patients').select('*').eq('clinic_id', clinic.id).eq('is_active', true).order('name'),
+      supabase.from('professionals').select('*').eq('clinic_id', clinic.id).order('name'),
     ])
     setAppointments((apptRes.data ?? []) as Appointment[])
     const pats = (patRes.data ?? []) as Patient[]
     setPatients(pats)
+    setProfessionals((profRes.data ?? []) as Professional[])
     setLoading(false)
 
     // Open prontuário directly if ?patient=<id> is in URL
@@ -90,6 +99,27 @@ function PacientesContent() {
     loadData()
   }
 
+  async function handleSaveAppt() {
+    if (!clinic || !apptForm.patient_id || !apptForm.scheduled_at) return
+    setApptSaving(true)
+    setApptError('')
+    const { error } = await supabase.from('appointments').insert([{
+      clinic_id: clinic.id,
+      patient_id: apptForm.patient_id,
+      professional_id: apptForm.professional_id || null,
+      procedure_name: apptForm.procedure_name || null,
+      scheduled_at: apptForm.scheduled_at,
+      duration_minutes: apptForm.duration_minutes,
+      status: apptForm.status,
+      notes: apptForm.notes || null,
+    }])
+    setApptSaving(false)
+    if (error) { setApptError('Erro ao salvar agendamento. Tente novamente.'); return }
+    setShowNewAppt(false)
+    setApptForm(BLANK_APPT)
+    loadData()
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -103,9 +133,16 @@ function PacientesContent() {
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <GlobalSearch />
-          <button className={styles.btnPrimary} onClick={() => setShowNewPatient(true)}>
-            + Novo Paciente
-          </button>
+          {tab === 'atendimentos' && (
+            <button className={styles.btnPrimary} onClick={() => { setApptForm(BLANK_APPT); setApptError(''); setShowNewAppt(true) }}>
+              + Novo Atendimento
+            </button>
+          )}
+          {tab === 'pacientes' && (
+            <button className={styles.btnPrimary} onClick={() => setShowNewPatient(true)}>
+              + Novo Paciente
+            </button>
+          )}
         </div>
       </div>
 
@@ -227,6 +264,66 @@ function PacientesContent() {
           onClose={() => { setEditPatient(null); setShowNewPatient(false) }}
           onSaved={handleSaved}
         />
+      )}
+
+      {showNewAppt && (
+        <div className={styles.overlay} onClick={() => setShowNewAppt(false)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>Novo Atendimento</h2>
+              <button className={styles.btnClose} onClick={() => setShowNewAppt(false)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <div className={styles.field}>
+                <label>Paciente *</label>
+                <select value={apptForm.patient_id} onChange={e => setApptForm(p => ({ ...p, patient_id: e.target.value }))}>
+                  <option value="">Selecionar paciente</option>
+                  {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className={styles.field}>
+                <label>Profissional</label>
+                <select value={apptForm.professional_id} onChange={e => setApptForm(p => ({ ...p, professional_id: e.target.value }))}>
+                  <option value="">Sem profissional</option>
+                  {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className={styles.field}>
+                <label>Procedimento</label>
+                <input value={apptForm.procedure_name} onChange={e => setApptForm(p => ({ ...p, procedure_name: e.target.value }))} placeholder="Ex: Consulta, Retorno..." />
+              </div>
+              <div className={styles.field}>
+                <label>Data e Hora *</label>
+                <input type="datetime-local" value={apptForm.scheduled_at} onChange={e => setApptForm(p => ({ ...p, scheduled_at: e.target.value }))} />
+              </div>
+              <div className={styles.field}>
+                <label>Duração (min)</label>
+                <input type="number" value={apptForm.duration_minutes} onChange={e => setApptForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))} min={15} step={15} />
+              </div>
+              <div className={styles.field}>
+                <label>Status</label>
+                <select value={apptForm.status} onChange={e => setApptForm(p => ({ ...p, status: e.target.value }))}>
+                  <option value="agendado">Agendado</option>
+                  <option value="confirmado">Confirmado</option>
+                  <option value="concluido">Concluído</option>
+                  <option value="cancelado">Cancelado</option>
+                  <option value="faltou">Faltou</option>
+                </select>
+              </div>
+              <div className={styles.field}>
+                <label>Observações</label>
+                <textarea rows={3} value={apptForm.notes} onChange={e => setApptForm(p => ({ ...p, notes: e.target.value }))} />
+              </div>
+              {apptError && <p className={styles.error}>{apptError}</p>}
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.btnCancel} onClick={() => setShowNewAppt(false)}>Cancelar</button>
+              <button className={styles.btnSave} onClick={handleSaveAppt} disabled={apptSaving || !apptForm.patient_id || !apptForm.scheduled_at}>
+                {apptSaving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
