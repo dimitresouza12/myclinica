@@ -48,16 +48,31 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  function formatDateBR(iso: string | null) {
+    if (!iso) return ''
+    const d = iso.slice(0, 10).split('-')
+    if (d.length !== 3) return iso
+    return `${d[2]}/${d[1]}/${d[0]}`
+  }
+
   useEffect(() => {
     const patientDefaults: Record<string, string> = {
-      'p-cpf':       patient.cpf ?? '',
-      'p-rg':        patient.rg ?? '',
-      'p-nasc':      patient.birth_date ?? '',
-      'p-genero':    patient.gender ?? '',
-      'p-ocupacao':  patient.occupation ?? '',
-      'p-endereco':  patient.address ?? '',
-      'p-indicado':  patient.referred_by ?? '',
+      'p-cpf':        patient.cpf ?? '',
+      'p-rg':         patient.rg ?? '',
+      'p-nasc':       formatDateBR(patient.birth_date),
+      'p-genero':     patient.gender ?? '',
+      'p-ocupacao':   patient.occupation ?? '',
+      'p-endereco':   patient.address ?? '',
+      'p-indicado':   patient.referred_by ?? '',
       'p-emergencia': patient.emergency_contact ?? '',
+      'p-notes':      patient.notes ?? '',
+      // campos veterinários
+      'p-pet_nome':     patient.pet_name ?? '',
+      'p-pet_especie':  patient.pet_species ?? '',
+      'p-pet_raca':     patient.pet_breed ?? '',
+      'p-pet_idade':    patient.pet_age ?? '',
+      'p-pet_peso':     patient.pet_weight != null ? String(patient.pet_weight) : '',
+      'p-pet_castrado': patient.pet_neutered != null ? (patient.pet_neutered ? 'Sim' : 'Não') : '',
     }
     if (record) {
       const merged: Record<string, string> = { ...patientDefaults, ...(record.anamnesis ?? {}) }
@@ -73,6 +88,14 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
   function setA(k: string, v: string) { setAnamnesis((p) => ({ ...p, [k]: v })) }
   function setE(k: string, v: string) { setClinicalExam((p) => ({ ...p, [k]: v })) }
+
+  function parseDateISO(br: string): string | null {
+    if (!br) return null
+    const parts = br.split('/')
+    if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`
+    if (/^\d{4}-\d{2}-\d{2}$/.test(br)) return br
+    return null
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -91,6 +114,20 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       } else {
         await supabase.from('medical_records').insert([payload])
       }
+
+      // Sincroniza campos de identificação de volta para a tabela patients
+      await supabase.from('patients').update({
+        cpf:               anamnesis['p-cpf'] || null,
+        rg:                anamnesis['p-rg'] || null,
+        birth_date:        parseDateISO(anamnesis['p-nasc'] ?? ''),
+        gender:            anamnesis['p-genero'] || null,
+        occupation:        anamnesis['p-ocupacao'] || null,
+        address:           anamnesis['p-endereco'] || null,
+        referred_by:       anamnesis['p-indicado'] || null,
+        emergency_contact: anamnesis['p-emergencia'] || null,
+        notes:             anamnesis['p-notes'] || null,
+      }).eq('id', patient.id)
+
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
       onSaved()
@@ -320,23 +357,58 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Identificação</h3>
         <div className={styles.grid2}>
-          {[
-            ['p-cpf','CPF'], ['p-rg','RG'], ['p-nasc','Data de Nascimento'],
-            ['p-genero','Gênero'], ['p-ocupacao','Ocupação'], ['p-endereco','Endereço'],
-            ['p-indicado','Como nos conheceu'], ['p-emergencia','Contato de Emergência'],
-            ...(clinic.type === 'vet' ? [
-              ['p-pet_especie', 'Espécie do Pet'],
-              ['p-pet_raca', 'Raça'],
-              ['p-pet_idade', 'Idade do Pet'],
-              ['p-pet_peso', 'Peso do Pet (kg)'],
-              ['p-pet_castrado', 'Castrado?'],
-            ] : [])
-          ].map(([k,l]) => (
+          {[['p-cpf','CPF'], ['p-rg','RG']].map(([k,l]) => (
             <div className={styles.field} key={k}>
-              <label>{l as string}</label>
-              <input value={anamnesis[k as string] ?? ''} onChange={(e) => setA(k as string, e.target.value)} />
+              <label>{l}</label>
+              <input value={anamnesis[k] ?? ''} onChange={e => setA(k, e.target.value)} />
             </div>
           ))}
+
+          <div className={styles.field}>
+            <label>Data de Nascimento</label>
+            <input
+              placeholder="DD/MM/AAAA"
+              value={anamnesis['p-nasc'] ?? ''}
+              onChange={e => setA('p-nasc', e.target.value)}
+            />
+          </div>
+
+          <div className={styles.field}>
+            <label>Gênero</label>
+            <select value={anamnesis['p-genero'] ?? ''} onChange={e => setA('p-genero', e.target.value)}>
+              <option value="">Selecionar</option>
+              <option value="Masculino">Masculino</option>
+              <option value="Feminino">Feminino</option>
+              <option value="Não binário">Não binário</option>
+              <option value="Prefiro não informar">Prefiro não informar</option>
+            </select>
+          </div>
+
+          {['p-ocupacao','Ocupação', 'p-endereco','Endereço', 'p-indicado','Como nos conheceu', 'p-emergencia','Contato de Emergência'].reduce<[string,string][]>((acc, _, i, arr) => {
+            if (i % 2 === 0) acc.push([arr[i] as string, arr[i+1] as string])
+            return acc
+          }, []).map(([k, l]) => (
+            <div className={styles.field} key={k}>
+              <label>{l}</label>
+              <input value={anamnesis[k] ?? ''} onChange={e => setA(k, e.target.value)} />
+            </div>
+          ))}
+
+          {clinic.type === 'vet' && [
+            ['p-pet_nome','Nome do Pet'], ['p-pet_especie','Espécie'],
+            ['p-pet_raca','Raça'], ['p-pet_idade','Idade do Pet'],
+            ['p-pet_peso','Peso do Pet (kg)'], ['p-pet_castrado','Castrado?'],
+          ].map(([k,l]) => (
+            <div className={styles.field} key={k}>
+              <label>{l}</label>
+              <input value={anamnesis[k] ?? ''} onChange={e => setA(k, e.target.value)} />
+            </div>
+          ))}
+        </div>
+
+        <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+          <label>Observações sobre o paciente</label>
+          <textarea rows={2} value={anamnesis['p-notes'] ?? ''} onChange={e => setA('p-notes', e.target.value)} />
         </div>
       </section>
 
