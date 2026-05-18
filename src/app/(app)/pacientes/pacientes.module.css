@@ -316,3 +316,13 @@
 }
 .btnSave:hover:not(:disabled) { opacity: 0.9; }
 .btnSave:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.gcalCheck {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.gcalCheck input { accent-color: var(--brand-primary); cursor: pointer; }

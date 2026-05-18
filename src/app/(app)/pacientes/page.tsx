@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatPhone, getStatusClass } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
+import { getGCalToken, isGCalConnected, createGCalEvent } from '@/lib/googleCalendar'
 import type { Patient, Appointment, Professional } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
@@ -33,6 +34,8 @@ function PacientesContent() {
   const [apptForm, setApptForm] = useState(BLANK_APPT)
   const [apptSaving, setApptSaving] = useState(false)
   const [apptError, setApptError] = useState('')
+  const [syncToGCal, setSyncToGCal] = useState(false)
+  const gcalConnected = isGCalConnected(clinic?.gcalConnected)
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -103,7 +106,7 @@ function PacientesContent() {
     if (!clinic || !apptForm.patient_id || !apptForm.scheduled_at) return
     setApptSaving(true)
     setApptError('')
-    const { error } = await supabase.from('appointments').insert([{
+    const { data: inserted, error } = await supabase.from('appointments').insert([{
       clinic_id: clinic.id,
       patient_id: apptForm.patient_id,
       professional_id: apptForm.professional_id || null,
@@ -112,11 +115,30 @@ function PacientesContent() {
       duration_minutes: apptForm.duration_minutes,
       status: apptForm.status,
       notes: apptForm.notes || null,
-    }])
+    }]).select('id').single()
+    if (error) { setApptSaving(false); setApptError('Erro ao salvar agendamento. Tente novamente.'); return }
+
+    if (syncToGCal && gcalConnected && inserted) {
+      const token = getGCalToken()
+      if (token) {
+        const patient = patients.find(p => p.id === apptForm.patient_id)
+        const end = new Date(new Date(apptForm.scheduled_at).getTime() + apptForm.duration_minutes * 60000).toISOString()
+        try {
+          const event = await createGCalEvent(token, {
+            summary: `${apptForm.procedure_name || 'Consulta'} — ${patient?.name ?? 'Paciente'}`,
+            description: apptForm.notes || undefined,
+            start: apptForm.scheduled_at,
+            end,
+          })
+          if (event.id) await supabase.from('appointments').update({ gcal_event_id: event.id }).eq('id', inserted.id)
+        } catch { /* ignora erros do GCal */ }
+      }
+    }
+
     setApptSaving(false)
-    if (error) { setApptError('Erro ao salvar agendamento. Tente novamente.'); return }
     setShowNewAppt(false)
     setApptForm(BLANK_APPT)
+    setSyncToGCal(false)
     loadData()
   }
 
@@ -314,6 +336,12 @@ function PacientesContent() {
                 <label>Observações</label>
                 <textarea rows={3} value={apptForm.notes} onChange={e => setApptForm(p => ({ ...p, notes: e.target.value }))} />
               </div>
+              {gcalConnected && (
+                <label className={styles.gcalCheck}>
+                  <input type="checkbox" checked={syncToGCal} onChange={e => setSyncToGCal(e.target.checked)} />
+                  Sincronizar com Google Calendar
+                </label>
+              )}
               {apptError && <p className={styles.error}>{apptError}</p>}
             </div>
             <div className={styles.modalFooter}>
