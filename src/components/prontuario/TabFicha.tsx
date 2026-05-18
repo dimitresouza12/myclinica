@@ -49,12 +49,24 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
+    const patientDefaults: Record<string, string> = {
+      'p-cpf':       patient.cpf ?? '',
+      'p-rg':        patient.rg ?? '',
+      'p-nasc':      patient.birth_date ?? '',
+      'p-genero':    patient.gender ?? '',
+      'p-ocupacao':  patient.occupation ?? '',
+      'p-endereco':  patient.address ?? '',
+      'p-indicado':  patient.referred_by ?? '',
+      'p-emergencia': patient.emergency_contact ?? '',
+    }
     if (record) {
-      setAnamnesis(record.anamnesis ?? {})
+      const merged: Record<string, string> = { ...patientDefaults, ...(record.anamnesis ?? {}) }
+      setAnamnesis(merged)
       setClinicalExam(record.clinical_exam ?? {})
       setTreatmentPlan(record.treatment_plan ?? '')
       setContractText(record.contract_text ?? CONTRACT_TEMPLATE(clinicName, patient.name, clinic.type))
     } else {
+      setAnamnesis(patientDefaults)
       setContractText(CONTRACT_TEMPLATE(clinicName, patient.name, clinic.type))
     }
   }, [record, clinicName, patient.name])
