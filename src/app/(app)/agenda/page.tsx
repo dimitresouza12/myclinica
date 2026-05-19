@@ -110,7 +110,10 @@ export default function AgendaPage() {
 
   useEffect(() => {
     // Fonte primária: banco (via store). Fallback: localStorage para sessões antigas.
-    setGcalConnected(isGCalConnected(clinic?.gcalConnected))
+    const connected = isGCalConnected(clinic?.gcalConnected)
+    setGcalConnected(connected)
+    // Com GCal vinculado, sincronizar é o padrão (usuário pode desmarcar).
+    setSyncToGCal(connected)
   }, [clinic?.gcalConnected])
 
   const loadGCalEvents = useCallback(async (token: string, profs: Professional[]) => {

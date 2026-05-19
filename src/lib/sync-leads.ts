@@ -51,7 +51,7 @@ export async function syncLeadAppointments(clinicId: string, _clinicSlug?: strin
     return
   }
   const leads = allChats.filter(
-    (l) => l.status === 'Agendado' && l.data_agendamento != null,
+    (l) => l.status?.toLowerCase() === 'agendado' && l.data_agendamento != null,
   )
 
   if (!leads.length) return
