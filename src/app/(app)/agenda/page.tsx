@@ -82,7 +82,7 @@ export default function AgendaPage() {
     const [apptRes, patRes, profRes] = await Promise.all([
       supabase
         .from('appointments')
-        .select('*, patients(id, name, phone), clinic_users(id, display_name)')
+        .select('*, patients(id, name, phone), professionals(id, name)')
         .eq('clinic_id', clinicId)
         .order('scheduled_at', { ascending: false }),
       supabase.from('patients').select('id, name, phone').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
@@ -406,8 +406,8 @@ export default function AgendaPage() {
                 </div>
                 <div className={styles.listCardMeta}>
                   <span className={styles.listCardDate}>{STATUS_ICONS[a.status ?? ''] ?? '🕐'} {formatDate(a.scheduled_at)}</span>
-                  {a.clinic_users?.display_name && (
-                    <span className={styles.listCardProf}>{a.clinic_users.display_name}</span>
+                  {a.professionals?.name && (
+                    <span className={styles.listCardProf}>{a.professionals.name}</span>
                   )}
                 </div>
                 <span className={`${styles.listCardBadge} ${styles[`badge_${a.status ?? 'agendado'}`]}`}>
