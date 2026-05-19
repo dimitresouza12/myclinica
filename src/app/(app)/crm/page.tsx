@@ -219,7 +219,7 @@ export default function CRMPage() {
     const { error } = await supabase.from('patients').insert([{
       clinic_id: clinic.id,
       name: selected.nome?.trim() || `Lead ${clean || selected.phone}`,
-      phone: clean || selected.phone,
+      phone: clean || null,
       is_active: true,
       registration_status: 'approved',
       notes: selected.procedimento ? `Procedimento de interesse: ${selected.procedimento}` : null,

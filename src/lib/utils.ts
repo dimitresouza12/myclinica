@@ -46,11 +46,24 @@ export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(' ')
 }
 
+// Normaliza telefone BR para um valor canônico único, para que todas as
+// variações do mesmo número (com/sem DDI 55, com/sem sufixo WhatsApp, com/sem
+// o "nono dígito" dos celulares) convirjam ao mesmo valor e o casamento
+// lead↔paciente funcione. Celular antigo de 8 dígitos ganha o 9 (regra
+// nacional desde 2016); fixo (começa com 2-5) não.
 export function cleanPhone(raw: string | null | undefined): string {
   if (!raw) return ''
   let s = String(raw).trim()
   if (s.startsWith('=')) s = s.slice(1)
   if (s.includes('@')) s = s.split('@')[0]
-  const digits = s.replace(/\D/g, '')
-  return digits.slice(-11)
+  let d = s.replace(/\D/g, '')
+  // Remove o DDI 55 quando sobra DDD + número plausível
+  if (d.startsWith('55') && d.length >= 12 && d.length <= 13) d = d.slice(2)
+  // DDD (2) + 8 dígitos: se for celular antigo (começa com 6-9), injeta o 9
+  if (d.length === 10) {
+    const ddd = d.slice(0, 2)
+    const num = d.slice(2)
+    if (/^[6-9]/.test(num)) d = ddd + '9' + num
+  }
+  return d
 }

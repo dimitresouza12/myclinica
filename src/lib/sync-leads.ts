@@ -83,7 +83,7 @@ export async function syncLeadAppointments(clinicId: string, _clinicSlug?: strin
         .insert([{
           clinic_id: clinicId,
           name: lead.nome?.trim() || `Lead ${key}`,
-          phone: lead.phone,
+          phone: key,
           is_active: true,
           registration_status: 'approved',
           notes: lead.procedimento ? `Lead WhatsApp — interesse: ${lead.procedimento}` : 'Lead WhatsApp',
