@@ -25,6 +25,8 @@ export function AdminClinicas({ clinics, onReload }: Props) {
   const [showNewModal, setShowNewModal] = useState(false)
   const [newForm, setNewForm] = useState({ name: '', slug: '', clinic_type: 'odonto', email: '', phone: '', address: '' })
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Clinic | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingClinicRef = useRef<Clinic | null>(null)
 
@@ -77,6 +79,15 @@ export function AdminClinicas({ clinics, onReload }: Props) {
     setUploadingId(null)
     setUploadMsg({ id: clinic.id, ok: true, text: 'Logo atualizada!' })
     if (myClinic?.id === clinic.id) setClinicLogo(publicUrl)
+    onReload()
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    await supabase.from('clinics').delete().eq('id', deleteTarget.id)
+    setDeleting(false)
+    setDeleteTarget(null)
     onReload()
   }
 
@@ -199,6 +210,9 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                         <button className={styles.actionBtnImpersonate} onClick={() => handleImpersonate(c)} title="Visualizar como esta clínica">
                           👁 Ver como
                         </button>
+                        <button className={styles.btnDanger} onClick={() => setDeleteTarget(c)} title="Excluir clínica">
+                          Excluir
+                        </button>
                       </>
                     )}
                   </div>
@@ -218,6 +232,35 @@ export function AdminClinicas({ clinics, onReload }: Props) {
           onClose={() => setEditTarget(null)}
           onSaved={() => { setEditTarget(null); onReload() }}
         />
+      )}
+
+      {deleteTarget && (
+        <div className={styles.overlay} onClick={() => setDeleteTarget(null)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>Excluir clínica</h2>
+              <button className={styles.btnClose} onClick={() => setDeleteTarget(null)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: 1.6 }}>
+                Tem certeza que deseja excluir permanentemente a clínica <strong>{deleteTarget.name}</strong>?
+              </p>
+              <p style={{ fontSize: '0.82rem', color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--radius-md)', padding: '0.6rem 0.75rem', marginTop: '0.5rem' }}>
+                ⚠️ Esta ação é irreversível. Todos os dados da clínica serão apagados.
+              </p>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.btnCancel} onClick={() => setDeleteTarget(null)}>Cancelar</button>
+              <button
+                style={{ padding: '0.55rem 1.25rem', background: '#DC2626', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', opacity: deleting ? 0.6 : 1 }}
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? 'Excluindo...' : 'Sim, excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showNewModal && (
