@@ -60,7 +60,10 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
 
     setSaving(true)
     try {
-      const payload = { ...form, clinic_id: clinicId }
+      const clean = Object.fromEntries(
+        Object.entries(form).map(([k, v]) => [k, typeof v === 'string' && v.trim() === '' ? null : v])
+      )
+      const payload = { ...clean, clinic_id: clinicId }
       if (isNew) {
         const { error: err } = await supabase.from('patients').insert([payload])
         if (err) throw err
