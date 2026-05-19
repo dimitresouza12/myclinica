@@ -213,7 +213,7 @@ export default function AgendaPage() {
 
     const { data: inserted, error: insertErr } = await supabase
       .from('appointments')
-      .insert([{ ...form, scheduled_at: scheduledAtISO, clinic_id: clinic.id }])
+      .insert([{ ...form, scheduled_at: scheduledAtISO, clinic_id: clinic.id, professional_id: form.professional_id || null }])
       .select('id')
       .single()
 
