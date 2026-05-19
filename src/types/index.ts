@@ -95,6 +95,7 @@ export interface Appointment {
   gcal_event_id: string | null
   patients?: Pick<Patient, 'id' | 'name' | 'phone'>
   clinic_users?: Pick<ClinicUser, 'id' | 'display_name'>
+  professionals?: Pick<Professional, 'id' | 'name'>
 }
 
 export interface MedicalRecord {
