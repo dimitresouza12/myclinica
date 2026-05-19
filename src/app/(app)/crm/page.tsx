@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { n8nClient } from '@/lib/supabase-n8n'
+import { callN8n } from '@/lib/supabase-n8n'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { Portal } from '@/components/ui/Portal'
@@ -115,14 +115,15 @@ export default function CRMPage() {
     if (!clinic?.id) return
     setLoading(true)
     try {
-      const slug = clinic.slug ?? ''
-      const { data, error } = await n8nClient
-        .from('chats')
-        .select('*')
-        .eq('clinic_slug', slug)
-        .order('created_at', { ascending: false })
-      if (error) console.error('[CRM] chats query error:', error)
-      const rows = (data ?? []) as Lead[]
+      let rows: Lead[] = []
+      let queryError = false
+      try {
+        const { data } = await callN8n<{ data: Lead[] }>({ action: 'list_chats' })
+        rows = data ?? []
+      } catch (e) {
+        queryError = true
+        console.error('[CRM] chats query error:', e)
+      }
       const filtered = rows.filter(r => {
         if (!r.phone || r.phone === '=' || r.phone.length <= 5) return false
         if (r.phone.includes('@g.us')) return false   // grupos WhatsApp
@@ -138,16 +139,17 @@ export default function CRMPage() {
         const nome = match[1].trim()
         const invalido = !nome || nome.startsWith('[') || nome === 'Não informado' || nome === 'Desconhecido'
         if (invalido) continue
-        // Atualiza a coluna nome no banco do n8n
-        await n8nClient
-          .from('chats')
-          .update({ nome })
-          .eq('conversation_id', lead.conversation_id)
-        lead.nome = nome // atualiza localmente também
+        // Atualiza a coluna nome no banco do n8n (via Edge Function)
+        try {
+          await callN8n({ action: 'update_chat_name', conversation_id: lead.conversation_id, nome })
+          lead.nome = nome // atualiza localmente também
+        } catch (e) {
+          console.error('[CRM] update name error:', e)
+        }
       }
 
       setLeads(filtered)
-      setAutomacaoAtiva(!error && (data?.length ?? 0) > 0)
+      setAutomacaoAtiva(!queryError && rows.length > 0)
     } finally {
       setLoading(false)
     }
@@ -172,13 +174,16 @@ export default function CRMPage() {
     setConvertMsg('')
     setMsgLoading(true)
     // Filter by conversation_id (unique per lead) — phone is unreliable due to format variants
-    const { data } = await n8nClient
-      .from('chat_messages')
-      .select('*')
-      .eq('conversation_id', lead.conversation_id)
-      .order('id', { ascending: true })
-      .limit(200)
-    setMessages((data ?? []) as ChatMessage[])
+    try {
+      const { data } = await callN8n<{ data: ChatMessage[] }>({
+        action: 'list_messages_by_conversation',
+        conversation_id: lead.conversation_id,
+      })
+      setMessages(data ?? [])
+    } catch (e) {
+      console.error('[CRM] messages error:', e)
+      setMessages([])
+    }
     setMsgLoading(false)
   }
 

@@ -207,19 +207,54 @@ export default function AgendaPage() {
 
   async function handleSave() {
     if (!clinic || !form.patient_id || !form.scheduled_at) return
+
+    const duration = Number(form.duration_minutes)
+    if (!Number.isFinite(duration) || duration < 15) {
+      alert('A duração da consulta deve ser de pelo menos 15 minutos.')
+      return
+    }
+
     setSaving(true)
 
     const scheduledAtISO = new Date(form.scheduled_at).toISOString()
+    const professionalId = form.professional_id || null
+
+    // Verificação prévia de conflito (UX) — a constraint do banco é a
+    // garantia real contra concorrência; isto só dá feedback amigável.
+    if (professionalId) {
+      const startMs = new Date(scheduledAtISO).getTime()
+      const endISO = new Date(startMs + duration * 60000).toISOString()
+      const { data: conflicts } = await supabase
+        .from('appointments')
+        .select('scheduled_at, duration_minutes')
+        .eq('clinic_id', clinic.id)
+        .eq('professional_id', professionalId)
+        .neq('status', 'cancelado')
+        .lt('scheduled_at', endISO)
+      const overlap = (conflicts ?? []).some((c) => {
+        const cStart = new Date(c.scheduled_at).getTime()
+        const cEnd = cStart + (c.duration_minutes ?? 60) * 60000
+        return cStart < startMs + duration * 60000 && startMs < cEnd
+      })
+      if (overlap) {
+        setSaving(false)
+        alert('Este profissional já tem um agendamento nesse horário. Escolha outro horário ou profissional.')
+        return
+      }
+    }
 
     const { data: inserted, error: insertErr } = await supabase
       .from('appointments')
-      .insert([{ ...form, scheduled_at: scheduledAtISO, clinic_id: clinic.id, professional_id: form.professional_id || null }])
+      .insert([{ ...form, scheduled_at: scheduledAtISO, clinic_id: clinic.id, professional_id: professionalId }])
       .select('id')
       .single()
 
     if (insertErr) {
       setSaving(false)
-      alert(`Erro ao salvar agendamento: ${insertErr.message}`)
+      const msg = insertErr.code === '23P01'
+        ? 'Este profissional já tem um agendamento que conflita com esse horário. Escolha outro horário ou profissional.'
+        : `Erro ao salvar agendamento: ${insertErr.message}`
+      alert(msg)
       return
     }
 
@@ -241,7 +276,9 @@ export default function AgendaPage() {
           }
           await loadGCalEvents(token, professionals)
           if (event.htmlLink) window.open(event.htmlLink, '_blank')
-        } catch { /* ignore gcal errors */ }
+        } catch {
+          alert('Agendamento salvo, mas não foi possível sincronizar com o Google Calendar. Reconecte o Google Calendar e tente novamente.')
+        }
       }
     }
 

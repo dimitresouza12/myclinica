@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { n8nClient } from '@/lib/supabase-n8n'
+import { callN8n } from '@/lib/supabase-n8n'
 import styles from './TabChatIA.module.css'
 
 interface Message {
@@ -17,14 +17,17 @@ export function TabChatIA({ phone }: { phone: string | null }) {
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    loadMessages()
+    let ignore = false
+    loadMessages(() => ignore)
+    return () => { ignore = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function loadMessages() {
+  async function loadMessages(isStale: () => boolean) {
     setLoading(true)
     setError('')
     if (!phone) {
@@ -33,17 +36,15 @@ export function TabChatIA({ phone }: { phone: string | null }) {
       return
     }
 
-    const phoneClean = String(phone).replace(/\D/g, '')
     try {
-      // Try chat_messages first
-      const { data: msgData, error: msgErr } = await n8nClient
-        .from('chat_messages')
-        .select('*')
-        .or(`phone.eq.${phoneClean},phone.eq.55${phoneClean}`)
-        .order('created_at', { ascending: true })
-        .limit(100)
+      const { data } = await callN8n<{
+        data: { messages: Record<string, unknown>[]; histories: Record<string, unknown>[] }
+      }>({ action: 'list_messages_by_phone', phone })
+      if (isStale()) return
+      const msgData = data?.messages ?? []
+      const histData = data?.histories ?? []
 
-      if (!msgErr && msgData && msgData.length > 0) {
+      if (msgData.length > 0) {
         const msgs: Message[] = []
         msgData.forEach((row: Record<string, unknown>) => {
           const time = row.created_at ? new Date(row.created_at as string).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
@@ -55,17 +56,7 @@ export function TabChatIA({ phone }: { phone: string | null }) {
         return
       }
 
-      // Fallback: n8n_chat_histories
-      const { data: histData, error: histErr } = await n8nClient
-        .from('n8n_chat_histories')
-        .select('*')
-        .or(`session_id.eq.${phoneClean},session_id.eq.55${phoneClean}`)
-        .order('id', { ascending: true })
-        .limit(100)
-
-      if (histErr) throw histErr
-
-      const msgs: Message[] = (histData ?? []).map((row: Record<string, unknown>) => {
+      const msgs: Message[] = histData.map((row: Record<string, unknown>) => {
         const msg = row.message as { type?: string; data?: { content?: string } }
         const text = msg?.data?.content ?? '...'
         const sender: 'user' | 'bot' = msg?.type === 'human' ? 'user' : 'bot'
@@ -73,9 +64,10 @@ export function TabChatIA({ phone }: { phone: string | null }) {
       })
       setMessages(msgs)
     } catch {
+      if (isStale()) return
       setError('Não foi possível carregar o histórico de conversas do WhatsApp.')
     } finally {
-      setLoading(false)
+      if (!isStale()) setLoading(false)
     }
   }
 

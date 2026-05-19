@@ -1,28 +1,60 @@
 import { supabase } from '@/lib/supabase'
-import { n8nClient } from '@/lib/supabase-n8n'
+import { callN8n } from '@/lib/supabase-n8n'
 import { cleanPhone } from '@/lib/utils'
 
-function parseN8nDate(raw: string): string | null {
+interface N8nLead {
+  phone: string
+  nome: string | null
+  procedimento: string | null
+  data_agendamento: string | null
+  status: string | null
+}
+
+// Horário de Brasília (UTC-3, sem horário de verão desde 2019).
+// A clínica e o bot operam nesse fuso; ancoramos a data explicitamente
+// para não depender do fuso do navegador de quem dispara o sync.
+const BRT_OFFSET = '-03:00'
+
+function parseN8nDate(raw: string | null): string | null {
+  if (!raw) return null
+  // Já vem com fuso/ISO explícito (ex.: timestamptz do banco) → confia.
   const iso = new Date(raw)
-  if (!isNaN(iso.getTime())) return iso.toISOString()
-  // DD/MM/YYYY HH:mm or DD/MM/YYYY
+  if (!isNaN(iso.getTime()) && /[zZ]|[+-]\d{2}:?\d{2}$/.test(raw.trim())) {
+    return iso.toISOString()
+  }
+  // DD/MM/YYYY HH:mm or DD/MM/YYYY — interpreta como horário de Brasília
   const m = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/)
   if (m) {
-    const date = new Date(+m[3], +m[2] - 1, +m[1], m[4] ? +m[4] : 9, m[5] ? +m[5] : 0)
-    if (!isNaN(date.getTime())) return date.toISOString()
+    const yyyy = m[3]
+    const mm = m[2].padStart(2, '0')
+    const dd = m[1].padStart(2, '0')
+    const hh = (m[4] ?? '9').padStart(2, '0')
+    const min = (m[5] ?? '0').padStart(2, '0')
+    const d = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00${BRT_OFFSET}`)
+    if (!isNaN(d.getTime())) return d.toISOString()
+  }
+  // Fallback: data sem fuso explícito — assume Brasília.
+  if (!isNaN(iso.getTime())) {
+    const d = new Date(`${raw.trim().replace(' ', 'T')}${BRT_OFFSET}`)
+    return isNaN(d.getTime()) ? iso.toISOString() : d.toISOString()
   }
   return null
 }
 
-export async function syncLeadAppointments(clinicId: string, clinicSlug: string) {
-  const { data: leads } = await n8nClient
-    .from('chats')
-    .select('phone, nome, procedimento, data_agendamento')
-    .eq('clinic_slug', clinicSlug)
-    .eq('status', 'Agendado')
-    .not('data_agendamento', 'is', null)
+export async function syncLeadAppointments(clinicId: string, _clinicSlug?: string) {
+  // O slug é derivado no servidor pela Edge Function — não enviamos do cliente.
+  let allChats: N8nLead[] = []
+  try {
+    const { data } = await callN8n<{ data: N8nLead[] }>({ action: 'list_chats' })
+    allChats = data ?? []
+  } catch {
+    return
+  }
+  const leads = allChats.filter(
+    (l) => l.status === 'Agendado' && l.data_agendamento != null,
+  )
 
-  if (!leads?.length) return
+  if (!leads.length) return
 
   const { data: patients } = await supabase
     .from('patients')
@@ -77,7 +109,7 @@ export async function syncLeadAppointments(clinicId: string, clinicSlug: string)
 
     if (existing?.length) continue
 
-    await supabase.from('appointments').insert([{
+    const { error: apptErr } = await supabase.from('appointments').insert([{
       clinic_id: clinicId,
       patient_id: patientId,
       procedure_name: lead.procedimento ?? 'Consulta via WhatsApp',
@@ -86,5 +118,9 @@ export async function syncLeadAppointments(clinicId: string, clinicSlug: string)
       status: 'agendado',
       notes: 'Agendado pelo bot WhatsApp',
     }])
+    if (apptErr) {
+      console.error('[sync-leads] falha ao inserir agendamento:', apptErr.message)
+      continue
+    }
   }
 }
