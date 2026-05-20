@@ -138,7 +138,7 @@
 /* ========== Form fields ========== */
 .field { display:flex; flex-direction:column; gap:0.3rem; }
 .field label { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-secondary); }
-.fieldInput { padding:0.55rem 0.75rem; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-secondary); color:var(--text-primary); font-size:0.875rem; font-family:inherit; outline:none; width:100%; }
+.fieldInput { padding:0.55rem 0.75rem; min-height:44px; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-secondary); color:var(--text-primary); font-size:0.875rem; font-family:inherit; outline:none; width:100%; }
 .fieldInput:focus { border-color:var(--brand-primary); }
 .fieldError { font-size:0.8rem; color:#EF4444; }
 .sectionSubtitle { font-size:0.875rem; font-weight:700; color:var(--text-primary); margin:0; }
@@ -155,9 +155,9 @@
 .btnPrimary { padding:0.55rem 1.15rem; background:linear-gradient(135deg,#0D9488,#5EEAD4); color:#fff; border:none; border-radius:var(--radius-md); font-size:0.875rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:opacity 0.15s,transform 0.1s; box-shadow:0 2px 8px rgba(13,148,136,0.25); }
 .btnPrimary:hover { opacity:0.9; transform:translateY(-1px); }
 .btnPrimary:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
-.btnSave { padding:0.55rem 1.25rem; background:var(--brand-primary); color:#fff; border:none; border-radius:var(--radius-md); font-size:0.875rem; font-weight:600; cursor:pointer; }
+.btnSave { padding:0.55rem 1.25rem; min-height:44px; background:var(--brand-primary); color:#fff; border:none; border-radius:var(--radius-md); font-size:0.875rem; font-weight:600; cursor:pointer; }
 .btnSave:disabled { opacity:0.5; cursor:not-allowed; }
-.btnCancel { padding:0.55rem 1rem; border:1px solid var(--border-color); background:none; border-radius:var(--radius-md); font-size:0.875rem; font-weight:500; color:var(--text-secondary); cursor:pointer; }
+.btnCancel { padding:0.55rem 1rem; min-height:44px; border:1px solid var(--border-color); background:none; border-radius:var(--radius-md); font-size:0.875rem; font-weight:500; color:var(--text-secondary); cursor:pointer; }
 .btnDeactivate { padding:0.3rem 0.75rem; border:1px solid #FECACA; background:none; border-radius:var(--radius-sm); font-size:0.78rem; cursor:pointer; color:#EF4444; transition:all 0.15s; }
 .btnDeactivate:hover { background:#FEE2E2; }
 .btnActivate { padding:0.3rem 0.75rem; border:1px solid #6EE7B7; background:none; border-radius:var(--radius-sm); font-size:0.78rem; cursor:pointer; color:#059669; transition:all 0.15s; }

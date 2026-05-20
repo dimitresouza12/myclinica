@@ -355,9 +355,10 @@
 }
 .field { display: flex; flex-direction: column; gap: 0.3rem; }
 .field label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); }
-.field input, .field select, .field textarea { padding: 0.55rem 0.75rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.875rem; font-family: inherit; outline: none; }
+.field input, .field select, .field textarea { padding: 0.55rem 0.75rem; min-height: 44px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.875rem; font-family: inherit; outline: none; }
+.field textarea { min-height: 80px; }
 .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--brand-primary); }
 .field textarea { resize: vertical; }
-.btnCancel { padding: 0.55rem 1rem; border: 1px solid var(--border-color); background: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; }
-.btnSave { padding: 0.55rem 1.25rem; background: var(--brand-primary); color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.btnCancel { padding: 0.55rem 1rem; min-height: 44px; border: 1px solid var(--border-color); background: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; }
+.btnSave { padding: 0.55rem 1.25rem; min-height: 44px; background: var(--brand-primary); color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
 .btnSave:disabled { opacity: 0.5; cursor: not-allowed; }

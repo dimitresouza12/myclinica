@@ -101,6 +101,7 @@
 .fieldGroup select,
 .fieldGroup textarea {
   padding: 0.55rem 0.75rem;
+  min-height: 44px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background: var(--bg-secondary);
@@ -119,7 +120,7 @@
 
 .fieldGroup textarea {
   resize: vertical;
-  min-height: 70px;
+  min-height: 80px;
 }
 
 .error {
@@ -141,6 +142,7 @@
 .btnDangerOutline {
   margin-right: auto;
   padding: 0.55rem 1.1rem;
+  min-height: 44px;
   border: 1px solid #FCA5A5;
   background: none;
   border-radius: var(--radius-md);
@@ -170,6 +172,7 @@
 
 .btnDanger {
   padding: 0.5rem 1rem;
+  min-height: 44px;
   background: #DC2626;
   color: #fff;
   border: none;
@@ -183,6 +186,7 @@
 
 .btnCancel {
   padding: 0.55rem 1.1rem;
+  min-height: 44px;
   border: 1px solid var(--border-color);
   background: none;
   border-radius: var(--radius-md);
@@ -195,6 +199,7 @@
 
 .btnSave {
   padding: 0.55rem 1.25rem;
+  min-height: 44px;
   background: var(--brand-primary);
   color: #fff;
   border: none;

@@ -274,6 +274,7 @@
 .field label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); }
 .field input, .field select, .field textarea {
   padding: 0.55rem 0.75rem;
+  min-height: 44px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background: var(--bg-secondary);
@@ -282,6 +283,7 @@
   outline: none;
   font-family: inherit;
 }
+.field textarea { min-height: 80px; }
 .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--brand-primary); }
 .field textarea { resize: vertical; }
 .error {
@@ -302,6 +304,7 @@
 }
 .btnCancel {
   padding: 0.55rem 1.25rem;
+  min-height: 44px;
   border: 1px solid var(--border-color);
   background: none;
   border-radius: var(--radius-md);
@@ -313,6 +316,7 @@
 .btnCancel:hover { background: var(--bg-secondary); }
 .btnSave {
   padding: 0.55rem 1.25rem;
+  min-height: 44px;
   background: var(--brand-primary);
   color: #fff;
   border: none;

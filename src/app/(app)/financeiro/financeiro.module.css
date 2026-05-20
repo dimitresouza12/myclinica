@@ -18,8 +18,8 @@
 .card { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:1.25rem 1.5rem; display:flex; align-items:center; gap:1rem; box-shadow:var(--shadow-sm); transition:box-shadow .2s,transform .2s; }
 .card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
 .cardIcon { width:40px; height:40px; border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
-.cardBody { display:flex; flex-direction:column; gap:0.2rem; }
-.cardValue { font-size:1.35rem; font-weight:750; color:var(--text-primary); line-height:1; letter-spacing:-0.5px; }
+.cardBody { display:flex; flex-direction:column; gap:0.2rem; min-width:0; flex:1 1 auto; }
+.cardValue { font-size:1.35rem; font-weight:750; color:var(--text-primary); line-height:1.05; letter-spacing:-0.5px; word-break:break-word; overflow-wrap:anywhere; }
 .cardLabel { font-size:0.78rem; color:var(--text-secondary); font-weight:500; }
 
 /* Charts */
@@ -77,12 +77,12 @@
 }
 .field { display:flex; flex-direction:column; gap:.3rem; }
 .field label { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--text-secondary); }
-.field input, .field select { padding:.55rem .75rem; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-secondary); color:var(--text-primary); font-size:.875rem; outline:none; transition:border-color .15s; font-family:inherit; }
+.field input, .field select { padding:.55rem .75rem; min-height:44px; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-secondary); color:var(--text-primary); font-size:.875rem; outline:none; transition:border-color .15s; font-family:inherit; }
 .field input:focus, .field select:focus { border-color:var(--brand-primary); }
-.btnCancel { padding:.55rem 1rem; border:1px solid var(--border-color); background:none; border-radius:var(--radius-md); font-size:.875rem; color:var(--text-secondary); cursor:pointer; }
-.btnSaveReceita { padding:.55rem 1.25rem; background:linear-gradient(135deg,#059669,#10B981); color:#fff; border:none; border-radius:var(--radius-md); font-size:.875rem; font-weight:600; cursor:pointer; }
+.btnCancel { padding:.55rem 1rem; min-height:44px; border:1px solid var(--border-color); background:none; border-radius:var(--radius-md); font-size:.875rem; color:var(--text-secondary); cursor:pointer; }
+.btnSaveReceita { padding:.55rem 1.25rem; min-height:44px; background:linear-gradient(135deg,#059669,#10B981); color:#fff; border:none; border-radius:var(--radius-md); font-size:.875rem; font-weight:600; cursor:pointer; }
 .btnSaveReceita:disabled { opacity:.5; cursor:not-allowed; }
-.btnSaveDespesa { padding:.55rem 1.25rem; background:linear-gradient(135deg,#B91C1C,#EF4444); color:#fff; border:none; border-radius:var(--radius-md); font-size:.875rem; font-weight:600; cursor:pointer; }
+.btnSaveDespesa { padding:.55rem 1.25rem; min-height:44px; background:linear-gradient(135deg,#B91C1C,#EF4444); color:#fff; border:none; border-radius:var(--radius-md); font-size:.875rem; font-weight:600; cursor:pointer; }
 .btnSaveDespesa:disabled { opacity:.5; cursor:not-allowed; }
 
 /* Row actions (edit/delete) */
