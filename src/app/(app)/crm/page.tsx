@@ -5,6 +5,7 @@ import { callN8n } from '@/lib/supabase-n8n'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { Portal } from '@/components/ui/Portal'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import { formatDate, cleanPhone } from '@/lib/utils'
 import styles from './crm.module.css'
 
@@ -78,6 +79,8 @@ export default function CRMPage() {
   const [convertMsg, setConvertMsg] = useState('')
   const [existingPatients, setExistingPatients] = useState<Set<string>>(new Set())
   const [patientIdMap, setPatientIdMap] = useState<Record<string, string>>({})
+
+  useScrollLock(!!selected)
 
   // Gate: CRM é exclusivo do plano Plus
   useEffect(() => {

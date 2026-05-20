@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatCurrency } from '@/lib/utils'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
 
@@ -31,6 +32,8 @@ export default function FinanceiroPage() {
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState<'receita' | 'despesa'>('receita')
   const [editingId, setEditingId] = useState<string | null>(null)
+
+  useScrollLock(showModal)
   const [form, setForm] = useState<NewRecord>(BLANK)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth'
 import { formatDate, formatPhone } from '@/lib/utils'
 import { getGCalToken, isGCalConnected, silentRefreshGCal, fetchGCalEvents, createGCalEvent, updateGCalEvent, connectGoogleCalendar, disconnectGoogleCalendar, type GCalEvent } from '@/lib/googleCalendar'
 import { Portal } from '@/components/ui/Portal'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import type { Appointment, Patient, Professional } from '@/types'
 import { type CalendarEvent } from '@/components/agenda/FullCalendarWrapper'
@@ -71,6 +72,8 @@ export default function AgendaPage() {
   const [gcalEvents, setGcalEvents] = useState<GCalEvent[]>([])
   const [gcalConnected, setGcalConnected] = useState(false)
   const [gcalError, setGcalError] = useState('')
+
+  useScrollLock(showModal || !!selected || !!selectedGcal)
 
   const loadData = useCallback(async () => {
     if (!clinic?.id) return

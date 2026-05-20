@@ -10,6 +10,7 @@ import type { Patient, Appointment, Professional } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './pacientes.module.css'
 
 type ActiveTab = 'atendimentos' | 'pacientes'
@@ -37,6 +38,8 @@ function PacientesContent() {
   const [apptError, setApptError] = useState('')
   const [syncToGCal, setSyncToGCal] = useState(false)
   const gcalConnected = isGCalConnected(clinic?.gcalConnected)
+
+  useScrollLock(!!prontuarioPatient || !!editPatient || showNewPatient || showNewAppt)
 
   useEffect(() => {
     if (!clinic?.id) return

@@ -7,6 +7,7 @@ import { formatDate } from '@/lib/utils'
 import type { Clinic } from '@/types'
 import { StatusBadge } from './StatusBadge'
 import { ClinicEditModal } from './ClinicEditModal'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './admin.module.css'
 
 interface Props {
@@ -27,6 +28,8 @@ export function AdminClinicas({ clinics, onReload }: Props) {
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Clinic | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  useScrollLock(!!editTarget || showNewModal || !!deleteTarget)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingClinicRef = useRef<Clinic | null>(null)
 

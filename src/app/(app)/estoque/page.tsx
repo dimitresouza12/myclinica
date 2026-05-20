@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { StockItem, StockMovement } from '@/types'
 import { Portal } from '@/components/ui/Portal'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './estoque.module.css'
 
 const CATEGORIES = ['material', 'medicamento', 'descartavel', 'equipamento', 'outro']
@@ -34,6 +35,8 @@ export default function EstoquePage() {
   const [movForm, setMovForm] = useState(BLANK_MOV)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useScrollLock(modal !== null)
 
   useEffect(() => {
     if (!clinic?.id) return

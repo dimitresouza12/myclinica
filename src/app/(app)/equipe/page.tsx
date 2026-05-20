@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate } from '@/lib/utils'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import type { Professional } from '@/types'
 import styles from './equipe.module.css'
 
@@ -16,6 +17,8 @@ export default function EquipePage() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<NewProf>(BLANK)
   const [saving, setSaving] = useState(false)
+
+  useScrollLock(showModal)
 
   useEffect(() => {
     if (!clinic?.id) return
