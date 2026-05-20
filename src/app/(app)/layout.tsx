@@ -20,12 +20,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
-        // Tenta refresh antes de deslogar
+        // Tenta refresh antes de deslogar (silencia "Refresh Token Not Found" — esperado quando não há sessão)
         supabase.auth.refreshSession().then(({ data }) => {
           if (!data.session) {
             clearSession()
             router.replace('/login')
           }
+          setAuthChecked(true)
+        }).catch(() => {
+          clearSession()
+          router.replace('/login')
           setAuthChecked(true)
         })
       } else {
