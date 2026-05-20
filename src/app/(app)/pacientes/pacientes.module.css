@@ -354,7 +354,13 @@
     border-radius: 0;
     border: none;
   }
-  .modalHeader { padding: 1rem; }
+  .modalHeader {
+    padding: 1rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
   .modalBody { padding: 1rem; }
-  .modalFooter { padding: 0.875rem 1rem; }
+  .modalFooter {
+    padding: 0.875rem 1rem;
+    padding-bottom: max(0.875rem, env(safe-area-inset-bottom));
+  }
 }

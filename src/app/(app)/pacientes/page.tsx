@@ -10,6 +10,7 @@ import type { Patient, Appointment, Professional } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
+import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './pacientes.module.css'
 
@@ -295,6 +296,7 @@ function PacientesContent() {
       )}
 
       {showNewAppt && (
+        <Portal>
         <div className={styles.overlay} onClick={() => setShowNewAppt(false)}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
@@ -358,6 +360,7 @@ function PacientesContent() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   )
