@@ -83,7 +83,7 @@ export function TabDocumentos({ patient }: Props) {
       editorRef.current.innerHTML = `<p><strong>Paciente:</strong> ${patient.name}</p><p><strong>Data:</strong> ${hoje}</p><br><p></p>`
     } else {
       // Sem modelo: template HTML padrão do sistema
-      editorRef.current.innerHTML = buildDefaultTemplate(docInfo.title, patient.name, hoje, clinic?.name ?? '', user?.displayName ?? '')
+      editorRef.current.innerHTML = buildDefaultTemplate(docInfo.title, patient.name, hoje, clinic?.name ?? '', user?.displayName ?? '', clinic?.logo)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedType, templates])
@@ -153,9 +153,10 @@ export function TabDocumentos({ patient }: Props) {
   )
 }
 
-function buildDefaultTemplate(title: string, patientName: string, date: string, clinicName: string, doctorName: string) {
+function buildDefaultTemplate(title: string, patientName: string, date: string, clinicName: string, doctorName: string, clinicLogo?: string) {
   return `
-    <div style="text-align:center;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:center;gap:16px;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:20px">
+      ${clinicLogo ? `<img src="${clinicLogo}" alt="Logo" style="height:56px;width:auto;object-fit:contain" />` : ''}
       <p style="font-size:18px;font-weight:800;margin:0">${clinicName}</p>
     </div>
     <h2 style="text-align:center;font-size:15px;letter-spacing:2px;margin-bottom:20px">${title}</h2>

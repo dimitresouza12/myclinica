@@ -13,13 +13,19 @@ const DOC_TEMPLATE_TYPES: { type: DocumentTemplateType; label: string }[] = [
   { type: 'atestado',                  label: 'Atestado' },
 ]
 
+const MAX_LOGO_BYTES = 2 * 1024 * 1024 // 2 MB
+
 export default function ConfiguracoesPage() {
-  const { clinic, user, setSession } = useAuthStore()
+  const { clinic, user, setSession, setClinicLogo } = useAuthStore()
   const [name, setName] = useState(clinic?.name ?? '')
   const [address, setAddress] = useState(clinic?.address ?? '')
   const [phone, setPhone] = useState(clinic?.phone ?? '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  const logoInputRef = useRef<HTMLInputElement | null>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoMsg, setLogoMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const [gcalConnected, setGcalConnected] = useState(isGCalConnected(clinic?.gcalConnected))
   const [gcalLoading, setGcalLoading] = useState(false)
@@ -61,6 +67,44 @@ export default function ConfiguracoesPage() {
     setDocUploading(null)
     setDocMsg({ type, ok: true })
     setTimeout(() => setDocMsg(null), 3000)
+  }
+
+  async function handleLogoUpload(file: File) {
+    if (!clinic?.id) return
+    setLogoMsg(null)
+    if (!file.type.startsWith('image/')) {
+      setLogoMsg({ ok: false, text: 'Selecione um arquivo de imagem (PNG, JPG, SVG).' })
+      return
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setLogoMsg({ ok: false, text: 'Arquivo maior que 2 MB. Otimize a imagem antes de enviar.' })
+      return
+    }
+    setLogoUploading(true)
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png'
+    const path = `${clinic.id}/logo.${ext}`
+    const { error: upErr } = await supabase.storage.from('clinic-logos').upload(path, file, { upsert: true, contentType: file.type })
+    if (upErr) {
+      setLogoUploading(false)
+      setLogoMsg({ ok: false, text: 'Erro no upload: ' + upErr.message })
+      return
+    }
+    const { data: urlData } = supabase.storage.from('clinic-logos').getPublicUrl(path)
+    const publicUrl = urlData.publicUrl + '?t=' + Date.now()
+    await supabase.from('clinics').update({ logo_url: publicUrl }).eq('id', clinic.id)
+    setClinicLogo(publicUrl)
+    setLogoUploading(false)
+    setLogoMsg({ ok: true, text: 'Logo atualizada!' })
+    setTimeout(() => setLogoMsg(null), 3000)
+  }
+
+  async function handleLogoRemove() {
+    if (!clinic?.id) return
+    if (!confirm('Remover a logo da clínica?')) return
+    await supabase.from('clinics').update({ logo_url: null }).eq('id', clinic.id)
+    setClinicLogo('')
+    setLogoMsg({ ok: true, text: 'Logo removida.' })
+    setTimeout(() => setLogoMsg(null), 3000)
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -154,6 +198,55 @@ export default function ConfiguracoesPage() {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Logo da Clínica */}
+      <div className={styles.card}>
+        <h2 className={styles.cardTitle}>Logo da Clínica</h2>
+        <p className={styles.gcalDesc}>
+          A logo aparece no topo do painel e no cabeçalho de prontuários, contratos, receitas e atestados impressos.
+          Recomendado: PNG/SVG com fundo transparente, até 2 MB.
+        </p>
+        <div className={styles.logoRow}>
+          <div className={styles.logoPreview}>
+            {clinic?.logo
+              ? <img src={clinic.logo} alt="Logo da clínica" />
+              : <span className={styles.logoPlaceholder}>Sem logo</span>
+            }
+          </div>
+          <div className={styles.logoActions}>
+            <button
+              className={styles.btnSave}
+              disabled={logoUploading}
+              onClick={() => logoInputRef.current?.click()}
+            >
+              {logoUploading ? 'Enviando...' : clinic?.logo ? 'Trocar Logo' : 'Enviar Logo'}
+            </button>
+            {clinic?.logo && (
+              <button
+                className={styles.btnDisconnect}
+                disabled={logoUploading}
+                onClick={handleLogoRemove}
+              >
+                Remover
+              </button>
+            )}
+            {logoMsg && (
+              <span className={logoMsg.ok ? styles.savedMsg : styles.pwError}>{logoMsg.text}</span>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              ref={logoInputRef}
+              onChange={e => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (file) handleLogoUpload(file)
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Google Calendar */}
