@@ -103,7 +103,7 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
           <button className={styles.btnClose} onClick={onClose}>✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} className={styles.form}>
+        <form id="patient-form" onSubmit={handleSubmit} className={styles.form}>
           <p className={styles.requiredNote}><span className={styles.requiredStar}>*</span> Campo obrigatório</p>
           <div className={styles.grid2}>
             <Field label="Nome" required value={form.name} onChange={(v) => set('name', v)} />
@@ -146,19 +146,19 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
               </div>
             </div>
           )}
-
-          <div className={styles.formFooter}>
-            {!isNew && !confirmDelete && (
-              <button type="button" className={styles.btnDangerOutline} onClick={() => setConfirmDelete(true)} disabled={saving}>
-                Excluir
-              </button>
-            )}
-            <button type="button" className={styles.btnCancel} onClick={onClose}>Cancelar</button>
-            <button type="submit" className={styles.btnSave} disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
-            </button>
-          </div>
         </form>
+
+        <div className={styles.formFooter}>
+          {!isNew && !confirmDelete && (
+            <button type="button" className={styles.btnDangerOutline} onClick={() => setConfirmDelete(true)} disabled={saving}>
+              Excluir
+            </button>
+          )}
+          <button type="button" className={styles.btnCancel} onClick={onClose}>Cancelar</button>
+          <button type="submit" form="patient-form" className={styles.btnSave} disabled={saving}>
+            {saving ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
       </div>
     </div>
     </Portal>

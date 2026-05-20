@@ -337,23 +337,22 @@
   color: var(--text-secondary);
   cursor: pointer;
 }
-.gcalCheck input { accent-color: var(--brand-primary); cursor: pointer; }
+.gcalCheck input { accent-color: var(--brand-primary); cursor: pointer; min-height: unset; width: 16px; height: 16px; }
 
 @media (max-width: 1024px) and (min-width: 601px) {
-  .modal { max-width: 92%; max-height: 85vh; max-height: 85dvh; }
+  .modal { max-width: 92%; max-height: 90dvh; }
 }
 
 @media (max-width: 600px) {
   .overlay { padding: 0; align-items: stretch; }
   .modal {
     max-width: 100%;
-    max-height: 100vh;
     max-height: 100dvh;
-    height: 100vh;
     height: 100dvh;
     border-radius: 0;
     border: none;
   }
   .modalHeader { padding: 1rem; }
   .modalBody { padding: 1rem; }
+  .modalFooter { padding: 0.875rem 1rem; }
 }
