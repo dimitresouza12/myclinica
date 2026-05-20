@@ -26,20 +26,16 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isPublicPath = pathname.startsWith('/login') || pathname.startsWith('/api/auth')
 
-  // Skip auth check on public paths — evita chamar getUser() (que tenta refresh) sem necessidade
+  // Skip auth check on public paths — evita verificação desnecessária de sessão
   if (isPublicPath) return supabaseResponse
 
-  // getUser() pode lançar "Refresh Token Not Found" quando o cookie expirou ou não existe.
-  // Tratamos como "sem sessão" silenciosamente em vez de poluir os logs com erro esperado.
-  let user = null
-  try {
-    const { data } = await supabase.auth.getUser()
-    user = data.user
-  } catch {
-    user = null
-  }
+  // getSession() lê o cookie local sem acionar refresh automático — evita o
+  // "Refresh Token Not Found" que getUser() lança quando não há sessão válida.
+  // A validação criptográfica do JWT acontece no servidor via RLS; para o
+  // middleware (decisão de redirect) a sessão local é suficiente.
+  const { data: { session } } = await supabase.auth.getSession()
 
-  if (!user) {
+  if (!session) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
