@@ -3,8 +3,9 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { connectGoogleCalendar, disconnectGoogleCalendar, isGCalConnected } from '@/lib/googleCalendar'
-import type { AuthClinic, ClinicDocumentTemplate, DocumentTemplateType } from '@/types'
+import type { AuthClinic, ClinicDocumentTemplate, DocumentTemplateType, ClinicUser, UserRole } from '@/types'
 import styles from './configuracoes.module.css'
+import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
 const DOC_TEMPLATE_TYPES: { type: DocumentTemplateType; label: string }[] = [
   { type: 'receita_comum',             label: 'Receita Comum' },
@@ -13,9 +14,64 @@ const DOC_TEMPLATE_TYPES: { type: DocumentTemplateType; label: string }[] = [
   { type: 'atestado',                  label: 'Atestado' },
 ]
 
+const ROLE_LABELS: Record<UserRole, string> = {
+  recepcao:   'Recepção',
+  dentista:   'Dentista',
+  medico:     'Médico',
+  admin:      'Admin',
+  superadmin: 'Superadmin',
+}
+
 const MAX_LOGO_BYTES = 2 * 1024 * 1024 // 2 MB
 
-export default function ConfiguracoesPage() {
+function normalizeUsername(raw: string) {
+  return raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9_.-]/g, '')
+}
+
+// Módulos disponíveis para controle de permissão
+const MODULES = [
+  { key: 'dashboard',     label: 'Dashboard',     icon: '📊' },
+  { key: 'pacientes',     label: 'Pacientes',      icon: '👥' },
+  { key: 'agenda',        label: 'Agenda',         icon: '📅' },
+  { key: 'financeiro',    label: 'Financeiro',     icon: '💰' },
+  { key: 'estoque',       label: 'Estoque',        icon: '📦' },
+  { key: 'equipe',        label: 'Equipe',         icon: '👤' },
+  { key: 'crm',           label: 'CRM',            icon: '💬' },
+  { key: 'configuracoes', label: 'Configurações',  icon: '⚙️' },
+]
+
+interface ModulePermForm {
+  can_view: boolean
+  can_edit: boolean
+  metadata: Record<string, unknown>
+}
+type PermissionsForm = Record<string, ModulePermForm>
+
+// Opções extras configuráveis por módulo
+const MODULE_EXTRAS: Record<string, { key: string; label: string }[]> = {
+  financeiro: [
+    { key: 'show_totals', label: 'Ver totais e gráficos financeiros' },
+  ],
+}
+
+function defaultPermissions(): PermissionsForm {
+  return Object.fromEntries(MODULES.map(m => {
+    const extras = MODULE_EXTRAS[m.key] ?? []
+    const defaultMeta = Object.fromEntries(extras.map(e => [e.key, true]))
+    return [m.key, { can_view: true, can_edit: true, metadata: defaultMeta }]
+  }))
+}
+
+interface UserForm {
+  display_name: string
+  username: string
+  email: string
+  password: string
+  role: UserRole
+}
+const BLANK_USER: UserForm = { display_name: '', username: '', email: '', password: '', role: 'recepcao' }
+
+function ConfiguracoesContent() {
   const { clinic, user, setSession, setClinicLogo } = useAuthStore()
   const [name, setName] = useState(clinic?.name ?? '')
   const [address, setAddress] = useState(clinic?.address ?? '')
@@ -42,12 +98,166 @@ export default function ConfiguracoesPage() {
   const [docMsg, setDocMsg] = useState<{ type: DocumentTemplateType; ok: boolean } | null>(null)
   const docInputRefs = useRef<Partial<Record<DocumentTemplateType, HTMLInputElement | null>>>({})
 
+  // ── Gestão de usuários ──────────────────────────────────────
+  const isAdmin = user?.role === 'admin'
+  const [clinicUsers, setClinicUsers] = useState<ClinicUser[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [showUserModal, setShowUserModal] = useState(false)
+  const [editingUser, setEditingUser] = useState<ClinicUser | null>(null)
+  const [userForm, setUserForm] = useState<UserForm>(BLANK_USER)
+  const [userSaving, setUserSaving] = useState(false)
+  const [userMsg, setUserMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [editIsActive, setEditIsActive] = useState(true)
+  const [permissionsForm, setPermissionsForm] = useState<PermissionsForm>(defaultPermissions())
+
   useEffect(() => {
     if (!clinic?.id) return
     supabase.from('clinic_document_templates').select('*').eq('clinic_id', clinic.id)
       .then(({ data }) => setDocTemplates((data ?? []) as ClinicDocumentTemplate[]))
   }, [clinic?.id])
 
+  useEffect(() => {
+    if (!clinic?.id || !isAdmin) return
+    loadUsers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinic?.id, isAdmin])
+
+  async function loadUsers() {
+    if (!clinic?.id) return
+    setUsersLoading(true)
+    const { data } = await supabase
+      .from('clinic_users')
+      .select('*')
+      .eq('clinic_id', clinic.id)
+      .order('created_at')
+    setClinicUsers((data ?? []) as ClinicUser[])
+    setUsersLoading(false)
+  }
+
+  function openNewUser() {
+    setEditingUser(null)
+    setUserForm(BLANK_USER)
+    setPermissionsForm(defaultPermissions())
+    setUserMsg(null)
+    setShowUserModal(true)
+  }
+
+  async function openEditUser(u: ClinicUser) {
+    setEditingUser(u)
+    setUserForm({ display_name: u.display_name, username: u.username, email: u.email ?? '', password: '', role: u.role as UserRole })
+    setEditIsActive(u.is_active ?? true)
+    setUserMsg(null)
+    // Carrega permissões existentes do banco
+    const perms = defaultPermissions()
+    const { data } = await supabase
+      .from('clinic_user_permissions')
+      .select('module, can_view, can_edit, metadata')
+      .eq('clinic_user_id', u.id)
+    if (data && data.length > 0) {
+      // Tem permissões salvas — sobrescreve os defaults
+      for (const p of data) {
+        if (perms[p.module] !== undefined) {
+          perms[p.module] = {
+            can_view: p.can_view,
+            can_edit: p.can_edit,
+            metadata: (p.metadata as Record<string, unknown>) ?? {},
+          }
+        }
+      }
+    }
+    setPermissionsForm(perms)
+    setShowUserModal(true)
+  }
+
+  function closeUserModal() {
+    setShowUserModal(false)
+    setEditingUser(null)
+    setUserForm(BLANK_USER)
+    setPermissionsForm(defaultPermissions())
+    setUserMsg(null)
+  }
+
+  async function savePermissions(memberId: string, perms: PermissionsForm) {
+    const payload = Object.entries(perms).map(([module, p]) => ({
+      module,
+      can_view: p.can_view,
+      can_edit: p.can_edit,
+      metadata: p.metadata ?? {},
+    }))
+    await supabase.rpc('save_clinic_member_permissions', {
+      p_member_id:   memberId,
+      p_permissions: payload,
+    })
+  }
+
+  async function handleSaveUser() {
+    setUserMsg(null)
+    if (!userForm.display_name.trim()) return setUserMsg({ type: 'error', text: 'Nome é obrigatório.' })
+    if (!userForm.username.trim())     return setUserMsg({ type: 'error', text: 'Usuário é obrigatório.' })
+
+    setUserSaving(true)
+
+    if (editingUser) {
+      // Atualizar membro existente
+      const { error } = await supabase.rpc('update_clinic_member', {
+        p_member_id:    editingUser.id,
+        p_role:         userForm.role,
+        p_is_active:    editIsActive,
+        p_display_name: userForm.display_name.trim(),
+      })
+      if (error) {
+        const msg = error.message.includes('cannot_deactivate_self')
+          ? 'Você não pode desativar sua própria conta.'
+          : 'Erro ao atualizar usuário: ' + error.message
+        setUserMsg({ type: 'error', text: msg })
+      } else {
+        // Salva permissões
+        await savePermissions(editingUser.id, permissionsForm)
+        setUserMsg({ type: 'ok', text: 'Usuário atualizado com sucesso!' })
+        await loadUsers()
+        setTimeout(closeUserModal, 1200)
+      }
+    } else {
+      // Criar novo membro
+      if (!userForm.email.trim())      { setUserSaving(false); return setUserMsg({ type: 'error', text: 'E-mail é obrigatório.' }) }
+      if (userForm.password.length < 6) { setUserSaving(false); return setUserMsg({ type: 'error', text: 'Senha deve ter pelo menos 6 caracteres.' }) }
+
+      const { data: newUserId, error } = await supabase.rpc('create_clinic_member', {
+        p_email:        userForm.email.trim().toLowerCase(),
+        p_password:     userForm.password,
+        p_display_name: userForm.display_name.trim(),
+        p_username:     normalizeUsername(userForm.username),
+        p_role:         userForm.role,
+      })
+      if (error) {
+        const msg = error.message.includes('email_taken')    ? 'Este e-mail já está em uso.'
+          : error.message.includes('username_taken')         ? 'Este nome de usuário já está em uso.'
+          : error.message.includes('username_invalid')       ? 'Nome de usuário inválido (3-30 chars: letras, números, _ . -).'
+          : 'Erro ao criar usuário: ' + error.message
+        setUserMsg({ type: 'error', text: msg })
+      } else {
+        // Busca o clinic_user_id recém-criado para salvar permissões
+        if (newUserId) {
+          const { data: cu } = await supabase
+            .from('clinic_users')
+            .select('id')
+            .eq('user_id', newUserId)
+            .single()
+          if (cu?.id) await savePermissions(cu.id, permissionsForm)
+        }
+        setUserMsg({ type: 'ok', text: 'Usuário criado com sucesso!' })
+        await loadUsers()
+        setTimeout(closeUserModal, 1200)
+      }
+    }
+    setUserSaving(false)
+  }
+
+  function initials(name: string) {
+    return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  }
+
+  // ── Restante dos handlers (logo, gcal, senha, docs) ─────────
   async function handleDocUpload(type: DocumentTemplateType, file: File) {
     if (!clinic?.id) return
     setDocUploading(type)
@@ -146,7 +356,6 @@ export default function ConfiguracoesPage() {
     if (pwNew !== pwConfirm) return setPwMsg({ type: 'error', text: 'As senhas não coincidem.' })
     setPwSaving(true)
     try {
-      // Re-autenticar com senha atual para validar
       const { data: userData } = await supabase.auth.getUser()
       const email = userData.user?.email
       if (email && pwCurrent) {
@@ -248,6 +457,45 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Usuários da Clínica (só admin) ─────────────────── */}
+      {isAdmin && (
+        <div className={styles.card}>
+          <div className={styles.usersHeader}>
+            <h2 className={styles.usersTitle}>Usuários da Clínica</h2>
+            <button className={styles.btnAddUser} onClick={openNewUser}>
+              + Novo Usuário
+            </button>
+          </div>
+
+          {usersLoading ? (
+            <p className={styles.gcalDesc}>Carregando...</p>
+          ) : (
+            <div className={styles.usersList}>
+              {clinicUsers.map(u => (
+                <div key={u.id} className={styles.userRow}>
+                  <div className={styles.userAvatar}>{initials(u.display_name)}</div>
+                  <div className={styles.userInfo}>
+                    <div className={styles.userName}>{u.display_name}</div>
+                    <div className={styles.userMeta}>@{u.username}{u.email ? ` · ${u.email}` : ''}</div>
+                  </div>
+                  <div className={styles.userBadges}>
+                    {u.user_id === user?.id && <span className={styles.selfBadge}>Você</span>}
+                    <span className={styles.roleChip}>{ROLE_LABELS[u.role as UserRole] ?? u.role}</span>
+                    <span className={`${styles.statusDot} ${u.is_active ? styles.statusDotActive : styles.statusDotInactive}`} title={u.is_active ? 'Ativo' : 'Inativo'} />
+                  </div>
+                  {u.user_id !== user?.id && (
+                    <button className={styles.btnEditUser} onClick={() => openEditUser(u)}>Editar</button>
+                  )}
+                </div>
+              ))}
+              {clinicUsers.length === 0 && (
+                <p className={styles.gcalDesc}>Nenhum usuário encontrado.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Google Calendar */}
       <div className={styles.card}>
@@ -355,13 +603,180 @@ export default function ConfiguracoesPage() {
         <h2 className={styles.cardTitle}>Informações da Conta</h2>
         <div className={styles.infoGrid}>
           <InfoRow label="Usuário" value={user?.displayName ?? '-'} />
-          <InfoRow label="Função" value={user?.role ?? '-'} />
+          <InfoRow label="Função" value={ROLE_LABELS[user?.role as UserRole] ?? user?.role ?? '-'} />
           <InfoRow label="Clínica ID" value={clinic?.id ?? '-'} mono />
           <InfoRow label="Plano" value={clinic?.plan === 'plus' ? 'Plus' : 'Básico'} />
         </div>
       </div>
+
+      {/* ── Modal de criação/edição de usuário ──────────────── */}
+      {showUserModal && (
+        <div className={styles.overlay} onClick={closeUserModal}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>{editingUser ? '✎ Editar Usuário' : '+ Novo Usuário'}</h2>
+              <button className={styles.btnClose} onClick={closeUserModal}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <div className={styles.field}>
+                <label>Nome completo *</label>
+                <input
+                  value={userForm.display_name}
+                  onChange={e => setUserForm(p => ({ ...p, display_name: e.target.value }))}
+                  placeholder="Ex: Ana Paula"
+                />
+              </div>
+              <div className={styles.field}>
+                <label>Nome de usuário (login) *</label>
+                <input
+                  value={userForm.username}
+                  onChange={e => setUserForm(p => ({ ...p, username: normalizeUsername(e.target.value) }))}
+                  placeholder="ex: anapaula"
+                  disabled={!!editingUser}
+                />
+                {!editingUser && (
+                  <span className={styles.hint}>3-30 caracteres: letras minúsculas, números, _ . -</span>
+                )}
+              </div>
+              {!editingUser && (
+                <>
+                  <div className={styles.field}>
+                    <label>E-mail *</label>
+                    <input
+                      type="email"
+                      value={userForm.email}
+                      onChange={e => setUserForm(p => ({ ...p, email: e.target.value }))}
+                      placeholder="atendente@clinica.com"
+                    />
+                  </div>
+                  <div className={styles.field}>
+                    <label>Senha *</label>
+                    <input
+                      type="password"
+                      value={userForm.password}
+                      onChange={e => setUserForm(p => ({ ...p, password: e.target.value }))}
+                      placeholder="mín. 6 caracteres"
+                    />
+                  </div>
+                </>
+              )}
+              <div className={styles.field}>
+                <label>Função</label>
+                <select value={userForm.role} onChange={e => setUserForm(p => ({ ...p, role: e.target.value as UserRole }))}>
+                  <option value="recepcao">Recepção</option>
+                  <option value="dentista">Dentista</option>
+                  <option value="medico">Médico</option>
+                  <option value="admin">Admin (acesso total)</option>
+                </select>
+              </div>
+
+              {/* Permissões por módulo — só para não-admins */}
+              {userForm.role !== 'admin' && (
+                <div>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '0.625rem' }}>
+                    Permissões por módulo
+                  </p>
+                  <div className={styles.permTable}>
+                    <div className={styles.permHeader}>
+                      <span className={styles.permModuleCol}>Módulo</span>
+                      <span className={styles.permCheckCol}>Ver</span>
+                      <span className={styles.permCheckCol}>Editar</span>
+                    </div>
+                    {MODULES.map(m => {
+                      const perm = permissionsForm[m.key] ?? { can_view: true, can_edit: true, metadata: {} }
+                      const extras = MODULE_EXTRAS[m.key] ?? []
+                      return (
+                        <div key={m.key}>
+                          <div className={styles.permRow}>
+                            <span className={styles.permModuleCol}>
+                              <span className={styles.permIcon}>{m.icon}</span>
+                              {m.label}
+                            </span>
+                            <span className={styles.permCheckCol}>
+                              <input
+                                type="checkbox"
+                                className={styles.permCheck}
+                                checked={perm.can_view}
+                                onChange={e => setPermissionsForm(prev => ({
+                                  ...prev,
+                                  [m.key]: { ...prev[m.key], can_view: e.target.checked, can_edit: e.target.checked ? prev[m.key].can_edit : false }
+                                }))}
+                              />
+                            </span>
+                            <span className={styles.permCheckCol}>
+                              <input
+                                type="checkbox"
+                                className={styles.permCheck}
+                                checked={perm.can_edit}
+                                disabled={!perm.can_view}
+                                onChange={e => setPermissionsForm(prev => ({
+                                  ...prev,
+                                  [m.key]: { ...prev[m.key], can_edit: e.target.checked }
+                                }))}
+                              />
+                            </span>
+                          </div>
+                          {/* Opções extras do módulo (ex: Ver totais no Financeiro) */}
+                          {perm.can_view && extras.map(extra => (
+                            <label key={extra.key} className={styles.permExtra}>
+                              <input
+                                type="checkbox"
+                                className={styles.permCheck}
+                                checked={(perm.metadata?.[extra.key] as boolean) ?? true}
+                                onChange={e => setPermissionsForm(prev => ({
+                                  ...prev,
+                                  [m.key]: {
+                                    ...prev[m.key],
+                                    metadata: { ...prev[m.key].metadata, [extra.key]: e.target.checked }
+                                  }
+                                }))}
+                              />
+                              <span>{extra.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className={styles.permHint}>
+                    💡 Admin tem acesso total e não precisa de permissões individuais.
+                    Desmarcar &quot;Ver&quot; também remove o &quot;Editar&quot;.
+                  </p>
+                </div>
+              )}
+
+              {editingUser && (
+                <div className={styles.toggleRow}>
+                  <span className={styles.toggleLabel}>Usuário ativo</span>
+                  <label className={styles.toggleSwitch}>
+                    <input
+                      type="checkbox"
+                      checked={editIsActive}
+                      onChange={e => setEditIsActive(e.target.checked)}
+                    />
+                    <span className={styles.toggleSlider} />
+                  </label>
+                </div>
+              )}
+              {userMsg && (
+                <p className={userMsg.type === 'ok' ? styles.formSuccess : styles.formError}>{userMsg.text}</p>
+              )}
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.btnCancel} onClick={closeUserModal}>Cancelar</button>
+              <button className={styles.btnSave} onClick={handleSaveUser} disabled={userSaving}>
+                {userSaving ? 'Salvando...' : (editingUser ? 'Salvar alterações' : 'Criar usuário')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+export default function ConfiguracoesPage() {
+  return <PermissionGuard module="configuracoes"><ConfiguracoesContent /></PermissionGuard>
 }
 
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {

@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/Icon'
 import type { Appointment, FinancialRecord } from '@/types'
 import type { ComponentProps } from 'react'
 import styles from './dashboard.module.css'
+import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
 const DashboardChart = dynamic(() => import('./DashboardChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
 
@@ -25,7 +26,7 @@ interface Stats {
   newPatientsMonth: number
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { clinic, user } = useAuthStore()
   const [stats, setStats] = useState<Stats>({ totalPatients: 0, appointmentsToday: 0, monthRevenue: 0, monthExpense: 0, pendingAppointments: 0, newPatientsMonth: 0 })
   const [recentAppts, setRecentAppts] = useState<Appointment[]>([])
@@ -199,4 +200,8 @@ export default function DashboardPage() {
       )}
     </div>
   )
+}
+
+export default function DashboardPage() {
+  return <PermissionGuard module="dashboard"><DashboardContent /></PermissionGuard>
 }

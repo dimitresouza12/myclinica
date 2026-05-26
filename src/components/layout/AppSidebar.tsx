@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
+import { usePermissionsStore } from '@/store/permissions'
 import { useTheme } from '@/hooks/useTheme'
 import { Icon } from '@/components/ui/Icon'
 import type { AuthClinic, AuthUser } from '@/types'
@@ -31,8 +32,10 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   const pathname = usePathname()
   const router = useRouter()
   const clearSession = useAuthStore((s) => s.clearSession)
+  const { permissions, loaded: permsLoaded } = usePermissionsStore()
   const { theme, toggle: toggleTheme } = useTheme()
   const [collapsed, setCollapsed] = useState(false)
+  const isAdmin = user.role === 'admin' || user.isSuperAdmin
 
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed')
@@ -62,7 +65,18 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   }
 
   const isPlus = clinic.plan === 'plus'
-  const filteredNav = NAV.filter((item) => !item.plusOnly || isPlus)
+  const filteredNav = NAV.filter((item) => {
+    // Filtra plano plus
+    if (item.plusOnly && !isPlus) return false
+    // Admin e superadmin sempre veem tudo
+    if (isAdmin) return true
+    // Aguarda permissões carregarem para não piscar
+    if (!permsLoaded) return false
+    // Verifica permissão de visualização para o módulo
+    const module = item.path.replace('/', '')
+    const perm = permissions[module]
+    return perm?.can_view ?? false
+  })
   const navItems = user.isSuperAdmin
     ? [...filteredNav, { path: '/admin', label: 'Admin', icon: 'admin' as const, plusOnly: false }]
     : filteredNav

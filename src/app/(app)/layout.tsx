@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
+import { usePermissionsStore } from '@/store/permissions'
 import { supabase } from '@/lib/supabase'
 import { silentRefreshGCal } from '@/lib/googleCalendar'
 import { AppSidebar } from '@/components/layout/AppSidebar'
@@ -13,6 +14,7 @@ import styles from './app.module.css'
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { clinic, user, _hydrated, setSession, clearSession } = useAuthStore()
+  const { load: loadPermissions, reset: resetPermissions } = usePermissionsStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
 
@@ -41,6 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         clearSession()
+        resetPermissions()
         router.replace('/login')
       }
     })
@@ -57,6 +60,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [_hydrated, authChecked, clinic, user, router])
 
   // Ao montar o app, sincroniza gcal_connected do banco e tenta refresh silencioso do token
+  // Carrega permissões quando o usuário está autenticado
+  useEffect(() => {
+    if (_hydrated && user) loadPermissions()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_hydrated, user?.id])
+
   useEffect(() => {
     if (!_hydrated || !clinic || !user) return
 

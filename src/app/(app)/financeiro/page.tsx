@@ -7,6 +7,8 @@ import { formatDate, formatCurrency } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
+import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { usePermissions } from '@/hooks/usePermissions'
 
 // Recharts – dynamic import to avoid SSR issues
 const Charts = dynamic(() => import('./FinanceiroCharts'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráficos...</div> })
@@ -24,8 +26,11 @@ interface NewRecord {
 }
 const BLANK: NewRecord = { type: 'receita', patient_id: '', total_amount: '', payment_method: 'pix', category: '', notes: '' }
 
-export default function FinanceiroPage() {
+function FinanceiroContent() {
   const { clinic } = useAuthStore()
+  const { isAdmin, metadata } = usePermissions('financeiro')
+  // Admin sempre vê totais; outros usuários dependem da permissão configurada (padrão: true)
+  const showTotals = isAdmin || (metadata.show_totals !== false)
   const [records, setRecords] = useState<FinancialRecord[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
@@ -239,42 +244,44 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {/* Metric cards */}
-      <div className={styles.cards}>
-        <div className={styles.card} style={{ '--c': '#10B981' } as React.CSSProperties}>
-          <div className={styles.cardIcon} style={{ background: '#ECFDF5' }}>📈</div>
-          <div className={styles.cardBody}>
-            <span className={styles.cardValue}>{formatCurrency(stats.receitas)}</span>
-            <span className={styles.cardLabel}>Receitas {periodLabel}</span>
+      {/* Metric cards — controlado pela permissão "Ver totais" */}
+      {showTotals && (
+        <div className={styles.cards}>
+          <div className={styles.card} style={{ '--c': '#10B981' } as React.CSSProperties}>
+            <div className={styles.cardIcon} style={{ background: '#ECFDF5' }}>📈</div>
+            <div className={styles.cardBody}>
+              <span className={styles.cardValue}>{formatCurrency(stats.receitas)}</span>
+              <span className={styles.cardLabel}>Receitas {periodLabel}</span>
+            </div>
+          </div>
+          <div className={styles.card} style={{ '--c': '#EF4444' } as React.CSSProperties}>
+            <div className={styles.cardIcon} style={{ background: '#FEF2F2' }}>📉</div>
+            <div className={styles.cardBody}>
+              <span className={styles.cardValue}>{formatCurrency(stats.despesas)}</span>
+              <span className={styles.cardLabel}>Despesas {periodLabel}</span>
+            </div>
+          </div>
+          <div className={styles.card} style={{ '--c': stats.saldo >= 0 ? '#0D9488' : '#F59E0B' } as React.CSSProperties}>
+            <div className={styles.cardIcon} style={{ background: stats.saldo >= 0 ? '#F0FDFA' : '#FFFBEB' }}>💰</div>
+            <div className={styles.cardBody}>
+              <span className={styles.cardValue} style={{ color: stats.saldo >= 0 ? '#059669' : '#DC2626' }}>
+                {formatCurrency(stats.saldo)}
+              </span>
+              <span className={styles.cardLabel}>Saldo {periodLabel}</span>
+            </div>
+          </div>
+          <div className={styles.card} style={{ '--c': '#0EA5E9' } as React.CSSProperties}>
+            <div className={styles.cardIcon} style={{ background: '#F0F9FF' }}>🧾</div>
+            <div className={styles.cardBody}>
+              <span className={styles.cardValue}>{stats.count}</span>
+              <span className={styles.cardLabel}>Lançamentos</span>
+            </div>
           </div>
         </div>
-        <div className={styles.card} style={{ '--c': '#EF4444' } as React.CSSProperties}>
-          <div className={styles.cardIcon} style={{ background: '#FEF2F2' }}>📉</div>
-          <div className={styles.cardBody}>
-            <span className={styles.cardValue}>{formatCurrency(stats.despesas)}</span>
-            <span className={styles.cardLabel}>Despesas {periodLabel}</span>
-          </div>
-        </div>
-        <div className={styles.card} style={{ '--c': stats.saldo >= 0 ? '#0D9488' : '#F59E0B' } as React.CSSProperties}>
-          <div className={styles.cardIcon} style={{ background: stats.saldo >= 0 ? '#F0FDFA' : '#FFFBEB' }}>💰</div>
-          <div className={styles.cardBody}>
-            <span className={styles.cardValue} style={{ color: stats.saldo >= 0 ? '#059669' : '#DC2626' }}>
-              {formatCurrency(stats.saldo)}
-            </span>
-            <span className={styles.cardLabel}>Saldo {periodLabel}</span>
-          </div>
-        </div>
-        <div className={styles.card} style={{ '--c': '#0EA5E9' } as React.CSSProperties}>
-          <div className={styles.cardIcon} style={{ background: '#F0F9FF' }}>🧾</div>
-          <div className={styles.cardBody}>
-            <span className={styles.cardValue}>{stats.count}</span>
-            <span className={styles.cardLabel}>Lançamentos</span>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Charts */}
-      {!loading && <Charts monthlyData={monthlyData} categoryData={categoryData} />}
+      {/* Charts — controlado pela permissão "Ver totais" */}
+      {!loading && showTotals && <Charts monthlyData={monthlyData} categoryData={categoryData} />}
 
       {/* Filters + Table */}
       <div className={styles.section}>
@@ -421,4 +428,8 @@ export default function FinanceiroPage() {
       )}
     </div>
   )
+}
+
+export default function FinanceiroPage() {
+  return <PermissionGuard module="financeiro"><FinanceiroContent /></PermissionGuard>
 }

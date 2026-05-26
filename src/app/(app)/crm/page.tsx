@@ -8,6 +8,7 @@ import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { formatDate, cleanPhone } from '@/lib/utils'
 import styles from './crm.module.css'
+import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
 interface PatientRow { id: string; phone: string }
 
@@ -66,7 +67,7 @@ function fmtPhone(phone: string) {
 
 const WHATSAPP_ORCAMENTO = 'https://wa.me/5588988557247?text=Ol%C3%A1%2C+gostaria+de+fazer+um+or%C3%A7amento+para+integrar+o+CRM+com+WhatsApp+IA.'
 
-export default function CRMPage() {
+function CRMContent() {
   const { clinic } = useAuthStore()
   const router = useRouter()
   const [leads, setLeads] = useState<Lead[]>([])
@@ -412,6 +413,10 @@ export default function CRMPage() {
       )}
     </div>
   )
+}
+
+export default function CRMPage() {
+  return <PermissionGuard module="crm"><CRMContent /></PermissionGuard>
 }
 
 function MetaRow({ label, value }: { label: string; value: string }) {

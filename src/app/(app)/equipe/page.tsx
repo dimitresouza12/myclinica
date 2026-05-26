@@ -6,11 +6,12 @@ import { formatDate } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import type { Professional } from '@/types'
 import styles from './equipe.module.css'
+import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
 interface NewProf { name: string; specialty: string; google_calendar_id: string }
 const BLANK: NewProf = { name: '', specialty: '', google_calendar_id: '' }
 
-export default function EquipePage() {
+function EquipeContent() {
   const { clinic } = useAuthStore()
   const [professionals, setProfessionals] = useState<Professional[]>([])
   const [loading, setLoading] = useState(true)
@@ -138,4 +139,8 @@ export default function EquipePage() {
       )}
     </div>
   )
+}
+
+export default function EquipePage() {
+  return <PermissionGuard module="equipe"><EquipeContent /></PermissionGuard>
 }

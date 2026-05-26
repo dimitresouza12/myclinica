@@ -7,6 +7,7 @@ import type { StockItem, StockMovement } from '@/types'
 import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './estoque.module.css'
+import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
 const CATEGORIES = ['material', 'medicamento', 'descartavel', 'equipamento', 'outro']
 const UNITS = ['un', 'caixa', 'ml', 'L', 'kg', 'g', 'par', 'rolo']
@@ -17,7 +18,7 @@ const BLANK_MOV = { quantity: '', reason: '', type: 'entrada' as 'entrada' | 'sa
 type Tab = 'produtos' | 'movimentacoes'
 type ModalMode = 'item' | 'entrada' | 'saida' | null
 
-export default function EstoquePage() {
+function EstoqueContent() {
   const { clinic, user } = useAuthStore()
   const [tab, setTab] = useState<Tab>('produtos')
   const [items, setItems] = useState<StockItem[]>([])
@@ -435,4 +436,8 @@ export default function EstoquePage() {
       )}
     </div>
   )
+}
+
+export default function EstoquePage() {
+  return <PermissionGuard module="estoque"><EstoqueContent /></PermissionGuard>
 }

@@ -11,6 +11,7 @@ import { syncLeadAppointments } from '@/lib/sync-leads'
 import type { Appointment, Patient, Professional } from '@/types'
 import { type CalendarEvent } from '@/components/agenda/FullCalendarWrapper'
 import styles from './agenda.module.css'
+import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
 const FullCalendarWrapper = dynamic(
   () => import('@/components/agenda/FullCalendarWrapper'),
@@ -54,7 +55,7 @@ function profColor(profId: string | null, profIndex: Record<string, number>): st
   return PROF_COLORS[idx % PROF_COLORS.length]
 }
 
-export default function AgendaPage() {
+function AgendaContent() {
   const { clinic, user, setSession } = useAuthStore()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
@@ -678,4 +679,8 @@ function InfoCard({ icon, label, value, fullWidth = false }: { icon: string; lab
       </div>
     </div>
   )
+}
+
+export default function AgendaPage() {
+  return <PermissionGuard module="agenda"><AgendaContent /></PermissionGuard>
 }

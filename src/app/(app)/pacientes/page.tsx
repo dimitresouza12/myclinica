@@ -13,6 +13,7 @@ import { GlobalSearch } from '@/components/layout/GlobalSearch'
 import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './pacientes.module.css'
+import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
 type ActiveTab = 'atendimentos' | 'pacientes'
 
@@ -368,8 +369,10 @@ function PacientesContent() {
 
 export default function PacientesPage() {
   return (
-    <Suspense fallback={<div />}>
-      <PacientesContent />
-    </Suspense>
+    <PermissionGuard module="pacientes">
+      <Suspense fallback={<div />}>
+        <PacientesContent />
+      </Suspense>
+    </PermissionGuard>
   )
 }
