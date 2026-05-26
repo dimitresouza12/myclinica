@@ -109,6 +109,8 @@ function ConfiguracoesContent() {
   const [userMsg, setUserMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [editIsActive, setEditIsActive] = useState(true)
   const [permissionsForm, setPermissionsForm] = useState<PermissionsForm>(defaultPermissions())
+  const [confirmModal, setConfirmModal] = useState<{ type: 'deactivate' | 'reactivate' | 'delete'; user: ClinicUser } | null>(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -175,6 +177,40 @@ function ConfiguracoesContent() {
     setUserForm(BLANK_USER)
     setPermissionsForm(defaultPermissions())
     setUserMsg(null)
+  }
+
+  async function handleConfirmAction() {
+    if (!confirmModal) return
+    setConfirmLoading(true)
+    const { type, user: target } = confirmModal
+    try {
+      if (type === 'delete') {
+        const { error } = await supabase.rpc('delete_clinic_member', { p_member_id: target.id })
+        if (error) {
+          const msg = error.message.includes('cannot_delete_self') ? 'Você não pode excluir sua própria conta.'
+            : 'Erro ao excluir usuário: ' + error.message
+          alert(msg)
+        } else {
+          await loadUsers()
+        }
+      } else {
+        const isActive = type === 'reactivate'
+        const { error } = await supabase.rpc('update_clinic_member', {
+          p_member_id:    target.id,
+          p_role:         target.role,
+          p_is_active:    isActive,
+          p_display_name: target.display_name,
+        })
+        if (error) {
+          alert('Erro: ' + error.message)
+        } else {
+          await loadUsers()
+        }
+      }
+    } finally {
+      setConfirmLoading(false)
+      setConfirmModal(null)
+    }
   }
 
   async function savePermissions(memberId: string, perms: PermissionsForm) {
@@ -485,7 +521,13 @@ function ConfiguracoesContent() {
                     <span className={`${styles.statusDot} ${u.is_active ? styles.statusDotActive : styles.statusDotInactive}`} title={u.is_active ? 'Ativo' : 'Inativo'} />
                   </div>
                   {u.user_id !== user?.id && (
-                    <button className={styles.btnEditUser} onClick={() => openEditUser(u)}>Editar</button>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button className={styles.btnEditUser} onClick={() => openEditUser(u)}>Editar</button>
+                      {u.is_active
+                        ? <button className={styles.btnDeactivate} onClick={() => setConfirmModal({ type: 'deactivate', user: u })}>Desativar</button>
+                        : <button className={styles.btnReactivate} onClick={() => setConfirmModal({ type: 'reactivate', user: u })}>Reativar</button>
+                      }
+                    </div>
                   )}
                 </div>
               ))}
@@ -608,6 +650,61 @@ function ConfiguracoesContent() {
           <InfoRow label="Plano" value={clinic?.plan === 'plus' ? 'Plus' : 'Básico'} />
         </div>
       </div>
+
+      {/* ── Modal de confirmação (desativar/reativar/excluir) ── */}
+      {confirmModal && (
+        <div className={styles.overlay} onClick={() => !confirmLoading && setConfirmModal(null)}>
+          <div className={styles.modal} style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>
+                {confirmModal.type === 'delete'     ? '🗑 Excluir usuário'    :
+                 confirmModal.type === 'deactivate' ? '⏸ Desativar usuário'  :
+                                                      '▶ Reativar usuário'}
+              </h2>
+              <button className={styles.btnClose} onClick={() => setConfirmModal(null)} disabled={confirmLoading}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: 1.6 }}>
+                {confirmModal.type === 'delete' && <>
+                  Tem certeza que deseja <strong>excluir permanentemente</strong> o usuário <strong>{confirmModal.user.display_name}</strong>?
+                  <br /><br />
+                  <span style={{ color: '#DC2626', fontSize: '0.82rem' }}>
+                    ⚠️ Esta ação não pode ser desfeita. O acesso ao sistema será removido imediatamente.
+                  </span>
+                </>}
+                {confirmModal.type === 'deactivate' && <>
+                  Tem certeza que deseja <strong>desativar</strong> o usuário <strong>{confirmModal.user.display_name}</strong>?
+                  <br /><br />
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    O usuário não conseguirá mais fazer login. Os dados serão preservados e você poderá reativar depois.
+                  </span>
+                </>}
+                {confirmModal.type === 'reactivate' && <>
+                  Deseja <strong>reativar</strong> o usuário <strong>{confirmModal.user.display_name}</strong>?
+                  <br /><br />
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    O usuário voltará a ter acesso ao sistema com as permissões anteriores.
+                  </span>
+                </>}
+              </p>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.btnCancel} onClick={() => setConfirmModal(null)} disabled={confirmLoading}>Cancelar</button>
+              <button
+                className={confirmModal.type === 'delete' ? styles.btnDelete : confirmModal.type === 'reactivate' ? styles.btnReactivate : styles.btnDeactivate}
+                onClick={handleConfirmAction}
+                disabled={confirmLoading}
+                style={{ minWidth: 100 }}
+              >
+                {confirmLoading ? 'Aguarde...' :
+                  confirmModal.type === 'delete'     ? 'Sim, excluir'   :
+                  confirmModal.type === 'deactivate' ? 'Sim, desativar' :
+                                                       'Sim, reativar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal de criação/edição de usuário ──────────────── */}
       {showUserModal && (
@@ -763,6 +860,14 @@ function ConfiguracoesContent() {
               )}
             </div>
             <div className={styles.modalFooter}>
+              {editingUser && (
+                <button
+                  className={styles.btnDelete}
+                  onClick={() => { closeUserModal(); setConfirmModal({ type: 'delete', user: editingUser }) }}
+                >
+                  🗑 Excluir
+                </button>
+              )}
               <button className={styles.btnCancel} onClick={closeUserModal}>Cancelar</button>
               <button className={styles.btnSave} onClick={handleSaveUser} disabled={userSaving}>
                 {userSaving ? 'Salvando...' : (editingUser ? 'Salvar alterações' : 'Criar usuário')}
