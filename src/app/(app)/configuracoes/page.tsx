@@ -131,6 +131,7 @@ function ConfiguracoesContent() {
       .from('clinic_users')
       .select('*')
       .eq('clinic_id', clinic.id)
+      .eq('is_superadmin', false)
       .order('created_at')
     setClinicUsers((data ?? []) as ClinicUser[])
     setUsersLoading(false)
