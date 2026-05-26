@@ -68,6 +68,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!_hydrated || !clinic || !user) return
+    if (user.isSuperAdmin) return // superadmin não tem clínica real — pula sync
 
     // 1. Sincroniza flag gcal_connected do banco
     supabase

@@ -171,13 +171,35 @@ function LoginContent() {
         throw new Error('Usuário ou senha incorretos.')
       }
 
-      setStep('Carregando clínica...')
+      setStep('Carregando dados...')
       const { data: clinicUser, error: cuErr } = await supabase
         .from('clinic_users').select('*, clinics(*)')
         .eq('user_id', authData.user.id).eq('is_active', true)
         .maybeSingle<ClinicUser & { clinics: Clinic }>()
       if (cuErr) { console.error('clinic_users error:', cuErr); throw new Error('Erro ao carregar dados da clínica.') }
-      if (!clinicUser || !clinicUser.clinics) throw new Error('Usuário sem clínica associada. Contate o suporte.')
+      if (!clinicUser) throw new Error('Usuário sem clínica associada. Contate o suporte.')
+
+      // ── Superadmin: sessão independente, sem vínculo com nenhuma clínica ──
+      if (clinicUser.is_superadmin) {
+        const user: AuthUser = {
+          id: clinicUser.user_id, role: 'superadmin',
+          displayName: clinicUser.display_name, isSuperAdmin: true,
+        }
+        const clinic: AuthClinic = {
+          id: '__superadmin__', name: 'Administração',
+          type: 'odonto', logo: '', address: '', phone: '',
+          color: '#0D9488', slug: '__superadmin__',
+          plan: 'plus', status: 'active',
+          trialEndsAt: null, gcalConnected: false,
+        }
+        clearRateLimit(cred)
+        setStep('Abrindo painel...')
+        setSession(clinic, user)
+        window.location.href = '/admin'
+        return
+      }
+
+      if (!clinicUser.clinics) throw new Error('Usuário sem clínica associada. Contate o suporte.')
 
       // Bloqueia login se a clínica ainda está aguardando aprovação ou foi suspensa
       const clinicStatus = clinicUser.clinics.status
