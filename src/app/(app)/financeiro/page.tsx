@@ -28,7 +28,7 @@ const BLANK: NewRecord = { type: 'receita', patient_id: '', total_amount: '', pa
 
 function FinanceiroContent() {
   const { clinic } = useAuthStore()
-  const { isAdmin, metadata } = usePermissions('financeiro')
+  const { isAdmin, canEdit, metadata } = usePermissions('financeiro')
   // Admin sempre vê totais; outros usuários dependem da permissão configurada (padrão: true)
   const showTotals = isAdmin || (metadata.show_totals !== false)
   const [records, setRecords] = useState<FinancialRecord[]>([])
@@ -239,8 +239,8 @@ function FinanceiroContent() {
           <button className={styles.btnExport} onClick={exportXLSX} disabled={filtered.length === 0} title="Exportar planilha Excel">
             ⬇ Exportar
           </button>
-          <button className={styles.btnDespesa} onClick={() => openModal('despesa')}>− Despesa</button>
-          <button className={styles.btnReceita} onClick={() => openModal('receita')}>+ Receita</button>
+          {canEdit && <button className={styles.btnDespesa} onClick={() => openModal('despesa')}>− Despesa</button>}
+          {canEdit && <button className={styles.btnReceita} onClick={() => openModal('receita')}>+ Receita</button>}
         </div>
       </div>
 
@@ -346,17 +346,17 @@ function FinanceiroContent() {
                     </td>
                     <td>
                       <div className={styles.rowActions}>
-                        <button className={styles.btnEdit} onClick={() => openEdit(r)} title="Editar lançamento">
+                        {canEdit && <button className={styles.btnEdit} onClick={() => openEdit(r)} title="Editar lançamento">
                           ✎
-                        </button>
-                        <button
+                        </button>}
+                        {canEdit && <button
                           className={styles.btnDelete}
                           onClick={() => handleDelete(r)}
                           disabled={deletingId === r.id}
                           title="Excluir lançamento"
                         >
                           {deletingId === r.id ? '...' : '🗑'}
-                        </button>
+                        </button>}
                       </div>
                     </td>
                   </tr>
