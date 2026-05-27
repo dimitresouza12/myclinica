@@ -259,7 +259,7 @@ function ConfiguracoesContent() {
       if (!userForm.email.trim())      { setUserSaving(false); return setUserMsg({ type: 'error', text: 'E-mail é obrigatório.' }) }
       if (userForm.password.length < 6) { setUserSaving(false); return setUserMsg({ type: 'error', text: 'Senha deve ter pelo menos 6 caracteres.' }) }
 
-      const { data: newUserId, error } = await supabase.rpc('create_clinic_member', {
+      const { data: newCuId, error } = await supabase.rpc('create_clinic_member', {
         p_email:        userForm.email.trim().toLowerCase(),
         p_password:     userForm.password,
         p_display_name: userForm.display_name.trim(),
@@ -273,15 +273,8 @@ function ConfiguracoesContent() {
           : 'Erro ao criar usuário: ' + error.message
         setUserMsg({ type: 'error', text: msg })
       } else {
-        // Busca o clinic_user_id recém-criado para salvar permissões
-        if (newUserId) {
-          const { data: cu } = await supabase
-            .from('clinic_users')
-            .select('id')
-            .eq('user_id', newUserId)
-            .single()
-          if (cu?.id) await savePermissions(cu.id, permissionsForm)
-        }
+        // create_clinic_member já retorna o clinic_users.id diretamente
+        if (newCuId) await savePermissions(newCuId as string, permissionsForm)
         setUserMsg({ type: 'ok', text: 'Usuário criado com sucesso!' })
         await loadUsers()
         setTimeout(closeUserModal, 1200)
