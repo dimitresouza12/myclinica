@@ -24,6 +24,33 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024 // 2 MB
 
+/** Redimensiona e recorta a imagem para quadrado 400x400 via Canvas */
+function processLogoImage(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const size = 400
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')!
+      // Recorte centralizado (object-fit: cover)
+      const src = Math.min(img.width, img.height)
+      const sx = (img.width - src) / 2
+      const sy = (img.height - src) / 2
+      ctx.drawImage(img, sx, sy, src, src, 0, 0, size, size)
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob)
+        else reject(new Error('Falha ao processar imagem'))
+      }, 'image/png', 0.92)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Imagem inválida')) }
+    img.src = url
+  })
+}
+
 function normalizeUsername(raw: string) {
   return raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9_.-]/g, '')
 }
@@ -321,21 +348,26 @@ function ConfiguracoesContent() {
       return
     }
     setLogoUploading(true)
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png'
-    const path = `${clinic.id}/logo.${ext}`
-    const { error: upErr } = await supabase.storage.from('clinic-logos').upload(path, file, { upsert: true, contentType: file.type })
-    if (upErr) {
+    try {
+      // Redimensiona e recorta para 400x400 PNG antes do upload
+      const processed = await processLogoImage(file)
+      const path = `${clinic.id}/logo.png`
+      const { error: upErr } = await supabase.storage.from('clinic-logos').upload(path, processed, { upsert: true, contentType: 'image/png' })
+      if (upErr) {
+        setLogoMsg({ ok: false, text: 'Erro no upload: ' + upErr.message })
+        return
+      }
+      const { data: urlData } = supabase.storage.from('clinic-logos').getPublicUrl(path)
+      const publicUrl = urlData.publicUrl + '?t=' + Date.now()
+      await supabase.from('clinics').update({ logo_url: publicUrl }).eq('id', clinic.id)
+      setClinicLogo(publicUrl)
+      setLogoMsg({ ok: true, text: 'Logo atualizada!' })
+      setTimeout(() => setLogoMsg(null), 3000)
+    } catch {
+      setLogoMsg({ ok: false, text: 'Erro ao processar imagem. Tente outro arquivo.' })
+    } finally {
       setLogoUploading(false)
-      setLogoMsg({ ok: false, text: 'Erro no upload: ' + upErr.message })
-      return
     }
-    const { data: urlData } = supabase.storage.from('clinic-logos').getPublicUrl(path)
-    const publicUrl = urlData.publicUrl + '?t=' + Date.now()
-    await supabase.from('clinics').update({ logo_url: publicUrl }).eq('id', clinic.id)
-    setClinicLogo(publicUrl)
-    setLogoUploading(false)
-    setLogoMsg({ ok: true, text: 'Logo atualizada!' })
-    setTimeout(() => setLogoMsg(null), 3000)
   }
 
   async function handleLogoRemove() {
