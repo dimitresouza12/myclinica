@@ -68,11 +68,12 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved }: Pro
     try {
       let recordId = record?.id
       if (!recordId) {
-        const { data } = await supabase
+        const { data, error: recErr } = await supabase
           .from('medical_records')
           .insert([{ clinic_id: clinicId, patient_id: patient.id }])
           .select('id')
           .single()
+        if (recErr) throw new Error('Erro ao criar prontuário: ' + recErr.message)
         recordId = data?.id
       }
       if (!recordId) throw new Error('Falha ao criar prontuário.')
@@ -80,7 +81,7 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved }: Pro
       let photoUrl: string | null = null
       if (photoFile) photoUrl = await uploadPhoto()
 
-      await supabase.from('record_entries').insert([{
+      const { error: entryErr } = await supabase.from('record_entries').insert([{
         clinic_id: clinicId,
         patient_id: patient.id,
         record_id: recordId,
@@ -89,6 +90,7 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved }: Pro
         entry_type: 'evolucao',
         photo_url: photoUrl,
       }])
+      if (entryErr) throw new Error('Erro ao salvar evolução: ' + entryErr.message)
       setText('')
       clearPhoto()
       onSaved()
