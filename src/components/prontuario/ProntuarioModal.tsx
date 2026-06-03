@@ -30,6 +30,16 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(patient.avatar_url ?? null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [timelinePending, setTimelinePending] = useState(false)
+  const [showPendingWarning, setShowPendingWarning] = useState(false)
+
+  function tryClose() {
+    if (timelinePending) {
+      setShowPendingWarning(true)
+    } else {
+      onClose()
+    }
+  }
 
   useEffect(() => {
     loadRecord()
@@ -76,8 +86,22 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
 
   return (
     <Portal>
-    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && tryClose()}>
       <div className={styles.modal}>
+
+        {/* Aviso de anotação não salva */}
+        {showPendingWarning && (
+          <div className={styles.pendingOverlay}>
+            <div className={styles.pendingDialog}>
+              <p className={styles.pendingText}>⚠️ Você tem uma anotação não salva. Se fechar agora ela será perdida.</p>
+              <div className={styles.pendingActions}>
+                <button className={styles.btnPendingDiscard} onClick={onClose}>Descartar e fechar</button>
+                <button className={styles.btnPendingKeep} onClick={() => setShowPendingWarning(false)}>Voltar e salvar</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className={styles.header}>
           <div className={styles.headerLeft}>
             <div className={styles.avatarWrap} onClick={() => avatarInputRef.current?.click()} title="Clique para trocar foto">
@@ -101,7 +125,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
             >
               🖨️ Imprimir
             </button>
-            <button className={styles.btnClose} onClick={onClose}>✕</button>
+            <button className={styles.btnClose} onClick={tryClose}>✕</button>
           </div>
         </div>
 
@@ -148,6 +172,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
                   entries={entries}
                   clinicId={clinicId}
                   onSaved={loadRecord}
+                  onPendingChange={setTimelinePending}
                 />
               )}
               {tab === 'documentos' && (

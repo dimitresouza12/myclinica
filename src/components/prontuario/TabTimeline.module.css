@@ -64,6 +64,16 @@
 .btnAdd:hover:not(:disabled) { opacity: 0.88; }
 .btnAdd:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.btnAddPulse {
+  animation: btnPulse 1.8s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.5);
+}
+@keyframes btnPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.5); }
+  60%  { box-shadow: 0 0 0 7px rgba(13, 148, 136, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0); }
+}
+
 .photoPreviewWrap {
   position: relative;
   display: inline-block;

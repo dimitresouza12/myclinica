@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate } from '@/lib/utils'
@@ -12,11 +12,12 @@ interface Props {
   entries: RecordEntry[]
   clinicId: string
   onSaved: () => void
+  onPendingChange?: (hasPending: boolean) => void
 }
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024  // 5MB
 
-export function TabTimeline({ patient, record, entries, clinicId, onSaved }: Props) {
+export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPendingChange }: Props) {
   const { user } = useAuthStore()
   const [text, setText] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -25,6 +26,11 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved }: Pro
   const [error, setError] = useState('')
   const [lightbox, setLightbox] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // notifica o pai sobre texto pendente
+  useEffect(() => {
+    onPendingChange?.(!!text.trim() || !!photoFile)
+  }, [text, photoFile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // edição inline
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -202,7 +208,7 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved }: Pro
             📎 {photoFile ? 'Trocar imagem' : 'Anexar imagem'}
           </button>
           <button
-            className={styles.btnAdd}
+            className={`${styles.btnAdd} ${(text.trim() || photoFile) ? styles.btnAddPulse : ''}`}
             onClick={handleAddEntry}
             disabled={saving || (!text.trim() && !photoFile)}
           >

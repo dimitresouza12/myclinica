@@ -213,3 +213,61 @@
     padding: 1.125rem 1.25rem 0;
   }
 }
+
+/* Aviso de anotação pendente */
+.pendingOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: inherit;
+  padding: 1.5rem;
+}
+.pendingDialog {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.pendingText {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.pendingActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.btnPendingDiscard {
+  padding: 0.55rem 1rem;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+.btnPendingDiscard:hover { opacity: 0.88; }
+.btnPendingKeep {
+  padding: 0.55rem 1rem;
+  background: var(--brand-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+.btnPendingKeep:hover { opacity: 0.88; }
