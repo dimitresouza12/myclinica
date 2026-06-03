@@ -166,10 +166,143 @@
 }
 .itemImgBtn:hover .itemImg { transform: scale(1.02); }
 
+.itemFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
 .itemAuthor {
-  display: block;
   font-size: 0.75rem;
   color: var(--text-secondary);
+}
+
+.itemActions {
+  display: flex;
+  gap: 0.35rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.itemCard:hover .itemActions { opacity: 1; }
+
+.btnEntryEdit,
+.btnEntryDelete {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.btnEntryEdit {
+  background: var(--bg-tertiary, #e5e7eb);
+  color: var(--text-secondary);
+}
+.btnEntryEdit:hover { background: var(--border-color); }
+.btnEntryDelete {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.btnEntryDelete:hover { background: #fee2e2; }
+
+/* Edição inline */
+.editWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.editTextarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--brand-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+.editActions {
+  display: flex;
+  gap: 0.5rem;
+}
+.btnEditSave {
+  padding: 0.4rem 1rem;
+  background: var(--brand-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btnEditSave:disabled { opacity: 0.6; cursor: not-allowed; }
+.btnEditCancel {
+  padding: 0.4rem 0.9rem;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* Confirmação de exclusão */
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+.confirmDialog {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.confirmText {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.confirmActions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+.btnConfirmDelete {
+  padding: 0.5rem 1.1rem;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btnConfirmDelete:disabled { opacity: 0.6; cursor: not-allowed; }
+.btnConfirmCancel {
+  padding: 0.5rem 1rem;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  cursor: pointer;
 }
 
 @media (max-width: 600px) {

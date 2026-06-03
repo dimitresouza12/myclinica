@@ -26,6 +26,16 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved }: Pro
   const [lightbox, setLightbox] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // edição inline
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
+
+  // confirmação de exclusão
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
   function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -101,6 +111,58 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved }: Pro
     }
   }
 
+  function startEdit(entry: RecordEntry) {
+    setEditingId(entry.id)
+    setEditText(entry.entry_text && entry.entry_text !== '(imagem anexada)' ? entry.entry_text : '')
+    setEditError('')
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditText('')
+    setEditError('')
+  }
+
+  async function handleSaveEdit(entry: RecordEntry) {
+    if (!editText.trim() && !entry.photo_url) return
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const { error: updErr } = await supabase
+        .from('record_entries')
+        .update({ entry_text: editText.trim() || '(imagem anexada)' })
+        .eq('id', entry.id)
+        .eq('clinic_id', clinicId)
+      if (updErr) throw new Error(updErr.message)
+      setEditingId(null)
+      onSaved()
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : 'Erro ao editar.')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteId) return
+    setDeleting(true)
+    try {
+      const { error: delErr } = await supabase
+        .from('record_entries')
+        .delete()
+        .eq('id', deleteId)
+        .eq('clinic_id', clinicId)
+      if (delErr) throw new Error(delErr.message)
+      setDeleteId(null)
+      onSaved()
+    } catch (err: unknown) {
+      // mostra erro inline no dialog
+      alert(err instanceof Error ? err.message : 'Erro ao excluir.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className={styles.wrap}>
       <div className={styles.newEntry}>
@@ -156,31 +218,87 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved }: Pro
           <div key={entry.id} className={styles.item}>
             <div className={styles.itemDate}>{formatDate(entry.created_at)}</div>
             <div className={styles.itemCard}>
-              {entry.entry_text && entry.entry_text !== '(imagem anexada)' && (
-                <p className={styles.itemText}>{entry.entry_text}</p>
+
+              {editingId === entry.id ? (
+                /* — modo edição — */
+                <div className={styles.editWrap}>
+                  <textarea
+                    className={styles.editTextarea}
+                    rows={3}
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    disabled={editSaving}
+                    autoFocus
+                  />
+                  {editError && <p className={styles.errorMsg}>{editError}</p>}
+                  <div className={styles.editActions}>
+                    <button className={styles.btnEditSave} onClick={() => handleSaveEdit(entry)} disabled={editSaving}>
+                      {editSaving ? 'Salvando...' : 'Salvar'}
+                    </button>
+                    <button className={styles.btnEditCancel} onClick={cancelEdit} disabled={editSaving}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* — modo visualização — */
+                <>
+                  {entry.entry_text && entry.entry_text !== '(imagem anexada)' && (
+                    <p className={styles.itemText}>{entry.entry_text}</p>
+                  )}
+                  {entry.photo_url && (
+                    <button
+                      type="button"
+                      className={styles.itemImgBtn}
+                      onClick={() => setLightbox(entry.photo_url!)}
+                      title="Clique para ampliar"
+                    >
+                      <img src={entry.photo_url} alt="Anexo da evolução" className={styles.itemImg} />
+                    </button>
+                  )}
+                  <div className={styles.itemFooter}>
+                    {entry.author_name && (
+                      <span className={styles.itemAuthor}>por {entry.author_name}</span>
+                    )}
+                    <div className={styles.itemActions}>
+                      <button className={styles.btnEntryEdit} onClick={() => startEdit(entry)} title="Editar">
+                        ✎ Editar
+                      </button>
+                      <button className={styles.btnEntryDelete} onClick={() => setDeleteId(entry.id)} title="Excluir">
+                        🗑 Excluir
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
-              {entry.photo_url && (
-                <button
-                  type="button"
-                  className={styles.itemImgBtn}
-                  onClick={() => setLightbox(entry.photo_url!)}
-                  title="Clique para ampliar"
-                >
-                  <img src={entry.photo_url} alt="Anexo da evolução" className={styles.itemImg} />
-                </button>
-              )}
-              {entry.author_name && (
-                <span className={styles.itemAuthor}>por {entry.author_name}</span>
-              )}
+
             </div>
           </div>
         ))}
       </div>
 
+      {/* Lightbox */}
       {lightbox && (
         <div className={styles.lightboxOverlay} onClick={() => setLightbox(null)}>
           <button className={styles.lightboxClose} onClick={() => setLightbox(null)}>✕</button>
           <img src={lightbox} alt="Imagem ampliada" className={styles.lightboxImg} onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+
+      {/* Confirmação de exclusão */}
+      {deleteId && (
+        <div className={styles.confirmOverlay}>
+          <div className={styles.confirmDialog}>
+            <p className={styles.confirmText}>Tem certeza que deseja excluir esta anotação? Esta ação não pode ser desfeita.</p>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnConfirmDelete} onClick={handleConfirmDelete} disabled={deleting}>
+                {deleting ? 'Excluindo...' : 'Sim, excluir'}
+              </button>
+              <button className={styles.btnConfirmCancel} onClick={() => setDeleteId(null)} disabled={deleting}>
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
