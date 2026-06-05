@@ -80,25 +80,27 @@ function AgendaContent() {
   const loadData = useCallback(async () => {
     if (!clinic?.id) return
     const clinicId = clinic.id
-    // Sincroniza leads do WhatsApp/n8n apenas no plano Plus
-    if (clinic.plan === 'plus') {
-      await syncLeadAppointments(clinicId, clinic.slug)
-    }
-    const [apptRes, patRes, profRes] = await Promise.all([
-      supabase
-        .from('appointments')
-        .select('*, patients(id, name, phone), professionals(id, name)')
-        .eq('clinic_id', clinicId)
-        .order('scheduled_at', { ascending: false }),
-      supabase.from('patients').select('id, name, phone').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
-      supabase.from('professionals').select('*').eq('clinic_id', clinicId).order('name'),
-    ])
-    // Guard: descarta resultado se a clínica mudou durante o fetch
-    if (clinic?.id !== clinicId) return
-    setAppointments((apptRes.data ?? []) as Appointment[])
-    setPatients((patRes.data ?? []) as Patient[])
-    setProfessionals((profRes.data ?? []) as Professional[])
-    setLoading(false)
+    try {
+      // Sincroniza leads do WhatsApp/n8n apenas no plano Plus
+      if (clinic.plan === 'plus') {
+        await syncLeadAppointments(clinicId, clinic.slug)
+      }
+      const [apptRes, patRes, profRes] = await Promise.all([
+        supabase
+          .from('appointments')
+          .select('*, patients(id, name, phone), professionals(id, name)')
+          .eq('clinic_id', clinicId)
+          .order('scheduled_at', { ascending: false }),
+        supabase.from('patients').select('id, name, phone').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
+        supabase.from('professionals').select('*').eq('clinic_id', clinicId).order('name'),
+      ])
+      // Guard: descarta resultado se a clínica mudou durante o fetch
+      if (clinic?.id !== clinicId) return
+      setAppointments((apptRes.data ?? []) as Appointment[])
+      setPatients((patRes.data ?? []) as Patient[])
+      setProfessionals((profRes.data ?? []) as Professional[])
+    } catch { /* erro de rede silenciado — dados anteriores são mantidos */ }
+    finally { setLoading(false) }
   }, [clinic])
 
   useEffect(() => {
@@ -225,76 +227,85 @@ function AgendaContent() {
     setSaving(true)
     setSaveError('')
 
-    const scheduledAtISO = new Date(form.scheduled_at).toISOString()
-    const professionalId = form.professional_id || null
+    try {
+      const scheduledAtISO = new Date(form.scheduled_at).toISOString()
+      const professionalId = form.professional_id || null
 
-    // Verificação prévia de conflito (UX) — a constraint do banco é a
-    // garantia real contra concorrência; isto só dá feedback amigável.
-    if (professionalId) {
-      const startMs = new Date(scheduledAtISO).getTime()
-      const endISO = new Date(startMs + duration * 60000).toISOString()
-      const { data: conflicts } = await supabase
-        .from('appointments')
-        .select('scheduled_at, duration_minutes')
-        .eq('clinic_id', clinic.id)
-        .eq('professional_id', professionalId)
-        .neq('status', 'cancelado')
-        .lt('scheduled_at', endISO)
-      const overlap = (conflicts ?? []).some((c) => {
-        const cStart = new Date(c.scheduled_at).getTime()
-        const cEnd = cStart + (c.duration_minutes ?? 60) * 60000
-        return cStart < startMs + duration * 60000 && startMs < cEnd
-      })
-      if (overlap) {
-        setSaving(false)
-        setSaveError('Este profissional já tem um agendamento nesse horário. Escolha outro horário ou profissional.')
-        return
-      }
-    }
-
-    const { data: inserted, error: insertErr } = await supabase
-      .from('appointments')
-      .insert([{ ...form, scheduled_at: scheduledAtISO, clinic_id: clinic.id, professional_id: professionalId }])
-      .select('id')
-      .single()
-
-    if (insertErr) {
-      setSaving(false)
-      setSaveError(insertErr.code === '23P01'
-        ? 'Este profissional já tem um agendamento que conflita com esse horário. Escolha outro horário ou profissional.'
-        : `Erro ao salvar: ${insertErr.message}`)
-      return
-    }
-
-    // Sync to Google Calendar if connected and checkbox checked
-    if (syncToGCal && gcalConnected && inserted) {
-      const token = getGCalToken()
-      if (token) {
-        const patient = patients.find(p => p.id === form.patient_id)
-        const end = new Date(new Date(scheduledAtISO).getTime() + form.duration_minutes * 60000).toISOString()
-        try {
-          const event = await createGCalEvent(token, {
-            summary: `${form.procedure_name || 'Consulta'} — ${patient?.name ?? 'Paciente'}`,
-            description: form.notes || undefined,
-            start: scheduledAtISO,
-            end,
-          })
-          if (event.id) {
-            await supabase.from('appointments').update({ gcal_event_id: event.id }).eq('id', inserted.id)
-          }
-          await loadGCalEvents(token, professionals)
-          if (event.htmlLink) window.open(event.htmlLink, '_blank')
-        } catch {
-          // Agendamento já foi salvo — apenas ignora erro de GCal
+      // Verificação prévia de conflito (UX) — a constraint do banco é a
+      // garantia real contra concorrência; isto só dá feedback amigável.
+      if (professionalId) {
+        const startMs = new Date(scheduledAtISO).getTime()
+        const endISO = new Date(startMs + duration * 60000).toISOString()
+        const { data: conflicts } = await supabase
+          .from('appointments')
+          .select('scheduled_at, duration_minutes')
+          .eq('clinic_id', clinic.id)
+          .eq('professional_id', professionalId)
+          .neq('status', 'cancelado')
+          .lt('scheduled_at', endISO)
+        const overlap = (conflicts ?? []).some((c) => {
+          const cStart = new Date(c.scheduled_at).getTime()
+          const cEnd = cStart + (c.duration_minutes ?? 60) * 60000
+          return cStart < startMs + duration * 60000 && startMs < cEnd
+        })
+        if (overlap) {
+          setSaveError('Este profissional já tem um agendamento nesse horário. Escolha outro horário ou profissional.')
+          return
         }
       }
-    }
 
-    setSaving(false)
-    setSaveError('')
-    setShowModal(false)
-    setForm(BLANK)
-    loadData()
+      const { data: inserted, error: insertErr } = await supabase
+        .from('appointments')
+        .insert([{ ...form, scheduled_at: scheduledAtISO, clinic_id: clinic.id, professional_id: professionalId }])
+        .select('id')
+        .single()
+
+      if (insertErr) {
+        setSaveError(insertErr.code === '23P01'
+          ? 'Este profissional já tem um agendamento que conflita com esse horário. Escolha outro horário ou profissional.'
+          : `Erro ao salvar: ${insertErr.message}`)
+        return
+      }
+
+      // Sync to Google Calendar (erros são ignorados — agendamento já está salvo)
+      if (syncToGCal && gcalConnected && inserted) {
+        const token = getGCalToken()
+        if (token) {
+          const patient = patients.find(p => p.id === form.patient_id)
+          const end = new Date(new Date(scheduledAtISO).getTime() + form.duration_minutes * 60000).toISOString()
+          try {
+            const event = await createGCalEvent(token, {
+              summary: `${form.procedure_name || 'Consulta'} — ${patient?.name ?? 'Paciente'}`,
+              description: form.notes || undefined,
+              start: scheduledAtISO,
+              end,
+            })
+            if (event.id) {
+              await supabase.from('appointments').update({ gcal_event_id: event.id }).eq('id', inserted.id)
+            }
+            await loadGCalEvents(token, professionals)
+            if (event.htmlLink) window.open(event.htmlLink, '_blank')
+          } catch { /* ignora erro de GCal — agendamento já salvo */ }
+        }
+      }
+
+      setShowModal(false)
+      setForm(BLANK)
+      loadData()
+    } catch (err: unknown) {
+      // Captura qualquer erro de rede inesperado (ex: "Load failed" no iOS Safari)
+      const msg = err instanceof Error ? err.message : String(err)
+      // Se foi um erro de rede mas o insert pode ter funcionado, não mostra erro
+      if (msg.toLowerCase().includes('load failed') || msg.toLowerCase().includes('network')) {
+        setShowModal(false)
+        setForm(BLANK)
+        loadData()
+      } else {
+        setSaveError(`Erro inesperado: ${msg}`)
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function updateStatus(id: string, status: string) {
