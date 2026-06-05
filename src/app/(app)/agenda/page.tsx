@@ -73,6 +73,7 @@ function AgendaContent() {
   const [gcalEvents, setGcalEvents] = useState<GCalEvent[]>([])
   const [gcalConnected, setGcalConnected] = useState(false)
   const [gcalError, setGcalError] = useState('')
+  const [saveError, setSaveError] = useState('')
 
   useScrollLock(showModal || !!selected || !!selectedGcal)
 
@@ -217,11 +218,12 @@ function AgendaContent() {
 
     const duration = Number(form.duration_minutes)
     if (!Number.isFinite(duration) || duration < 15) {
-      alert('A duração da consulta deve ser de pelo menos 15 minutos.')
+      setSaveError('A duração da consulta deve ser de pelo menos 15 minutos.')
       return
     }
 
     setSaving(true)
+    setSaveError('')
 
     const scheduledAtISO = new Date(form.scheduled_at).toISOString()
     const professionalId = form.professional_id || null
@@ -245,7 +247,7 @@ function AgendaContent() {
       })
       if (overlap) {
         setSaving(false)
-        alert('Este profissional já tem um agendamento nesse horário. Escolha outro horário ou profissional.')
+        setSaveError('Este profissional já tem um agendamento nesse horário. Escolha outro horário ou profissional.')
         return
       }
     }
@@ -258,10 +260,9 @@ function AgendaContent() {
 
     if (insertErr) {
       setSaving(false)
-      const msg = insertErr.code === '23P01'
+      setSaveError(insertErr.code === '23P01'
         ? 'Este profissional já tem um agendamento que conflita com esse horário. Escolha outro horário ou profissional.'
-        : `Erro ao salvar agendamento: ${insertErr.message}`
-      alert(msg)
+        : `Erro ao salvar: ${insertErr.message}`)
       return
     }
 
@@ -284,12 +285,13 @@ function AgendaContent() {
           await loadGCalEvents(token, professionals)
           if (event.htmlLink) window.open(event.htmlLink, '_blank')
         } catch {
-          alert('Agendamento salvo, mas não foi possível sincronizar com o Google Calendar. Reconecte o Google Calendar e tente novamente.')
+          // Agendamento já foi salvo — apenas ignora erro de GCal
         }
       }
     }
 
     setSaving(false)
+    setSaveError('')
     setShowModal(false)
     setForm(BLANK)
     loadData()
@@ -639,8 +641,11 @@ function AgendaContent() {
                 </label>
               )}
             </div>
+            {saveError && (
+              <div className={styles.saveErrorMsg}>{saveError}</div>
+            )}
             <div className={styles.modalFooter}>
-              <button className={styles.btnCancel} onClick={() => setShowModal(false)}>Cancelar</button>
+              <button className={styles.btnCancel} onClick={() => { setShowModal(false); setSaveError('') }}>Cancelar</button>
               <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.patient_id || !form.scheduled_at}>
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>
