@@ -23,6 +23,9 @@ export interface Clinic {
   created_at: string
   trial_ends_at: string | null
   gcal_connected: boolean
+  billing_phone: string | null
+  billing_due_day: number | null
+  billing_paid: boolean
 }
 
 export interface SystemAlert {

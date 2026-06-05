@@ -192,3 +192,82 @@
 
 /* ========== Denied ========== */
 .denied { padding:4rem; text-align:center; color:var(--text-secondary); font-size:1rem; }
+
+/* ========== Billing section ========== */
+.billingSection {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+.billingSectionTitle {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.billingRow {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.billingPaidRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.billingPaidLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.billingPaidCheck {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand-primary);
+  cursor: pointer;
+}
+.paidBadge {
+  padding: 0.15rem 0.55rem;
+  background: #D1FAE5;
+  color: #065F46;
+  border-radius: 99px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.unpaidBadge {
+  padding: 0.15rem 0.55rem;
+  background: #FEF3C7;
+  color: #92400E;
+  border-radius: 99px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.btnWhatsApp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  background: #25D366;
+  color: #fff;
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.btnWhatsApp:hover { opacity: 0.88; }

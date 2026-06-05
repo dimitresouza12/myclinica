@@ -20,6 +20,16 @@ function toDateInputValue(iso: string | null | undefined): string {
   return iso.slice(0, 10)
 }
 
+function buildWhatsAppUrl(phone: string, clinicName: string, dueDay: number | null): string {
+  const clean = phone.replace(/\D/g, '')
+  const number = clean.startsWith('55') ? clean : `55${clean}`
+  const dia = dueDay ? `dia ${dueDay}` : 'este mês'
+  const msg = encodeURIComponent(
+    `Olá! Passando para lembrar que a mensalidade do MyClinica referente ao ${dia} está em aberto. Qualquer dúvida estou à disposição! 😊`
+  )
+  return `https://wa.me/${number}?text=${msg}`
+}
+
 interface Props {
   clinic: Clinic
   onClose: () => void
@@ -37,6 +47,13 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Cobrança
+  const [billingPhone, setBillingPhone] = useState(clinic.billing_phone ?? '')
+  const [billingDueDay, setBillingDueDay] = useState<string>(
+    clinic.billing_due_day ? String(clinic.billing_due_day) : ''
+  )
+  const [billingPaid, setBillingPaid] = useState(clinic.billing_paid ?? false)
+
   async function handleSave() {
     setSaving(true)
     setError('')
@@ -51,12 +68,17 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
         status,
         is_active: status === 'active',
         trial_ends_at,
+        billing_phone: billingPhone.trim() || null,
+        billing_due_day: billingDueDay ? Number(billingDueDay) : null,
+        billing_paid: billingPaid,
       })
       .eq('id', clinic.id)
     if (err) { setError(err.message); setSaving(false); return }
     onSaved()
     onClose()
   }
+
+  const canCharge = billingPhone.trim().length >= 10
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -66,6 +88,8 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
           <button className={styles.btnClose} onClick={onClose}>✕</button>
         </div>
         <div className={styles.modalBody}>
+
+          {/* — Plano — */}
           <div className={styles.field}>
             <label>Plano</label>
             <div className={styles.planGrid}>
@@ -84,6 +108,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
             </div>
           </div>
 
+          {/* — Limite de pacientes — */}
           <div className={styles.field}>
             <label>Limite de pacientes</label>
             <input
@@ -96,6 +121,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
             />
           </div>
 
+          {/* — Status — */}
           <div className={styles.field}>
             <label>Status</label>
             <div className={styles.statusBtnGroup}>
@@ -112,6 +138,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
             </div>
           </div>
 
+          {/* — Trial — */}
           <div className={styles.field}>
             <label>Período de teste</label>
             <div className={styles.statusBtnGroup}>
@@ -146,6 +173,62 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
                 A clínica não será bloqueada por expiração de trial.
               </p>
             )}
+          </div>
+
+          {/* — Cobrança — */}
+          <div className={styles.billingSection}>
+            <p className={styles.billingSectionTitle}>💰 Cobrança de mensalidade</p>
+
+            <div className={styles.billingRow}>
+              <div className={styles.field} style={{ flex: 1 }}>
+                <label>WhatsApp do responsável</label>
+                <input
+                  type="tel"
+                  className={styles.fieldInput}
+                  placeholder="11 99999-9999"
+                  value={billingPhone}
+                  onChange={(e) => setBillingPhone(e.target.value)}
+                />
+              </div>
+              <div className={styles.field} style={{ width: '110px' }}>
+                <label>Dia de vencimento</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  className={styles.fieldInput}
+                  placeholder="Ex: 10"
+                  value={billingDueDay}
+                  onChange={(e) => setBillingDueDay(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className={styles.billingPaidRow}>
+              <label className={styles.billingPaidLabel}>
+                <input
+                  type="checkbox"
+                  checked={billingPaid}
+                  onChange={(e) => setBillingPaid(e.target.checked)}
+                  className={styles.billingPaidCheck}
+                />
+                <span>Mensalidade paga</span>
+                <span className={billingPaid ? styles.paidBadge : styles.unpaidBadge}>
+                  {billingPaid ? '✓ Pago' : '⚠ Pendente'}
+                </span>
+              </label>
+
+              {canCharge && (
+                <a
+                  href={buildWhatsAppUrl(billingPhone, clinic.name, billingDueDay ? Number(billingDueDay) : null)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.btnWhatsApp}
+                >
+                  <span>📲</span> Cobrar via WhatsApp
+                </a>
+              )}
+            </div>
           </div>
 
           {error && <p className={styles.fieldError}>{error}</p>}

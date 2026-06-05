@@ -145,13 +145,14 @@ export function AdminClinicas({ clinics, onReload }: Props) {
               <th>Status</th>
               <th>Trial</th>
               <th>Pacientes</th>
+              <th>Mensalidade</th>
               <th>Criada</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={8} className={styles.empty}>Nenhuma clínica encontrada.</td></tr>
+              <tr><td colSpan={9} className={styles.empty}>Nenhuma clínica encontrada.</td></tr>
             ) : filtered.map((c) => (
               <tr key={c.id} className={styles.clinicRow}>
                 <td>
@@ -187,6 +188,16 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                   )}
                 </td>
                 <td className={styles.patientCount}>{c.max_patients ?? 200}</td>
+                <td>
+                  <span className={c.billing_paid ? styles.paidBadge : styles.unpaidBadge}>
+                    {c.billing_paid ? '✓ Pago' : '⚠ Pendente'}
+                  </span>
+                  {c.billing_due_day && (
+                    <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                      vence dia {c.billing_due_day}
+                    </span>
+                  )}
+                </td>
                 <td className={styles.dateCell}>{formatDate(c.created_at, true)}</td>
                 <td>
                   <div className={styles.rowActions}>
