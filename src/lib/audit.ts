@@ -32,13 +32,14 @@ export type AuditAction =
 
 interface AuditPayload {
   action: AuditAction
-  actor_id: string
+  user_id: string
   clinic_id: string
+  module: string
   resource_id?: string
-  ip?: string
+  ip_address?: string
   user_agent?: string
   // Dados extras sem PII — nunca incluir cpf, nome, email, telefone
-  metadata?: Record<string, string | number | boolean>
+  details?: Record<string, string | number | boolean>
 }
 
 // Cliente com service role para contornar RLS na tabela de logs (insert-only)
@@ -54,13 +55,13 @@ export async function audit(payload: AuditPayload): Promise<void> {
     const client = getAuditClient()
     await client.from('audit_logs').insert({
       action:      payload.action,
-      actor_id:    payload.actor_id,
+      user_id:     payload.user_id,
       clinic_id:   payload.clinic_id,
+      module:      payload.module,
       resource_id: payload.resource_id ?? null,
-      ip:          payload.ip ?? null,
+      ip_address:  payload.ip_address ?? null,
       user_agent:  payload.user_agent ? payload.user_agent.slice(0, 255) : null,
-      metadata:    payload.metadata ?? null,
-      created_at:  new Date().toISOString(),
+      details:     payload.details ?? null,
     })
   } catch {
     // Nunca deixar falha de log derrubar o fluxo principal
@@ -70,10 +71,10 @@ export async function audit(payload: AuditPayload): Promise<void> {
 
 // Helper para extrair IP e user-agent de Request (App Router)
 export function extractRequestMeta(req: Request) {
-  const ip =
+  const ip_address =
     req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
     req.headers.get('x-real-ip') ??
     'unknown'
   const user_agent = req.headers.get('user-agent') ?? 'unknown'
-  return { ip, user_agent }
+  return { ip_address, user_agent }
 }
