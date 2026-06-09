@@ -6,15 +6,20 @@ const SUPABASE_HOST = process.env.NEXT_PUBLIC_SUPABASE_URL
 
 const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com`,
+  // unsafe-inline necessário para FullCalendar e Recharts (estilos inline)
+  // unsafe-eval necessário para Next.js dev e alguns polyfills
+  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com`,
   `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
-  `font-src 'self' https://fonts.gstatic.com`,
-  `img-src 'self' data: blob: https://${SUPABASE_HOST} https://lh3.googleusercontent.com`,
-  `connect-src 'self' https://${SUPABASE_HOST} wss://${SUPABASE_HOST} https://www.googleapis.com https://calendar.googleapis.com`,
-  `frame-src 'none'`,
+  `font-src 'self' data: https://fonts.gstatic.com`,
+  // blob: para PDFs/documentos gerados; lh3 para avatares Google
+  `img-src 'self' data: blob: https://${SUPABASE_HOST} https://*.supabase.co https://lh3.googleusercontent.com https://www.gstatic.com`,
+  // wss para Supabase Realtime; googleapis para Calendar e OAuth
+  `connect-src 'self' https://${SUPABASE_HOST} https://*.supabase.co wss://${SUPABASE_HOST} wss://*.supabase.co https://www.googleapis.com https://calendar.googleapis.com https://accounts.google.com`,
+  // Supabase OAuth abre popup Google — precisa de frame-src
+  `frame-src https://accounts.google.com`,
   `object-src 'none'`,
   `base-uri 'self'`,
-  `form-action 'self'`,
+  `form-action 'self' https://accounts.google.com`,
   `upgrade-insecure-requests`,
 ].join('; ');
 
@@ -32,9 +37,7 @@ const nextConfig: NextConfig = {
           { key: 'Permissions-Policy',              value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
           { key: 'Strict-Transport-Security',       value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'Content-Security-Policy',         value: CSP },
-          { key: 'Cross-Origin-Opener-Policy',      value: 'same-origin' },
-          { key: 'Cross-Origin-Resource-Policy',    value: 'same-origin' },
-          { key: 'Cross-Origin-Embedder-Policy',    value: 'require-corp' },
+          { key: 'Cross-Origin-Opener-Policy',      value: 'same-origin-allow-popups' },
         ],
       },
       // Permite carregar recursos do Supabase Storage (imagens, PDFs)

@@ -1,7 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
-import { CSRF_PROTECTED_METHODS } from '@/lib/csrf'
+
+// Definido inline para não importar crypto (Node.js) no Edge Runtime
+const CSRF_PROTECTED_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 function getClientIp(req: NextRequest): string {
   return (
