@@ -30,8 +30,17 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files — NUNCA commitar secrets
 .env*
+!.env.example
+
+# Secrets e chaves
+*.key
+*.cert
+*.p12
+*.pfx
+service-account*.json
+*credentials*.json
 
 # vercel
 .vercel

@@ -1,7 +1,57 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { rateLimit } from '@/lib/rateLimit'
+import { CSRF_PROTECTED_METHODS } from '@/lib/csrf'
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  )
+}
+
+function addSecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set('X-Request-ID', crypto.randomUUID())
+  return response
+}
+
+function blockResponse(status: number, message: string, retryAfter?: number): NextResponse {
+  const res = NextResponse.json({ error: message }, { status })
+  if (retryAfter) res.headers.set('Retry-After', String(retryAfter))
+  return res
+}
 
 export async function middleware(request: NextRequest) {
+  const { pathname, method } = { pathname: request.nextUrl.pathname, method: request.method }
+  const ip = getClientIp(request)
+
+  // Rate limit global em rotas de API
+  if (pathname.startsWith('/api/')) {
+    const isAuthRoute = pathname.startsWith('/api/auth')
+    const limit = isAuthRoute
+      ? rateLimit(`auth:${ip}`, { limit: 5,  windowMs: 10 * 60_000 })
+      : rateLimit(`api:${ip}`,  { limit: 60, windowMs: 60_000 })
+
+    if (!limit.success) {
+      return blockResponse(429, 'Muitas requisições. Tente novamente mais tarde.', Math.ceil((limit.resetAt - Date.now()) / 1000))
+    }
+  }
+
+  // Verificação de origem para métodos mutáveis (CSRF layer 1: origin check)
+  if (CSRF_PROTECTED_METHODS.has(method) && pathname.startsWith('/api/')) {
+    const origin = request.headers.get('origin')
+    const host   = request.headers.get('host')
+    if (origin && host) {
+      try {
+        const originHost = new URL(origin).host
+        if (originHost !== host) return blockResponse(403, 'Origem inválida')
+      } catch {
+        return blockResponse(403, 'Origem inválida')
+      }
+    }
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -23,16 +73,15 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { pathname } = request.nextUrl
-  const isPublicPath = pathname.startsWith('/login') || pathname.startsWith('/api/auth')
+  const isPublicPath =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/trial-expirado')
 
-  // Skip auth check on public paths — evita verificação desnecessária de sessão
-  if (isPublicPath) return supabaseResponse
+  if (isPublicPath) return addSecurityHeaders(supabaseResponse)
 
   // getSession() lê o cookie local sem acionar refresh automático — evita o
   // "Refresh Token Not Found" que getUser() lança quando não há sessão válida.
-  // A validação criptográfica do JWT acontece no servidor via RLS; para o
-  // middleware (decisão de redirect) a sessão local é suficiente.
   const { data: { session } } = await supabase.auth.getSession()
 
   if (!session) {
@@ -41,7 +90,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  return supabaseResponse
+  return addSecurityHeaders(supabaseResponse)
 }
 
 export const config = {
