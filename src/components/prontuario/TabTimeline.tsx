@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
+import { audit } from '@/lib/audit'
 import { formatDate } from '@/lib/utils'
 import type { Patient, MedicalRecord, RecordEntry } from '@/types'
 import styles from './TabTimeline.module.css'
@@ -16,15 +17,18 @@ interface Props {
 }
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024  // 5MB
+const SIGNED_URL_EXPIRES = 3600           // 1 hora
 
 export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPendingChange }: Props) {
-  const { user } = useAuthStore()
+  const { user, clinic } = useAuthStore()
   const [text, setText] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [lightbox, setLightbox] = useState<string | null>(null)
+  // Map de path → signed URL para imagens do prontuário
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const fileRef = useRef<HTMLInputElement>(null)
 
   // notifica o pai sobre texto pendente
@@ -32,15 +36,44 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
     onPendingChange?.(!!text.trim() || !!photoFile)
   }, [text, photoFile]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // edição inline
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editText, setEditText] = useState('')
-  const [editSaving, setEditSaving] = useState(false)
-  const [editError, setEditError] = useState('')
+  // Gera signed URLs para todas as fotos ao carregar as entradas
+  useEffect(() => {
+    const photoPaths = entries
+      .filter(e => e.photo_url)
+      .map(e => extractStoragePath(e.photo_url!))
+      .filter(Boolean) as string[]
 
-  // confirmação de exclusão
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
+    if (photoPaths.length === 0) return
+
+    Promise.all(
+      photoPaths.map(async (path) => {
+        const { data } = await supabase.storage
+          .from('pacientes')
+          .createSignedUrl(path, SIGNED_URL_EXPIRES)
+        return [path, data?.signedUrl ?? ''] as [string, string]
+      })
+    ).then((pairs) => {
+      setSignedUrls(Object.fromEntries(pairs.filter(([, url]) => url)))
+    })
+  }, [entries])
+
+  function extractStoragePath(url: string): string | null {
+    try {
+      const u = new URL(url)
+      // URL pública: /storage/v1/object/public/pacientes/...
+      const match = u.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/pacientes\/(.+)/)
+      return match ? match[1] : null
+    } catch {
+      return null
+    }
+  }
+
+  function getPhotoUrl(entry: RecordEntry): string | null {
+    if (!entry.photo_url) return null
+    const path = extractStoragePath(entry.photo_url)
+    if (path && signedUrls[path]) return signedUrls[path]
+    return entry.photo_url // fallback enquanto signed URL carrega
+  }
 
   function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -72,8 +105,8 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
       .from('pacientes')
       .upload(path, photoFile, { upsert: false, contentType: photoFile.type })
     if (upErr) throw new Error('Erro ao subir imagem: ' + upErr.message)
-    const { data } = supabase.storage.from('pacientes').getPublicUrl(path)
-    return data.publicUrl
+    // Armazena o path, não a URL pública — signed URL é gerada no display
+    return path
   }
 
   async function handleAddEntry() {
@@ -94,8 +127,8 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
       }
       if (!recordId) throw new Error('Falha ao criar prontuário.')
 
-      let photoUrl: string | null = null
-      if (photoFile) photoUrl = await uploadPhoto()
+      let photoPath: string | null = null
+      if (photoFile) photoPath = await uploadPhoto()
 
       const { error: entryErr } = await supabase.from('record_entries').insert([{
         clinic_id: clinicId,
@@ -104,9 +137,23 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
         entry_text: text.trim() || '(imagem anexada)',
         author_name: user?.displayName ?? 'Sistema',
         entry_type: 'evolucao',
-        photo_url: photoUrl,
+        // Salva o path relativo; URL assinada é gerada no display
+        photo_url: photoPath,
       }])
       if (entryErr) throw new Error('Erro ao salvar evolução: ' + entryErr.message)
+
+      // Auditoria: registro de nova entrada no prontuário
+      if (user?.id && clinic?.id) {
+        await audit({
+          action: 'prontuario.update',
+          user_id: user.id,
+          clinic_id: clinic.id,
+          module: 'prontuario',
+          resource_id: patient.id,
+          details: { has_photo: !!photoPath, text_length: text.trim().length },
+        })
+      }
+
       setText('')
       clearPhoto()
       onSaved()
@@ -114,58 +161,6 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
       setError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
       setSaving(false)
-    }
-  }
-
-  function startEdit(entry: RecordEntry) {
-    setEditingId(entry.id)
-    setEditText(entry.entry_text && entry.entry_text !== '(imagem anexada)' ? entry.entry_text : '')
-    setEditError('')
-  }
-
-  function cancelEdit() {
-    setEditingId(null)
-    setEditText('')
-    setEditError('')
-  }
-
-  async function handleSaveEdit(entry: RecordEntry) {
-    if (!editText.trim() && !entry.photo_url) return
-    setEditSaving(true)
-    setEditError('')
-    try {
-      const { error: updErr } = await supabase
-        .from('record_entries')
-        .update({ entry_text: editText.trim() || '(imagem anexada)' })
-        .eq('id', entry.id)
-        .eq('clinic_id', clinicId)
-      if (updErr) throw new Error(updErr.message)
-      setEditingId(null)
-      onSaved()
-    } catch (err: unknown) {
-      setEditError(err instanceof Error ? err.message : 'Erro ao editar.')
-    } finally {
-      setEditSaving(false)
-    }
-  }
-
-  async function handleConfirmDelete() {
-    if (!deleteId) return
-    setDeleting(true)
-    try {
-      const { error: delErr } = await supabase
-        .from('record_entries')
-        .delete()
-        .eq('id', deleteId)
-        .eq('clinic_id', clinicId)
-      if (delErr) throw new Error(delErr.message)
-      setDeleteId(null)
-      onSaved()
-    } catch (err: unknown) {
-      // mostra erro inline no dialog
-      alert(err instanceof Error ? err.message : 'Erro ao excluir.')
-    } finally {
-      setDeleting(false)
     }
   }
 
@@ -217,6 +212,11 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
         </div>
       </div>
 
+      {/* Aviso de imutabilidade */}
+      <p className={styles.immutableNote}>
+        🔒 Anotações são permanentes conforme CFM 1.638/2002 — não é possível editar ou excluir após salvar.
+      </p>
+
       <div className={styles.timeline}>
         {entries.length === 0 ? (
           <p className={styles.empty}>Nenhuma anotação ainda. Adicione a primeira acima.</p>
@@ -224,60 +224,28 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
           <div key={entry.id} className={styles.item}>
             <div className={styles.itemDate}>{formatDate(entry.created_at)}</div>
             <div className={styles.itemCard}>
-
-              {editingId === entry.id ? (
-                /* — modo edição — */
-                <div className={styles.editWrap}>
-                  <textarea
-                    className={styles.editTextarea}
-                    rows={3}
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    disabled={editSaving}
-                    autoFocus
-                  />
-                  {editError && <p className={styles.errorMsg}>{editError}</p>}
-                  <div className={styles.editActions}>
-                    <button className={styles.btnEditSave} onClick={() => handleSaveEdit(entry)} disabled={editSaving}>
-                      {editSaving ? 'Salvando...' : 'Salvar'}
-                    </button>
-                    <button className={styles.btnEditCancel} onClick={cancelEdit} disabled={editSaving}>
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* — modo visualização — */
-                <>
-                  {entry.entry_text && entry.entry_text !== '(imagem anexada)' && (
-                    <p className={styles.itemText}>{entry.entry_text}</p>
-                  )}
-                  {entry.photo_url && (
-                    <button
-                      type="button"
-                      className={styles.itemImgBtn}
-                      onClick={() => setLightbox(entry.photo_url!)}
-                      title="Clique para ampliar"
-                    >
-                      <img src={entry.photo_url} alt="Anexo da evolução" className={styles.itemImg} />
-                    </button>
-                  )}
-                  <div className={styles.itemFooter}>
-                    {entry.author_name && (
-                      <span className={styles.itemAuthor}>por {entry.author_name}</span>
-                    )}
-                    <div className={styles.itemActions}>
-                      <button className={styles.btnEntryEdit} onClick={() => startEdit(entry)} title="Editar">
-                        ✎ Editar
-                      </button>
-                      <button className={styles.btnEntryDelete} onClick={() => setDeleteId(entry.id)} title="Excluir">
-                        🗑 Excluir
-                      </button>
-                    </div>
-                  </div>
-                </>
+              {entry.entry_text && entry.entry_text !== '(imagem anexada)' && (
+                <p className={styles.itemText}>{entry.entry_text}</p>
               )}
-
+              {entry.photo_url && (
+                <button
+                  type="button"
+                  className={styles.itemImgBtn}
+                  onClick={() => setLightbox(getPhotoUrl(entry))}
+                  title="Clique para ampliar"
+                >
+                  <img
+                    src={getPhotoUrl(entry) ?? ''}
+                    alt="Anexo da evolução"
+                    className={styles.itemImg}
+                  />
+                </button>
+              )}
+              <div className={styles.itemFooter}>
+                {entry.author_name && (
+                  <span className={styles.itemAuthor}>por {entry.author_name}</span>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -288,23 +256,6 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
         <div className={styles.lightboxOverlay} onClick={() => setLightbox(null)}>
           <button className={styles.lightboxClose} onClick={() => setLightbox(null)}>✕</button>
           <img src={lightbox} alt="Imagem ampliada" className={styles.lightboxImg} onClick={(e) => e.stopPropagation()} />
-        </div>
-      )}
-
-      {/* Confirmação de exclusão */}
-      {deleteId && (
-        <div className={styles.confirmOverlay}>
-          <div className={styles.confirmDialog}>
-            <p className={styles.confirmText}>Tem certeza que deseja excluir esta anotação? Esta ação não pode ser desfeita.</p>
-            <div className={styles.confirmActions}>
-              <button className={styles.btnConfirmDelete} onClick={handleConfirmDelete} disabled={deleting}>
-                {deleting ? 'Excluindo...' : 'Sim, excluir'}
-              </button>
-              <button className={styles.btnConfirmCancel} onClick={() => setDeleteId(null)} disabled={deleting}>
-                Cancelar
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>

@@ -577,20 +577,36 @@ function AgendaContent() {
 
             {/* Ações */}
             <div className={styles.detailFooter}>
-              {selected.patients?.phone && (
-                <a
-                  className={styles.btnWhatsApp}
-                  href={`https://wa.me/55${selected.patients.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                    `Olá ${selected.patients.name}! Passando para lembrar da sua consulta em ${formatDate(selected.scheduled_at)}. Qualquer dúvida, estamos à disposição! 😊`
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  📲 Lembrete WhatsApp
-                </a>
-              )}
+              <div className={styles.detailFooterWa}>
+                {selected.patients?.phone ? (
+                  <>
+                    <a
+                      className={styles.btnWhatsApp}
+                      href={`https://wa.me/55${selected.patients.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                        `Olá, ${selected.patients.name?.split(' ')[0]}! 😊 Passando para lembrar da sua consulta marcada para ${formatDate(selected.scheduled_at)}. Até lá! 🏥`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      🔔 Lembrar
+                    </a>
+                    <a
+                      className={styles.btnChat}
+                      href={`https://wa.me/55${selected.patients.phone.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      💬 Conversar
+                    </a>
+                  </>
+                ) : (
+                  <span className={styles.btnWhatsAppNoPhone}>
+                    📵 Sem telefone cadastrado
+                  </span>
+                )}
+              </div>
               <button className={styles.btnGcalLarge} onClick={() => openGCal(selected)}>
-                📅 Google Calendar
+                📅 Adicionar ao Google Calendar
               </button>
             </div>
           </div>

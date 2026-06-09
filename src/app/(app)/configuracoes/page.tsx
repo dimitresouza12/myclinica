@@ -6,6 +6,7 @@ import { connectGoogleCalendar, disconnectGoogleCalendar, isGCalConnected } from
 import type { AuthClinic, ClinicDocumentTemplate, DocumentTemplateType, ClinicUser, UserRole } from '@/types'
 import styles from './configuracoes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { showToast } from '@/components/ui/Toast'
 
 const DOC_TEMPLATE_TYPES: { type: DocumentTemplateType; label: string }[] = [
   { type: 'receita_comum',             label: 'Receita Comum' },
@@ -275,11 +276,10 @@ function ConfiguracoesContent() {
           : 'Erro ao atualizar usuário: ' + error.message
         setUserMsg({ type: 'error', text: msg })
       } else {
-        // Salva permissões
         await savePermissions(editingUser.id, permissionsForm)
-        setUserMsg({ type: 'ok', text: 'Usuário atualizado com sucesso!' })
+        closeUserModal()
         await loadUsers()
-        setTimeout(closeUserModal, 1200)
+        showToast('ok', 'Usuário atualizado com sucesso!')
       }
     } else {
       // Criar novo membro
@@ -300,11 +300,10 @@ function ConfiguracoesContent() {
           : 'Erro ao criar usuário: ' + error.message
         setUserMsg({ type: 'error', text: msg })
       } else {
-        // create_clinic_member já retorna o clinic_users.id diretamente
         if (newCuId) await savePermissions(newCuId as string, permissionsForm)
-        setUserMsg({ type: 'ok', text: 'Usuário criado com sucesso!' })
+        closeUserModal()
         await loadUsers()
-        setTimeout(closeUserModal, 1200)
+        showToast('ok', 'Usuário criado com sucesso!')
       }
     }
     setUserSaving(false)
@@ -880,9 +879,6 @@ function ConfiguracoesContent() {
                     <span className={styles.toggleSlider} />
                   </label>
                 </div>
-              )}
-              {userMsg && (
-                <p className={userMsg.type === 'ok' ? styles.formSuccess : styles.formError}>{userMsg.text}</p>
               )}
             </div>
             <div className={styles.modalFooter}>

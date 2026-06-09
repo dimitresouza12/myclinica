@@ -329,14 +329,22 @@
 /* Footer actions */
 .detailFooter {
   display: flex;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.625rem;
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--border-color);
 }
-.btnWhatsApp { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.6rem 0.875rem; background: #25D366; color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.855rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; transition: opacity 0.15s; }
-.btnWhatsApp:hover { opacity: 0.9; }
-.btnGcalLarge { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.6rem 0.875rem; background: #4285F4; color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.855rem; font-weight: 600; cursor: pointer; text-align: center; transition: opacity 0.15s; }
-.btnGcalLarge:hover { opacity: 0.9; }
+.detailFooterWa {
+  display: flex;
+  gap: 0.5rem;
+}
+.btnWhatsApp { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.45rem; padding: 0.65rem 0.875rem; background: #25D366; color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; transition: opacity 0.15s, transform 0.1s; white-space: nowrap; }
+.btnWhatsApp:hover { opacity: 0.9; transform: translateY(-1px); }
+.btnChat { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.45rem; padding: 0.65rem 0.875rem; background: #128C7E; color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; transition: opacity 0.15s, transform 0.1s; white-space: nowrap; }
+.btnChat:hover { opacity: 0.9; transform: translateY(-1px); }
+.btnWhatsAppNoPhone { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.65rem 0.875rem; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 0.82rem; cursor: default; text-align: center; }
+.btnGcalLarge { display: flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.55rem 0.875rem; background: none; color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 500; cursor: pointer; text-align: center; transition: border-color 0.15s, color 0.15s; }
+.btnGcalLarge:hover { border-color: #4285F4; color: #4285F4; }
 
 /* New appt modal */
 .modal { background: var(--bg-primary); border-radius: var(--radius-lg); width: 100%; max-width: 520px; max-height: 90vh; max-height: 90dvh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.22); }

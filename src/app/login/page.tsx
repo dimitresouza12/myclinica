@@ -3,6 +3,7 @@ import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
+import { audit } from '@/lib/audit'
 import type { Clinic, ClinicUser, AuthClinic, AuthUser } from '@/types'
 import styles from './login.module.css'
 
@@ -168,6 +169,14 @@ function LoginContent() {
       const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({ email, password })
       if (authErr) {
         recordFailure(cred)
+        // Auditoria de falha de login (sem expor o motivo real)
+        await audit({
+          action: 'auth.login_failed',
+          user_id: '00000000-0000-0000-0000-000000000000',
+          clinic_id: '00000000-0000-0000-0000-000000000000',
+          module: 'auth',
+          details: { credential_type: cred.includes('@') ? 'email' : 'username' },
+        }).catch(() => {})
         throw new Error('Usuário ou senha incorretos.')
       }
 
@@ -234,6 +243,14 @@ function LoginContent() {
       clearRateLimit(cred)
       setStep('Abrindo painel...')
       setSession(clinic, user)
+      // Auditoria de login bem-sucedido
+      await audit({
+        action: 'auth.login',
+        user_id: clinicUser.user_id,
+        clinic_id: clinicUser.clinic_id,
+        module: 'auth',
+        details: { role: clinicUser.role },
+      }).catch(() => {})
       window.location.href = '/dashboard'
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)

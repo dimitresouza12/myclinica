@@ -15,9 +15,11 @@ const NAV = [
   { path: '/pacientes',     label: 'Pacientes',     icon: 'patients'   as const, plusOnly: false },
   { path: '/agenda',        label: 'Agenda',        icon: 'calendar'   as const, plusOnly: false },
   { path: '/financeiro',    label: 'Financeiro',    icon: 'finance'    as const, plusOnly: false },
+  { path: '/relatorios',    label: 'Relatórios',    icon: 'reports'    as const, plusOnly: false },
   { path: '/estoque',       label: 'Estoque',       icon: 'stock'      as const, plusOnly: false },
   { path: '/equipe',        label: 'Equipe',        icon: 'team'       as const, plusOnly: false },
   { path: '/crm',           label: 'CRM',           icon: 'crm'        as const, plusOnly: true  },
+  { path: '/campanhas',     label: 'Campanhas',     icon: 'campaigns'  as const, plusOnly: true  },
   { path: '/configuracoes', label: 'Configurações', icon: 'settings'   as const, plusOnly: false },
 ]
 

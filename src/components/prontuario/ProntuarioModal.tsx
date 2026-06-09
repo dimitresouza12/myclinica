@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/store/auth'
+import { audit } from '@/lib/audit'
 import type { Patient, MedicalRecord, RecordEntry } from '@/types'
 import type { AuthClinic } from '@/types'
 import { TabFicha } from './TabFicha'
@@ -23,11 +25,12 @@ interface Props {
 export function ProntuarioModal({ patient, clinic, onClose }: Props) {
   const clinicId = clinic.id
   const clinicName = clinic.name
+  const { user } = useAuthStore()
   const [tab, setTab] = useState<Tab>('ficha')
   const [record, setRecord] = useState<MedicalRecord | null>(null)
   const [entries, setEntries] = useState<RecordEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(patient.avatar_url ?? null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [timelinePending, setTimelinePending] = useState(false)
@@ -43,7 +46,33 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
 
   useEffect(() => {
     loadRecord()
+    loadAvatar()
+    // Auditoria: acesso ao prontuário
+    if (user?.id) {
+      audit({
+        action: 'prontuario.view',
+        user_id: user.id,
+        clinic_id: clinicId,
+        module: 'prontuario',
+        resource_id: patient.id,
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patient.id])
+
+  async function loadAvatar() {
+    if (!patient.avatar_url) return
+    try {
+      // Extrai path relativo da URL pública se necessário
+      const path = `${clinicId}/${patient.id}/avatar.jpg`
+      const { data } = await supabase.storage
+        .from('patient-avatars')
+        .createSignedUrl(path, 3600)
+      if (data?.signedUrl) setAvatarUrl(data.signedUrl)
+    } catch {
+      // Avatar não encontrado — sem URL
+    }
+  }
 
   async function loadRecord() {
     setLoading(true)
@@ -64,12 +93,17 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
     setUploadingAvatar(true)
     const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
     const path = `${clinicId}/${patient.id}/avatar.${ext}`
-    const { error: upErr } = await supabase.storage.from('patient-avatars').upload(path, file, { upsert: true, contentType: file.type })
+    const { error: upErr } = await supabase.storage
+      .from('patient-avatars')
+      .upload(path, file, { upsert: true, contentType: file.type })
     if (!upErr) {
-      const { data: urlData } = supabase.storage.from('patient-avatars').getPublicUrl(path)
-      const url = urlData.publicUrl + '?t=' + Date.now()
-      await supabase.from('patients').update({ avatar_url: url }).eq('id', patient.id)
-      setAvatarUrl(url)
+      // Salva o path no banco, não a URL pública
+      await supabase.from('patients').update({ avatar_url: path }).eq('id', patient.id)
+      // Gera signed URL para exibição imediata
+      const { data } = await supabase.storage
+        .from('patient-avatars')
+        .createSignedUrl(path, 3600)
+      if (data?.signedUrl) setAvatarUrl(data.signedUrl)
     }
     setUploadingAvatar(false)
   }

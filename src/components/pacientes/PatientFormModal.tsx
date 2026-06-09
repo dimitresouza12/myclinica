@@ -1,6 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/store/auth'
+import { audit } from '@/lib/audit'
+import { sanitizeString, sanitizeEmail, sanitizeDigits } from '@/lib/sanitize'
 import type { Patient } from '@/types'
 import { Portal } from '@/components/ui/Portal'
 import styles from './PatientFormModal.module.css'
@@ -14,11 +17,13 @@ interface Props {
 
 export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props) {
   const isNew = !patient
+  const { user } = useAuthStore()
   const [form, setForm] = useState({
     name: '', phone: '', email: '', cpf: '', rg: '',
     birth_date: '', gender: '', address: '', occupation: '',
     emergency_contact: '', referred_by: '', notes: '',
   })
+  const [lgpdConsent, setLgpdConsent] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -51,25 +56,46 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
     e.preventDefault()
     setError('')
 
-    // Input validation
-    if (!form.name.trim() || form.name.trim().length < 2) return setError('Nome deve ter pelo menos 2 caracteres.')
-    if (form.name.length > 120) return setError('Nome muito longo (máx. 120 caracteres).')
-    if (form.email && form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return setError('E-mail inválido.')
-    if (form.phone && form.phone.replace(/\D/g, '').length > 15) return setError('Telefone inválido.')
-    if (form.cpf && form.cpf.replace(/\D/g, '').length > 11) return setError('CPF inválido (máx. 11 dígitos).')
+    // Validação server-side com sanitização
+    const name = sanitizeString(form.name)
+    const email = form.email ? sanitizeEmail(form.email) : ''
+    const cpfDigits = sanitizeDigits(form.cpf)
+    const phone = sanitizeDigits(form.phone)
+
+    if (!name || name.length < 2) return setError('Nome deve ter pelo menos 2 caracteres.')
+    if (name.length > 120) return setError('Nome muito longo (máx. 120 caracteres).')
+    if (form.email && !email) return setError('E-mail inválido.')
+    if (form.phone && phone.length > 15) return setError('Telefone inválido.')
+    if (form.cpf && cpfDigits.length > 11) return setError('CPF inválido (máx. 11 dígitos).')
+    if (isNew && !lgpdConsent) return setError('O consentimento LGPD é obrigatório para cadastrar o paciente.')
 
     setSaving(true)
     try {
+      const now = new Date().toISOString()
       const clean = Object.fromEntries(
         Object.entries(form).map(([k, v]) => [k, typeof v === 'string' && v.trim() === '' ? null : v])
       )
-      const payload = { ...clean, clinic_id: clinicId }
+      const payload = {
+        ...clean,
+        clinic_id: clinicId,
+        ...(isNew && {
+          lgpd_consent: true,
+          lgpd_consent_at: now,
+        }),
+      }
+
       if (isNew) {
         const { error: err } = await supabase.from('patients').insert([payload])
         if (err) throw err
+        if (user?.id) {
+          await audit({ action: 'patient.create', user_id: user.id, clinic_id: clinicId, module: 'pacientes' })
+        }
       } else {
         const { error: err } = await supabase.from('patients').update(payload).eq('id', patient!.id)
         if (err) throw err
+        if (user?.id) {
+          await audit({ action: 'patient.update', user_id: user.id, clinic_id: clinicId, module: 'pacientes', resource_id: patient!.id })
+        }
       }
       onSaved()
     } catch (err: unknown) {
@@ -130,6 +156,21 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
             <label>Observações</label>
             <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} />
           </div>
+
+          {isNew && (
+            <label className={styles.lgpdConsent}>
+              <input
+                type="checkbox"
+                checked={lgpdConsent}
+                onChange={(e) => setLgpdConsent(e.target.checked)}
+                required
+              />
+              <span>
+                O paciente autoriza o tratamento dos seus dados pessoais e de saúde conforme a{' '}
+                <strong>LGPD (Lei 13.709/2018)</strong>, art. 7 e 11, para fins de atendimento clínico.
+              </span>
+            </label>
+          )}
 
           {error && <p className={styles.error}>{error}</p>}
 

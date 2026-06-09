@@ -9,6 +9,7 @@ import { AppSidebar } from '@/components/layout/AppSidebar'
 import { TopBar } from '@/components/layout/TopBar'
 import { SystemAlertBanner } from '@/components/layout/SystemAlertBanner'
 import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner'
+import { ToastContainer } from '@/components/ui/Toast'
 import styles from './app.module.css'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -118,6 +119,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             descartando qualquer estado (lista de pacientes, agenda, etc.) da clínica anterior */}
         <main key={clinic.id} className={styles.main}>{children}</main>
       </div>
+      <ToastContainer />
     </div>
   )
 }
