@@ -4,7 +4,7 @@ type IconName =
   | 'dashboard' | 'patients' | 'calendar' | 'finance'
   | 'team' | 'settings' | 'admin' | 'logout'
   | 'sun' | 'moon' | 'chevronLeft' | 'chevronRight' | 'menu'
-  | 'crm' | 'stock' | 'reports' | 'campaigns'
+  | 'crm' | 'stock' | 'reports' | 'campaigns' | 'procedures'
 
 const PATHS: Record<IconName, string> = {
   dashboard:    'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
@@ -24,6 +24,7 @@ const PATHS: Record<IconName, string> = {
   stock:        'M5 8h14M5 8a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v0a2 2 0 01-2 2M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12M10 12h4',
   reports:      'M18 20V10M12 20V4M6 20v-6',
   campaigns:    'M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.64A2 2 0 012 .82h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z',
+  procedures:   'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 12h6M9 16h4',
 }
 
 interface Props extends SVGProps<SVGSVGElement> {

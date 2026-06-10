@@ -7,9 +7,10 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import type { Professional } from '@/types'
 import styles from './equipe.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { Portal } from '@/components/ui/Portal'
 
-interface NewProf { name: string; specialty: string; google_calendar_id: string }
-const BLANK: NewProf = { name: '', specialty: '', google_calendar_id: '' }
+interface NewProf { name: string; specialty: string }
+const BLANK: NewProf = { name: '', specialty: '' }
 
 function EquipeContent() {
   const { clinic } = useAuthStore()
@@ -50,7 +51,6 @@ function EquipeContent() {
       clinic_id: clinic.id,
       name: form.name,
       specialty: form.specialty || null,
-      google_calendar_id: form.google_calendar_id || null,
     }])
     setSaving(false)
     setShowModal(false)
@@ -82,19 +82,17 @@ function EquipeContent() {
               <tr>
                 <th>Nome</th>
                 <th>Especialidade</th>
-                <th>Google Calendar ID</th>
                 <th>Cadastrado em</th>
                 <th>Ações</th>
               </tr>
             </thead>
             <tbody>
               {professionals.length === 0 ? (
-                <tr><td colSpan={5} className={styles.empty}>Nenhum profissional cadastrado.</td></tr>
+                <tr><td colSpan={4} className={styles.empty}>Nenhum profissional cadastrado.</td></tr>
               ) : professionals.map((p) => (
                 <tr key={p.id}>
                   <td className={styles.bold}>{p.name}</td>
                   <td>{p.specialty ?? '-'}</td>
-                  <td><code className={styles.code}>{p.google_calendar_id ?? '-'}</code></td>
                   <td>{formatDate(p.created_at, true)}</td>
                   <td>
                     <button className={styles.btnDelete} onClick={() => handleDelete(p.id)}>Remover</button>
@@ -107,6 +105,7 @@ function EquipeContent() {
       )}
 
       {showModal && (
+        <Portal>
         <div className={styles.overlay} onClick={() => setShowModal(false)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
@@ -122,11 +121,6 @@ function EquipeContent() {
                 <label>Especialidade</label>
                 <input value={form.specialty} onChange={(e) => setForm((p) => ({ ...p, specialty: e.target.value }))} placeholder="Ex: Ortodontia, Clínico Geral..." />
               </div>
-              <div className={styles.field}>
-                <label>Google Calendar ID</label>
-                <input value={form.google_calendar_id} onChange={(e) => setForm((p) => ({ ...p, google_calendar_id: e.target.value }))} placeholder="ex: nome@clinica.com" />
-                <span className={styles.hint}>ID do calendário do profissional no Google Calendar</span>
-              </div>
             </div>
             <div className={styles.modalFooter}>
               <button className={styles.btnCancel} onClick={() => setShowModal(false)}>Cancelar</button>
@@ -136,6 +130,7 @@ function EquipeContent() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   )

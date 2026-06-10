@@ -128,7 +128,7 @@ export function TabDocumentos({ patient }: Props) {
           <option value="4">Grande</option>
         </select>
         <div className={styles.toolSep} />
-        <button className={styles.btnPrint} onClick={handlePrint}>🖨️ Imprimir</button>
+        <button className={styles.btnPrint} onClick={handlePrint}>Imprimir</button>
       </div>
 
       {/* Área de edição / impressão */}
@@ -144,7 +144,7 @@ export function TabDocumentos({ patient }: Props) {
         />
         {!hasPdf && (
           <p className={styles.noTemplateHint}>
-            💡 Sem modelo PDF cadastrado — usando template padrão. Para usar seu papel timbrado,{' '}
+            Sem modelo PDF cadastrado — usando template padrão. Para usar seu papel timbrado,{' '}
             <a href="/configuracoes" className={styles.hintLink}>acesse Configurações → Modelos de Documentos</a>.
           </p>
         )}

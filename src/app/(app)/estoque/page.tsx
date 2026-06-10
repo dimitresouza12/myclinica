@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -8,6 +9,8 @@ import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './estoque.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+
+const EstoqueChart = dynamic(() => import('./EstoqueChart'), { ssr: false, loading: () => null })
 
 const CATEGORIES = ['material', 'medicamento', 'descartavel', 'equipamento', 'outro']
 const UNITS = ['un', 'caixa', 'ml', 'L', 'kg', 'g', 'par', 'rolo']
@@ -64,6 +67,25 @@ function EstoqueContent() {
     const totalValue = items.reduce((s, i) => s + i.quantity * (i.cost_price ?? 0), 0)
     return { total: items.length, low, totalValue }
   }, [items])
+
+  // Movimentos mensais (últimos 6 meses) para o gráfico
+  const monthlyMovements = useMemo(() => {
+    const now = new Date()
+    const monthMap: Record<string, { month: string; entrada: number; saida: number }> = {}
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const label = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
+      monthMap[key] = { month: label, entrada: 0, saida: 0 }
+    }
+    for (const m of movements) {
+      const key = (m.created_at ?? '').slice(0, 7)
+      if (!monthMap[key]) continue
+      if (m.type === 'entrada') monthMap[key].entrada += Math.abs(m.quantity ?? 0)
+      else if (m.type === 'saida') monthMap[key].saida += Math.abs(m.quantity ?? 0)
+    }
+    return Object.values(monthMap)
+  }, [movements])
 
   const filteredItems = useMemo(() => {
     const term = search.toLowerCase()
@@ -187,27 +209,27 @@ function EstoqueContent() {
       {/* Stats */}
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
-          <span className={styles.statIcon}>📦</span>
           <div>
             <span className={styles.statVal}>{stats.total}</span>
             <span className={styles.statLabel}>Total de produtos</span>
           </div>
         </div>
         <div className={`${styles.statCard} ${stats.low > 0 ? styles.statCardWarn : ''}`}>
-          <span className={styles.statIcon}>⚠️</span>
           <div>
             <span className={styles.statVal} style={{ color: stats.low > 0 ? '#F59E0B' : undefined }}>{stats.low}</span>
             <span className={styles.statLabel}>Estoque baixo</span>
           </div>
         </div>
         <div className={styles.statCard}>
-          <span className={styles.statIcon}>💰</span>
           <div>
             <span className={styles.statVal} style={{ color: '#059669' }}>{formatCurrency(stats.totalValue)}</span>
             <span className={styles.statLabel}>Valor em estoque</span>
           </div>
         </div>
       </div>
+
+      {/* Chart */}
+      {!loading && <EstoqueChart data={monthlyMovements} />}
 
       {/* Tabs */}
       <div className={styles.toolbar}>

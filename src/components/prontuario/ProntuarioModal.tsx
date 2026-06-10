@@ -109,11 +109,11 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'ficha', label: '📋 Ficha Clínica' },
-    ...(clinic.type === 'odonto' ? [{ key: 'odontograma' as Tab, label: '🦷 Odontograma' }] : []),
-    { key: 'timeline', label: '📝 Evolução' },
-    { key: 'documentos', label: '📄 Documentos' },
-    { key: 'chat', label: '💬 Chat IA' },
+    { key: 'ficha', label: 'Ficha Clínica' },
+    ...(clinic.type === 'odonto' ? [{ key: 'odontograma' as Tab, label: 'Odontograma' }] : []),
+    { key: 'timeline', label: 'Evolução' },
+    { key: 'documentos', label: 'Documentos' },
+    { key: 'chat', label: 'Chat IA' },
   ]
 
   const initials = patient.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -157,7 +157,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
               onClick={() => printProntuario({ name: clinicName, logo: clinic.logo, address: clinic.address, phone: clinic.phone }, patient, record, entries)}
               title="Imprimir / Salvar PDF"
             >
-              🖨️ Imprimir
+              Imprimir
             </button>
             <button className={styles.btnClose} onClick={tryClose}>✕</button>
           </div>

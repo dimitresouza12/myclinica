@@ -1,7 +1,7 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
+  gap: 1.5rem;
   max-width: 1200px;
   animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) both;
 }
@@ -26,7 +26,7 @@
   color: var(--text-secondary);
   display: flex;
   align-items: center;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   opacity: 0.55;
   transition: opacity 0.15s;
   flex-shrink: 0;
@@ -34,10 +34,11 @@
 .btnHide:hover { opacity: 1; }
 
 .title {
+  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
   font-size: 1.6rem;
-  font-weight: 750;
+  font-weight: 800;
   color: var(--text-primary);
-  letter-spacing: -0.4px;
+  letter-spacing: -0.3px;
 }
 
 .subtitle {
@@ -57,35 +58,25 @@
 .card {
   background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 1.375rem 1.5rem;
+  border-radius: 16px;
+  padding: 1.5rem;
   display: flex;
   align-items: flex-start;
   gap: 1rem;
-  box-shadow: var(--shadow-sm);
   transition: box-shadow 0.2s, transform 0.2s;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 .card:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
-.card::after {
-  content: '';
-  position: absolute;
-  top: 0; right: 0;
-  width: 120px; height: 120px;
-  background: radial-gradient(circle at top right, var(--card-accent, #0D9488) 0%, transparent 60%);
-  opacity: 0.06;
-  pointer-events: none;
-}
 
 .cardIconWrap {
   width: 42px;
   height: 42px;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--card-accent, #0D9488) 12%, transparent);
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -120,10 +111,11 @@
   }
 
   .cardValue {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     letter-spacing: -0.3px;
-    word-break: break-all;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .cardLabel {
@@ -141,7 +133,7 @@
 
 .cardValue {
   font-size: 1.625rem;
-  font-weight: 750;
+  font-weight: 800;
   color: var(--text-primary);
   line-height: 1;
   letter-spacing: -0.5px;
@@ -149,8 +141,8 @@
 
 .cardLabel {
   font-size: 0.78rem;
+  font-weight: 600;
   color: var(--text-secondary);
-  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -164,9 +156,9 @@
 .section {
   background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border-radius: 16px;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .sectionHeader {
@@ -197,9 +189,9 @@
   padding: 0.625rem 1.25rem;
   color: var(--text-secondary);
   font-weight: 600;
-  font-size: 0.73rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
 }
@@ -220,5 +212,11 @@
   font-size: 0.875rem;
 }
 
-.chartWrap { padding: 1rem 1.25rem 1.25rem; }
+.chartWrap {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
 .chartLoading { padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 0.875rem; }

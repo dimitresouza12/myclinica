@@ -3,6 +3,7 @@
   min-width: 232px;
   height: 100dvh;
   background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -11,117 +12,100 @@
   transition: width 0.22s cubic-bezier(0.4,0,0.2,1), min-width 0.22s cubic-bezier(0.4,0,0.2,1);
 }
 
-.collapsed {
-  width: 60px;
-  min-width: 60px;
-}
-
-/* subtle gradient at top */
+/* subtle teal ambient glow at top */
 .sidebar::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 200px;
-  background: radial-gradient(ellipse at 50% -20%, rgba(94,234,212,0.18) 0%, transparent 70%);
+  height: 160px;
+  background: radial-gradient(ellipse at 50% -20%, rgba(77,217,192,0.08) 0%, transparent 70%);
   pointer-events: none;
+  z-index: 0;
 }
 
-/* ─── Brand ─────────────────────────────────────── */
+.collapsed { width: 60px; min-width: 60px; }
+
+/* ─── Brand ─── */
 .brand {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
-  padding: 1.5rem 1.25rem 1.25rem;
+  padding: 1.25rem 1.25rem 1.25rem 1.5rem;
   border-bottom: 1px solid var(--sidebar-border);
   position: relative;
-  overflow: hidden;
+  z-index: 1;
+  transition: padding 0.22s cubic-bezier(0.4,0,0.2,1);
 }
-
+/* collapsed: centraliza o ícone no sidebar */
 .brandCollapsed {
-  padding: 1.25rem 0;
+  padding: 0.6rem 0;
   align-items: center;
 }
-
-.brandTop {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-}
-
-.logo {
-  height: 28px;
-  width: auto;
-  max-width: 80px;
-  object-fit: contain;
-  border-radius: 6px;
-}
-
-.logoIcon {
-  height: 32px;
-  width: 32px;
-  object-fit: contain;
-  border-radius: 6px;
-}
-
-
-.logoDivider {
-  width: 1px;
-  height: 20px;
-  background: var(--sidebar-border);
-  flex-shrink: 0;
-}
+.brandTop { display: flex; align-items: center; gap: 0.625rem; }
+.logo     { height: 28px; width: auto; max-width: 80px; object-fit: contain; border-radius: 6px; }
+.logoIcon { height: 32px; width: 32px; object-fit: contain; border-radius: 6px; }
+.logoDivider { width: 1px; height: 20px; background: var(--sidebar-border); flex-shrink: 0; }
 
 .logoText {
-  font-size: 1.5rem;
-  color: #FFFFFF;
-  letter-spacing: -0.5px;
+  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  font-size: 1.35rem;
+  color: #0D2421;
+  font-weight: 700;
+  letter-spacing: -0.4px;
   line-height: 1;
   white-space: nowrap;
+  transition: opacity 0.15s ease;
 }
-.logoText strong { font-weight: 800; color: #5EEAD4; }
+.logoText strong { font-weight: 800; color: #4DD9C0; }
 
-.brandIcon {
-  width: 38px;
-  height: 38px;
-  display: block;
-}
+.brandIcon { width: 32px; height: 32px; display: block; flex-shrink: 0; border-radius: 8px; }
 
 .clinicName {
-  font-size: 0.72rem;
+  font-size: 0.71rem;
   color: var(--sidebar-text);
-  margin-top: 0.35rem;
+  margin-top: 0.4rem;
   font-weight: 500;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 180px;
 }
 
-/* ─── Collapse toggle ────────────────────────────── */
+/* ─── Label transition (expandir/recolher fluido) ─── */
+.sideItemLabel {
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  max-width: 200px;
+  transition: opacity 0.18s ease, max-width 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+.sideItemCollapsed .sideItemLabel {
+  opacity: 0;
+  max-width: 0;
+}
+
+/* ─── Collapse toggle ─── */
 .collapseBtn {
   display: flex;
   align-items: center;
   justify-content: center;
   align-self: flex-end;
-  margin: 0.4rem 0.6rem 0;
+  margin: 0.5rem 0.6rem 0;
   background: var(--sidebar-bg-hover);
   border: 1px solid var(--sidebar-border);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   color: var(--sidebar-text);
   cursor: pointer;
   padding: 0.25rem 0.4rem;
   transition: background 0.15s, color 0.15s;
+  position: relative; z-index: 1;
 }
-.collapseBtn:hover { background: var(--sidebar-bg-active); color: var(--sidebar-text-hover); }
+.collapseBtn:hover { background: var(--sidebar-bg-active); color: #4DD9C0; }
+.collapseBtnCenter { align-self: center; margin: 0.4rem auto 0; }
 
-.collapseBtnCenter {
-  align-self: center;
-  margin: 0.4rem auto 0;
-}
-
-/* ─── Nav ────────────────────────────────────────── */
+/* ─── Nav ─── */
 .nav {
   flex: 1;
   display: flex;
@@ -130,17 +114,16 @@
   padding: 1rem 0.75rem;
   overflow-y: auto;
   overflow-x: hidden;
+  position: relative; z-index: 1;
 }
-
-.navCollapsed {
-  padding: 1rem 0.5rem;
-}
+/* navCollapsed: mesma padding — ícones não se movem */
+.navCollapsed { padding: 1rem 0.75rem; }
 
 .navItem {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  padding: 0.525rem 0.75rem;
+  padding: 0.55rem 0.75rem;
   border-radius: var(--radius-sm);
   color: var(--sidebar-text);
   font-size: 0.855rem;
@@ -148,30 +131,37 @@
   transition: background 0.15s, color 0.15s;
   text-decoration: none;
   position: relative;
-  white-space: nowrap;
+  overflow: hidden;
 }
-.navItem:hover {
-  background: var(--sidebar-bg-hover);
-  color: var(--sidebar-text-hover);
-}
+.navItem:hover { background: var(--sidebar-bg-hover); color: var(--sidebar-text-hover); }
+/* navItemCollapsed: sem mudança de padding/layout — ícone fica onde está */
+.navItemCollapsed { }
 
-.navItemCollapsed {
-  padding: 0.6rem;
-  justify-content: center;
+/* ─── Nav label: só opacidade e largura somem ─── */
+.navLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 200px;
+  opacity: 1;
+  transition: opacity 0.15s ease, max-width 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+.navLabelHidden {
+  opacity: 0;
+  max-width: 0;
 }
 
 .active {
   background: var(--sidebar-bg-active);
-  color: var(--sidebar-text-active);
+  color: #0D2421;
   font-weight: 600;
 }
 .active::before {
   content: '';
   position: absolute;
-  left: 0; top: 20%; bottom: 20%;
+  left: 0; top: 25%; bottom: 25%;
   width: 3px;
   border-radius: 0 3px 3px 0;
-  background: #5EEAD4;
+  background: #4DD9C0;
 }
 
 .iconWrap {
@@ -182,75 +172,7 @@
   width: 1.25rem;
 }
 
-/* ─── Footer ─────────────────────────────────────── */
-.footer {
-  padding: 0.875rem 1rem;
-  border-top: 1px solid var(--sidebar-border);
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-}
-
-.footerCollapsed {
-  flex-direction: column;
-  padding: 0.75rem 0.5rem;
-  gap: 0.5rem;
-}
-
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(135deg, #0D9488, #5EEAD4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #0a1a1f;
-  flex-shrink: 0;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.userInfo {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.userName {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--sidebar-text-hover);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.userRole {
-  font-size: 0.68rem;
-  color: var(--sidebar-text);
-  text-transform: capitalize;
-}
-
-.themeBtn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.3rem;
-  color: var(--sidebar-text);
-  border-radius: var(--radius-xs);
-  transition: color 0.15s;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.themeBtn:hover { color: #F59E0B; }
-
+/* ─── Theme row ─── */
 .themeRow {
   display: flex;
   align-items: center;
@@ -265,88 +187,148 @@
   font-weight: 500;
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.22s;
+  position: relative; z-index: 1;
+  overflow: hidden;
 }
-.themeRow:hover {
-  background: var(--sidebar-bg-hover);
-  color: var(--sidebar-text-hover);
-}
+.themeRow:hover { background: var(--sidebar-bg-hover); color: var(--sidebar-text-hover); }
+/* collapsed: mesma posição, só borda some — ícone não se move */
+.themeRow.sideItemCollapsed { border-color: transparent; }
 .themeIconWrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   width: 1.25rem;
-  color: #F59E0B;
-}
-
-.logoutBtn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.3rem;
-  color: var(--sidebar-text);
-  border-radius: var(--radius-xs);
-  transition: color 0.15s;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  color: #4DD9C0;
 }
-.logoutBtn:hover { color: #f87171; }
 
+/* ─── Support ─── */
 .supportRow {
   display: flex;
   align-items: center;
   gap: 0.625rem;
   margin: 0 0.75rem 0.5rem;
-  padding: 0.525rem 0.75rem;
+  padding: 0.55rem 0.75rem;
   border-radius: var(--radius-sm);
   background: none;
-  border: 1px solid #25D36644;
-  color: #25D366;
-  font-size: 0.82rem;
+  border: 1px solid var(--sidebar-border);
+  color: var(--sidebar-text);
+  font-size: 0.855rem;
   font-weight: 500;
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.22s;
+  position: relative; z-index: 1;
+  overflow: hidden;
 }
-.supportRow:hover { background: #25D36611; }
-.supportIcon { font-size: 0.95rem; }
-
-.supportBtn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.3rem;
-  font-size: 1rem;
-  border-radius: var(--radius-xs);
-  text-decoration: none;
+.supportRow:hover { background: var(--sidebar-bg-hover); color: var(--sidebar-text-hover); }
+/* collapsed: mesma posição, só borda some — ícone não se move */
+.supportRow.sideItemCollapsed { border-color: transparent; }
+.supportIcon {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.15s;
+  width: 1.25rem;
+  flex-shrink: 0;
 }
-.supportBtn:hover { opacity: 0.75; }
 
-/* ─── Mobile ─────────────────────────────────── */
+.supportBtn {
+  background: none; border: none; cursor: pointer;
+  padding: 0.3rem;
+  border-radius: var(--radius-xs);
+  text-decoration: none;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--sidebar-text);
+  transition: color 0.15s;
+  position: relative; z-index: 1;
+}
+.supportBtn:hover { color: var(--sidebar-text-hover); }
+
+/* ─── Footer ─── */
+.footer {
+  padding: 0.875rem 1rem;
+  border-top: 1px solid var(--sidebar-border);
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  position: relative; z-index: 1;
+  overflow: hidden;
+  /* sem mudança de padding/gap — avatar fica sempre no mesmo lugar */
+}
+/* footerCollapsed: zero mudança de layout */
+.footerCollapsed { }
+
+.userInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  max-width: 200px;
+  opacity: 1;
+  transition: opacity 0.15s ease, max-width 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+.footerCollapsed .userInfo { opacity: 0; max-width: 0; }
+
+.avatar {
+  width: 32px; height: 32px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, #E5F9F5, #CBF3EC);
+  border: 1.5px solid rgba(77,217,192,0.45);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 700;
+  color: #0B9B85;
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.userName {
+  font-size: 0.78rem; font-weight: 600;
+  color: #0D2421;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.userRole { font-size: 0.68rem; color: var(--sidebar-text); text-transform: capitalize; }
+
+
+.logoutBtn {
+  background: none; border: none; cursor: pointer;
+  padding: 0.3rem; color: var(--sidebar-text);
+  border-radius: var(--radius-xs);
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  opacity: 1;
+  transition: color 0.15s, opacity 0.15s ease;
+}
+/* logoutBtn some em collapsed — sidebar clipa, não some abruptamente */
+.footerCollapsed .logoutBtn { opacity: 0; pointer-events: none; }
+.logoutBtn:hover { color: #f87171; }
+
+/* ─── Mobile ─── */
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
+    left: 0; top: 0; bottom: 0;
     z-index: 100;
     transform: translateX(-100%);
-    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1), width 0.22s cubic-bezier(0.4,0,0.2,1);
-    width: 232px !important;
-    min-width: 232px !important;
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    /* Ocupa no máximo 80% da tela, mas nunca mais que 280px */
+    width: min(280px, 80vw) !important;
+    min-width: unset !important;
+    max-width: 280px;
+    height: 100dvh;
+    box-shadow: var(--shadow-xl);
+    border-right: 1px solid var(--sidebar-border);
+    overflow-y: auto;
+    overflow-x: hidden;
   }
-
   .mobileOpen {
     transform: translateX(0);
   }
+  .collapseBtn { display: none; }
 
-  .collapseBtn {
-    display: none;
-  }
+  /* Itens de nav ficam legíveis em telas pequenas */
+  .nav { padding: 0.75rem 0.625rem; }
+  .navItem { padding: 0.75rem; font-size: 0.9rem; min-height: 44px; }
+  .brand { padding: 1.25rem 1rem 1rem; }
+  .footer { padding: 0.75rem 0.875rem; }
 }

@@ -214,7 +214,7 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
 
       {/* Aviso de imutabilidade */}
       <p className={styles.immutableNote}>
-        🔒 Anotações são permanentes conforme CFM 1.638/2002 — não é possível editar ou excluir após salvar.
+        Anotações são permanentes conforme CFM 1.638/2002 — não é possível editar ou excluir após salvar.
       </p>
 
       <div className={styles.timeline}>

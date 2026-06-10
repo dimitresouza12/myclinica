@@ -154,7 +154,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
                 className={`${styles.statusChoiceBtn} ${trialMode === 'permanente' ? styles.statusChoiceBtnActive : ''}`}
                 onClick={() => setTrialMode('permanente')}
               >
-                ✅ Acesso permanente
+                Acesso permanente
               </button>
             </div>
             {trialMode === 'trial' && (
@@ -177,7 +177,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
 
           {/* — Cobrança — */}
           <div className={styles.billingSection}>
-            <p className={styles.billingSectionTitle}>💰 Cobrança de mensalidade</p>
+            <p className={styles.billingSectionTitle}>Cobrança de mensalidade</p>
 
             <div className={styles.billingRow}>
               <div className={styles.field} style={{ flex: 1 }}>

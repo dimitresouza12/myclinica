@@ -78,7 +78,8 @@ export async function middleware(request: NextRequest) {
   const isPublicPath =
     pathname.startsWith('/login') ||
     pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/trial-expirado')
+    pathname.startsWith('/trial-expirado') ||
+    pathname.startsWith('/financial-demo')
 
   if (isPublicPath) return addSecurityHeaders(supabaseResponse)
 

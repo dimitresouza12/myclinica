@@ -84,12 +84,25 @@ export interface Patient {
   updated_at: string
 }
 
+export interface Procedure {
+  id: string
+  clinic_id: string
+  name: string
+  price: number
+  category: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Appointment {
   id: string
   clinic_id: string
   patient_id: string
   professional_id: string | null
   procedure_name: string | null
+  procedure_id: string | null
+  procedure_price: number | null
   status: AppointmentStatus
   scheduled_at: string
   duration_minutes: number
@@ -99,6 +112,7 @@ export interface Appointment {
   patients?: Pick<Patient, 'id' | 'name' | 'phone'>
   clinic_users?: Pick<ClinicUser, 'id' | 'display_name'>
   professionals?: Pick<Professional, 'id' | 'name'>
+  procedures?: Pick<Procedure, 'id' | 'name' | 'price'>
 }
 
 export interface MedicalRecord {
@@ -133,6 +147,8 @@ export interface FinancialRecord {
   id: string
   clinic_id: string
   patient_id: string | null
+  appointment_id: string | null
+  procedure_id: string | null
   total_amount: number | null
   discount_percent: number | null
   payment_method: string | null

@@ -58,14 +58,14 @@ function normalizeUsername(raw: string) {
 
 // Módulos disponíveis para controle de permissão
 const MODULES = [
-  { key: 'dashboard',     label: 'Dashboard',     icon: '📊' },
-  { key: 'pacientes',     label: 'Pacientes',      icon: '👥' },
-  { key: 'agenda',        label: 'Agenda',         icon: '📅' },
-  { key: 'financeiro',    label: 'Financeiro',     icon: '💰' },
-  { key: 'estoque',       label: 'Estoque',        icon: '📦' },
-  { key: 'equipe',        label: 'Equipe',         icon: '👤' },
-  { key: 'crm',           label: 'CRM',            icon: '💬' },
-  { key: 'configuracoes', label: 'Configurações',  icon: '⚙️' },
+  { key: 'dashboard',     label: 'Dashboard',     icon: '' },
+  { key: 'pacientes',     label: 'Pacientes',      icon: '' },
+  { key: 'agenda',        label: 'Agenda',         icon: '' },
+  { key: 'financeiro',    label: 'Financeiro',     icon: '' },
+  { key: 'estoque',       label: 'Estoque',        icon: '' },
+  { key: 'equipe',        label: 'Equipe',         icon: '' },
+  { key: 'crm',           label: 'CRM',            icon: '' },
+  { key: 'configuracoes', label: 'Configurações',  icon: '' },
 ]
 
 interface ModulePermForm {
@@ -861,7 +861,7 @@ function ConfiguracoesContent() {
                     })}
                   </div>
                   <p className={styles.permHint}>
-                    💡 Admin tem acesso total e não precisa de permissões individuais.
+                    Admin tem acesso total e não precisa de permissões individuais.
                     Desmarcar &quot;Ver&quot; também remove o &quot;Editar&quot;.
                   </p>
                 </div>

@@ -15,11 +15,11 @@ type AdminTab = 'overview' | 'clinicas' | 'alertas' | 'logs' | 'usuarios'
 type UserWithClinic = ClinicUser & { clinics?: { name: string } | null }
 
 const TABS: { key: AdminTab; label: string; icon: string }[] = [
-  { key: 'overview',  label: 'Overview',  icon: '📊' },
-  { key: 'clinicas',  label: 'Clínicas',  icon: '🏥' },
-  { key: 'alertas',   label: 'Avisos',    icon: '📢' },
-  { key: 'logs',      label: 'Auditoria', icon: '🔍' },
-  { key: 'usuarios',  label: 'Usuários',  icon: '👥' },
+  { key: 'overview',  label: 'Overview',  icon: '' },
+  { key: 'clinicas',  label: 'Clínicas',  icon: '' },
+  { key: 'alertas',   label: 'Avisos',    icon: '' },
+  { key: 'logs',      label: 'Auditoria', icon: '' },
+  { key: 'usuarios',  label: 'Usuários',  icon: '' },
 ]
 
 export default function AdminPage() {
@@ -64,7 +64,7 @@ export default function AdminPage() {
     <div className={styles.adminPage}>
       <div className={styles.adminHeader}>
         <div>
-          <h1 className={styles.adminTitle}>🛡️ Painel de Comando</h1>
+          <h1 className={styles.adminTitle}>Painel de Comando</h1>
           <p className={styles.adminSub}>Superadmin — MyClinica SaaS</p>
         </div>
       </div>

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
@@ -9,6 +10,7 @@ import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { usePermissions } from '@/hooks/usePermissions'
+import { motion } from 'framer-motion'
 
 // Recharts – dynamic import to avoid SSR issues
 const Charts = dynamic(() => import('./FinanceiroCharts'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráficos...</div> })
@@ -45,6 +47,10 @@ function FinanceiroContent() {
   const [filterType, setFilterType] = useState<'todos' | 'receita' | 'despesa'>('todos')
   const [filterPeriod, setFilterPeriod] = useState<'diario' | 'semanal' | 'mensal' | 'geral'>('mensal')
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportPreset, setExportPreset] = useState<'this_month'|'last_month'|'3m'|'6m'|'all'|'custom'>('this_month')
+  const [exportStartMonth, setExportStartMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [exportEndMonth, setExportEndMonth] = useState(() => new Date().toISOString().slice(0, 7))
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -92,7 +98,17 @@ function FinanceiroContent() {
   const stats = useMemo(() => {
     const receitas = periodRecords.filter(r => r.type === 'receita').reduce((s, r) => s + (r.total_amount ?? 0), 0)
     const despesas = periodRecords.filter(r => r.type === 'despesa').reduce((s, r) => s + (r.total_amount ?? 0), 0)
-    return { receitas, despesas, saldo: receitas - despesas, count: periodRecords.length }
+    const saldo = receitas - despesas
+    const total = receitas + despesas
+    return {
+      receitas,
+      despesas,
+      saldo,
+      count: periodRecords.length,
+      receitasPct: total > 0 ? Math.round(receitas / total * 100) : 0,
+      despesasPct: total > 0 ? Math.round(despesas / total * 100) : 0,
+      saldoPct:   receitas > 0 ? Math.min(Math.round(Math.abs(saldo) / receitas * 100), 100) : 0,
+    }
   }, [periodRecords])
 
   // Build monthly data for last 6 months
@@ -190,21 +206,54 @@ function FinanceiroContent() {
     filterPeriod === 'mensal' ? 'do mês' :
     'geral'
 
+  function getExportRecords() {
+    const now = new Date()
+    switch (exportPreset) {
+      case 'this_month': {
+        const key = now.toISOString().slice(0, 7)
+        return records.filter(r => r.created_at?.startsWith(key))
+      }
+      case 'last_month': {
+        const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        return records.filter(r => r.created_at?.startsWith(key))
+      }
+      case '3m': {
+        const start = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 7)
+        return records.filter(r => (r.created_at?.slice(0, 7) ?? '') >= start)
+      }
+      case '6m': {
+        const start = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 7)
+        return records.filter(r => (r.created_at?.slice(0, 7) ?? '') >= start)
+      }
+      case 'custom':
+        return records.filter(r => {
+          const m = r.created_at?.slice(0, 7) ?? ''
+          return m >= exportStartMonth && m <= exportEndMonth
+        })
+      default:
+        return records
+    }
+  }
+
   async function exportXLSX() {
     const { utils, writeFile } = await import('xlsx')
-    const today = new Date()
-    const dd = String(today.getDate()).padStart(2, '0')
-    const mm = String(today.getMonth() + 1).padStart(2, '0')
-    const yyyy = today.getFullYear()
-    const periodName =
-      filterPeriod === 'diario' ? `${dd}-${mm}-${yyyy}` :
-      filterPeriod === 'semanal' ? `semana-${dd}-${mm}-${yyyy}` :
-      filterPeriod === 'mensal' ? filterMonth :
-      `geral-${yyyy}`
+    const recordsToExport = getExportRecords()
+    const now = new Date()
+    const yyyy = now.getFullYear()
+    const presetLabel: Record<string, string> = {
+      this_month: now.toISOString().slice(0, 7),
+      last_month: (() => { const d = new Date(now.getFullYear(), now.getMonth() - 1, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` })(),
+      '3m': 'ultimos-3m',
+      '6m': 'ultimos-6m',
+      all: `historico-${yyyy}`,
+      custom: `${exportStartMonth}_${exportEndMonth}`,
+    }
+    const periodName = presetLabel[exportPreset] ?? exportPreset
 
     const data = [
       ['Tipo', 'Data', 'Paciente', 'Categoria', 'Descrição', 'Método de Pagamento', 'Valor (R$)'],
-      ...filtered.map(r => [
+      ...recordsToExport.map(r => [
         r.type === 'receita' ? 'Receita' : 'Despesa',
         new Date(r.created_at).toLocaleDateString('pt-BR'),
         r.patients?.name ?? '',
@@ -217,10 +266,10 @@ function FinanceiroContent() {
 
     const ws = utils.aoa_to_sheet(data)
     ws['!cols'] = [10, 12, 24, 16, 30, 20, 14].map(wch => ({ wch }))
-
     const wb = utils.book_new()
     utils.book_append_sheet(wb, ws, 'Financeiro')
     writeFile(wb, `financeiro-${periodName}.xlsx`)
+    setShowExportModal(false)
   }
 
   return (
@@ -236,7 +285,7 @@ function FinanceiroContent() {
           }</p>
         </div>
         <div className={styles.headerActions}>
-          <button className={styles.btnExport} onClick={exportXLSX} disabled={filtered.length === 0} title="Exportar planilha Excel">
+          <button className={styles.btnExport} onClick={() => setShowExportModal(true)} disabled={records.length === 0} title="Exportar planilha Excel">
             ⬇ Exportar
           </button>
           {canEdit && <button className={styles.btnDespesa} onClick={() => openModal('despesa')}>− Despesa</button>}
@@ -247,36 +296,90 @@ function FinanceiroContent() {
       {/* Metric cards — controlado pela permissão "Ver totais" */}
       {showTotals && (
         <div className={styles.cards}>
-          <div className={styles.card} style={{ '--c': '#10B981' } as React.CSSProperties}>
-            <div className={styles.cardIcon} style={{ background: '#ECFDF5' }}>📈</div>
-            <div className={styles.cardBody}>
-              <span className={styles.cardValue}>{formatCurrency(stats.receitas)}</span>
-              <span className={styles.cardLabel}>Receitas {periodLabel}</span>
-            </div>
-          </div>
-          <div className={styles.card} style={{ '--c': '#EF4444' } as React.CSSProperties}>
-            <div className={styles.cardIcon} style={{ background: '#FEF2F2' }}>📉</div>
-            <div className={styles.cardBody}>
-              <span className={styles.cardValue}>{formatCurrency(stats.despesas)}</span>
-              <span className={styles.cardLabel}>Despesas {periodLabel}</span>
-            </div>
-          </div>
-          <div className={styles.card} style={{ '--c': stats.saldo >= 0 ? '#0D9488' : '#F59E0B' } as React.CSSProperties}>
-            <div className={styles.cardIcon} style={{ background: stats.saldo >= 0 ? '#F0FDFA' : '#FFFBEB' }}>💰</div>
-            <div className={styles.cardBody}>
-              <span className={styles.cardValue} style={{ color: stats.saldo >= 0 ? '#059669' : '#DC2626' }}>
-                {formatCurrency(stats.saldo)}
-              </span>
-              <span className={styles.cardLabel}>Saldo {periodLabel}</span>
-            </div>
-          </div>
-          <div className={styles.card} style={{ '--c': '#0EA5E9' } as React.CSSProperties}>
-            <div className={styles.cardIcon} style={{ background: '#F0F9FF' }}>🧾</div>
-            <div className={styles.cardBody}>
-              <span className={styles.cardValue}>{stats.count}</span>
-              <span className={styles.cardLabel}>Lançamentos</span>
-            </div>
-          </div>
+          {([
+            {
+              value: formatCurrency(stats.receitas),
+              label: `Receitas ${periodLabel}`,
+              pct: stats.receitasPct,
+              iconBg: '#E8FBF7',
+              iconColor: '#0B9B85',
+              bar: 'linear-gradient(to right, #4DD9C0, #0B9B85)',
+              icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 18, height: 18 }}>
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" strokeLinecap="round" />
+                </svg>
+              ),
+            },
+            {
+              value: formatCurrency(stats.despesas),
+              label: `Despesas ${periodLabel}`,
+              pct: stats.despesasPct,
+              iconBg: '#FEF2F2',
+              iconColor: '#DC2626',
+              bar: 'linear-gradient(to right, #FCA5A5, #EF4444)',
+              icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 18, height: 18 }}>
+                  <path d="M3 3h18M3 9h18M3 15h18M3 21h18" strokeLinecap="round" />
+                </svg>
+              ),
+            },
+            {
+              value: formatCurrency(stats.saldo),
+              label: `Saldo ${periodLabel}`,
+              pct: stats.saldoPct,
+              iconBg: stats.saldo >= 0 ? '#E8FBF7' : '#FFFBEB',
+              iconColor: stats.saldo >= 0 ? '#0B9B85' : '#D97706',
+              bar: stats.saldo >= 0
+                ? 'linear-gradient(to right, #4DD9C0, #0B9B85)'
+                : 'linear-gradient(to right, #FCD34D, #F59E0B)',
+              valueColor: stats.saldo >= 0 ? '#059669' : '#DC2626',
+              icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 18, height: 18 }}>
+                  <path d="M12 22V2M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" strokeLinecap="round" />
+                </svg>
+              ),
+            },
+            {
+              value: String(stats.count),
+              label: 'Lançamentos',
+              pct: Math.min(stats.count * 5, 100),
+              iconBg: '#EFF6FF',
+              iconColor: '#2563EB',
+              bar: 'linear-gradient(to right, #60A5FA, #2563EB)',
+              icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 18, height: 18 }}>
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" />
+                </svg>
+              ),
+            },
+          ] as const).map((m, i) => (
+            <motion.div
+              key={i}
+              className={styles.card}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 90, damping: 18, delay: i * 0.08 }}
+              whileHover={{ y: -4, transition: { type: 'spring', stiffness: 300, damping: 22 } }}
+            >
+              <div className={styles.cardIcon} style={{ background: m.iconBg, color: m.iconColor }}>
+                {m.icon}
+              </div>
+              <div className={styles.cardBody}>
+                <span className={styles.cardValue} style={'valueColor' in m ? { color: m.valueColor } : undefined}>
+                  {m.value}
+                </span>
+                <span className={styles.cardLabel}>{m.label}</span>
+                <div style={{ marginTop: 8, height: 3, background: 'var(--border-subtle)', borderRadius: 99, overflow: 'hidden' }}>
+                  <motion.div
+                    style={{ height: '100%', borderRadius: 99, background: m.bar }}
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${m.pct}%` }}
+                    transition={{ delay: 0.4 + i * 0.1, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
       )}
 
@@ -366,6 +469,53 @@ function FinanceiroContent() {
           </div>
         )}
       </div>
+
+      {/* Export period modal — portal garante position:fixed relativo ao viewport */}
+      {showExportModal && typeof document !== 'undefined' && createPortal(
+        <div className={styles.exportOverlay} onClick={() => setShowExportModal(false)}>
+          <div className={styles.exportModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.exportModalHeader}>
+              <h3>Exportar planilha</h3>
+              <button className={styles.exportBtnClose} onClick={() => setShowExportModal(false)}>✕</button>
+            </div>
+            <div className={styles.exportModalBody}>
+              <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', margin: 0 }}>Escolha o período para exportar:</p>
+              <div className={styles.exportOptions}>
+                {([
+                  ['this_month', 'Este mês'],
+                  ['last_month', 'Mês passado'],
+                  ['3m', 'Últimos 3 meses'],
+                  ['6m', 'Últimos 6 meses'],
+                  ['all', 'Todo o histórico'],
+                  ['custom', 'Personalizado'],
+                ] as const).map(([value, label]) => (
+                  <label key={value} className={`${styles.exportOption} ${exportPreset === value ? styles.exportOptionActive : ''}`}>
+                    <input type="radio" name="exportPreset" value={value} checked={exportPreset === value} onChange={() => setExportPreset(value)} style={{ accentColor: '#4DD9C0' }} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {exportPreset === 'custom' && (
+                <div className={styles.exportCustomFields}>
+                  <div>
+                    <label>De</label>
+                    <input type="month" value={exportStartMonth} onChange={e => setExportStartMonth(e.target.value)} />
+                  </div>
+                  <div>
+                    <label>Até</label>
+                    <input type="month" value={exportEndMonth} onChange={e => setExportEndMonth(e.target.value)} />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className={styles.exportModalFooter}>
+              <button className={styles.exportBtnCancel} onClick={() => setShowExportModal(false)}>Cancelar</button>
+              <button className={styles.exportBtnConfirm} onClick={exportXLSX}>⬇ Exportar</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Modal */}
       {showModal && (

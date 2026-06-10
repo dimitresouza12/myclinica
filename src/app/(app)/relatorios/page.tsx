@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
@@ -7,18 +8,17 @@ import { formatCurrency } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import styles from './relatorios.module.css'
 
-const BarChart   = dynamic(() => import('recharts').then(m => m.BarChart),   { ssr: false })
-const Bar        = dynamic(() => import('recharts').then(m => m.Bar),        { ssr: false })
-const XAxis      = dynamic(() => import('recharts').then(m => m.XAxis),      { ssr: false })
-const YAxis      = dynamic(() => import('recharts').then(m => m.YAxis),      { ssr: false })
-const Tooltip    = dynamic(() => import('recharts').then(m => m.Tooltip),    { ssr: false })
-const ResponsiveContainer = dynamic(() => import('recharts').then(m => m.ResponsiveContainer), { ssr: false })
+const { FinanceiroBarChart, PacientesBarChart } = {
+  FinanceiroBarChart: dynamic(() => import('./RelatoriosCharts').then(m => m.FinanceiroBarChart), { ssr: false, loading: () => <div className={styles.loading}>Carregando gráfico...</div> }),
+  PacientesBarChart:  dynamic(() => import('./RelatoriosCharts').then(m => m.PacientesBarChart),  { ssr: false, loading: () => <div className={styles.loading}>Carregando gráfico...</div> }),
+}
 
 type ReportTab = 'financeiro' | 'clinico' | 'pacientes' | 'equipe'
 
-interface MonthlyFin { month: string; receita: number; despesa: number; lucro: number }
-interface ProcRank   { name: string; count: number }
-interface ProfRow    { name: string; concluded: number; revenue: number; cancelRate: number }
+interface MonthlyFin  { month: string; receita: number; despesa: number; lucro: number }
+interface ProcRank    { name: string; count: number }
+interface ProcRevenue { name: string; count: number; revenue: number }
+interface ProfRow     { name: string; concluded: number; revenue: number; cancelRate: number }
 
 function RelatoriosContent() {
   const { clinic } = useAuthStore()
@@ -26,6 +26,9 @@ function RelatoriosContent() {
   const [period, setPeriod]     = useState('6m')
   const [month, setMonth]       = useState(() => new Date().toISOString().slice(0, 7))
   const [loading, setLoading]   = useState(true)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportPeriodChoice, setExportPeriodChoice] = useState<'3m'|'6m'|'12m'>('6m')
+  const [exporting, setExporting] = useState(false)
 
   // Financeiro
   const [monthly, setMonthly]   = useState<MonthlyFin[]>([])
@@ -38,6 +41,9 @@ function RelatoriosContent() {
   // Pacientes
   const [patStats, setPatStats] = useState({ total: 0, newMonth: 0, withConsent: 0 })
   const [newByMonth, setNewByMonth] = useState<{ month: string; count: number }[]>([])
+
+  // Procedimentos
+  const [procRevenue, setProcRevenue] = useState<ProcRevenue[]>([])
 
   // Equipe
   const [profRows, setProfRows] = useState<ProfRow[]>([])
@@ -52,17 +58,20 @@ function RelatoriosContent() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
     const ninetyAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
-    const [finRes, apptRes, patRes, profRes] = await Promise.all([
-      supabase.from('financial_records').select('total_amount,type,created_at').eq('clinic_id', clinic.id).gte('created_at', startDate),
+    const [finRes, apptRes, patRes, profRes, procRes] = await Promise.all([
+      supabase.from('financial_records').select('total_amount,type,created_at,procedure_id').eq('clinic_id', clinic.id).gte('created_at', startDate),
       supabase.from('appointments').select('status,procedure_name,professional_id,scheduled_at,patients(name)').eq('clinic_id', clinic.id).gte('scheduled_at', startDate),
       supabase.from('patients').select('id,created_at,lgpd_consent').eq('clinic_id', clinic.id).eq('is_active', true),
       supabase.from('professionals').select('id,name').eq('clinic_id', clinic.id).eq('is_active', true),
+      supabase.from('procedures').select('id,name').eq('clinic_id', clinic.id),
     ])
 
     const fins = finRes.data ?? []
     const appts = apptRes.data ?? []
     const pats = patRes.data ?? []
     const profs = profRes.data ?? []
+    const procNameMap: Record<string, string> = {}
+    for (const p of procRes.data ?? []) procNameMap[p.id] = p.name
 
     // ── Financeiro ─────────────────────────────────────────────
     const monthMap: Record<string, MonthlyFin> = {}
@@ -86,6 +95,16 @@ function RelatoriosContent() {
     const concluded = appts.filter(a => a.status === 'concluido')
     const ticketMedio = concluded.length > 0 ? totalRec / concluded.length : 0
     setFinTotals({ receita: totalRec, despesa: totalDesp, lucro: totalRec - totalDesp, ticketMedio })
+
+    const procRevMap: Record<string, ProcRevenue> = {}
+    for (const r of fins) {
+      if (r.type !== 'receita' || !(r as { procedure_id?: string }).procedure_id) continue
+      const pid = (r as { procedure_id: string }).procedure_id
+      if (!procRevMap[pid]) procRevMap[pid] = { name: procNameMap[pid] ?? 'Desconhecido', count: 0, revenue: 0 }
+      procRevMap[pid].count++
+      procRevMap[pid].revenue += Number(r.total_amount)
+    }
+    setProcRevenue(Object.values(procRevMap).sort((a, b) => b.revenue - a.revenue))
 
     // ── Clínico ─────────────────────────────────────────────────
     const procMap: Record<string, number> = {}
@@ -148,66 +167,163 @@ function RelatoriosContent() {
   useEffect(() => { load() }, [load])
 
   async function exportXLSX() {
-    const XLSX = (await import('xlsx')).default
+    if (!clinic?.id) return
+    setExporting(true)
+
+    const { utils, writeFile } = await import('xlsx')
+    const now = new Date()
+    const months = exportPeriodChoice === '3m' ? 3 : exportPeriodChoice === '6m' ? 6 : 12
+    const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1).toISOString()
+
+    const [finRes, apptRes, patRes, profRes, procNamesRes] = await Promise.all([
+      supabase.from('financial_records').select('total_amount,type,created_at,procedure_id').eq('clinic_id', clinic.id).gte('created_at', startDate),
+      supabase.from('appointments').select('status,procedure_name,professional_id,scheduled_at').eq('clinic_id', clinic.id).gte('scheduled_at', startDate),
+      supabase.from('patients').select('id,created_at,lgpd_consent').eq('clinic_id', clinic.id).eq('is_active', true),
+      supabase.from('professionals').select('id,name').eq('clinic_id', clinic.id).eq('is_active', true),
+      supabase.from('procedures').select('id,name').eq('clinic_id', clinic.id),
+    ])
+
+    const fins = finRes.data ?? []
+    const appts = apptRes.data ?? []
+    const pats = patRes.data ?? []
+    const profs = profRes.data ?? []
+    const expProcNameMap: Record<string, string> = {}
+    for (const p of procNamesRes.data ?? []) expProcNameMap[p.id] = p.name
 
     let sheetData: (string | number)[][] = []
     let filename = 'relatorio.xlsx'
     let sheetName = 'Relatório'
 
     if (tab === 'financeiro') {
+      const monthMap: Record<string, { month: string; receita: number; despesa: number; lucro: number }> = {}
+      for (let i = months - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        const label = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/')
+        monthMap[key] = { month: label, receita: 0, despesa: 0, lucro: 0 }
+      }
+      for (const r of fins) {
+        const key = r.created_at!.slice(0, 7)
+        if (!monthMap[key]) continue
+        if (r.type === 'receita') monthMap[key].receita += Number(r.total_amount)
+        else monthMap[key].despesa += Number(r.total_amount)
+      }
+      const monthlyExport = Object.values(monthMap).map(m => ({ ...m, lucro: m.receita - m.despesa }))
+      const totalRec = fins.filter(r => r.type === 'receita').reduce((s, r) => s + Number(r.total_amount), 0)
+      const totalDesp = fins.filter(r => r.type === 'despesa').reduce((s, r) => s + Number(r.total_amount), 0)
+      const concluded = appts.filter(a => a.status === 'concluido')
+      const ticketMedio = concluded.length > 0 ? totalRec / concluded.length : 0
+
+      const procRevExport: Record<string, { name: string; count: number; revenue: number }> = {}
+      for (const r of fins) {
+        if (r.type !== 'receita' || !(r as { procedure_id?: string }).procedure_id) continue
+        const pid = (r as { procedure_id: string }).procedure_id
+        if (!procRevExport[pid]) procRevExport[pid] = { name: expProcNameMap[pid] ?? 'Desconhecido', count: 0, revenue: 0 }
+        procRevExport[pid].count++
+        procRevExport[pid].revenue += Number(r.total_amount)
+      }
+      const procRevRows = Object.values(procRevExport).sort((a, b) => b.revenue - a.revenue)
+
       sheetName = 'Financeiro'
-      filename = `financeiro_${period}.xlsx`
+      filename = `financeiro_${exportPeriodChoice}.xlsx`
       sheetData = [
         ['Mês', 'Receita (R$)', 'Despesa (R$)', 'Lucro (R$)'],
-        ...monthly.map(m => [m.month, m.receita, m.despesa, m.lucro]),
+        ...monthlyExport.map(m => [m.month, m.receita, m.despesa, m.lucro]),
         [],
-        ['TOTAIS', finTotals.receita, finTotals.despesa, finTotals.lucro],
-        ['Ticket Médio', finTotals.ticketMedio, '', ''],
+        ['TOTAIS', totalRec, totalDesp, totalRec - totalDesp],
+        ['Ticket Médio', ticketMedio, '', ''],
+        [],
+        ['Faturamento por Procedimento', '', '', ''],
+        ['Procedimento', 'Atendimentos', 'Faturamento (R$)', 'Ticket Médio (R$)'],
+        ...procRevRows.map(p => [p.name, p.count, p.revenue, p.count > 0 ? p.revenue / p.count : 0]),
       ]
     } else if (tab === 'clinico') {
+      const concluded = appts.filter(a => a.status === 'concluido')
+      const total = appts.length
+      const canceled = appts.filter(a => a.status === 'cancelado' || a.status === 'faltou').length
+      const procMap: Record<string, number> = {}
+      for (const a of concluded) {
+        const name = a.procedure_name || 'Não informado'
+        procMap[name] = (procMap[name] ?? 0) + 1
+      }
+      const procRankExport = Object.entries(procMap).sort(([, a], [, b]) => b - a).slice(0, 8).map(([name, count]) => ({ name, count }))
+
       sheetName = 'Clínico'
-      filename = `clinico_${period}.xlsx`
+      filename = `clinico_${exportPeriodChoice}.xlsx`
       sheetData = [
         ['Procedimento', 'Quantidade'],
-        ...procRank.map(p => [p.name, p.count]),
+        ...procRankExport.map(p => [p.name, p.count]),
         [],
-        ['Taxa de Conversão', `${clinicStats.convRate}%`],
-        ['Taxa de Cancelamento', `${clinicStats.cancelRate}%`],
-        ['Taxa de Retorno', `${clinicStats.returnRate}%`],
+        ['Total de Atendimentos', total],
+        ['Concluídos', concluded.length],
+        ['Taxa de Conversão', `${total > 0 ? Math.round((concluded.length / total) * 100) : 0}%`],
+        ['Taxa de Cancelamento', `${total > 0 ? Math.round((canceled / total) * 100) : 0}%`],
       ]
     } else if (tab === 'pacientes') {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      const newMonth = pats.filter(p => p.created_at >= startOfMonth).length
+      const withConsent = pats.filter(p => p.lgpd_consent).length
+      const newMap: Record<string, number> = {}
+      for (let i = months - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        newMap[key] = 0
+      }
+      for (const p of pats) {
+        const key = p.created_at!.slice(0, 7)
+        if (key in newMap) newMap[key]++
+      }
+      const newByMonthExport = Object.entries(newMap).map(([key, count]) => ({
+        month: new Date(key + '-01').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/'),
+        count,
+      }))
+
       sheetName = 'Pacientes'
-      filename = `pacientes_${period}.xlsx`
+      filename = `pacientes_${exportPeriodChoice}.xlsx`
       sheetData = [
         ['Mês', 'Novos Pacientes'],
-        ...newByMonth.map(m => [m.month, m.count]),
+        ...newByMonthExport.map(m => [m.month, m.count]),
         [],
-        ['Total de Pacientes', patStats.total],
-        ['Novos este mês', patStats.newMonth],
-        ['Com Consentimento LGPD', `${patStats.withConsent}%`],
+        ['Total de Pacientes', pats.length],
+        ['Novos este mês', newMonth],
+        ['Com Consentimento LGPD', withConsent],
       ]
     } else if (tab === 'equipe') {
+      const rows = profs.map(prof => {
+        const mine = appts.filter((a: { professional_id?: string }) => a.professional_id === prof.id)
+        const myConc = mine.filter(a => a.status === 'concluido').length
+        const myCanceled = mine.filter(a => a.status === 'cancelado' || a.status === 'faltou').length
+        return {
+          name: prof.name,
+          concluded: myConc,
+          cancelRate: mine.length > 0 ? Math.round((myCanceled / mine.length) * 100) : 0,
+        }
+      }).sort((a, b) => b.concluded - a.concluded)
+
       sheetName = 'Equipe'
-      filename = `equipe_${period}.xlsx`
+      filename = `equipe_${exportPeriodChoice}.xlsx`
       sheetData = [
-        ['Profissional', 'Consultas Concluídas', 'Receita (R$)', 'Taxa de Cancelamento'],
-        ...profRows.map(p => [p.name, p.concluded, p.revenue, `${p.cancelRate}%`]),
+        ['Profissional', 'Consultas Concluídas', 'Taxa de Cancelamento'],
+        ...rows.map(p => [p.name, p.concluded, `${p.cancelRate}%`]),
       ]
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(sheetData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, sheetName)
-    XLSX.writeFile(wb, filename)
+    const ws = utils.aoa_to_sheet(sheetData)
+    const wb = utils.book_new()
+    utils.book_append_sheet(wb, ws, sheetName)
+    writeFile(wb, filename)
+
+    setExporting(false)
+    setShowExportModal(false)
   }
 
   const maxProc = useMemo(() => procRank[0]?.count ?? 1, [procRank])
 
   const TABS: { key: ReportTab; label: string }[] = [
-    { key: 'financeiro', label: '💰 Financeiro' },
-    { key: 'clinico',    label: '🩺 Clínico'    },
-    { key: 'pacientes',  label: '👤 Pacientes'  },
-    { key: 'equipe',     label: '👥 Equipe'     },
+    { key: 'financeiro', label: 'Financeiro' },
+    { key: 'clinico',    label: 'Clínico'    },
+    { key: 'pacientes',  label: 'Pacientes'  },
+    { key: 'equipe',     label: 'Equipe'     },
   ]
 
   return (
@@ -223,7 +339,7 @@ function RelatoriosContent() {
             <option value="6m">Últimos 6 meses</option>
             <option value="12m">Últimos 12 meses</option>
           </select>
-          <button className={styles.btnExport} onClick={exportXLSX}>
+          <button className={styles.btnExport} onClick={() => setShowExportModal(true)}>
             ↓ Exportar planilha
           </button>
         </div>
@@ -272,15 +388,7 @@ function RelatoriosContent() {
                 {monthly.length === 0 ? (
                   <p className={styles.cardEmpty}>Sem dados no período</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={240}>
-                    <BarChart data={monthly} barGap={4}>
-                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                      <YAxis tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={52} />
-                      <Tooltip formatter={(v: unknown) => typeof v === 'number' ? formatCurrency(v) : String(v ?? '')} />
-                      <Bar dataKey="receita" fill="#10B981" radius={[4, 4, 0, 0]} name="Receita" />
-                      <Bar dataKey="despesa" fill="#EF4444" radius={[4, 4, 0, 0]} name="Despesa" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <FinanceiroBarChart data={monthly} />
                 )}
               </div>
 
@@ -311,6 +419,31 @@ function RelatoriosContent() {
                   </table>
                 </div>
               </div>
+
+              {procRevenue.length > 0 && (
+                <div className={styles.card}>
+                  <div className={styles.cardTitle}>Faturamento por procedimento</div>
+                  <div className={styles.tableWrap}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th>Procedimento</th><th>Atendimentos</th><th>Faturamento</th><th>Ticket médio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {procRevenue.map(p => (
+                          <tr key={p.name}>
+                            <td>{p.name}</td>
+                            <td>{p.count}</td>
+                            <td className={styles.kpiGreen}>{formatCurrency(p.revenue)}</td>
+                            <td>{formatCurrency(p.count > 0 ? p.revenue / p.count : 0)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -389,14 +522,7 @@ function RelatoriosContent() {
                 {newByMonth.length === 0 ? (
                   <p className={styles.cardEmpty}>Sem dados no período</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={newByMonth}>
-                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={30} />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="#0D9488" radius={[4, 4, 0, 0]} name="Novos pacientes" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <PacientesBarChart data={newByMonth} />
                 )}
               </div>
             </>
@@ -441,6 +567,39 @@ function RelatoriosContent() {
             </>
           )}
         </>
+      )}
+      {/* Export period modal — portal garante position:fixed relativo ao viewport */}
+      {showExportModal && typeof document !== 'undefined' && createPortal(
+        <div className={styles.exportOverlay} onClick={() => setShowExportModal(false)}>
+          <div className={styles.exportModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.exportModalHeader}>
+              <h3>Exportar planilha</h3>
+              <button className={styles.exportBtnClose} onClick={() => setShowExportModal(false)}>✕</button>
+            </div>
+            <div className={styles.exportModalBody}>
+              <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', margin: 0 }}>Escolha o período para exportar:</p>
+              <div className={styles.exportOptions}>
+                {([
+                  ['3m', 'Últimos 3 meses'],
+                  ['6m', 'Últimos 6 meses'],
+                  ['12m', 'Últimos 12 meses'],
+                ] as const).map(([value, label]) => (
+                  <label key={value} className={`${styles.exportOption} ${exportPeriodChoice === value ? styles.exportOptionActive : ''}`}>
+                    <input type="radio" name="exportPeriod" value={value} checked={exportPeriodChoice === value} onChange={() => setExportPeriodChoice(value)} style={{ accentColor: '#4DD9C0' }} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className={styles.exportModalFooter}>
+              <button className={styles.exportBtnCancel} onClick={() => setShowExportModal(false)}>Cancelar</button>
+              <button className={styles.exportBtnConfirm} onClick={exportXLSX} disabled={exporting}>
+                {exporting ? 'Exportando...' : '↓ Exportar'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )

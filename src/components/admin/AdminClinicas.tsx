@@ -128,7 +128,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
           </select>
           {pendingCount > 0 && filterStatus !== 'pending' && (
             <button className={styles.pendingAlert} onClick={() => setFilterStatus('pending')}>
-              🔔 {pendingCount} aguardando aprovação
+              {pendingCount} aguardando aprovação
             </button>
           )}
         </div>

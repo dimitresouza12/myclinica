@@ -53,7 +53,9 @@ export function GlobalSearch() {
   return (
     <div className={styles.wrap} ref={wrapRef}>
       <div className={styles.inputWrap}>
-        <span className={styles.icon}>🔍</span>
+        <span className={styles.icon}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </span>
         <input
           className={styles.input}
           placeholder="Buscar paciente..."

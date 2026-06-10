@@ -445,7 +445,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
             onClick={() => printContrato(clinicInfo, patient, contractText)}
             type="button"
           >
-            🖨️ Imprimir Contrato
+            Imprimir Contrato
           </button>
         </div>
         <textarea
@@ -463,7 +463,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
           onClick={() => printProntuario(clinicInfo, patient, recordForPrint, entries)}
           type="button"
         >
-          🖨️ Imprimir Prontuário
+          Imprimir Prontuário
         </button>
         <button className={styles.btnSave} onClick={handleSave} disabled={saving}>
           {saving ? 'Salvando...' : 'Salvar Ficha'}

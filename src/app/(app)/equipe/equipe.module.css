@@ -1,26 +1,27 @@
-.page { display: flex; flex-direction: column; gap: 1.25rem; }
+.page { display: flex; flex-direction: column; gap: 1.5rem; }
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-.title { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
+.title { font-family:'Plus Jakarta Sans',-apple-system,sans-serif; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
 .sub { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem; }
-.btnPrimary { padding: 0.6rem 1.1rem; background: var(--brand-primary); color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
-.btnPrimary:hover { opacity: 0.88; }
+.btnPrimary { padding: 0.6rem 1.25rem; background: #4DD9C0; color: #0D2421; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; }
+.btnPrimary:hover { background: #3CCCB4; transform: translateY(-1px); }
 .loading { color: var(--text-secondary); }
-.tableWrap { background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--card-shadow); overflow-x: auto; }
+.tableWrap { background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 16px; overflow: hidden; overflow-x: auto; box-shadow: var(--shadow-sm); }
 .table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-.table th { text-align: left; padding: 0.625rem 1rem; color: var(--text-secondary); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); }
-.table td { padding: 0.75rem 1rem; color: var(--text-primary); border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+.table th { text-align: left; padding: 0.625rem 1rem; color: var(--text-secondary); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); }
+.table td { padding: 0.75rem 1rem; color: var(--text-primary); border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
 .table tr:last-child td { border-bottom: none; }
 .table tr:hover td { background: var(--bg-secondary); }
 .bold { font-weight: 600; }
 .code { font-family: monospace; font-size: 0.78rem; background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; }
 .empty { text-align: center; color: var(--text-secondary); padding: 3rem 1rem !important; }
-.btnDelete { padding: 0.3rem 0.7rem; border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; border-radius: var(--radius-sm); font-size: 0.78rem; cursor: pointer; }
+.btnDelete { padding: 0.3rem 0.7rem; border: 1px solid #fecaca; background: #fef2f2; color: #EF4444; border-radius: 8px; font-size: 0.78rem; cursor: pointer; transition: background .15s; }
 .btnDelete:hover { background: #fee2e2; }
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 1rem; overflow: hidden; overscroll-behavior: contain; touch-action: none; }
-.modal { background: var(--bg-primary); border-radius: var(--radius-lg); width: 100%; max-width: 460px; max-height: 90vh; max-height: 90dvh; display: flex; flex-direction: column; overflow: hidden; }
+.modal { background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 20px; width: 100%; max-width: 460px; max-height: 90vh; max-height: 90dvh; display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-xl); }
 .modalHeader { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); background: var(--bg-primary); }
 .modalHeader h2 { font-size: 1.1rem; font-weight: 700; }
-.btnClose { background: none; border: none; font-size: 1.1rem; cursor: pointer; color: var(--text-secondary); }
+.btnClose { width: 30px; height: 30px; border-radius: 50%; background: var(--bg-secondary); border: none; font-size: 1rem; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; transition: background .15s; }
+.btnClose:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 .modalBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
 .modalFooter { flex: 0 0 auto; padding: 1rem 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem; background: var(--bg-primary); }
 @media (max-width: 1024px) and (min-width: 601px) {
@@ -28,15 +29,18 @@
 }
 @media (max-width: 600px) {
   .overlay { padding: 0; align-items: stretch; }
-  .modal { max-width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; }
-  .modalHeader, .modalFooter { padding: 1rem; }
+  .modal { max-width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; border: none; }
+  .modalHeader { padding: 1rem; padding-top: max(1rem, env(safe-area-inset-top)); }
+  .modalFooter { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
   .modalBody { padding: 1rem; }
 }
 .field { display: flex; flex-direction: column; gap: 0.3rem; }
-.field label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); }
-.field input { padding: 0.55rem 0.75rem; min-height: 44px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.875rem; outline: none; }
-.field input:focus { border-color: var(--brand-primary); }
+.field label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
+.field input { padding: 0.6rem 0.875rem; min-height: 44px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.875rem; outline: none; transition: border-color .15s, box-shadow .15s; }
+.field input:focus { border-color: #4DD9C0; box-shadow: 0 0 0 3px rgba(77,217,192,0.15); }
 .hint { font-size: 0.72rem; color: var(--text-secondary); }
-.btnCancel { padding: 0.55rem 1rem; min-height: 44px; border: 1px solid var(--border-color); background: none; border-radius: var(--radius-md); font-size: 0.875rem; color: var(--text-secondary); cursor: pointer; }
-.btnSave { padding: 0.55rem 1.25rem; min-height: 44px; background: var(--brand-primary); color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.btnCancel { padding: 0.55rem 1rem; min-height: 44px; border: 1px solid var(--border-color); background: none; border-radius: 10px; font-size: 0.875rem; color: var(--text-secondary); cursor: pointer; transition: background .15s; }
+.btnCancel:hover { background: var(--bg-secondary); }
+.btnSave { padding: 0.55rem 1.25rem; min-height: 44px; background: #4DD9C0; color: #0D2421; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; }
+.btnSave:hover:not(:disabled) { background: #3CCCB4; transform: translateY(-1px); }
 .btnSave:disabled { opacity: 0.5; cursor: not-allowed; }

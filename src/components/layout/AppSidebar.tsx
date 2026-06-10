@@ -14,7 +14,8 @@ const NAV = [
   { path: '/dashboard',     label: 'Dashboard',     icon: 'dashboard'  as const, plusOnly: false },
   { path: '/pacientes',     label: 'Pacientes',     icon: 'patients'   as const, plusOnly: false },
   { path: '/agenda',        label: 'Agenda',        icon: 'calendar'   as const, plusOnly: false },
-  { path: '/financeiro',    label: 'Financeiro',    icon: 'finance'    as const, plusOnly: false },
+  { path: '/financeiro',    label: 'Financeiro',    icon: 'finance'     as const, plusOnly: false },
+  { path: '/procedimentos', label: 'Procedimentos', icon: 'procedures' as const, plusOnly: false },
   { path: '/relatorios',    label: 'Relatórios',    icon: 'reports'    as const, plusOnly: false },
   { path: '/estoque',       label: 'Estoque',       icon: 'stock'      as const, plusOnly: false },
   { path: '/equipe',        label: 'Equipe',        icon: 'team'       as const, plusOnly: false },
@@ -37,12 +38,24 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   const { permissions, loaded: permsLoaded } = usePermissionsStore()
   const { theme, toggle: toggleTheme } = useTheme()
   const [collapsed, setCollapsed] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const isAdmin = user.role === 'admin' || user.isSuperAdmin
 
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed')
     if (saved === 'true') setCollapsed(true)
   }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)')
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  // No mobile a sidebar sempre abre expandida (collapsed só vale no desktop)
+  const isCollapsed = isMobile ? false : collapsed
 
   function toggleCollapse() {
     setCollapsed(prev => {
@@ -94,97 +107,85 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
     <aside
       className={[
         styles.sidebar,
-        collapsed ? styles.collapsed : '',
+        isCollapsed ? styles.collapsed : '',
         mobileOpen ? styles.mobileOpen : '',
       ].join(' ')}
       style={{ '--clinic-color': clinic.color } as React.CSSProperties}
     >
-      <div className={`${styles.brand} ${collapsed ? styles.brandCollapsed : ''}`}>
-        <div className={styles.brandTop}>
-          {collapsed ? (
-            <img src="/favicon.svg" alt="MyClinica" className={styles.brandIcon} />
-          ) : (
+      <div className={`${styles.brand} ${isCollapsed ? styles.brandCollapsed : ''}`}>
+        {isCollapsed ? (
+          <img src="/favicon.svg" alt="MyClinica" className={styles.brandIcon} />
+        ) : (
+          <>
             <span className={styles.logoText}>My<strong>Clinica</strong></span>
-          )}
-        </div>
-        {!collapsed && <span className={styles.clinicName}>{clinic.name}</span>}
+            <span className={styles.clinicName}>{clinic.name}</span>
+          </>
+        )}
       </div>
 
       <button
-        className={`${styles.collapseBtn} ${collapsed ? styles.collapseBtnCenter : ''}`}
+        className={`${styles.collapseBtn} ${isCollapsed ? styles.collapseBtnCenter : ''}`}
         onClick={toggleCollapse}
-        title={collapsed ? 'Expandir' : 'Recolher'}
+        title={isCollapsed ? 'Expandir' : 'Recolher'}
       >
-        <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} size={13} />
+        <Icon name={isCollapsed ? 'chevronRight' : 'chevronLeft'} size={13} />
       </button>
 
-      <nav className={`${styles.nav} ${collapsed ? styles.navCollapsed : ''}`}>
+      <nav className={`${styles.nav} ${isCollapsed ? styles.navCollapsed : ''}`}>
         {navItems.map((item) => {
           const active = pathname.startsWith(item.path)
           return (
             <Link
               key={item.path}
               href={item.path}
-              className={`${styles.navItem} ${active ? styles.active : ''} ${collapsed ? styles.navItemCollapsed : ''}`}
-              title={collapsed ? item.label : undefined}
+              className={`${styles.navItem} ${active ? styles.active : ''} ${isCollapsed ? styles.navItemCollapsed : ''}`}
+              title={isCollapsed ? item.label : undefined}
               onClick={onMobileClose}
             >
               <span className={styles.iconWrap}>
                 <Icon name={item.icon} size={16} />
               </span>
-              {!collapsed && <span>{item.label}</span>}
+              <span className={`${styles.navLabel} ${isCollapsed ? styles.navLabelHidden : ''}`}>{item.label}</span>
             </Link>
           )
         })}
       </nav>
 
-      {!collapsed && (
-        <button className={styles.themeRow} onClick={toggleTheme}>
-          <span className={styles.themeIconWrap}>
-            <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
-          </span>
-          <span>{theme === 'dark' ? 'Tema claro' : 'Tema escuro'}</span>
-        </button>
-      )}
+      {/* ── Tema — elemento único, label some com CSS ── */}
+      <button
+        className={`${styles.themeRow} ${isCollapsed ? styles.sideItemCollapsed : ''}`}
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+      >
+        <span className={styles.themeIconWrap}>
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
+        </span>
+        <span className={styles.sideItemLabel}>{theme === 'dark' ? 'Tema claro' : 'Tema escuro'}</span>
+      </button>
 
-      {!collapsed && (
-        <a
-          href="https://wa.me/5588988557247?text=Ol%C3%A1%2C+preciso+de+suporte+com+o+MyClinica."
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.supportRow}
-        >
-          <span className={styles.supportIcon}>💬</span>
-          <span>Suporte via WhatsApp</span>
-        </a>
-      )}
-      {collapsed && (
-        <a
-          href="https://wa.me/5588988557247?text=Ol%C3%A1%2C+preciso+de+suporte+com+o+MyClinica."
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.supportBtn}
-          title="Suporte via WhatsApp"
-        >
-          💬
-        </a>
-      )}
+      {/* ── Suporte — elemento único, label some com CSS ── */}
+      <a
+        href="https://wa.me/5588988557247?text=Ol%C3%A1%2C+preciso+de+suporte+com+o+MyClinica."
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`${styles.supportRow} ${isCollapsed ? styles.sideItemCollapsed : ''}`}
+        title="Suporte via WhatsApp"
+      >
+        <span className={styles.supportIcon}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+          </svg>
+        </span>
+        <span className={styles.sideItemLabel}>Suporte via WhatsApp</span>
+      </a>
 
-      <div className={`${styles.footer} ${collapsed ? styles.footerCollapsed : ''}`}>
-        {collapsed && (
-          <button className={styles.themeBtn} onClick={toggleTheme} title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}>
-            <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
-          </button>
-        )}
-        {!collapsed && (
-          <>
-            <div className={styles.avatar}>{initials}</div>
-            <div className={styles.userInfo}>
-              <span className={styles.userName}>{user.displayName}</span>
-              <span className={styles.userRole}>{user.role}</span>
-            </div>
-          </>
-        )}
+      {/* ── Footer ── */}
+      <div className={`${styles.footer} ${isCollapsed ? styles.footerCollapsed : ''}`}>
+        <div className={styles.avatar}>{initials}</div>
+        <div className={styles.userInfo}>
+          <span className={styles.userName}>{user.displayName}</span>
+          <span className={styles.userRole}>{user.role}</span>
+        </div>
         <button onClick={handleLogout} className={styles.logoutBtn} title="Sair">
           <Icon name="logout" size={15} />
         </button>

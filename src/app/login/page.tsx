@@ -13,20 +13,20 @@ const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 type Mode = 'login' | 'register'
 
 const CLINIC_TYPES = [
-  { value: 'odonto',   label: 'Odontologia',    emoji: '🦷' },
-  { value: 'medico',   label: 'Medicina',        emoji: '🩺' },
-  { value: 'estetica', label: 'Estética',        emoji: '✨' },
-  { value: 'vet',      label: 'Veterinária',     emoji: '🐾' },
-  { value: 'fisio',    label: 'Fisioterapia',    emoji: '🦴' },
-  { value: 'psico',    label: 'Psicologia',      emoji: '🧠' },
-  { value: 'nutri',    label: 'Nutrição',        emoji: '🥗' },
+  { value: 'odonto',   label: 'Odontologia',    emoji: '' },
+  { value: 'medico',   label: 'Medicina',        emoji: '' },
+  { value: 'estetica', label: 'Estética',        emoji: '' },
+  { value: 'vet',      label: 'Veterinária',     emoji: '' },
+  { value: 'fisio',    label: 'Fisioterapia',    emoji: '' },
+  { value: 'psico',    label: 'Psicologia',      emoji: '' },
+  { value: 'nutri',    label: 'Nutrição',        emoji: '' },
 ] as const
 
 type ClinicTypeValue = typeof CLINIC_TYPES[number]['value']
 
 const PLANS = [
-  { value: 'basico', label: 'Básico', desc: 'Agenda, pacientes, financeiro e estoque', emoji: '🌱' },
-  { value: 'plus',   label: 'Plus',   desc: 'Tudo do Básico + CRM e integração WhatsApp IA', emoji: '⭐' },
+  { value: 'basico', label: 'Básico', desc: 'Agenda, pacientes, financeiro e estoque', emoji: '' },
+  { value: 'plus',   label: 'Plus',   desc: 'Tudo do Básico + CRM e integração WhatsApp IA', emoji: '' },
 ] as const
 
 type PlanValue = typeof PLANS[number]['value']

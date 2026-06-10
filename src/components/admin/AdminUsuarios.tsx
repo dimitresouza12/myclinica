@@ -57,7 +57,7 @@ export function AdminUsuarios({ users, clinics }: Props) {
                   <div className={styles.userCell}>
                     <div className={styles.userAvatar}>{initials(u.display_name)}</div>
                     <div>
-                      <p className={styles.clinicName}>{u.display_name}{u.is_superadmin && <span className={styles.superBadge}>🛡️ Super</span>}</p>
+                      <p className={styles.clinicName}>{u.display_name}{u.is_superadmin && <span className={styles.superBadge}>Super</span>}</p>
                       <code className={styles.clinicSlug}>@{u.username}</code>
                     </div>
                   </div>

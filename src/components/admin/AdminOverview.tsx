@@ -19,11 +19,11 @@ interface PlanData { name: string; value: number }
 interface MonthData { month: string; clinicas: number }
 
 const KPIS: { key: keyof KPI; label: string; icon: string; color: string; grad: string; format?: string }[] = [
-  { key: 'clinicasAtivas',      label: 'Clínicas Ativas',      icon: '🏥', color: '#0D9488', grad: 'linear-gradient(135deg,#0D9488,#5EEAD4)' },
-  { key: 'totalUsuarios',       label: 'Usuários na plataforma',icon: '👥', color: '#0EA5E9', grad: 'linear-gradient(135deg,#0EA5E9,#38BDF8)' },
-  { key: 'totalAgendamentos',   label: 'Agendamentos totais',   icon: '📅', color: '#F59E0B', grad: 'linear-gradient(135deg,#F59E0B,#FCD34D)' },
-  { key: 'receitaTotal',        label: 'Receita acumulada',     icon: '💰', color: '#10B981', grad: 'linear-gradient(135deg,#10B981,#34D399)', format: 'currency' },
-  { key: 'novasMes',            label: 'Novas clínicas no mês', icon: '🚀', color: '#A855F7', grad: 'linear-gradient(135deg,#A855F7,#C084FC)' },
+  { key: 'clinicasAtivas',      label: 'Clínicas Ativas',      icon: '', color: '#0D9488', grad: 'linear-gradient(135deg,#0D9488,#5EEAD4)' },
+  { key: 'totalUsuarios',       label: 'Usuários na plataforma',icon: '', color: '#0EA5E9', grad: 'linear-gradient(135deg,#0EA5E9,#38BDF8)' },
+  { key: 'totalAgendamentos',   label: 'Agendamentos totais',   icon: '', color: '#F59E0B', grad: 'linear-gradient(135deg,#F59E0B,#FCD34D)' },
+  { key: 'receitaTotal',        label: 'Receita acumulada',     icon: '', color: '#10B981', grad: 'linear-gradient(135deg,#10B981,#34D399)', format: 'currency' },
+  { key: 'novasMes',            label: 'Novas clínicas no mês', icon: '', color: '#A855F7', grad: 'linear-gradient(135deg,#A855F7,#C084FC)' },
 ]
 
 export function AdminOverview() {

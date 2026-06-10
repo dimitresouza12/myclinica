@@ -169,7 +169,7 @@ function CampanhasContent() {
         })),
       })
 
-      setSuccess(`Campanha enviada para ${audience.length} pacientes! ✅`)
+      setSuccess(`Campanha enviada para ${audience.length} pacientes.`)
       setCreating(false)
       setForm({ name: '', audienceType: 'sem_retorno_60', message: MESSAGE_TEMPLATES['sem_retorno_60'] })
       loadData()

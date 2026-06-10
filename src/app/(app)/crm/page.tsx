@@ -272,7 +272,11 @@ function CRMContent() {
         <p className={styles.loading}>Carregando leads...</p>
       ) : automacaoAtiva === false ? (
         <div className={styles.gateBox}>
-          <div className={styles.gateIcon}>🤖</div>
+          <div className={styles.gateIcon}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
           <h2 className={styles.gateTitle}>Automação WhatsApp não configurada</h2>
           <p className={styles.gateSub}>
             O CRM com IA é exclusivo do plano Plus e requer a integração com o bot WhatsApp da sua clínica.
@@ -284,7 +288,7 @@ function CRMContent() {
             rel="noopener noreferrer"
             className={styles.btnOrcamento}
           >
-            💬 Fazer orçamento pelo WhatsApp
+            Fazer orçamento pelo WhatsApp
           </a>
         </div>
       ) : (
@@ -317,7 +321,7 @@ function CRMContent() {
                           <span className={styles.badgeProcedimento}>{lead.procedimento}</span>
                         )}
                         {lead.data_agendamento && (
-                          <span className={styles.cardDate}>📅 {formatDate(lead.data_agendamento, true)}</span>
+                          <span className={styles.cardDate}>{formatDate(lead.data_agendamento, true)}</span>
                         )}
                         {lead.created_at && (
                           <span className={styles.cardCreated}>{formatDate(lead.created_at, true)}</span>
@@ -397,7 +401,7 @@ function CRMContent() {
                         className={styles.btnAtendimento}
                         onClick={() => router.push(`/pacientes?patient=${patientIdMap[cleanPhone(selected.phone)]}`)}
                       >
-                        📋 Ver Atendimento
+                        Ver Atendimento
                       </button>
                     )}
                   </>

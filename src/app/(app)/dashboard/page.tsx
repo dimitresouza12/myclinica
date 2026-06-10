@@ -160,15 +160,6 @@ function DashboardContent() {
 
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>Receitas vs Despesas — últimos 6 meses</h2>
-            </div>
-            <div className={styles.chartWrap}>
-              <DashboardChart data={monthlyData} />
-            </div>
-          </div>
-
-          <div className={styles.section}>
-            <div className={styles.sectionHeader}>
               <h2 className={styles.sectionTitle}>Próximos agendamentos</h2>
             </div>
             <div className={styles.tableWrap}>
@@ -194,6 +185,15 @@ function DashboardContent() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>Receitas vs Despesas — últimos 6 meses</h2>
+            </div>
+            <div className={styles.chartWrap}>
+              <DashboardChart data={monthlyData} />
             </div>
           </div>
         </>
