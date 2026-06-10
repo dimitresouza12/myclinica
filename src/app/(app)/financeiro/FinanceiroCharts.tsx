@@ -177,7 +177,7 @@ export default function FinanceiroCharts({
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(v: number) => [fmt(v), '']}
+                  formatter={(v: any) => [fmt(Number(v) || 0), '']}
                   contentStyle={{
                     fontSize: 12,
                     borderRadius: 12,
