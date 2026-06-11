@@ -20,12 +20,18 @@
 .card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
 .cardIcon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
 .cardBody { display:flex; flex-direction:column; gap:0.2rem; min-width:0; flex:1 1 auto; }
-.cardValue { font-size:1.35rem; font-weight:800; color:var(--text-primary); line-height:1.05; letter-spacing:-0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cardValue { font-size:1.35rem; font-weight:800; color:var(--text-primary); line-height:1.05; letter-spacing:-0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.valueDesktop { display:inline; }
+.valueMobile  { display:none; }
 .cardLabel { font-size:0.78rem; font-weight:600; color:var(--text-secondary); }
 
 /* Charts */
 .charts { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
-@media (max-width: 768px) { .charts { grid-template-columns:1fr; } }
+@media (max-width: 768px) {
+  .charts { grid-template-columns:1fr; }
+  .valueDesktop { display:none; }
+  .valueMobile  { display:inline; }
+}
 .chartCard { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; padding:1.5rem; box-shadow:var(--shadow-sm); }
 .chartTitle { font-size:0.85rem; font-weight:650; color:var(--text-primary); margin-bottom:1rem; }
 .chartEmpty { text-align:center; color:var(--text-secondary); font-size:0.85rem; padding:3rem 0; }

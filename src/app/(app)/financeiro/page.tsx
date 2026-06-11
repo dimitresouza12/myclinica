@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { formatDate, formatCurrency } from '@/lib/utils'
+import { formatDate, formatCurrency, formatCurrencyCompact } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
@@ -299,6 +299,7 @@ function FinanceiroContent() {
           {([
             {
               value: formatCurrency(stats.receitas),
+              valueMobile: formatCurrencyCompact(stats.receitas),
               label: `Receitas ${periodLabel}`,
               pct: stats.receitasPct,
               iconBg: '#E8FBF7',
@@ -312,6 +313,7 @@ function FinanceiroContent() {
             },
             {
               value: formatCurrency(stats.despesas),
+              valueMobile: formatCurrencyCompact(stats.despesas),
               label: `Despesas ${periodLabel}`,
               pct: stats.despesasPct,
               iconBg: '#FEF2F2',
@@ -325,6 +327,7 @@ function FinanceiroContent() {
             },
             {
               value: formatCurrency(stats.saldo),
+              valueMobile: formatCurrencyCompact(stats.saldo),
               label: `Saldo ${periodLabel}`,
               pct: stats.saldoPct,
               iconBg: stats.saldo >= 0 ? '#E8FBF7' : '#FFFBEB',
@@ -341,6 +344,7 @@ function FinanceiroContent() {
             },
             {
               value: String(stats.count),
+              valueMobile: undefined,
               label: 'Lançamentos',
               pct: Math.min(stats.count * 5, 100),
               iconBg: '#EFF6FF',
@@ -366,7 +370,8 @@ function FinanceiroContent() {
               </div>
               <div className={styles.cardBody}>
                 <span className={styles.cardValue} style={'valueColor' in m ? { color: m.valueColor } : undefined}>
-                  {m.value}
+                  <span className={styles.valueDesktop}>{m.value}</span>
+                  <span className={styles.valueMobile}>{m.valueMobile ?? m.value}</span>
                 </span>
                 <span className={styles.cardLabel}>{m.label}</span>
                 <div style={{ marginTop: 8, height: 3, background: 'var(--border-subtle)', borderRadius: 99, overflow: 'hidden' }}>

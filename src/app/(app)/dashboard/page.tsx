@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatCurrencyCompact, formatDate } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { Icon } from '@/components/ui/Icon'
 import type { Appointment, FinancialRecord } from '@/types'
@@ -102,13 +102,13 @@ function DashboardContent() {
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
 
-  const cards: { label: string; value: string | number; icon: IconName; color: string }[] = [
-    { label: 'Pacientes ativos',     value: stats.totalPatients,               icon: 'patients',  color: '#0D9488' },
-    { label: 'Consultas hoje',       value: stats.appointmentsToday,           icon: 'calendar',  color: '#0EA5E9' },
-    { label: 'Novos este mês',       value: stats.newPatientsMonth,            icon: 'patients',  color: '#8B5CF6' },
-    { label: 'Agendamentos abertos', value: stats.pendingAppointments,         icon: 'team',      color: '#F59E0B' },
-    { label: 'Receita do mês',       value: formatCurrency(stats.monthRevenue),icon: 'finance',   color: '#10B981' },
-    { label: 'Despesa do mês',       value: formatCurrency(stats.monthExpense),icon: 'finance',   color: '#EF4444' },
+  const cards: { label: string; value: string | number; valueMobile?: string | number; icon: IconName; color: string }[] = [
+    { label: 'Pacientes ativos',     value: stats.totalPatients,                                                              icon: 'patients',  color: '#0D9488' },
+    { label: 'Consultas hoje',       value: stats.appointmentsToday,                                                          icon: 'calendar',  color: '#0EA5E9' },
+    { label: 'Novos este mês',       value: stats.newPatientsMonth,                                                           icon: 'patients',  color: '#8B5CF6' },
+    { label: 'Agendamentos abertos', value: stats.pendingAppointments,                                                        icon: 'team',      color: '#F59E0B' },
+    { label: 'Receita do mês',       value: formatCurrency(stats.monthRevenue), valueMobile: formatCurrencyCompact(stats.monthRevenue), icon: 'finance', color: '#10B981' },
+    { label: 'Despesa do mês',       value: formatCurrency(stats.monthExpense), valueMobile: formatCurrencyCompact(stats.monthExpense), icon: 'finance', color: '#EF4444' },
   ]
 
   return (
@@ -147,13 +147,15 @@ function DashboardContent() {
           <div className={styles.cards}>
             {cards.map((c) => (
               <div key={c.label} className={styles.card} style={{ '--card-accent': c.color } as React.CSSProperties}>
-                <div className={styles.cardIconWrap} style={{ color: c.color }}>
-                  <Icon name={c.icon} size={20} />
-                </div>
-                <div className={styles.cardBody}>
-                  <span className={styles.cardValue}>{hideValues ? '••••' : c.value}</span>
-                  <span className={styles.cardLabel}>{c.label}</span>
-                </div>
+                <span className={styles.cardLabel}>{c.label}</span>
+                <span className={styles.cardValue}>
+                  {hideValues ? '••••' : (
+                    <>
+                      <span className={styles.valueDesktop}>{c.value}</span>
+                      <span className={styles.valueMobile}>{c.valueMobile ?? c.value}</span>
+                    </>
+                  )}
+                </span>
               </div>
             ))}
           </div>

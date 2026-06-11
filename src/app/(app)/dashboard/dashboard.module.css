@@ -35,8 +35,8 @@
 
 .title {
   font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-  font-size: 1.6rem;
-  font-weight: 800;
+  font-size: 1.35rem;
+  font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.3px;
 }
@@ -58,19 +58,16 @@
 .card {
   background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  padding: 1.5rem;
+  border-top: 3px solid var(--card-accent, var(--brand-primary));
+  border-radius: 10px;
+  padding: 1.25rem 1.25rem 1rem;
   display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  transition: box-shadow 0.2s, transform 0.2s;
+  flex-direction: column;
+  gap: 0.35rem;
+  transition: border-color 0.15s;
   position: relative;
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-.card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  min-width: 0;
 }
 
 .cardIconWrap {
@@ -100,27 +97,20 @@
   }
 
   .card {
-    padding: 1rem 0.875rem;
-    gap: 0.625rem;
-  }
-
-  .cardIconWrap {
-    width: 36px;
-    height: 36px;
-    flex-shrink: 0;
+    padding: 0.875rem 0.75rem;
+    gap: 0.2rem;
   }
 
   .cardValue {
-    font-size: 1.15rem;
+    font-size: 1.35rem;
     letter-spacing: -0.3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
+  .valueDesktop { display: none; }
+  .valueMobile  { display: inline; }
+
   .cardLabel {
-    font-size: 0.72rem;
-    white-space: normal;
+    font-size: 0.63rem;
   }
 }
 
@@ -132,19 +122,29 @@
 }
 
 .cardValue {
-  font-size: 1.625rem;
+  font-size: 1.75rem;
   font-weight: 800;
   color: var(--text-primary);
   line-height: 1;
   letter-spacing: -0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .cardLabel {
-  font-size: 0.78rem;
+  font-size: 0.695rem;
   font-weight: 600;
   color: var(--text-secondary);
-  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: normal;
+  line-height: 1.3;
 }
+
+.valueDesktop { display: inline; }
+.valueMobile  { display: none; }
 
 .cardDelta {
   font-size: 0.72rem;
@@ -156,9 +156,8 @@
 .section {
   background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: 16px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
 }
 
 .sectionHeader {
@@ -170,10 +169,12 @@
 }
 
 .sectionTitle {
-  font-size: 0.9rem;
-  font-weight: 650;
+  font-size: 0.85rem;
+  font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.1px;
+  padding-left: 0.625rem;
+  border-left: 2px solid var(--brand-primary);
 }
 
 .tableWrap { overflow-x: auto; }
@@ -189,11 +190,11 @@
   padding: 0.625rem 1.25rem;
   color: var(--text-secondary);
   font-weight: 600;
-  font-size: 0.72rem;
+  font-size: 0.695rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  letter-spacing: 0.07em;
+  background: var(--bg-primary);
+  border-bottom: 1.5px solid var(--border-color);
 }
 
 .table td {
@@ -213,10 +214,6 @@
 }
 
 .chartWrap {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  padding: 1.5rem;
-  box-shadow: var(--shadow-sm);
+  padding: 1.25rem 1.5rem 1rem;
 }
 .chartLoading { padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 0.875rem; }

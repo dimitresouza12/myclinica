@@ -25,12 +25,14 @@ a {
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 3px 9px;
-  border-radius: var(--radius-full);
-  font-size: 0.72rem;
+  padding: 2px 8px 2px 6px;
+  border-radius: 4px;
+  border-left: 2px solid currentColor;
+  font-size: 0.695rem;
   font-weight: 600;
   white-space: nowrap;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
 }
 .status-agendado   { background: #EEF2FF; color: #4338CA; }
 .status-confirmado { background: #ECFDF5; color: #065F46; }

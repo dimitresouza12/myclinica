@@ -33,6 +33,13 @@ export function formatCurrency(value: number | null | undefined): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value ?? 0)
 }
 
+export function formatCurrencyCompact(value: number | null | undefined): string {
+  const n = value ?? 0
+  if (n >= 1_000_000) return `R$ ${(n / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}M`
+  if (n >= 1_000)     return `R$ ${(n / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k`
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
+}
+
 export function getStatusClass(status: string | null | undefined): string {
   if (!status) return 'status-pendente'
   const s = String(status).toLowerCase().trim()
