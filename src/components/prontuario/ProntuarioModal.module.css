@@ -210,8 +210,10 @@
   }
 
   .header {
-    padding: 1.125rem 1.25rem 0;
+    padding: max(1.125rem, env(safe-area-inset-top)) 1.25rem 0;
   }
+  /* Touch targets mínimos 44px */
+  .btnClose { width: 44px; height: 44px; }
 }
 
 /* Aviso de anotação pendente */

@@ -46,3 +46,13 @@ a {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+/* ─── Mobile: evita zoom automático do iOS ao focar campos ──────────
+   O iOS Safari dá zoom quando um input com font-size < 16px recebe foco.
+   Forçamos 16px em todos os campos no mobile, preservando o visual
+   compacto (14px) no desktop. */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}

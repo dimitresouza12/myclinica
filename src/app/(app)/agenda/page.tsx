@@ -10,6 +10,7 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import type { Appointment, Patient, Professional, Procedure } from '@/types'
 import { type CalendarEvent } from '@/components/agenda/FullCalendarWrapper'
+import { DiaGeralView } from '@/components/agenda/DiaGeralView'
 import styles from './agenda.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
@@ -35,7 +36,14 @@ const BLANK: NewAppt = {
   scheduled_at: '', duration_minutes: 60, status: 'agendado', notes: '',
 }
 
-type ViewMode = 'calendar' | 'lista'
+type ViewMode = 'calendar' | 'diageral' | 'lista'
+
+// 30-min slots from 07:00 to 19:00
+const TIME_SLOTS: string[] = []
+for (let h = 7; h <= 19; h++) {
+  TIME_SLOTS.push(`${String(h).padStart(2, '0')}:00`)
+  if (h < 19) TIME_SLOTS.push(`${String(h).padStart(2, '0')}:30`)
+}
 
 const PROF_COLORS = [
   '#4DD9C0', '#0B9B85', '#127C9A', '#2F6FB0',
@@ -55,6 +63,13 @@ const STATUS_LABELS: Record<string, string> = {
 }
 const STATUS_DOTS: Record<string, string> = {
   agendado: '#94A3B8', confirmado: '#4DD9C0', concluido: '#10B981', cancelado: '#EF4444', faltou: '#F59E0B',
+}
+const STATUS_BG: Record<string, string> = {
+  agendado: '#F8FAFC', confirmado: '#F0FDFB', concluido: '#F0FDF4', cancelado: '#FEF2F2', faltou: '#FFFBEB',
+}
+// Cores mais distintas para o FullCalendar (evita coincidência com profColor teal)
+const STATUS_CAL: Record<string, string> = {
+  agendado: '#3B82F6', confirmado: '#10B981', concluido: '#6B7280', cancelado: '#EF4444', faltou: '#F59E0B',
 }
 
 // ── Helper: format time range ──────────────────────────────────
@@ -120,6 +135,7 @@ function ApptDetailContent({
   onClose,
   onEdit,
   onDelete,
+  onPhoneAdded,
 }: {
   appt: Appointment
   profColorIdx: Record<string, number>
@@ -128,8 +144,21 @@ function ApptDetailContent({
   onClose: () => void
   onEdit: (a: Appointment) => void
   onDelete: (a: Appointment) => void
+  onPhoneAdded?: (patientId: string, phone: string) => void
 }) {
   const color = profColor(appt.professional_id, profColorIdx)
+  const [showPhoneInput, setShowPhoneInput] = useState(false)
+  const [phoneInput, setPhoneInput] = useState('')
+  const [savingPhone, setSavingPhone] = useState(false)
+
+  async function savePhone() {
+    if (!phoneInput.trim() || !appt.patient_id) return
+    setSavingPhone(true)
+    await supabase.from('patients').update({ phone: phoneInput.trim() }).eq('id', appt.patient_id)
+    setSavingPhone(false)
+    setShowPhoneInput(false)
+    onPhoneAdded?.(appt.patient_id, phoneInput.trim())
+  }
   return (
     <>
       <div className={styles.detailHeader}>
@@ -193,8 +222,26 @@ function ApptDetailContent({
                 target="_blank" rel="noopener noreferrer"
               >Conversar</a>
             </>
+          ) : showPhoneInput ? (
+            <div className={styles.phoneInputRow}>
+              <input
+                className={styles.phoneInput}
+                type="tel"
+                placeholder="(11) 99999-9999"
+                value={phoneInput}
+                onChange={e => setPhoneInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') savePhone(); if (e.key === 'Escape') setShowPhoneInput(false) }}
+                autoFocus
+              />
+              <button className={styles.btnPhoneSave} onClick={savePhone} disabled={savingPhone || !phoneInput.trim()}>
+                {savingPhone ? '...' : 'Salvar'}
+              </button>
+              <button className={styles.btnPhoneCancel} onClick={() => setShowPhoneInput(false)}>✕</button>
+            </div>
           ) : (
-            <span className={styles.btnWhatsAppNoPhone}>Sem telefone</span>
+            <button className={styles.btnWhatsAppNoPhone} onClick={() => setShowPhoneInput(true)}>
+              + Adicionar telefone
+            </button>
           )}
         </div>
         <div className={styles.detailFooterActions}>
@@ -237,6 +284,12 @@ function AgendaContent() {
   const [gcalConnected, setGcalConnected] = useState(false)
   const [gcalError, setGcalError] = useState('')
   const [saveError, setSaveError] = useState('')
+  const [showNewPatient, setShowNewPatient] = useState(false)
+  const [npName, setNpName] = useState('')
+  const [npPhone, setNpPhone] = useState('')
+  const [savingPatient, setSavingPatient] = useState(false)
+  const [patientSearch, setPatientSearch] = useState('')
+  const [showPatientDrop, setShowPatientDrop] = useState(false)
 
   // On mobile (<900px), show detail as overlay; on desktop, as side panel
   const [isMobile, setIsMobile] = useState(false)
@@ -337,6 +390,28 @@ function AgendaContent() {
     return map
   }, [professionals])
 
+  // Map slot → patient first name for busy slots on the selected date/professional
+  const slotBusyMap = useMemo<Map<string, string>>(() => {
+    const dateStr = form.scheduled_at.slice(0, 10)
+    if (!dateStr) return new Map()
+    const map = new Map<string, string>()
+    appointments.forEach(a => {
+      if (!a.scheduled_at || a.status === 'cancelado') return
+      if (editingId && a.id === editingId) return
+      if (form.professional_id && a.professional_id !== form.professional_id) return
+      if (localDateStr(new Date(a.scheduled_at)) !== dateStr) return
+      const aStartMs = new Date(a.scheduled_at).getTime()
+      const aEndMs = aStartMs + (a.duration_minutes ?? 60) * 60000
+      TIME_SLOTS.forEach(slot => {
+        const slotMs = new Date(`${dateStr}T${slot}:00`).getTime()
+        if (aStartMs < slotMs + 30 * 60000 && aEndMs > slotMs && !map.has(slot)) {
+          map.set(slot, a.patients?.name?.split(' ')[0] ?? 'Ocupado')
+        }
+      })
+    })
+    return map
+  }, [appointments, form.scheduled_at, form.professional_id, editingId])
+
   const calendarEvents = useMemo<CalendarEvent[]>(() => {
     const clinicEvents: CalendarEvent[] = appointments.map(a => {
       const start = a.scheduled_at
@@ -353,7 +428,7 @@ function AgendaContent() {
         id: a.id,
         title: `${a.patients?.name ?? 'Paciente'} — ${a.procedure_name ?? 'Consulta'}`,
         start, end,
-        color: profColor(a.professional_id, profColorIndex),
+        color: STATUS_CAL[a.status ?? 'agendado'] ?? STATUS_CAL.agendado,
         extendedProps: { appt: a },
       }
     })
@@ -386,6 +461,12 @@ function AgendaContent() {
       return matchStatus && matchDate && matchSearch
     })
   }, [appointments, filterStatus, currentDate, searchQ])
+
+  // Agendamentos do dia (apenas por data) — usado pela view Dia geral
+  const dayAppointments = useMemo(() => {
+    const targetDate = localDateStr(currentDate)
+    return appointments.filter(a => a.scheduled_at && localDateStr(new Date(a.scheduled_at)) === targetDate)
+  }, [appointments, currentDate])
 
   // Group list by hour
   const grouped = useMemo(() => {
@@ -608,6 +689,36 @@ function AgendaContent() {
     await supabase.from('financial_records').delete().eq('appointment_id', apptId)
   }
 
+  function closeModal() {
+    setShowModal(false)
+    setEditingId(null)
+    setForm(BLANK)
+    setSaveError('')
+    setShowNewPatient(false)
+    setNpName('')
+    setNpPhone('')
+    setPatientSearch('')
+    setShowPatientDrop(false)
+  }
+
+  async function createPatient() {
+    if (!clinic || !npName.trim()) return
+    setSavingPatient(true)
+    const { data, error } = await supabase
+      .from('patients')
+      .insert([{ clinic_id: clinic.id, name: npName.trim(), phone: npPhone.trim() || null, is_active: true }])
+      .select('id, name, phone')
+      .single()
+    setSavingPatient(false)
+    if (error || !data) return
+    setPatients(prev => [...prev, data as Patient].sort((a, b) => a.name.localeCompare(b.name)))
+    setForm(prev => ({ ...prev, patient_id: data.id }))
+    setPatientSearch((data as Patient).name)
+    setShowNewPatient(false)
+    setNpName('')
+    setNpPhone('')
+  }
+
   function openEdit(appt: Appointment) {
     setEditingId(appt.id)
     setForm({
@@ -622,6 +733,11 @@ function AgendaContent() {
       notes: appt.notes ?? '',
     })
     setSelected(null)
+    setShowNewPatient(false)
+    setNpName('')
+    setNpPhone('')
+    setPatientSearch(patients.find(p => p.id === appt.patient_id)?.name ?? '')
+    setShowPatientDrop(false)
     setShowModal(true)
   }
 
@@ -667,6 +783,10 @@ function AgendaContent() {
             className={`${styles.segBtn} ${viewMode === 'calendar' ? styles.segBtnActive : ''}`}
             onClick={() => setViewMode('calendar')}
           >Calendário</button>
+          <button
+            className={`${styles.segBtn} ${viewMode === 'diageral' ? styles.segBtnActive : ''}`}
+            onClick={() => setViewMode('diageral')}
+          >Dia geral</button>
           <button
             className={`${styles.segBtn} ${viewMode === 'lista' ? styles.segBtnActive : ''}`}
             onClick={() => setViewMode('lista')}
@@ -763,6 +883,19 @@ function AgendaContent() {
                 />
                 <p className={styles.calHint}>Clique num evento para ver detalhes • Clique numa data para criar agendamento</p>
               </div>
+            ) : viewMode === 'diageral' ? (
+              /* ── Dia geral view (colunas por profissional) ── */
+              <DiaGeralView
+                date={currentDate}
+                appointments={dayAppointments}
+                professionals={professionals}
+                profColorIndex={profColorIndex}
+                onSelect={setSelected}
+                onSlotClick={(professionalId, dateISO) => {
+                  setForm({ ...BLANK, professional_id: professionalId ?? '', scheduled_at: dateISO })
+                  setShowModal(true)
+                }}
+              />
             ) : (
               /* ── List view ── */
               <div className={styles.listScroll}>
@@ -788,7 +921,7 @@ function AgendaContent() {
                         const initials = (a.professionals?.name ?? '')
                           .split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '—'
                         return (
-                          <button key={a.id} className={`${styles.listRow} ${styles[`listRow_${a.status ?? 'agendado'}`] ?? ''}`} onClick={() => setSelected(a)}>
+                          <button key={a.id} className={styles.listRow} style={{ borderColor: STATUS_DOTS[a.status ?? 'agendado'], backgroundColor: STATUS_BG[a.status ?? 'agendado'] }} onClick={() => setSelected(a)}>
                             <div className={styles.lrTime}>
                               {fmtTime(a.scheduled_at)}
                               <span className={styles.lrTimeEnd}>até {fmtEndTime(a.scheduled_at, a.duration_minutes ?? 60)}</span>
@@ -826,6 +959,7 @@ function AgendaContent() {
             {/* FAB — always visible on mobile, visible in list view */}
             <button className={styles.fab} onClick={() => setShowModal(true)} title="Novo agendamento">
               <PlusIcon />
+              <span className={styles.fabLabel}>Novo agendamento</span>
             </button>
           </div>
 
@@ -841,6 +975,17 @@ function AgendaContent() {
                   onClose={() => setSelected(null)}
                   onEdit={openEdit}
                   onDelete={handleDelete}
+                  onPhoneAdded={(patientId, phone) => {
+                    setAppointments(prev => prev.map(a =>
+                      a.patient_id === patientId && a.patients
+                        ? { ...a, patients: { ...a.patients, phone } }
+                        : a
+                    ))
+                    setSelected(prev => prev && prev.patient_id === patientId && prev.patients
+                      ? { ...prev, patients: { ...prev.patients, phone } }
+                      : prev
+                    )
+                  }}
                 />
               </div>
             </div>
@@ -861,6 +1006,17 @@ function AgendaContent() {
                 onClose={() => setSelected(null)}
                 onEdit={openEdit}
                 onDelete={handleDelete}
+                onPhoneAdded={(patientId, phone) => {
+                  setAppointments(prev => prev.map(a =>
+                    a.patient_id === patientId && a.patients
+                      ? { ...a, patients: { ...a.patients, phone } }
+                      : a
+                  ))
+                  setSelected(prev => prev && prev.patient_id === patientId && prev.patients
+                    ? { ...prev, patients: { ...prev.patients, phone } }
+                    : prev
+                  )
+                }}
               />
             </div>
           </div>
@@ -910,20 +1066,100 @@ function AgendaContent() {
       {/* ── New appointment modal ── */}
       {showModal && (
         <Portal>
-          <div className={styles.overlay} onClick={() => { setShowModal(false); setEditingId(null); setForm(BLANK) }}>
+          <div className={styles.overlay} onClick={closeModal}>
             <div className={styles.modal} onClick={e => e.stopPropagation()}>
               <div className={styles.modalHeader}>
                 <h2>{editingId ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
-                <button className={styles.btnClose} onClick={() => { setShowModal(false); setEditingId(null); setForm(BLANK) }}>✕</button>
+                <button className={styles.btnClose} onClick={closeModal}>✕</button>
               </div>
               <div className={styles.modalBody}>
+                {/* ── Paciente ── */}
                 <div className={styles.field}>
-                  <label>Paciente *</label>
-                  <select value={form.patient_id} onChange={e => setForm(p => ({ ...p, patient_id: e.target.value }))}>
-                    <option value="">Selecionar paciente</option>
-                    {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
+                  <div className={styles.fieldLabelRow}>
+                    <label>Paciente *</label>
+                    <button
+                      type="button"
+                      className={styles.btnNewPatient}
+                      onClick={() => { setShowNewPatient(p => !p); setPatientSearch('') }}
+                    >
+                      {showNewPatient ? '← Voltar à lista' : '+ Novo paciente'}
+                    </button>
+                  </div>
+                  {showNewPatient ? (
+                    <div className={styles.newPatientForm}>
+                      <input
+                        placeholder="Nome completo *"
+                        value={npName}
+                        onChange={e => setNpName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') createPatient() }}
+                        autoFocus
+                      />
+                      <input
+                        placeholder="Telefone / WhatsApp"
+                        value={npPhone}
+                        onChange={e => setNpPhone(e.target.value)}
+                        type="tel"
+                      />
+                      <button
+                        type="button"
+                        className={styles.btnCreatePatient}
+                        onClick={createPatient}
+                        disabled={savingPatient || !npName.trim()}
+                      >
+                        {savingPatient ? 'Criando...' : 'Criar e selecionar'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className={styles.patientCombo}>
+                      <input
+                        className={`${styles.patientSearch}${form.patient_id ? ` ${styles.patientSearchSelected}` : ''}`}
+                        placeholder="Digite o nome do paciente..."
+                        value={patientSearch}
+                        autoComplete="off"
+                        onChange={e => {
+                          setPatientSearch(e.target.value)
+                          setForm(p => ({ ...p, patient_id: '' }))
+                          setShowPatientDrop(true)
+                        }}
+                        onFocus={() => setShowPatientDrop(true)}
+                        onBlur={() => setTimeout(() => setShowPatientDrop(false), 150)}
+                      />
+                      {form.patient_id && (
+                        <span className={styles.patientComboCheck}>✓</span>
+                      )}
+                      {showPatientDrop && (
+                        <div className={styles.patientDrop}>
+                          {patients
+                            .filter(p => !patientSearch || p.name.toLowerCase().includes(patientSearch.toLowerCase()))
+                            .slice(0, 8)
+                            .map(p => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                className={`${styles.patientDropItem}${form.patient_id === p.id ? ` ${styles.patientDropItemActive}` : ''}`}
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => {
+                                  setForm(prev => ({ ...prev, patient_id: p.id }))
+                                  setPatientSearch(p.name)
+                                  setShowPatientDrop(false)
+                                }}
+                              >
+                                <span className={styles.patientDropInitial}>
+                                  {p.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+                                </span>
+                                {p.name}
+                              </button>
+                            ))}
+                          {patients.filter(p => !patientSearch || p.name.toLowerCase().includes(patientSearch.toLowerCase())).length === 0 && (
+                            <div className={styles.patientDropEmpty}>Nenhum paciente encontrado</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {/* ── Profissional ── */}
                 <div className={styles.field}>
                   <label>Profissional</label>
                   <select value={form.professional_id} onChange={e => setForm(p => ({ ...p, professional_id: e.target.value }))}>
@@ -931,6 +1167,8 @@ function AgendaContent() {
                     {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
+
+                {/* ── Procedimento ── */}
                 <div className={styles.field}>
                   <label>Procedimento</label>
                   <select
@@ -975,10 +1213,64 @@ function AgendaContent() {
                     />
                   </div>
                 )}
+
+                {/* ── Data ── */}
                 <div className={styles.field}>
-                  <label>Data e Hora *</label>
-                  <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(p => ({ ...p, scheduled_at: e.target.value }))} />
+                  <label>Data *</label>
+                  <input
+                    type="date"
+                    value={form.scheduled_at.slice(0, 10)}
+                    onChange={e => {
+                      const date = e.target.value
+                      const prevTime = form.scheduled_at.slice(11, 16) || '09:00'
+                      setForm(p => ({ ...p, scheduled_at: date ? `${date}T${prevTime}` : '' }))
+                    }}
+                  />
                 </div>
+
+                {/* ── Grade de horários ── */}
+                <div className={styles.field}>
+                  <div className={styles.fieldLabelRow}>
+                    <label>Horário *</label>
+                    {form.scheduled_at.slice(11, 16) && (
+                      <span className={styles.selectedTimeLabel}>
+                        {form.scheduled_at.slice(11, 16)} selecionado
+                      </span>
+                    )}
+                  </div>
+                  <div className={`${styles.timeGridWrap}${!form.scheduled_at.slice(0, 10) ? ` ${styles.timeGridLocked}` : ''}`}>
+                    <div className={styles.timeGrid}>
+                      {TIME_SLOTS.map(slot => {
+                        const hasDate = !!form.scheduled_at.slice(0, 10)
+                        const busyName = hasDate ? slotBusyMap.get(slot) : undefined
+                        const isBusy = !!busyName
+                        const isSelected = form.scheduled_at.slice(11, 16) === slot
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            disabled={!hasDate || isBusy}
+                            title={!hasDate ? 'Selecione a data primeiro' : isBusy ? `Ocupado — ${busyName}` : `Selecionar ${slot}`}
+                            className={`${styles.timeSlot}${isSelected ? ` ${styles.timeSlotSelected}` : ''}${isBusy ? ` ${styles.timeSlotBusy}` : ''}`}
+                            onClick={() => setForm(p => ({ ...p, scheduled_at: `${p.scheduled_at.slice(0, 10)}T${slot}` }))}
+                          >
+                            {slot}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {!form.scheduled_at.slice(0, 10) && (
+                      <div className={styles.timeGridOverlay}>
+                        <span>Escolha a data primeiro</span>
+                      </div>
+                    )}
+                  </div>
+                  {form.professional_id && slotBusyMap.size > 0 && (
+                    <p className={styles.timeGridHint}>Horários em cinza já estão ocupados para este profissional</p>
+                  )}
+                </div>
+
+                {/* ── Duração / Status / Notas ── */}
                 <div className={styles.field}>
                   <label>Duração (min)</label>
                   <input type="number" value={form.duration_minutes} onChange={e => setForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))} min={15} step={15} />
@@ -1003,7 +1295,7 @@ function AgendaContent() {
               </div>
               {saveError && <div className={styles.saveErrorMsg}>{saveError}</div>}
               <div className={styles.modalFooter}>
-                <button className={styles.btnCancel} onClick={() => { setShowModal(false); setEditingId(null); setForm(BLANK); setSaveError('') }}>Cancelar</button>
+                <button className={styles.btnCancel} onClick={closeModal}>Cancelar</button>
                 <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.patient_id || !form.scheduled_at}>
                   {saving ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Salvar Agendamento'}
                 </button>

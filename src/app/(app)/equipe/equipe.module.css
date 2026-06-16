@@ -33,6 +33,8 @@
   .modalHeader { padding: 1rem; padding-top: max(1rem, env(safe-area-inset-top)); }
   .modalFooter { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
   .modalBody { padding: 1rem; }
+  /* Touch targets mínimos 44px */
+  .btnClose { width: 44px; height: 44px; }
 }
 .field { display: flex; flex-direction: column; gap: 0.3rem; }
 .field label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }

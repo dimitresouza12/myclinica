@@ -239,6 +239,8 @@
 }
 @media (max-width: 600px) {
   .panel { max-width: 100%; }
+  /* Touch targets mínimos 44px */
+  .btnClose { width: 44px; height: 44px; }
 }
 
 @keyframes slideIn {

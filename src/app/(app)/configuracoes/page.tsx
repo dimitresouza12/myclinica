@@ -7,6 +7,7 @@ import type { AuthClinic, ClinicDocumentTemplate, DocumentTemplateType, ClinicUs
 import styles from './configuracoes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { showToast } from '@/components/ui/Toast'
+import { Portal } from '@/components/ui/Portal'
 
 const DOC_TEMPLATE_TYPES: { type: DocumentTemplateType; label: string }[] = [
   { type: 'receita_comum',             label: 'Receita Comum' },
@@ -50,6 +51,17 @@ function processLogoImage(file: File): Promise<Blob> {
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Imagem inválida')) }
     img.src = url
   })
+}
+
+function planLabel(plan: string | undefined): string {
+  switch (plan) {
+    case 'essencial':    return 'Essencial — R$99/mês'
+    case 'avancado':     return 'Avançado — R$119,90/mês'
+    case 'completo':     return 'Completo — R$129,90/mês'
+    case 'completo_plus':return 'Completo+'
+    case 'plus':         return 'Plus'
+    default:             return 'Essencial — R$99/mês'
+  }
 }
 
 function normalizeUsername(raw: string) {
@@ -106,6 +118,30 @@ function ConfiguracoesContent() {
   const [phone, setPhone] = useState(clinic?.phone ?? '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [billingLoading, setBillingLoading] = useState(false)
+
+  async function handleSubscribe() {
+    if (!clinic) return
+    setBillingLoading(true)
+    try {
+      const res  = await fetch('/api/asaas/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clinicId: clinic.id, clinicName: clinic.name }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
+  const trialExpired    = clinic?.trialEndsAt ? new Date() > new Date(clinic.trialEndsAt) : false
+  const isLate          = trialExpired && !clinic?.billingPaid && !!clinic?.asaasCustomerId
+  const neverSubscribed = trialExpired && !clinic?.billingPaid && !clinic?.asaasCustomerId
+  const daysLeft        = clinic?.trialEndsAt && !trialExpired
+    ? Math.ceil((new Date(clinic.trialEndsAt).getTime() - Date.now()) / 86_400_000)
+    : null
 
   const logoInputRef = useRef<HTMLInputElement | null>(null)
   const [logoUploading, setLogoUploading] = useState(false)
@@ -446,6 +482,55 @@ function ConfiguracoesContent() {
     <div className={styles.page}>
       <h1 className={styles.title}>Configurações</h1>
 
+      {/* ── Plano & Faturamento ── */}
+      <div className={styles.card}>
+        <h2 className={styles.cardTitle}>Plano & Faturamento</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+          {/* Linha plano */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div>
+              <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>Plano atual</p>
+              <p style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                {planLabel(clinic?.plan)}
+              </p>
+            </div>
+
+            {/* Badge de status */}
+            {clinic?.billingPaid && (
+              <span style={{ padding: '0.25rem 0.75rem', background: '#D1FAE5', color: '#065F46', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                ✓ Ativo
+              </span>
+            )}
+            {isLate && (
+              <span style={{ padding: '0.25rem 0.75rem', background: '#FEF3C7', color: '#92400E', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                ⚠ Pagamento atrasado
+              </span>
+            )}
+            {daysLeft !== null && (
+              <span style={{ padding: '0.25rem 0.75rem', background: '#DBEAFE', color: '#1E40AF', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                Teste — {daysLeft}d restantes
+              </span>
+            )}
+            {neverSubscribed && (
+              <span style={{ padding: '0.25rem 0.75rem', background: '#FEE2E2', color: '#991B1B', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                Trial encerrado
+              </span>
+            )}
+          </div>
+
+          {/* Botões de ação */}
+          {(isLate || neverSubscribed) && (
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button className={styles.btnSave} onClick={handleSubscribe} disabled={billingLoading}>
+                {billingLoading ? 'Aguarde...' : 'Assinar agora — R$99/mês'}
+              </button>
+            </div>
+          )}
+
+        </div>
+      </div>
+
       <div className={styles.card}>
         <h2 className={styles.cardTitle}>Dados da Clínica</h2>
         <form onSubmit={handleSave} className={styles.form}>
@@ -672,12 +757,13 @@ function ConfiguracoesContent() {
           <InfoRow label="Usuário" value={user?.displayName ?? '-'} />
           <InfoRow label="Função" value={ROLE_LABELS[user?.role as UserRole] ?? user?.role ?? '-'} />
           <InfoRow label="Clínica ID" value={clinic?.id ?? '-'} mono />
-          <InfoRow label="Plano" value={clinic?.plan === 'plus' ? 'Plus' : 'Básico'} />
+          <InfoRow label="Plano" value={planLabel(clinic?.plan)} />
         </div>
       </div>
 
       {/* ── Modal de confirmação (desativar/reativar/excluir) ── */}
       {confirmModal && (
+        <Portal>
         <div className={styles.overlay} onClick={() => !confirmLoading && setConfirmModal(null)}>
           <div className={styles.modal} style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
@@ -729,10 +815,12 @@ function ConfiguracoesContent() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* ── Modal de criação/edição de usuário ──────────────── */}
       {showUserModal && (
+        <Portal>
         <div className={styles.overlay} onClick={closeUserModal}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
@@ -897,6 +985,7 @@ function ConfiguracoesContent() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   )

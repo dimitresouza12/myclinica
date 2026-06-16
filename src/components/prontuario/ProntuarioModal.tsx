@@ -7,6 +7,7 @@ import type { Patient, MedicalRecord, RecordEntry } from '@/types'
 import type { AuthClinic } from '@/types'
 import { TabFicha } from './TabFicha'
 import { TabOdontograma } from './TabOdontograma'
+import { TabFaceograma } from './TabFaceograma'
 import { TabTimeline } from './TabTimeline'
 import { TabChatIA } from './TabChatIA'
 import { TabDocumentos } from './TabDocumentos'
@@ -14,7 +15,7 @@ import { Portal } from '@/components/ui/Portal'
 import { printProntuario } from '@/lib/print'
 import styles from './ProntuarioModal.module.css'
 
-type Tab = 'ficha' | 'odontograma' | 'timeline' | 'documentos' | 'chat'
+type Tab = 'ficha' | 'odontograma' | 'faceograma' | 'timeline' | 'documentos' | 'chat'
 
 interface Props {
   patient: Patient
@@ -110,10 +111,11 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'ficha', label: 'Ficha Clínica' },
-    ...(clinic.type === 'odonto' ? [{ key: 'odontograma' as Tab, label: 'Odontograma' }] : []),
-    { key: 'timeline', label: 'Evolução' },
-    { key: 'documentos', label: 'Documentos' },
-    { key: 'chat', label: 'Chat IA' },
+    ...(clinic.type === 'odonto'   ? [{ key: 'odontograma' as Tab,  label: 'Odontograma' }] : []),
+    { key: 'faceograma' as Tab, label: 'Faceograma' },
+    { key: 'timeline',   label: 'Evolução'    },
+    { key: 'documentos', label: 'Documentos'  },
+    { key: 'chat',       label: 'Chat IA'     },
   ]
 
   const initials = patient.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -193,6 +195,14 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
               )}
               {tab === 'odontograma' && clinic.type === 'odonto' && (
                 <TabOdontograma
+                  record={record}
+                  patient={patient}
+                  clinicId={clinicId}
+                  onSaved={loadRecord}
+                />
+              )}
+              {tab === 'faceograma' && (
+                <TabFaceograma
                   record={record}
                   patient={patient}
                   clinicId={clinicId}

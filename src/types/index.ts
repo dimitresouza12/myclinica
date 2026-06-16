@@ -4,7 +4,7 @@ export type AppointmentStatus = 'agendado' | 'confirmado' | 'concluido' | 'cance
 export type PaymentMethod = 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'convenio' | 'outro'
 
 export type ClinicStatus = 'active' | 'inactive' | 'suspended' | 'pending'
-export type ClinicPlan = 'basico' | 'plus'
+export type ClinicPlan = 'essencial' | 'avancado' | 'completo' | 'completo_plus' | 'basico' | 'plus'
 
 export interface Clinic {
   id: string
@@ -26,6 +26,8 @@ export interface Clinic {
   billing_phone: string | null
   billing_due_day: number | null
   billing_paid: boolean
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
 }
 
 export interface SystemAlert {
@@ -49,6 +51,7 @@ export interface ClinicUser {
   is_active: boolean
   is_superadmin: boolean
   email: string | null
+  cpf: string | null
   created_at: string
   clinics?: Clinic
 }
@@ -123,7 +126,7 @@ export interface MedicalRecord {
   clinical_exam: Record<string, string>
   treatment_plan: string | null
   contract_text: string | null
-  odontogram: Record<string, string>
+  odontogram: Record<string, string | { status: string; surfaces?: Record<string, string> }>
   vaccinations: unknown[]
   aesthetic_protocols: unknown[]
   photos: string[]
@@ -267,6 +270,10 @@ export interface AuthClinic {
   status: ClinicStatus
   trialEndsAt: string | null
   gcalConnected: boolean
+  billingPaid: boolean
+  asaasCustomerId: string | null
+  billingOverdueSince: string | null
+  nextBillingDate: string | null
 }
 
 export interface AuthUser {

@@ -372,4 +372,6 @@
     padding: 0.875rem 1rem;
     padding-bottom: max(0.875rem, env(safe-area-inset-bottom));
   }
+  /* Touch targets mínimos 44px */
+  .btnClose { width: 44px; height: 44px; }
 }

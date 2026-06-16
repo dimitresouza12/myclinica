@@ -1,122 +1,297 @@
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
-.legend {
+/* ── Toolbar ── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 1rem;
+}
+.toolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.toolbarRight { display: flex; align-items: center; gap: 0.5rem; }
+.toolbarLabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-right: 0.2rem;
+}
+
+.paintBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.6rem;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.12s;
+}
+.paintBtn:hover {
+  background: var(--paint-bg, #d1fae5);
+  color: var(--paint-color, #10b981);
+  border-color: var(--paint-color, #10b981);
+}
+.paintBtnActive {
+  background: var(--paint-bg, #d1fae5) !important;
+  color: var(--paint-color, #10b981) !important;
+  border-color: var(--paint-color, #10b981) !important;
+}
+.paintDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.paintLabel { white-space: nowrap; }
+
+/* ── Mode switch ── */
+.modeSwitch {
+  display: flex;
+  border: 1.5px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.modeBtn {
+  padding: 0.3rem 0.75rem;
+  border: none;
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.modeBtn:not(:last-child) { border-right: 1.5px solid var(--border-color); }
+.modeBtnActive {
+  background: var(--brand-primary);
+  color: #fff;
+}
+
+/* ── Arcade ── */
+.arcade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1rem 0.75rem 0.875rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.arcadeLabel {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+  align-self: flex-start;
+  padding: 0 0.25rem;
+}
+.teethRow {
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+}
+.midline {
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, transparent, var(--border-color) 20%, var(--border-color) 80%, transparent);
+  margin: 0.2rem 0;
+}
+
+/* ── Individual tooth button ── */
+.toothBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 6px;
+  transition: transform 0.1s;
+}
+.toothBtn:hover { transform: translateY(-2px); }
+.toothBtnSelected { transform: translateY(-3px) !important; }
+.toothSvg {
+  width: 32px;
+  height: 52px;
+  display: block;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.28)) drop-shadow(0 1px 1px rgba(0,0,0,0.16));
+  transition: filter 0.12s;
+}
+.toothBtn:hover .toothSvg {
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.34)) drop-shadow(0 1px 2px rgba(0,0,0,0.20));
+}
+.toothBtnSelected .toothSvg {
+  filter: drop-shadow(0 0 6px rgba(77,217,192,0.75)) drop-shadow(0 2px 4px rgba(0,0,0,0.24));
+}
+.toothNumber {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* ── Selection panel ── */
+.selPanel {
+  background: var(--bg-primary);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  animation: fadeIn 0.15s ease both;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+.selPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.875rem;
+}
+.selPanelTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.selPanelClose {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.selPanelClose:hover { background: var(--border-color); }
+
+.selPanelBody {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.selPanelLeft {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.selPanelSub {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+.surfaceDiagram {
+  width: 100px;
+  height: 100px;
+  cursor: pointer;
+}
+.selPanelHint {
+  font-size: 0.68rem;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.selPanelRight { flex: 1; min-width: 220px; }
+.statusGrid {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
 }
-
-.legendItem {
+.statusBtn {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--bg-secondary);
   color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s;
 }
-
-.legendDot {
-  width: 10px;
-  height: 10px;
+.statusBtn:hover {
+  background: var(--st-bg, #d1fae5);
+  color: var(--st-color, #10b981);
+  border-color: var(--st-color, #10b981);
+}
+.statusBtnActive {
+  background: var(--st-bg, #d1fae5) !important;
+  color: var(--st-color, #10b981) !important;
+  border-color: var(--st-color, #10b981) !important;
+}
+.statusDot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.arcada {
+/* ── Legend ── */
+.legend {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  align-items: center;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
 }
-
-.arcadaLabel {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.73rem;
   color: var(--text-secondary);
-  align-self: flex-start;
+}
+.legendDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-.teeth {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.tooth {
-  width: 36px;
-  height: 44px;
-  border-radius: 8px;
-  border: 2px solid var(--tooth-color, #10b981);
-  background: color-mix(in srgb, var(--tooth-color, #10b981) 15%, var(--bg-primary));
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.1s, box-shadow 0.1s;
-}
-.tooth:hover { transform: translateY(-2px); box-shadow: 0 3px 8px rgba(0,0,0,0.15); }
-.toothSelected {
-  transform: translateY(-3px);
-  box-shadow: 0 0 0 3px var(--brand-primary);
-}
-
-.toothNum {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: var(--tooth-color, #10b981);
-}
-
-.selector {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 1rem 1.25rem;
-}
-
-.selectorTitle {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.75rem;
-}
-
-.selectorBtns {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.selectorBtn {
-  padding: 0.4rem 0.9rem;
-  border: none;
-  border-radius: 999px;
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-.selectorBtn:hover { opacity: 0.85; }
-
+/* ── Save row ── */
 .saveRow {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 1rem;
 }
-
-.savedMsg { font-size: 0.875rem; color: #059669; font-weight: 500; }
-
+.savedMsg {
+  font-size: 0.875rem;
+  color: #059669;
+  font-weight: 600;
+}
 .btnSave {
   padding: 0.6rem 1.5rem;
   background: var(--brand-primary);
@@ -130,3 +305,13 @@
 }
 .btnSave:hover:not(:disabled) { opacity: 0.88; }
 .btnSave:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Mobile ── */
+@media (max-width: 640px) {
+  .toothSvg { width: 26px; height: 42px; }
+  .toothNumber { font-size: 0.52rem; }
+  .teethRow { gap: 2px; }
+  .toolbar { gap: 0.5rem; }
+  .paintLabel { display: none; }
+  .selPanelBody { flex-direction: column; }
+}

@@ -1,0 +1,269 @@
+/* ── Modal bloqueante (trial encerrado) ─────────────────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.modal {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 2.5rem 2.25rem;
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.25);
+  animation: popIn 0.25s ease;
+}
+
+@keyframes popIn {
+  from { transform: scale(0.94); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.modalIcon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.modalTitle {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.65rem;
+  line-height: 1.25;
+}
+
+.modalDesc {
+  font-size: 0.9rem;
+  color: #64748b;
+  line-height: 1.6;
+  margin: 0 0 1.5rem;
+}
+
+.planBox {
+  width: 100%;
+  background: #f0fdf9;
+  border: 1.5px solid #99f6e4;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  margin-bottom: 1.75rem;
+}
+
+.planBoxLabel {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #0D9488;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.planBoxPrice {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.planBoxHint {
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.planSelector {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.planOption {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.75rem 0.5rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 11px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: center;
+}
+.planOption:hover { border-color: #0D9488; background: #f0fdf9; }
+
+.planOptionActive {
+  border-color: #0D9488;
+  background: #f0fdf9;
+  box-shadow: 0 0 0 3px rgba(13,148,136,0.12);
+}
+
+.planOptionLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.planOptionPrice {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #0D9488;
+}
+
+.planOptionDesc {
+  font-size: 0.67rem;
+  color: #94a3b8;
+  line-height: 1.3;
+}
+
+/* ── Campo de cupom ── */
+.couponField {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 1rem;
+}
+
+.couponInput {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  font-size: 0.875rem;
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.couponInput::placeholder { text-transform: none; letter-spacing: 0; color: #94a3b8; }
+.couponInput:focus { border-color: #0D9488; background: #fff; }
+.couponInputValid   { border-color: #0D9488 !important; background: #f0fdf9 !important; }
+.couponInputInvalid { border-color: #ef4444 !important; }
+
+.couponOk  { font-size: 0.75rem; font-weight: 600; color: #0D9488; }
+.couponErr { font-size: 0.75rem; color: #ef4444; }
+
+.modalActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.btnPrimary {
+  width: 100%;
+  padding: 0.85rem 1.5rem;
+  background: #0D9488;
+  color: #fff;
+  border: none;
+  border-radius: 11px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.btnPrimary:hover:not(:disabled) { background: #0a7a6f; transform: translateY(-1px); }
+.btnPrimary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btnSecondary {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  color: #64748b;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 11px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  display: block;
+  text-align: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btnSecondary:hover { border-color: #0D9488; color: #0D9488; }
+
+/* ── Pagamento em atraso (clientes permanentes) — banner topo ──────── */
+.overdueBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  background: #FEF3C7;
+  border-bottom: 1.5px solid #F59E0B;
+  font-size: 0.84rem;
+  color: #92400E;
+  flex-wrap: wrap;
+}
+
+.overdueIcon { font-size: 1rem; flex-shrink: 0; }
+.overdueMsg  { flex: 1; min-width: 180px; font-weight: 500; }
+
+.overdueBtn {
+  padding: 0.35rem 1rem;
+  background: #F59E0B;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.overdueBtn:hover:not(:disabled) { opacity: 0.88; }
+.overdueBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Vence amanhã/hoje (clientes permanentes) — notificação topo ───── */
+.dueBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  background: #EFF6FF;
+  border-bottom: 1.5px solid #93C5FD;
+  font-size: 0.84rem;
+  color: #1E40AF;
+  flex-wrap: wrap;
+}
+
+.dueIcon { font-size: 1rem; flex-shrink: 0; }
+.dueMsg  { flex: 1; min-width: 180px; }
+
+.dueDismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #93C5FD;
+  font-size: 0.9rem;
+  padding: 0.1rem 0.3rem;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.dueDismiss:hover { color: #1E40AF; }
+
+/* Mobile */
+@media (max-width: 500px) {
+  .modal { padding: 2rem 1.5rem; }
+  .modalTitle { font-size: 1.15rem; }
+  .planBoxPrice { font-size: 1.5rem; }
+}
