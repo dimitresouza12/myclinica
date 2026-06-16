@@ -2,50 +2,51 @@ import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabaseAdmin'
 import { asaasPost, asaasGet } from '@/lib/asaas'
 
-interface AsaasPaymentLink { id: string; url: string }
+interface AsaasPaymentLink { id: string; url?: string; deleted?: boolean; active?: boolean }
+
+const PLAN_PRICES: Record<string, number> = {
+  essencial: 99, avancado: 119.90, completo: 129.90, completo_plus: 199,
+}
+const PLAN_LABELS: Record<string, string> = {
+  essencial: 'Essencial', avancado: 'Avançado', completo: 'Completo', completo_plus: 'Completo+',
+}
+
+function buildLinkUrl(id: string) {
+  return `https://www.asaas.com/c/${id}`
+}
 
 export async function POST(req: Request) {
   try {
     const { clinicId, clinicName, plan: planOverride, couponCode } = await req.json()
     if (!clinicId) return NextResponse.json({ error: 'clinicId required' }, { status: 400 })
 
-    // Busca dados da clínica (plano + link já salvo)
     const { data: clinic } = await getAdminClient()
       .from('clinics')
       .select('asaas_customer_id, name, plan')
       .eq('id', clinicId)
       .single()
 
-    // asaas_customer_id aqui guarda o ID do paymentLink (reutilizamos a coluna)
     const linkId = clinic?.asaas_customer_id as string | undefined
 
-    // Cupons válidos e seus descontos (percentual)
     const VALID_COUPONS: Record<string, number> = { 'COPA50': 50 }
     const discountPct = couponCode ? (VALID_COUPONS[String(couponCode).toUpperCase()] ?? 0) : 0
 
-    // Se já tem um link salvo, sem troca de plano e sem cupom → verifica se ainda existe no Asaas
+    // Reutiliza link existente se ainda ativo no Asaas
     if (linkId && !planOverride && !discountPct) {
       try {
         const existing = await asaasGet<AsaasPaymentLink>(`/paymentLinks/${linkId}`)
-        if (existing?.url) return NextResponse.json({ url: existing.url })
+        if (existing && !existing.deleted) {
+          const url = existing.url ?? buildLinkUrl(linkId)
+          return NextResponse.json({ url })
+        }
       } catch {
-        // Link não existe mais — cria novo abaixo
+        // link deletado ou inválido — cria novo
       }
     }
 
-    // Preço conforme plano (override do front tem prioridade sobre o do banco)
-    const PLAN_PRICES: Record<string, number> = {
-      essencial:     99,
-      avancado:      119.90,
-      completo:      129.90,
-      completo_plus: 199,
-    }
-    const PLAN_LABELS: Record<string, string> = {
-      essencial: 'Essencial', avancado: 'Avançado', completo: 'Completo', completo_plus: 'Completo+',
-    }
     const effectivePlan = planOverride ?? clinic?.plan ?? 'essencial'
-    const planValue = PLAN_PRICES[effectivePlan] ?? 99
-    const planLabel = PLAN_LABELS[effectivePlan] ?? 'Essencial'
+    const planValue     = PLAN_PRICES[effectivePlan] ?? 99
+    const planLabel     = PLAN_LABELS[effectivePlan] ?? 'Essencial'
 
     const finalValue = discountPct > 0
       ? Math.round(planValue * (1 - discountPct / 100) * 100) / 100
@@ -55,29 +56,56 @@ export async function POST(req: Request) {
       ? ` [PROMO ${couponCode}: ${discountPct}% off 1ª mensalidade — valor normal: R$${planValue}/mês]`
       : ''
 
-    // Cria novo link de pagamento recorrente para esta clínica
-    const link = await asaasPost<AsaasPaymentLink>('/paymentLinks', {
-      name: `MyClinica — Plano ${planLabel} (${clinicName ?? clinic?.name ?? 'Clínica'})`,
-      billingType: 'UNDEFINED',
-      chargeType: 'RECURRENT',
-      value: finalValue,
-      subscriptionCycle: 'MONTHLY',
-      dueDateLimitDays: 3,
-      description: `Acesso completo ao MyClinica — Plano ${planLabel} — R$${finalValue}/mês${promoNote}`,
-      externalReference: clinicId,
-    })
+    let asaasError = ''
+    let link: AsaasPaymentLink | null = null
 
-    // Só salva o link no banco se não houver cupom (link com desconto não deve ser reutilizado)
-    if (!discountPct) {
+    // Tenta com UNDEFINED (aceita qualquer método de pagamento)
+    try {
+      link = await asaasPost<AsaasPaymentLink>('/paymentLinks', {
+        name: `MyClinica — Plano ${planLabel} (${clinicName ?? clinic?.name ?? 'Clínica'})`,
+        billingType: 'UNDEFINED',
+        chargeType: 'RECURRENT',
+        value: finalValue,
+        subscriptionCycle: 'MONTHLY',
+        dueDateLimitDays: 5,
+        description: `Acesso completo ao MyClinica — Plano ${planLabel} — R$${finalValue}/mês${promoNote}`,
+        externalReference: clinicId,
+      })
+    } catch (e) {
+      asaasError = e instanceof Error ? e.message : String(e)
+      console.error('[asaas/checkout] billingType UNDEFINED falhou:', asaasError)
+    }
+
+    // Fallback: tenta sem billingType
+    if (!link) {
+      try {
+        link = await asaasPost<AsaasPaymentLink>('/paymentLinks', {
+          name: `MyClinica — Plano ${planLabel} (${clinicName ?? clinic?.name ?? 'Clínica'})`,
+          chargeType: 'RECURRENT',
+          value: finalValue,
+          subscriptionCycle: 'MONTHLY',
+          dueDateLimitDays: 5,
+          description: `Acesso completo ao MyClinica — Plano ${planLabel} — R$${finalValue}/mês${promoNote}`,
+          externalReference: clinicId,
+        })
+      } catch (e2) {
+        const msg = e2 instanceof Error ? e2.message : String(e2)
+        console.error('[asaas/checkout] fallback também falhou:', msg)
+        return NextResponse.json({ error: asaasError || msg }, { status: 500 })
+      }
+    }
+
+    if (!discountPct && link.id) {
       await getAdminClient()
         .from('clinics')
         .update({ asaas_customer_id: link.id })
         .eq('id', clinicId)
     }
 
-    return NextResponse.json({ url: link.url })
+    const url = link.url ?? buildLinkUrl(link.id)
+    return NextResponse.json({ url })
   } catch (err) {
     console.error('[asaas/checkout]', err)
-    return NextResponse.json({ error: 'Erro ao criar link de pagamento.' }, { status: 500 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Erro inesperado.' }, { status: 500 })
   }
 }
