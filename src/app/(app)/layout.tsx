@@ -78,7 +78,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     async function syncClinicData() {
       const { data } = await supabase
         .from('clinics')
-        .select('gcal_connected, billing_paid, billing_overdue_since, next_billing_date')
+        .select('gcal_connected, billing_paid, billing_overdue_since, next_billing_date, asaas_subscription_id')
         .eq('id', currentClinic.id)
         .single()
       if (!data) return
@@ -90,6 +90,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if ((data.billing_paid ?? false) !== currentClinic.billingPaid) updates.billingPaid = data.billing_paid ?? false
       if ((data.billing_overdue_since ?? null) !== currentClinic.billingOverdueSince) updates.billingOverdueSince = data.billing_overdue_since ?? null
       if ((data.next_billing_date ?? null) !== currentClinic.nextBillingDate) updates.nextBillingDate = data.next_billing_date ?? null
+      if ((data.asaas_subscription_id ?? null) !== currentClinic.asaasSubscriptionId) updates.asaasSubscriptionId = data.asaas_subscription_id ?? null
 
       if (Object.keys(updates).length > 0) setSession({ ...currentClinic, ...updates }, currentUser)
       if (connected) silentRefreshGCal(true)

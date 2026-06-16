@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabaseAdmin'
-import { asaasPost } from '@/lib/asaas'
+import { asaasPost, asaasGet } from '@/lib/asaas'
 
 interface AsaasPaymentLink { id: string; url: string }
 
@@ -23,9 +23,14 @@ export async function POST(req: Request) {
     const VALID_COUPONS: Record<string, number> = { 'COPA50': 50 }
     const discountPct = couponCode ? (VALID_COUPONS[String(couponCode).toUpperCase()] ?? 0) : 0
 
-    // Se já tem um link salvo, sem troca de plano e sem cupom → reutiliza
+    // Se já tem um link salvo, sem troca de plano e sem cupom → verifica se ainda existe no Asaas
     if (linkId && !planOverride && !discountPct) {
-      return NextResponse.json({ url: `https://www.asaas.com/c/${linkId}` })
+      try {
+        const existing = await asaasGet<AsaasPaymentLink>(`/paymentLinks/${linkId}`)
+        if (existing?.url) return NextResponse.json({ url: existing.url })
+      } catch {
+        // Link não existe mais — cria novo abaixo
+      }
     }
 
     // Preço conforme plano (override do front tem prioridade sobre o do banco)

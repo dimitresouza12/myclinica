@@ -350,7 +350,7 @@ function LoginContent() {
           color: '#0D9488', slug: '__superadmin__',
           plan: 'plus', status: 'active',
           trialEndsAt: null, gcalConnected: false,
-          billingPaid: true, asaasCustomerId: null,
+          billingPaid: true, asaasCustomerId: null, asaasSubscriptionId: null,
           billingOverdueSince: null, nextBillingDate: null,
         }
         clearRateLimit(cred)
@@ -385,6 +385,7 @@ function LoginContent() {
         gcalConnected: c.gcal_connected ?? false,
         billingPaid: c.billing_paid ?? false,
         asaasCustomerId: c.asaas_customer_id ?? null,
+        asaasSubscriptionId: c.asaas_subscription_id ?? null,
         billingOverdueSince: c.billing_overdue_since ?? null,
         nextBillingDate: c.next_billing_date ?? null,
       }

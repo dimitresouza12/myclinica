@@ -119,10 +119,23 @@ function ConfiguracoesContent() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [billingLoading, setBillingLoading] = useState(false)
+  const [billingError,   setBillingError]   = useState('')
+  const [changingDay,    setChangingDay]     = useState(false)
+  const [dueDayInput,    setDueDayInput]     = useState('')
+  const [dueDayMsg,      setDueDayMsg]       = useState<{ ok: boolean; text: string } | null>(null)
+
+  const PLAN_PRICES: Record<string, { label: string; price: string; value: number }> = {
+    essencial:     { label: 'Essencial',   price: 'R$99,00/mês',      value: 99      },
+    avancado:      { label: 'Avançado',    price: 'R$119,90/mês',     value: 119.90  },
+    completo:      { label: 'Completo',    price: 'R$129,90/mês',     value: 129.90  },
+    completo_plus: { label: 'Completo+',   price: 'R$199,00/mês',     value: 199     },
+  }
+  const planInfo = PLAN_PRICES[clinic?.plan ?? ''] ?? PLAN_PRICES.essencial
 
   async function handleSubscribe() {
     if (!clinic) return
     setBillingLoading(true)
+    setBillingError('')
     try {
       const res  = await fetch('/api/asaas/checkout', {
         method: 'POST',
@@ -130,7 +143,59 @@ function ConfiguracoesContent() {
         body: JSON.stringify({ clinicId: clinic.id, clinicName: clinic.name }),
       })
       const data = await res.json()
-      if (data.url) window.location.href = data.url
+      if (data.url) window.open(data.url, '_blank', 'noopener,noreferrer')
+      else setBillingError(data.error ?? 'Não foi possível gerar o link de pagamento.')
+    } catch {
+      setBillingError('Erro de conexão. Tente novamente.')
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
+  async function handleAnticipate() {
+    if (!clinic) return
+    setBillingLoading(true)
+    setBillingError('')
+    try {
+      const res  = await fetch('/api/asaas/billing-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clinicId: clinic.id, action: 'anticipate' }),
+      })
+      const data = await res.json()
+      if (data.url) window.open(data.url, '_blank', 'noopener,noreferrer')
+      else setBillingError(data.error ?? 'Não foi possível localizar o pagamento.')
+    } catch {
+      setBillingError('Erro de conexão. Tente novamente.')
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
+  async function handleChangeDueDay() {
+    if (!clinic) return
+    const day = parseInt(dueDayInput, 10)
+    if (isNaN(day) || day < 1 || day > 28) {
+      setDueDayMsg({ ok: false, text: 'Escolha um dia entre 1 e 28.' }); return
+    }
+    setBillingLoading(true)
+    setDueDayMsg(null)
+    try {
+      const res  = await fetch('/api/asaas/billing-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clinicId: clinic.id, action: 'change_due_day', day }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setDueDayMsg({ ok: true, text: data.nextDueDate ? `Próximo vencimento: ${new Date(data.nextDueDate + 'T12:00:00').toLocaleDateString('pt-BR')}` : data.message ?? 'Dia de preferência salvo.' })
+        setChangingDay(false)
+        setDueDayInput('')
+      } else {
+        setDueDayMsg({ ok: false, text: data.error ?? 'Erro ao alterar vencimento.' })
+      }
+    } catch {
+      setDueDayMsg({ ok: false, text: 'Erro de conexão. Tente novamente.' })
     } finally {
       setBillingLoading(false)
     }
@@ -142,6 +207,11 @@ function ConfiguracoesContent() {
   const daysLeft        = clinic?.trialEndsAt && !trialExpired
     ? Math.ceil((new Date(clinic.trialEndsAt).getTime() - Date.now()) / 86_400_000)
     : null
+
+  function formatBillingDate(dateStr: string | null | undefined) {
+    if (!dateStr) return null
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+  }
 
   const logoInputRef = useRef<HTMLInputElement | null>(null)
   const [logoUploading, setLogoUploading] = useState(false)
@@ -485,48 +555,118 @@ function ConfiguracoesContent() {
       {/* ── Plano & Faturamento ── */}
       <div className={styles.card}>
         <h2 className={styles.cardTitle}>Plano & Faturamento</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
 
-          {/* Linha plano */}
+          {/* Linha plano + status */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
             <div>
               <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>Plano atual</p>
               <p style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                {planLabel(clinic?.plan)}
+                {planInfo.label} — {planInfo.price}
               </p>
             </div>
-
-            {/* Badge de status */}
-            {clinic?.billingPaid && (
-              <span style={{ padding: '0.25rem 0.75rem', background: '#D1FAE5', color: '#065F46', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                ✓ Ativo
-              </span>
-            )}
-            {isLate && (
-              <span style={{ padding: '0.25rem 0.75rem', background: '#FEF3C7', color: '#92400E', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                ⚠ Pagamento atrasado
-              </span>
-            )}
-            {daysLeft !== null && (
-              <span style={{ padding: '0.25rem 0.75rem', background: '#DBEAFE', color: '#1E40AF', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                Teste — {daysLeft}d restantes
-              </span>
-            )}
-            {neverSubscribed && (
-              <span style={{ padding: '0.25rem 0.75rem', background: '#FEE2E2', color: '#991B1B', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                Trial encerrado
-              </span>
-            )}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {clinic?.billingPaid && !clinic?.billingOverdueSince && (
+                <span style={{ padding: '0.25rem 0.75rem', background: '#D1FAE5', color: '#065F46', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                  ✓ Ativo
+                </span>
+              )}
+              {isLate && (
+                <span style={{ padding: '0.25rem 0.75rem', background: '#FEF3C7', color: '#92400E', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                  ⚠ Pagamento atrasado
+                </span>
+              )}
+              {!!clinic?.billingOverdueSince && (
+                <span style={{ padding: '0.25rem 0.75rem', background: '#FEE2E2', color: '#991B1B', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                  Em atraso
+                </span>
+              )}
+              {daysLeft !== null && (
+                <span style={{ padding: '0.25rem 0.75rem', background: '#DBEAFE', color: '#1E40AF', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                  Teste — {daysLeft}d restantes
+                </span>
+              )}
+              {neverSubscribed && (
+                <span style={{ padding: '0.25rem 0.75rem', background: '#FEE2E2', color: '#991B1B', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                  Trial encerrado
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Botões de ação */}
-          {(isLate || neverSubscribed) && (
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <button className={styles.btnSave} onClick={handleSubscribe} disabled={billingLoading}>
-                {billingLoading ? 'Aguarde...' : 'Assinar agora — R$99/mês'}
-              </button>
+          {/* Data do próximo pagamento */}
+          {clinic?.billingPaid && clinic?.nextBillingDate && (
+            <div>
+              <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>Próximo vencimento</p>
+              <p style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {formatBillingDate(clinic.nextBillingDate)}
+              </p>
             </div>
           )}
+
+          {/* Mudar dia do vencimento */}
+          {clinic?.billingPaid && (
+            <div>
+              {!changingDay ? (
+                <button
+                  style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                  onClick={() => { setChangingDay(true); setDueDayMsg(null) }}
+                >
+                  Mudar dia do vencimento
+                </button>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>Novo dia de vencimento (1–28):</p>
+                  <input
+                    type="number"
+                    min={1} max={28}
+                    value={dueDayInput}
+                    onChange={e => setDueDayInput(e.target.value)}
+                    style={{ width: '4rem', padding: '0.3rem 0.5rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
+                    placeholder="15"
+                  />
+                  <button className={styles.btnSave} style={{ padding: '0.35rem 0.9rem', fontSize: '0.82rem' }} onClick={handleChangeDueDay} disabled={billingLoading}>
+                    {billingLoading ? 'Salvando...' : 'Confirmar'}
+                  </button>
+                  <button
+                    style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
+                    onClick={() => { setChangingDay(false); setDueDayInput(''); setDueDayMsg(null) }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              )}
+              {dueDayMsg && (
+                <p style={{ fontSize: '0.8rem', marginTop: '0.4rem', color: dueDayMsg.ok ? '#065F46' : '#DC2626' }}>
+                  {dueDayMsg.ok ? '✓ ' : '⚠ '}{dueDayMsg.text}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Erro geral de billing */}
+          {billingError && (
+            <p style={{ fontSize: '0.82rem', color: '#DC2626' }}>⚠ {billingError}</p>
+          )}
+
+          {/* Botões de ação */}
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {(isLate || neverSubscribed) && (
+              <button className={styles.btnSave} onClick={handleSubscribe} disabled={billingLoading}>
+                {billingLoading ? 'Aguarde...' : `Assinar agora — ${planInfo.price}`}
+              </button>
+            )}
+            {clinic?.billingPaid && (
+              <button className={styles.btnSave} onClick={handleAnticipate} disabled={billingLoading}>
+                {billingLoading ? 'Aguarde...' : 'Antecipar pagamento'}
+              </button>
+            )}
+            {!!clinic?.billingOverdueSince && (
+              <button className={styles.btnSave} onClick={handleSubscribe} disabled={billingLoading}>
+                {billingLoading ? 'Aguarde...' : 'Regularizar pagamento'}
+              </button>
+            )}
+          </div>
 
         </div>
       </div>

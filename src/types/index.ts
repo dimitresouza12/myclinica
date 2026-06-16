@@ -272,6 +272,7 @@ export interface AuthClinic {
   gcalConnected: boolean
   billingPaid: boolean
   asaasCustomerId: string | null
+  asaasSubscriptionId: string | null
   billingOverdueSince: string | null
   nextBillingDate: string | null
 }

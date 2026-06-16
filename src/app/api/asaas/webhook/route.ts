@@ -42,10 +42,9 @@ export async function POST(req: Request) {
     }
 
     if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
-      await getAdminClient()
-        .from('clinics')
-        .update({ billing_paid: true, billing_overdue_since: null })
-        .eq('id', clinicId)
+      const updates: Record<string, unknown> = { billing_paid: true, billing_overdue_since: null }
+      if (payment.subscription) updates.asaas_subscription_id = payment.subscription
+      await getAdminClient().from('clinics').update(updates).eq('id', clinicId)
       console.log(`[asaas/webhook] ${event} → billing_paid=true para clínica ${clinicId}`)
     }
 

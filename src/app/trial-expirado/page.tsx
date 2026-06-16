@@ -33,8 +33,8 @@ export default function TrialExpiradoPage() {
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Erro inesperado.'); return }
-      window.location.href = data.url
+      if (!res.ok || !data.url) { setError(data.error ?? 'Não foi possível gerar o link de pagamento.'); return }
+      window.open(data.url, '_blank', 'noopener,noreferrer')
     } catch {
       setError('Não foi possível iniciar o pagamento. Tente novamente.')
     } finally {

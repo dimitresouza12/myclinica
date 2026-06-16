@@ -16,6 +16,7 @@ type PlanValue = typeof PLANS[number]['value']
 export function PaymentLateBanner() {
   const { clinic, user } = useAuthStore()
   const [loadingPortal, setLoadingPortal] = useState(false)
+  const [portalError,   setPortalError]   = useState('')
   const [dismissedDue, setDismissedDue]   = useState(false)
   const [selectedPlan, setSelectedPlan]   = useState<PlanValue | null>(null)
   const [coupon, setCoupon]               = useState(() =>
@@ -42,6 +43,7 @@ export function PaymentLateBanner() {
   async function handlePortal(planOverride?: string) {
     if (!clinic) return
     setLoadingPortal(true)
+    setPortalError('')
     try {
       const appliedCoupon = couponValid ? couponUpper : undefined
       const res  = await fetch('/api/asaas/checkout', {
@@ -52,8 +54,12 @@ export function PaymentLateBanner() {
       const data = await res.json()
       if (data.url) {
         if (appliedCoupon) localStorage.removeItem('promoCoupon')
-        window.location.href = data.url
+        window.open(data.url, '_blank', 'noopener,noreferrer')
+      } else {
+        setPortalError(data.error ?? 'Não foi possível gerar o link de pagamento.')
       }
+    } catch {
+      setPortalError('Erro de conexão. Tente novamente.')
     } finally {
       setLoadingPortal(false)
     }
@@ -99,6 +105,8 @@ export function PaymentLateBanner() {
             {couponValid   && <span className={styles.couponOk}>✓ 50% de desconto na 1ª mensalidade</span>}
             {couponInvalid && <span className={styles.couponErr}>Código inválido</span>}
           </div>
+
+          {portalError && <p className={styles.errMsg}>{portalError}</p>}
 
           <div className={styles.modalActions}>
             <button
