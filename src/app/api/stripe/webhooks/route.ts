@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/supabaseAdmin'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' })
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
 
 // Stripe exige o body bruto para validar a assinatura
 export const config = { api: { bodyParser: false } }
@@ -34,7 +29,7 @@ export async function POST(req: Request) {
         const clinicId      = session.metadata?.clinic_id
         const subscriptionId = session.subscription as string
         if (!clinicId) break
-        await supabaseAdmin.from('clinics').update({
+        await getAdminClient().from('clinics').update({
           billing_paid:          true,
           stripe_subscription_id: subscriptionId,
           stripe_customer_id:    session.customer as string,
@@ -47,7 +42,7 @@ export async function POST(req: Request) {
         const clinicId = sub.metadata?.clinic_id
         if (!clinicId) break
         const active = sub.status === 'active' || sub.status === 'trialing'
-        await supabaseAdmin.from('clinics').update({
+        await getAdminClient().from('clinics').update({
           billing_paid:          active,
           stripe_price_id:       sub.items.data[0]?.price.id ?? null,
           stripe_subscription_id: sub.id,
@@ -59,7 +54,7 @@ export async function POST(req: Request) {
         const sub      = event.data.object as Stripe.Subscription
         const clinicId = sub.metadata?.clinic_id
         if (!clinicId) break
-        await supabaseAdmin.from('clinics').update({
+        await getAdminClient().from('clinics').update({
           billing_paid:          false,
           stripe_subscription_id: null,
         }).eq('id', clinicId)

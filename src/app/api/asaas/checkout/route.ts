@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/supabaseAdmin'
 import { asaasPost } from '@/lib/asaas'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
 
 interface AsaasPaymentLink { id: string; url: string }
 
@@ -15,7 +10,7 @@ export async function POST(req: Request) {
     if (!clinicId) return NextResponse.json({ error: 'clinicId required' }, { status: 400 })
 
     // Busca dados da clínica (plano + link já salvo)
-    const { data: clinic } = await supabaseAdmin
+    const { data: clinic } = await getAdminClient()
       .from('clinics')
       .select('asaas_customer_id, name, plan')
       .eq('id', clinicId)
@@ -69,7 +64,7 @@ export async function POST(req: Request) {
 
     // Só salva o link no banco se não houver cupom (link com desconto não deve ser reutilizado)
     if (!discountPct) {
-      await supabaseAdmin
+      await getAdminClient()
         .from('clinics')
         .update({ asaas_customer_id: link.id })
         .eq('id', clinicId)

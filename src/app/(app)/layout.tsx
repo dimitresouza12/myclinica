@@ -70,27 +70,40 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (!_hydrated || !clinic || !user) return
     if (user.isSuperAdmin) return // superadmin não tem clínica real — pula sync
 
-    // 1. Sincroniza flag gcal_connected do banco
-    supabase
-      .from('clinics')
-      .select('gcal_connected')
-      .eq('id', clinic.id)
-      .single()
-      .then(({ data }) => {
-        const connected = data?.gcal_connected ?? false
-        if (connected !== clinic.gcalConnected) {
-          setSession({ ...clinic, gcalConnected: connected }, user)
-        }
-        // 2. Se conectado, tenta renovar o token silenciosamente agora
-        if (connected) silentRefreshGCal(true)
-      })
+    // Captura snapshot para uso dentro das funções async (evita null check do TS)
+    const currentClinic = clinic
+    const currentUser   = user
 
-    // 3. Renova o token a cada 45 min para nunca deixar expirar durante o uso
-    const interval = setInterval(() => {
+    // Sincroniza dados de cobrança e gcal do banco
+    async function syncClinicData() {
+      const { data } = await supabase
+        .from('clinics')
+        .select('gcal_connected, billing_paid, billing_overdue_since, next_billing_date')
+        .eq('id', currentClinic.id)
+        .single()
+      if (!data) return
+
+      const connected = data.gcal_connected ?? false
+      const updates: Partial<import('@/types').AuthClinic> = {}
+
+      if (connected !== currentClinic.gcalConnected) updates.gcalConnected = connected
+      if ((data.billing_paid ?? false) !== currentClinic.billingPaid) updates.billingPaid = data.billing_paid ?? false
+      if ((data.billing_overdue_since ?? null) !== currentClinic.billingOverdueSince) updates.billingOverdueSince = data.billing_overdue_since ?? null
+      if ((data.next_billing_date ?? null) !== currentClinic.nextBillingDate) updates.nextBillingDate = data.next_billing_date ?? null
+
+      if (Object.keys(updates).length > 0) setSession({ ...currentClinic, ...updates }, currentUser)
+      if (connected) silentRefreshGCal(true)
+    }
+
+    syncClinicData()
+
+    // Sincroniza a cada 5 min e renova token GCal a cada 45 min
+    const syncInterval  = setInterval(syncClinicData, 5 * 60 * 1000)
+    const gcalInterval  = setInterval(() => {
       if (clinic.gcalConnected) silentRefreshGCal(true)
     }, 45 * 60 * 1000)
 
-    return () => clearInterval(interval)
+    return () => { clearInterval(syncInterval); clearInterval(gcalInterval) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_hydrated])
 

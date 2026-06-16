@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
+import { getAdminClient } from '@/lib/supabaseAdmin'
 
 async function findClinicId(payment: Record<string, string | null>): Promise<string | null> {
   // 1. externalReference direto no pagamento (clinicId)
@@ -12,7 +7,7 @@ async function findClinicId(payment: Record<string, string | null>): Promise<str
 
   // 2. Busca pelo ID do paymentLink salvo em asaas_customer_id
   if (payment.paymentLink) {
-    const { data } = await supabaseAdmin
+    const { data } = await getAdminClient()
       .from('clinics')
       .select('id')
       .eq('asaas_customer_id', payment.paymentLink)
@@ -38,7 +33,7 @@ export async function POST(req: Request) {
 
     if (event === 'PAYMENT_CREATED') {
       if (payment.dueDate) {
-        await supabaseAdmin
+        await getAdminClient()
           .from('clinics')
           .update({ next_billing_date: payment.dueDate })
           .eq('id', clinicId)
@@ -47,7 +42,7 @@ export async function POST(req: Request) {
     }
 
     if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
-      await supabaseAdmin
+      await getAdminClient()
         .from('clinics')
         .update({ billing_paid: true, billing_overdue_since: null })
         .eq('id', clinicId)
@@ -55,7 +50,7 @@ export async function POST(req: Request) {
     }
 
     if (event === 'PAYMENT_OVERDUE') {
-      await supabaseAdmin
+      await getAdminClient()
         .from('clinics')
         .update({ billing_overdue_since: new Date().toISOString() })
         .eq('id', clinicId)

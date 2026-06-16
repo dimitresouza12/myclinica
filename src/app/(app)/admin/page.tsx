@@ -47,6 +47,13 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
+  useEffect(() => {
+    if (!verified) return
+    const interval = setInterval(loadBase, 30 * 1000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verified])
+
   async function loadBase() {
     const [clinicsRes, usersRes] = await Promise.all([
       supabase.from('clinics').select('*').order('created_at', { ascending: false }),

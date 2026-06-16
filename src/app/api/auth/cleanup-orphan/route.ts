@@ -1,15 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-
-const adminClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+import { getAdminClient } from '@/lib/supabaseAdmin'
 
 async function deleteOrphan(userId: string): Promise<{ ok: boolean; reason?: string }> {
   // Segurança: só deleta se não tem clínica E foi criado há menos de 10 minutos
-  const { data: clinicUser } = await adminClient
+  const { data: clinicUser } = await getAdminClient()
     .from('clinic_users')
     .select('id')
     .eq('user_id', userId)
@@ -17,13 +11,13 @@ async function deleteOrphan(userId: string): Promise<{ ok: boolean; reason?: str
 
   if (clinicUser) return { ok: false, reason: 'has_clinic' }
 
-  const { data: authUser } = await adminClient.auth.admin.getUserById(userId)
+  const { data: authUser } = await getAdminClient().auth.admin.getUserById(userId)
   if (!authUser.user) return { ok: false, reason: 'not_found' }
 
   const ageMs = Date.now() - new Date(authUser.user.created_at).getTime()
   if (ageMs > 10 * 60 * 1000) return { ok: false, reason: 'too_old' }
 
-  await adminClient.auth.admin.deleteUser(userId)
+  await getAdminClient().auth.admin.deleteUser(userId)
   return { ok: true }
 }
 
@@ -34,7 +28,7 @@ export async function POST(req: Request) {
   if (authHeader?.startsWith('Bearer ')) {
     // Caminho autenticado: valida token e extrai userId
     const token = authHeader.slice(7)
-    const { data: { user }, error } = await adminClient.auth.getUser(token)
+    const { data: { user }, error } = await getAdminClient().auth.getUser(token)
     if (error || !user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }

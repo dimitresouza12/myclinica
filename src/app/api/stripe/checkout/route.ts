@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/supabaseAdmin'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' })
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
 
 const PRICE_ID = 'price_1ThvI6Ghf6wxnDsdeLxmcgSF'
 
@@ -18,7 +13,7 @@ export async function POST(req: Request) {
     if (!clinicId) return NextResponse.json({ error: 'clinicId required' }, { status: 400 })
 
     // Busca ou cria o Stripe customer para a clínica
-    const { data: clinic } = await supabaseAdmin
+    const { data: clinic } = await getAdminClient()
       .from('clinics')
       .select('stripe_customer_id, name, email')
       .eq('id', clinicId)
@@ -42,7 +37,7 @@ export async function POST(req: Request) {
         metadata: { clinic_id: clinicId },
       })
       customerId = customer.id
-      await supabaseAdmin
+      await getAdminClient()
         .from('clinics')
         .update({ stripe_customer_id: customerId })
         .eq('id', clinicId)
