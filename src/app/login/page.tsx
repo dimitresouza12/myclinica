@@ -441,9 +441,16 @@ function LoginContent() {
       })
       if (authErr) throw new Error(authErr.message)
       if (!authData.user) throw new Error('Falha ao criar usuário.')
+
+      // Se o Supabase exige confirmação de e-mail, não há sessão — limpa o órfão
+      // e orienta o usuário a desabilitar a confirmação de e-mail nas configurações
       if (!authData.session) {
-        // Email confirmation required by Supabase Auth — user must confirm before clinic can be linked
-        throw new Error('Confirme seu e-mail para concluir o cadastro e depois faça login.')
+        await fetch('/api/auth/cleanup-orphan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: authData.user.id }),
+        }).catch(() => {})
+        throw new Error('Erro de configuração: confirmação de e-mail está ativada no servidor. Contate o suporte.')
       }
 
       // 2. Create clinic + admin via SECURITY DEFINER RPC (bypasses RLS atomically)
@@ -459,6 +466,11 @@ function LoginContent() {
         p_cpf: reg.cpf.replace(/\D/g, '') || null,
       })
       if (rpcErr) {
+        // Limpa o usuário órfão — aguarda para garantir que o e-mail seja liberado antes de exibir o erro
+        await fetch('/api/auth/cleanup-orphan', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${authData.session.access_token}` },
+        }).catch(() => {})
         console.error('register_clinic_and_admin error:', rpcErr)
         if (rpcErr.message.includes('slug_taken')) throw new Error('Já existe uma clínica com esse nome. Tente um nome diferente.')
         if (rpcErr.message.includes('username_taken')) throw new Error('Esse nome de usuário já está em uso. Escolha outro.')
