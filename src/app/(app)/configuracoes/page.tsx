@@ -123,6 +123,7 @@ function ConfiguracoesContent() {
   const [changingDay,    setChangingDay]     = useState(false)
   const [dueDayInput,    setDueDayInput]     = useState('')
   const [dueDayMsg,      setDueDayMsg]       = useState<{ ok: boolean; text: string } | null>(null)
+  const [showUpgrade,    setShowUpgrade]     = useState(false)
 
   const PLAN_PRICES: Record<string, { label: string; price: string; value: number }> = {
     essencial:     { label: 'Essencial',   price: 'R$99,00/mês',      value: 99      },
@@ -593,6 +594,57 @@ function ConfiguracoesContent() {
               )}
             </div>
           </div>
+
+          {/* Upgrade de plano */}
+          {!showUpgrade ? (
+            <button
+              onClick={() => setShowUpgrade(true)}
+              style={{ alignSelf: 'flex-start', fontSize: '0.82rem', fontWeight: 600, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+            >
+              Fazer upgrade de plano
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>Selecione o plano desejado e entraremos em contato:</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '0.5rem' }}>
+                {(Object.entries(PLAN_PRICES) as [string, { label: string; price: string }][]).map(([slug, info]) => {
+                  const isCurrent = slug === (clinic?.plan ?? 'essencial')
+                  const waMsgText = `Olá! Gostaria de fazer upgrade do meu plano para *${info.label}* (${info.price}). Minha clínica é *${clinic?.name}*.`
+                  return (
+                    <a
+                      key={slug}
+                      href={isCurrent ? undefined : `https://wa.me/5588988557247?text=${encodeURIComponent(waMsgText)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={isCurrent ? (e) => e.preventDefault() : undefined}
+                      style={{
+                        display: 'flex', flexDirection: 'column', gap: '0.15rem',
+                        padding: '0.65rem 0.85rem',
+                        border: `2px solid ${isCurrent ? 'var(--teal)' : 'var(--border)'}`,
+                        borderRadius: '8px',
+                        background: isCurrent ? 'var(--teal-light, #f0faf8)' : 'var(--bg-primary)',
+                        cursor: isCurrent ? 'default' : 'pointer',
+                        textDecoration: 'none',
+                        transition: 'border-color 0.15s',
+                      }}
+                    >
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: isCurrent ? 'var(--teal)' : 'var(--text-primary)' }}>
+                        {info.label}{isCurrent ? ' ✓' : ''}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{info.price}</span>
+                      {!isCurrent && <span style={{ fontSize: '0.72rem', color: 'var(--teal)', fontWeight: 600, marginTop: '0.15rem' }}>Solicitar via WhatsApp →</span>}
+                    </a>
+                  )
+                })}
+              </div>
+              <button
+                onClick={() => setShowUpgrade(false)}
+                style={{ alignSelf: 'flex-start', fontSize: '0.78rem', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
 
           {/* Vencimento do plano — assinante usa nextBillingDate, trial usa trialEndsAt */}
           {(clinic?.nextBillingDate || clinic?.trialEndsAt) && (() => {

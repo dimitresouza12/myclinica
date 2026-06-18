@@ -104,7 +104,12 @@ export function AdminClinicas({ clinics, onReload }: Props) {
     onReload()
   }
 
-  const PLAN_COLORS: Record<string, string> = { basico: '#0D9488', plus: '#F59E0B' }
+  const PLAN_COLORS: Record<string, string> = {
+    essencial:     '#0D9488',
+    avancado:      '#3B82F6',
+    completo:      '#8B5CF6',
+    completo_plus: '#F59E0B',
+  }
   const pendingCount = clinics.filter(c => c.status === 'pending').length
 
   return (

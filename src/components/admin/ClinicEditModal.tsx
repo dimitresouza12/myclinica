@@ -5,8 +5,10 @@ import type { Clinic, ClinicStatus } from '@/types'
 import styles from './admin.module.css'
 
 const PLANS: { value: string; label: string; hint: string }[] = [
-  { value: 'basico', label: 'Básico', hint: 'Gestão clínica completa' },
-  { value: 'plus',   label: 'Plus',   hint: 'Inclui integração WhatsApp + CRM' },
+  { value: 'essencial',     label: 'Essencial',  hint: 'R$99/mês — até 100 pacientes, 1 usuário' },
+  { value: 'avancado',      label: 'Avançado',   hint: 'R$119,90/mês — ilimitados, até 3 usuários' },
+  { value: 'completo',      label: 'Completo',   hint: 'R$129,90/mês — ilimitados + multi-clínica' },
+  { value: 'completo_plus', label: 'Completo+',  hint: 'R$199/mês — Completo + IA e WhatsApp' },
 ]
 const STATUSES: { value: ClinicStatus; label: string }[] = [
   { value: 'active',    label: 'Ativa' },
