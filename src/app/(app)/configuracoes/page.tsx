@@ -594,27 +594,23 @@ function ConfiguracoesContent() {
             </div>
           </div>
 
-          {/* Data de vencimento do trial */}
-          {clinic?.trialEndsAt && (
-            <div>
-              <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>
-                {trialExpired ? 'Trial encerrado em' : 'Trial válido até'}
-              </p>
-              <p style={{ fontSize: '0.95rem', fontWeight: 600, color: trialExpired ? '#991B1B' : 'var(--text-primary)' }}>
-                {new Date(clinic.trialEndsAt + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
-              </p>
-            </div>
-          )}
-
-          {/* Data do próximo pagamento */}
-          {clinic?.billingPaid && clinic?.nextBillingDate && (
-            <div>
-              <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>Próximo vencimento</p>
-              <p style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {formatBillingDate(clinic.nextBillingDate)}
-              </p>
-            </div>
-          )}
+          {/* Vencimento do plano — assinante usa nextBillingDate, trial usa trialEndsAt */}
+          {(clinic?.nextBillingDate || clinic?.trialEndsAt) && (() => {
+            const isPaid = !!clinic?.nextBillingDate
+            const label  = isPaid
+              ? 'Próximo vencimento'
+              : trialExpired ? 'Trial encerrado em' : 'Trial válido até'
+            const dateStr = isPaid
+              ? formatBillingDate(clinic.nextBillingDate!)
+              : new Date(clinic!.trialEndsAt! + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+            const color = !isPaid && trialExpired ? '#991B1B' : 'var(--text-primary)'
+            return (
+              <div>
+                <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>{label}</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 600, color }}>{dateStr}</p>
+              </div>
+            )
+          })()}
 
           {/* Mudar dia do vencimento */}
           {clinic?.billingPaid && (
