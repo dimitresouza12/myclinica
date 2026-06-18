@@ -83,6 +83,7 @@
 .statusInactive { background:#F3F4F6; color:#6B7280; }
 .statusSuspended { background:#FEE2E2; color:#991B1B; }
 .statusPending { background:#FEF3C7; color:#92400E; }
+.statusTrial   { background:#EDE9FE; color:#5B21B6; }
 
 /* ========== Status buttons (in edit modal) ========== */
 .statusBtnGroup { display:flex; gap:0.5rem; flex-wrap:wrap; }
