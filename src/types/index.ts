@@ -3,7 +3,7 @@ export type UserRole = 'recepcao' | 'dentista' | 'medico' | 'admin' | 'superadmi
 export type AppointmentStatus = 'agendado' | 'confirmado' | 'concluido' | 'cancelado' | 'faltou'
 export type PaymentMethod = 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'convenio' | 'outro'
 
-export type ClinicStatus = 'active' | 'inactive' | 'suspended' | 'pending'
+export type ClinicStatus = 'active' | 'inactive' | 'suspended' | 'pending' | 'trial'
 export type ClinicPlan = 'essencial' | 'avancado' | 'completo' | 'completo_plus' | 'basico' | 'plus'
 
 export interface Clinic {
