@@ -147,6 +147,14 @@ function normalizeUsername(raw: string) {
     .replace(/[^a-z0-9_.-]/g, '')
 }
 
+function formatCpf(value: string) {
+  const d = value.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3) return d
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+}
+
 function toSlug(name: string) {
   return name
     .toLowerCase()
@@ -479,7 +487,7 @@ function LoginContent() {
         if (rpcErr.message.includes('user_already_linked')) throw new Error('Este e-mail já está vinculado a uma clínica.')
         if (rpcErr.message.includes('cpf_taken')) throw new Error('Este CPF já está cadastrado. Tente fazer login.')
         if (rpcErr.message.includes('cpf_invalid')) throw new Error('CPF inválido. Verifique e tente novamente.')
-        throw new Error('Erro ao criar clínica. Tente novamente.')
+        throw new Error(`Erro ao criar clínica: ${rpcErr.message}`)
       }
 
       await supabase.auth.signOut()
@@ -957,8 +965,9 @@ function LoginContent() {
                     <label>CPF *</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={reg.cpf}
-                      onChange={e => setReg(p => ({ ...p, cpf: e.target.value }))}
+                      onChange={e => setReg(p => ({ ...p, cpf: formatCpf(e.target.value) }))}
                       placeholder="000.000.000-00"
                       maxLength={14}
                       required
