@@ -169,6 +169,7 @@ export interface Professional {
   name: string
   specialty: string | null
   google_calendar_id: string | null
+  is_active: boolean
   created_at: string
 }
 

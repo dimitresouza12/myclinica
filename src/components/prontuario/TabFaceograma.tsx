@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Patient, MedicalRecord } from '@/types'
 import styles from './TabFaceograma.module.css'
@@ -36,12 +36,22 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
   const [selId,     setSelId]     = useState<string | null>(null)
   const [saving,    setSaving]    = useState(false)
   const [saved,     setSaved]     = useState(false)
+  const sidePanelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const raw = record?.aesthetic_protocols as Session[] | undefined
     if (Array.isArray(raw) && raw.length > 0) { setSessions(raw); setActiveIdx(0) }
     else setSessions([newSession()])
   }, [record])
+
+  // Auto-scroll to side panel on mobile when a point is selected
+  useEffect(() => {
+    if (!selId || !sidePanelRef.current) return
+    if (window.innerWidth > 680) return
+    setTimeout(() => {
+      sidePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 50)
+  }, [selId])
 
   const session = sessions[activeIdx]
   const selAnn  = session?.annotations.find(a => a.id === selId) ?? null
@@ -130,6 +140,8 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
             <span className={styles.toolbarLabel}>Marcar:</span>
             {TOOLS.map(t => (
               <button key={t.key} type="button"
+                aria-label={t.label}
+                aria-pressed={tool === t.key}
                 className={`${styles.toolBtn} ${tool === t.key ? styles.toolBtnActive : ''}`}
                 style={{ '--tc': t.color, '--tbg': t.bg } as React.CSSProperties}
                 onClick={() => setTool(t.key)}>
@@ -147,9 +159,9 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
               onClick={handleFaceClick}
               style={{ cursor: 'crosshair' }}
             >
-              {/* Anatomical reference image (rosto.png in /public) */}
+              {/* Anatomical reference — WebP (19 KB) com fallback PNG (1.3 MB) */}
               <image
-                href="/rosto.png"
+                href="/rosto.webp"
                 x="0" y="0"
                 width={VW} height={VH}
                 preserveAspectRatio="xMidYMid meet"
@@ -189,7 +201,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
         </div>
 
         {/* ── Side panel ── */}
-        <div className={styles.sidePanel}>
+        <div className={styles.sidePanel} ref={sidePanelRef}>
 
           {/* Session meta */}
           <div className={styles.sideSec}>

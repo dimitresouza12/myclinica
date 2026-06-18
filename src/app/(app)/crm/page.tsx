@@ -9,6 +9,7 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import { formatDate, cleanPhone } from '@/lib/utils'
 import styles from './crm.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { hasWhatsApp } from '@/lib/planGates'
 
 interface PatientRow { id: string; phone: string }
 
@@ -85,26 +86,26 @@ function CRMContent() {
 
   // Gate: CRM é exclusivo do plano Plus
   useEffect(() => {
-    if (clinic && clinic.plan !== 'plus') {
+    if (clinic && !hasWhatsApp(clinic.plan)) {
       router.replace('/dashboard')
     }
   }, [clinic, router])
 
   useEffect(() => {
-    if (!clinic?.id || clinic.plan !== 'plus') return
+    if (!clinic?.id || !hasWhatsApp(clinic.plan)) return
     setLeads([])
     setAutomacaoAtiva(null)
     loadLeads()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinic?.id])
   useEffect(() => {
-    if (!clinic?.id || clinic.plan !== 'plus') return
+    if (!clinic?.id || !hasWhatsApp(clinic.plan)) return
     setExistingPatients(new Set())
     loadExistingPatients()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinic?.id])
 
-  if (clinic && clinic.plan !== 'plus') {
+  if (clinic && !hasWhatsApp(clinic.plan)) {
     return (
       <div className={styles.page}>
         <div className={styles.header}>

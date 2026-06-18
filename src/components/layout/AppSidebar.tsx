@@ -9,6 +9,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { Icon } from '@/components/ui/Icon'
 import type { AuthClinic, AuthUser } from '@/types'
 import styles from './AppSidebar.module.css'
+import { hasWhatsApp } from '@/lib/planGates'
 
 const NAV = [
   { path: '/dashboard',     label: 'Dashboard',     icon: 'dashboard'  as const, plusOnly: false },
@@ -79,7 +80,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
     window.location.href = '/login'
   }
 
-  const isPlus = clinic.plan === 'plus'
+  const isPlus = hasWhatsApp(clinic.plan)
   const filteredNav = NAV.filter((item) => {
     // Filtra plano plus
     if (item.plusOnly && !isPlus) return false

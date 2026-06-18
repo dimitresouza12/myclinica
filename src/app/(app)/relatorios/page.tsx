@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { useProfessionals, useProcedures } from '@/hooks/useClinicData'
 import styles from './relatorios.module.css'
 
 const { FinanceiroBarChart, PacientesBarChart } = {
@@ -22,6 +23,8 @@ interface ProfRow     { name: string; concluded: number; revenue: number; cancel
 
 function RelatoriosContent() {
   const { clinic } = useAuthStore()
+  const { data: cachedProfessionals = [] } = useProfessionals(clinic?.id)
+  const { data: cachedProcedures = [] }    = useProcedures(clinic?.id)
   const [tab, setTab]           = useState<ReportTab>('financeiro')
   const [period, setPeriod]     = useState('6m')
   const [month, setMonth]       = useState(() => new Date().toISOString().slice(0, 7))
@@ -58,20 +61,18 @@ function RelatoriosContent() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
     const ninetyAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
-    const [finRes, apptRes, patRes, profRes, procRes] = await Promise.all([
+    const [finRes, apptRes, patRes] = await Promise.all([
       supabase.from('financial_records').select('total_amount,type,created_at,procedure_id').eq('clinic_id', clinic.id).gte('created_at', startDate),
       supabase.from('appointments').select('status,procedure_name,professional_id,scheduled_at,patients(name)').eq('clinic_id', clinic.id).gte('scheduled_at', startDate),
       supabase.from('patients').select('id,created_at,lgpd_consent').eq('clinic_id', clinic.id).eq('is_active', true),
-      supabase.from('professionals').select('id,name').eq('clinic_id', clinic.id).eq('is_active', true),
-      supabase.from('procedures').select('id,name').eq('clinic_id', clinic.id),
     ])
 
     const fins = finRes.data ?? []
     const appts = apptRes.data ?? []
     const pats = patRes.data ?? []
-    const profs = profRes.data ?? []
+    const profs = cachedProfessionals.filter(p => p.is_active)
     const procNameMap: Record<string, string> = {}
-    for (const p of procRes.data ?? []) procNameMap[p.id] = p.name
+    for (const p of cachedProcedures) procNameMap[p.id] = p.name
 
     // ── Financeiro ─────────────────────────────────────────────
     const monthMap: Record<string, MonthlyFin> = {}
@@ -162,7 +163,7 @@ function RelatoriosContent() {
     setProfRows(rows)
 
     setLoading(false)
-  }, [clinic?.id, period])
+  }, [clinic?.id, period, cachedProfessionals, cachedProcedures])
 
   useEffect(() => { load() }, [load])
 

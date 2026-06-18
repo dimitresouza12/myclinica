@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatPhone, getStatusClass } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
+import { hasWhatsApp } from '@/lib/planGates'
+import { useProfessionals } from '@/hooks/useClinicData'
 import { getGCalToken, isGCalConnected, createGCalEvent } from '@/lib/googleCalendar'
 import type { Patient, Appointment, Professional } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
@@ -29,7 +31,7 @@ function PacientesContent() {
   const [filterStatus, setFilterStatus] = useState('')
   const [loading, setLoading] = useState(true)
 
-  const [professionals, setProfessionals] = useState<Professional[]>([])
+  const { data: professionals = [] } = useProfessionals(clinic?.id)
   const [prontuarioPatient, setProntuarioPatient] = useState<Patient | null>(null)
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
@@ -56,18 +58,16 @@ function PacientesContent() {
   async function loadData() {
     if (!clinic) return
     // Sincroniza leads do WhatsApp/n8n apenas no plano Plus
-    if (clinic.plan === 'plus') {
+    if (hasWhatsApp(clinic.plan)) {
       await syncLeadAppointments(clinic.id, clinic.slug)
     }
-    const [apptRes, patRes, profRes] = await Promise.all([
+    const [apptRes, patRes] = await Promise.all([
       supabase.from('appointments').select('*, patients(id, name, phone)').eq('clinic_id', clinic.id).order('scheduled_at', { ascending: false }),
       supabase.from('patients').select('*').eq('clinic_id', clinic.id).eq('is_active', true).order('name'),
-      supabase.from('professionals').select('*').eq('clinic_id', clinic.id).order('name'),
     ])
     setAppointments((apptRes.data ?? []) as Appointment[])
     const pats = (patRes.data ?? []) as Patient[]
     setPatients(pats)
-    setProfessionals((profRes.data ?? []) as Professional[])
     setLoading(false)
 
     // Open prontuário directly if ?patient=<id> is in URL

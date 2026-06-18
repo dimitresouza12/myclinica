@@ -28,9 +28,16 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
   const clinicName = clinic.name
   const { user } = useAuthStore()
   const [tab, setTab] = useState<Tab>('ficha')
+  const [visited, setVisited] = useState<Set<Tab>>(new Set(['ficha']))
   const [record, setRecord] = useState<MedicalRecord | null>(null)
   const [entries, setEntries] = useState<RecordEntry[]>([])
+  const [entriesLoading, setEntriesLoading] = useState(true)
   const [loading, setLoading] = useState(true)
+
+  function goToTab(t: Tab) {
+    setTab(t)
+    setVisited(prev => new Set(prev).add(t))
+  }
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -77,13 +84,25 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
 
   async function loadRecord() {
     setLoading(true)
-    const [recRes, entriesRes] = await Promise.all([
-      supabase.from('medical_records').select('*').eq('patient_id', patient.id).maybeSingle<MedicalRecord>(),
-      supabase.from('record_entries').select('*').eq('patient_id', patient.id).order('created_at', { ascending: false }),
-    ])
+    // Load medical_record first — unblocks the UI for Ficha/Faceograma tabs
+    const recRes = await supabase
+      .from('medical_records')
+      .select('*')
+      .eq('patient_id', patient.id)
+      .maybeSingle<MedicalRecord>()
     setRecord(recRes.data ?? null)
-    setEntries((entriesRes.data ?? []) as RecordEntry[])
     setLoading(false)
+    // Load entries in the background — only needed for Timeline/print
+    setEntriesLoading(true)
+    supabase
+      .from('record_entries')
+      .select('*')
+      .eq('patient_id', patient.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setEntries((data ?? []) as RecordEntry[])
+        setEntriesLoading(false)
+      })
   }
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -157,9 +176,10 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
             <button
               className={styles.btnPrint}
               onClick={() => printProntuario({ name: clinicName, logo: clinic.logo, address: clinic.address, phone: clinic.phone }, patient, record, entries)}
-              title="Imprimir / Salvar PDF"
+              title={entriesLoading ? 'Carregando dados...' : 'Imprimir / Salvar PDF'}
+              disabled={entriesLoading}
             >
-              Imprimir
+              {entriesLoading ? 'Carregando...' : 'Imprimir'}
             </button>
             <button className={styles.btnClose} onClick={tryClose}>✕</button>
           </div>
@@ -170,7 +190,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
             <button
               key={t.key}
               className={`${styles.tabBtn} ${tab === t.key ? styles.tabActive : ''}`}
-              onClick={() => setTab(t.key)}
+              onClick={() => goToTab(t.key)}
             >
               {t.label}
             </button>
@@ -182,7 +202,8 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
             <p className={styles.loading}>Carregando prontuário...</p>
           ) : (
             <>
-              {tab === 'ficha' && (
+              {/* Ficha: always mounted (default tab) */}
+              <div style={{ display: tab === 'ficha' ? undefined : 'none' }}>
                 <TabFicha
                   patient={patient}
                   record={record}
@@ -192,38 +213,50 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
                   clinicName={clinicName}
                   onSaved={loadRecord}
                 />
+              </div>
+
+              {/* Heavy tabs: lazy-mount on first visit, then keep mounted */}
+              {clinic.type === 'odonto' && visited.has('odontograma') && (
+                <div style={{ display: tab === 'odontograma' ? undefined : 'none' }}>
+                  <TabOdontograma
+                    record={record}
+                    patient={patient}
+                    clinicId={clinicId}
+                    onSaved={loadRecord}
+                  />
+                </div>
               )}
-              {tab === 'odontograma' && clinic.type === 'odonto' && (
-                <TabOdontograma
-                  record={record}
-                  patient={patient}
-                  clinicId={clinicId}
-                  onSaved={loadRecord}
-                />
+              {visited.has('faceograma') && (
+                <div style={{ display: tab === 'faceograma' ? undefined : 'none' }}>
+                  <TabFaceograma
+                    record={record}
+                    patient={patient}
+                    clinicId={clinicId}
+                    onSaved={loadRecord}
+                  />
+                </div>
               )}
-              {tab === 'faceograma' && (
-                <TabFaceograma
-                  record={record}
-                  patient={patient}
-                  clinicId={clinicId}
-                  onSaved={loadRecord}
-                />
+              {visited.has('timeline') && (
+                <div style={{ display: tab === 'timeline' ? undefined : 'none' }}>
+                  <TabTimeline
+                    patient={patient}
+                    record={record}
+                    entries={entries}
+                    clinicId={clinicId}
+                    onSaved={loadRecord}
+                    onPendingChange={setTimelinePending}
+                  />
+                </div>
               )}
-              {tab === 'timeline' && (
-                <TabTimeline
-                  patient={patient}
-                  record={record}
-                  entries={entries}
-                  clinicId={clinicId}
-                  onSaved={loadRecord}
-                  onPendingChange={setTimelinePending}
-                />
+              {visited.has('documentos') && (
+                <div style={{ display: tab === 'documentos' ? undefined : 'none' }}>
+                  <TabDocumentos patient={patient} />
+                </div>
               )}
-              {tab === 'documentos' && (
-                <TabDocumentos patient={patient} />
-              )}
-              {tab === 'chat' && (
-                <TabChatIA phone={patient.phone} />
+              {visited.has('chat') && (
+                <div style={{ display: tab === 'chat' ? undefined : 'none' }}>
+                  <TabChatIA phone={patient.phone} />
+                </div>
               )}
             </>
           )}

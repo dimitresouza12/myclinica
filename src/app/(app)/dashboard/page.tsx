@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency, formatCurrencyCompact, formatDate } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
+import { hasWhatsApp } from '@/lib/planGates'
 import { Icon } from '@/components/ui/Icon'
 import type { Appointment, FinancialRecord } from '@/types'
 import type { ComponentProps } from 'react'
@@ -46,7 +47,7 @@ function DashboardContent() {
 
   async function loadDashboard() {
     if (!clinic) return
-    if (clinic.plan === 'plus') {
+    if (hasWhatsApp(clinic.plan)) {
       await syncLeadAppointments(clinic.id, clinic.slug)
     }
     const today = new Date()

@@ -392,6 +392,45 @@
 @media (max-width: 680px) {
   .layout   { flex-direction: column; }
   .faceCol  { width: 100%; }
-  .toolLabel { display: none; }
-  .toolbar  { gap: 0.25rem; }
+
+  /* Toolbar: horizontal scroll, bigger touch targets */
+  .toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0.35rem;
+    padding: 0.5rem 0.5rem;
+  }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .toolbarLabel { display: none; }
+  .toolBtn {
+    flex-shrink: 0;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.45rem 0.6rem;
+    min-width: 52px;
+    min-height: 44px;
+    font-size: 0.62rem;
+    text-align: center;
+  }
+  .toolDot {
+    width: 10px;
+    height: 10px;
+    margin: 0 auto;
+  }
+  .toolLabel {
+    display: block;
+    font-size: 0.58rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 52px;
+  }
+
+  /* Face canvas: a bit more breathing room */
+  .faceWrap { padding: 6px; }
+
+  /* Side panel hint on mobile */
+  .faceHint { font-size: 0.65rem; }
 }

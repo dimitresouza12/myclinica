@@ -8,6 +8,8 @@ import { getGCalToken, isGCalConnected, silentRefreshGCal, fetchGCalEvents, crea
 import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { syncLeadAppointments } from '@/lib/sync-leads'
+import { hasWhatsApp } from '@/lib/planGates'
+import { useProfessionals, useProcedures } from '@/hooks/useClinicData'
 import type { Appointment, Patient, Professional, Procedure } from '@/types'
 import { type CalendarEvent } from '@/components/agenda/FullCalendarWrapper'
 import { DiaGeralView } from '@/components/agenda/DiaGeralView'
@@ -266,8 +268,8 @@ function AgendaContent() {
   const { clinic, user, setSession } = useAuthStore()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
-  const [professionals, setProfessionals] = useState<Professional[]>([])
-  const [procedures, setProcedures] = useState<Procedure[]>([])
+  const { data: professionals = [] } = useProfessionals(clinic?.id)
+  const { data: procedures = [] } = useProcedures(clinic?.id)
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('calendar')
   const [showModal, setShowModal] = useState(false)
@@ -307,24 +309,23 @@ function AgendaContent() {
     if (!clinic?.id) return
     const clinicId = clinic.id
     try {
-      if (clinic.plan === 'plus') {
+      if (hasWhatsApp(clinic.plan)) {
         await syncLeadAppointments(clinicId, clinic.slug)
       }
-      const [apptRes, patRes, profRes, procRes] = await Promise.all([
+      const threeMonthsAgo = new Date()
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+      const [apptRes, patRes] = await Promise.all([
         supabase
           .from('appointments')
           .select('*, patients(id, name, phone), professionals(id, name)')
           .eq('clinic_id', clinicId)
+          .gte('scheduled_at', threeMonthsAgo.toISOString())
           .order('scheduled_at', { ascending: true }),
         supabase.from('patients').select('id, name, phone').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
-        supabase.from('professionals').select('*').eq('clinic_id', clinicId).order('name'),
-        supabase.from('procedures').select('id, name, price, category, is_active').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
       ])
       if (clinic?.id !== clinicId) return
       setAppointments((apptRes.data ?? []) as Appointment[])
       setPatients((patRes.data ?? []) as Patient[])
-      setProfessionals((profRes.data ?? []) as Professional[])
-      setProcedures((procRes.data ?? []) as Procedure[])
     } catch { /* rede silenciado */ }
     finally { setLoading(false) }
   }, [clinic])
@@ -333,8 +334,6 @@ function AgendaContent() {
     if (!clinic?.id) return
     setAppointments([])
     setPatients([])
-    setProfessionals([])
-    setProcedures([])
     setGcalEvents([])
     setLoading(true)
     loadData()
@@ -1184,7 +1183,7 @@ function AgendaContent() {
                     }}
                   >
                     <option value="">Sem procedimento</option>
-                    {procedures.map(p => (
+                    {procedures.filter(p => p.is_active).map(p => (
                       <option key={p.id} value={p.id}>{p.name} — {formatCurrency(p.price)}</option>
                     ))}
                     <option value="outro">Outro (digitar)</option>
