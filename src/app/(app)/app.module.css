@@ -21,11 +21,17 @@
 .main {
   flex: 1;
   overflow-y: auto;
+  /* Sem overflow-x explícito, o navegador calcula overflow-x:auto (porque overflow-y é auto),
+     deixando a página inteira "arrastar" no touch quando qualquer filho transborda.
+     Tabelas largas têm seu próprio .tableWrap{overflow-x:auto} e rolam dentro da caixa. */
+  overflow-x: hidden;
+  overscroll-behavior-x: contain;
   padding: 0.5rem 2.25rem 2rem;
   display: flex;
   flex-direction: column;
   gap: 0;
   scrollbar-gutter: stable;
+  min-width: 0;
 }
 
 /* ─── Mobile ─────────────────────────────────── */

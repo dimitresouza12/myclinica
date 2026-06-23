@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
+import { printDocumento } from '@/lib/print'
 import type { Patient, ClinicDocumentTemplate, DocumentTemplateType } from '@/types'
 import styles from './TabDocumentos.module.css'
 
@@ -20,18 +21,27 @@ export function TabDocumentos({ patient }: Props) {
   const { clinic, user } = useAuthStore()
   const [selectedType, setSelectedType] = useState<DocumentTemplateType>('receita_comum')
   const [templates, setTemplates] = useState<ClinicDocumentTemplate[]>([])
+  const [templatesLoaded, setTemplatesLoaded] = useState(false)
   const [bgImage, setBgImage] = useState<string | null>(null)
   const [loadingBg, setLoadingBg] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
-  const printAreaRef = useRef<HTMLDivElement>(null)
+  // Tipo já semeado no editor — evita que reloads de `templates` sobrescrevam o que o usuário digitou
+  const seededTypeRef = useRef<DocumentTemplateType | null>(null)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const draftKey = (type: DocumentTemplateType) => `doc-draft:${patient.id}:${type}`
 
   useEffect(() => {
+    // TabDocumentos só renderiza dentro do app autenticado (clinic sempre presente).
     if (!clinic?.id) return
     supabase
       .from('clinic_document_templates')
       .select('*')
       .eq('clinic_id', clinic.id)
-      .then(({ data }) => setTemplates((data ?? []) as ClinicDocumentTemplate[]))
+      .then(({ data }) => {
+        setTemplates((data ?? []) as ClinicDocumentTemplate[])
+        setTemplatesLoaded(true)
+      })
   }, [clinic?.id])
 
   const loadBackground = useCallback(async (type: DocumentTemplateType) => {
@@ -71,12 +81,12 @@ export function TabDocumentos({ patient }: Props) {
     loadBackground(selectedType)
   }, [selectedType, loadBackground])
 
-  // Auto-preenche o editor com conteúdo inicial ao trocar de tipo
-  useEffect(() => {
+  // Preenche o editor com o template padrão do tipo (sobrescreve o conteúdo atual)
+  const seedEditor = useCallback((type: DocumentTemplateType) => {
     if (!editorRef.current) return
-    const docInfo = DOC_TYPES.find(d => d.type === selectedType)!
+    const docInfo = DOC_TYPES.find(d => d.type === type)!
     const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
-    const tpl = templates.find(t => t.type === selectedType)
+    const tpl = templates.find(t => t.type === type)
 
     if (tpl) {
       // Com modelo PDF: conteúdo mínimo por cima do fundo
@@ -85,19 +95,53 @@ export function TabDocumentos({ patient }: Props) {
       // Sem modelo: template HTML padrão do sistema
       editorRef.current.innerHTML = buildDefaultTemplate(docInfo.title, patient.name, hoje, clinic?.name ?? '', user?.displayName ?? '', clinic?.logo)
     }
+  }, [templates, patient.name, clinic?.name, clinic?.logo, user?.displayName])
+
+  // Ao trocar de tipo (ou na 1ª carga): restaura rascunho salvo ou semeia o template.
+  // Só roda quando o TIPO muda — nunca em reloads de `templates` — para não apagar a edição.
+  useEffect(() => {
+    if (!templatesLoaded || !editorRef.current) return
+    if (seededTypeRef.current === selectedType) return
+    seededTypeRef.current = selectedType
+
+    let draft: string | null = null
+    try { draft = localStorage.getItem(draftKey(selectedType)) } catch { /* ignore */ }
+    if (draft) {
+      editorRef.current.innerHTML = draft
+    } else {
+      seedEditor(selectedType)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedType, templates])
+  }, [selectedType, templatesLoaded])
+
+  // Autosave do conteúdo (debounce) — protege contra "saiu e perdeu"
+  function handleInput() {
+    if (!editorRef.current) return
+    const html = editorRef.current.innerHTML
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      try { localStorage.setItem(draftKey(selectedType), html) } catch { /* ignore */ }
+    }, 500)
+  }
+
+  // Limpa o rascunho e recomeça do template padrão
+  function handleClear() {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    try { localStorage.removeItem(draftKey(selectedType)) } catch { /* ignore */ }
+    seedEditor(selectedType)
+  }
 
   function execCmd(cmd: string, value?: string) {
     document.execCommand(cmd, false, value)
     editorRef.current?.focus()
+    handleInput()
   }
 
   function handlePrint() {
-    window.print()
+    if (!editorRef.current) return
+    printDocumento(editorRef.current.innerHTML, bgImage)
   }
 
-  const currentDoc = DOC_TYPES.find(d => d.type === selectedType)!
   const hasPdf = templates.some(t => t.type === selectedType)
 
   return (
@@ -128,11 +172,12 @@ export function TabDocumentos({ patient }: Props) {
           <option value="4">Grande</option>
         </select>
         <div className={styles.toolSep} />
+        <button className={styles.toolBtn} onClick={handleClear} title="Limpar e recomeçar do modelo">Limpar</button>
         <button className={styles.btnPrint} onClick={handlePrint}>Imprimir</button>
       </div>
 
-      {/* Área de edição / impressão */}
-      <div className={styles.editorWrap} ref={printAreaRef} id="docPrintArea">
+      {/* Área de edição */}
+      <div className={styles.editorWrap}>
         {loadingBg && <div className={styles.bgLoading}>Carregando modelo...</div>}
         <div
           className={styles.editor}
@@ -141,6 +186,7 @@ export function TabDocumentos({ patient }: Props) {
           contentEditable
           suppressContentEditableWarning
           spellCheck
+          onInput={handleInput}
         />
         {!hasPdf && (
           <p className={styles.noTemplateHint}>

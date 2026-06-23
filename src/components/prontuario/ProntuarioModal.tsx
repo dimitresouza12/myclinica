@@ -131,7 +131,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'ficha', label: 'Ficha Clínica' },
     ...(clinic.type === 'odonto'   ? [{ key: 'odontograma' as Tab,  label: 'Odontograma' }] : []),
-    { key: 'faceograma' as Tab, label: 'Faceograma' },
+    ...(clinic.type === 'estetica' ? [{ key: 'faceograma'  as Tab,  label: 'Faceograma'  }] : []),
     { key: 'timeline',   label: 'Evolução'    },
     { key: 'documentos', label: 'Documentos'  },
     { key: 'chat',       label: 'Chat IA'     },
@@ -173,14 +173,18 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <button
-              className={styles.btnPrint}
-              onClick={() => printProntuario({ name: clinicName, logo: clinic.logo, address: clinic.address, phone: clinic.phone }, patient, record, entries)}
-              title={entriesLoading ? 'Carregando dados...' : 'Imprimir / Salvar PDF'}
-              disabled={entriesLoading}
-            >
-              {entriesLoading ? 'Carregando...' : 'Imprimir'}
-            </button>
+            {/* A aba Documentos tem seu próprio botão de impressão (imprime só o documento).
+                Ocultamos o do cabeçalho ali para não imprimir o prontuário inteiro por engano. */}
+            {tab !== 'documentos' && (
+              <button
+                className={styles.btnPrint}
+                onClick={() => printProntuario({ name: clinicName, logo: clinic.logo, address: clinic.address, phone: clinic.phone }, patient, record, entries)}
+                title={entriesLoading ? 'Carregando dados...' : 'Imprimir / Salvar PDF'}
+                disabled={entriesLoading}
+              >
+                {entriesLoading ? 'Carregando...' : 'Imprimir'}
+              </button>
+            )}
             <button className={styles.btnClose} onClick={tryClose}>✕</button>
           </div>
         </div>

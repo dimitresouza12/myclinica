@@ -123,6 +123,29 @@ export function printContrato(clinic: ClinicInfo, patient: Patient, contractText
   openPrint(html)
 }
 
+export function printDocumento(contentHtml: string, bgImage: string | null) {
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Documento</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      @page { size: A4; margin: 0; }
+      html, body { width: 210mm; }
+      body {
+        font-family: Arial, sans-serif;
+        font-size: 13px;
+        line-height: 1.7;
+        color: #111;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        ${bgImage ? `background-image: url('${bgImage}'); background-size: 100% auto; background-repeat: no-repeat; background-position: top center;` : ''}
+      }
+      .page { padding: 32px 48px; min-height: 297mm; }
+      p { margin: 0 0 4px; }
+      ul { padding-left: 20px; }
+    </style></head><body><div class="page">${contentHtml}</div></body></html>`
+
+  openPrint(html)
+}
+
 function openPrint(html: string) {
   const w = window.open('', '_blank', 'width=900,height=700')
   if (!w) return

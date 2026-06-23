@@ -27,7 +27,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // Sem maximumScale: permite pinch-zoom (acessibilidade) e deixa o usuário
+  // ampliar conteúdo eventualmente cortado em telas pequenas.
   viewportFit: 'cover',
   themeColor: '#0D9488',
 }
