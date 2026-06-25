@@ -1,12 +1,14 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { StockItem, StockMovement } from '@/types'
 import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
+import { useEstoqueData } from '@/hooks/useClinicData'
 import styles from './estoque.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
@@ -23,10 +25,11 @@ type ModalMode = 'item' | 'entrada' | 'saida' | null
 
 function EstoqueContent() {
   const { clinic, user } = useAuthStore()
+  const queryClient = useQueryClient()
+  const { data: estoqueData, isLoading: loading } = useEstoqueData(clinic?.id)
+  const items = estoqueData?.items ?? []
+  const movements = estoqueData?.movements ?? []
   const [tab, setTab] = useState<Tab>('produtos')
-  const [items, setItems] = useState<StockItem[]>([])
-  const [movements, setMovements] = useState<StockMovement[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
   const [filterLow, setFilterLow] = useState(false)
@@ -42,24 +45,8 @@ function EstoqueContent() {
 
   useScrollLock(modal !== null)
 
-  useEffect(() => {
-    if (!clinic?.id) return
-    setItems([])
-    setMovements([])
-    setLoading(true)
-    loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clinic?.id])
-
-  async function loadData() {
-    if (!clinic) return
-    const [itemsRes, movRes] = await Promise.all([
-      supabase.from('stock_items').select('*').eq('clinic_id', clinic.id).eq('is_active', true).order('name'),
-      supabase.from('stock_movements').select('*, stock_items(id, name, unit)').eq('clinic_id', clinic.id).order('created_at', { ascending: false }).limit(200),
-    ])
-    setItems((itemsRes.data ?? []) as StockItem[])
-    setMovements((movRes.data ?? []) as StockMovement[])
-    setLoading(false)
+  function loadData() {
+    queryClient.invalidateQueries({ queryKey: ['estoque', clinic?.id] })
   }
 
   const stats = useMemo(() => {

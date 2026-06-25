@@ -1,12 +1,12 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
-import { useProfessionals, useProcedures } from '@/hooks/useClinicData'
+import { useProfessionals, useProcedures, useRelatoriosRawData } from '@/hooks/useClinicData'
 import styles from './relatorios.module.css'
 
 const { FinanceiroBarChart, PacientesBarChart } = {
@@ -28,53 +28,24 @@ function RelatoriosContent() {
   const [tab, setTab]           = useState<ReportTab>('financeiro')
   const [period, setPeriod]     = useState('6m')
   const [month, setMonth]       = useState(() => new Date().toISOString().slice(0, 7))
-  const [loading, setLoading]   = useState(true)
   const [showExportModal, setShowExportModal] = useState(false)
   const [exportPeriodChoice, setExportPeriodChoice] = useState<'3m'|'6m'|'12m'>('6m')
   const [exporting, setExporting] = useState(false)
 
-  // Financeiro
-  const [monthly, setMonthly]   = useState<MonthlyFin[]>([])
-  const [finTotals, setFinTotals] = useState({ receita: 0, despesa: 0, lucro: 0, ticketMedio: 0 })
+  const { data: rawData, isLoading: loading } = useRelatoriosRawData(clinic?.id, period)
 
-  // Clínico
-  const [procRank, setProcRank]         = useState<ProcRank[]>([])
-  const [clinicStats, setClinicStats]   = useState({ returnRate: 0, cancelRate: 0, convRate: 0, totalAppts: 0 })
-
-  // Pacientes
-  const [patStats, setPatStats] = useState({ total: 0, newMonth: 0, withConsent: 0 })
-  const [newByMonth, setNewByMonth] = useState<{ month: string; count: number }[]>([])
-
-  // Procedimentos
-  const [procRevenue, setProcRevenue] = useState<ProcRevenue[]>([])
-
-  // Equipe
-  const [profRows, setProfRows] = useState<ProfRow[]>([])
-
-  const load = useCallback(async () => {
-    if (!clinic?.id) return
-    setLoading(true)
-
-    const now = new Date()
-    const months = period === '3m' ? 3 : period === '6m' ? 6 : 12
-    const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1).toISOString()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const ninetyAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
-
-    const [finRes, apptRes, patRes] = await Promise.all([
-      supabase.from('financial_records').select('total_amount,type,created_at,procedure_id').eq('clinic_id', clinic.id).gte('created_at', startDate),
-      supabase.from('appointments').select('status,procedure_name,professional_id,scheduled_at,patients(name)').eq('clinic_id', clinic.id).gte('scheduled_at', startDate),
-      supabase.from('patients').select('id,created_at,lgpd_consent').eq('clinic_id', clinic.id).eq('is_active', true),
-    ])
-
-    const fins = finRes.data ?? []
-    const appts = apptRes.data ?? []
-    const pats = patRes.data ?? []
+  const computed = useMemo(() => {
+    const fins = rawData?.fins ?? []
+    const appts = rawData?.appts ?? []
+    const pats = rawData?.pats ?? []
     const profs = cachedProfessionals.filter(p => p.is_active)
     const procNameMap: Record<string, string> = {}
     for (const p of cachedProcedures) procNameMap[p.id] = p.name
 
-    // ── Financeiro ─────────────────────────────────────────────
+    const now = new Date()
+    const months = period === '3m' ? 3 : period === '6m' ? 6 : 12
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
     const monthMap: Record<string, MonthlyFin> = {}
     for (let i = months - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
@@ -83,19 +54,18 @@ function RelatoriosContent() {
       monthMap[key] = { month: label, receita: 0, despesa: 0, lucro: 0 }
     }
     for (const r of fins) {
-      const key = r.created_at!.slice(0, 7)
+      const key = (r.created_at as string).slice(0, 7)
       if (!monthMap[key]) continue
       if (r.type === 'receita') monthMap[key].receita += Number(r.total_amount)
       else monthMap[key].despesa += Number(r.total_amount)
     }
-    const monthlyData = Object.values(monthMap).map(m => ({ ...m, lucro: m.receita - m.despesa }))
-    setMonthly(monthlyData)
+    const monthly = Object.values(monthMap).map(m => ({ ...m, lucro: m.receita - m.despesa }))
 
     const totalRec = fins.filter(r => r.type === 'receita').reduce((s, r) => s + Number(r.total_amount), 0)
     const totalDesp = fins.filter(r => r.type === 'despesa').reduce((s, r) => s + Number(r.total_amount), 0)
-    const concluded = appts.filter(a => a.status === 'concluido')
+    const concluded = appts.filter((a: { status: string }) => a.status === 'concluido')
     const ticketMedio = concluded.length > 0 ? totalRec / concluded.length : 0
-    setFinTotals({ receita: totalRec, despesa: totalDesp, lucro: totalRec - totalDesp, ticketMedio })
+    const finTotals = { receita: totalRec, despesa: totalDesp, lucro: totalRec - totalDesp, ticketMedio }
 
     const procRevMap: Record<string, ProcRevenue> = {}
     for (const r of fins) {
@@ -105,30 +75,28 @@ function RelatoriosContent() {
       procRevMap[pid].count++
       procRevMap[pid].revenue += Number(r.total_amount)
     }
-    setProcRevenue(Object.values(procRevMap).sort((a, b) => b.revenue - a.revenue))
+    const procRevenue = Object.values(procRevMap).sort((a, b) => b.revenue - a.revenue)
 
-    // ── Clínico ─────────────────────────────────────────────────
     const procMap: Record<string, number> = {}
     for (const a of concluded) {
-      const name = a.procedure_name || 'Não informado'
+      const name = (a as { procedure_name?: string }).procedure_name || 'Não informado'
       procMap[name] = (procMap[name] ?? 0) + 1
     }
-    setProcRank(Object.entries(procMap).sort(([, a], [, b]) => b - a).slice(0, 8).map(([name, count]) => ({ name, count })))
+    const procRank = Object.entries(procMap).sort(([, a], [, b]) => b - a).slice(0, 8).map(([name, count]) => ({ name, count }))
 
     const total = appts.length
-    const canceled = appts.filter(a => a.status === 'cancelado' || a.status === 'faltou').length
-    const returnPatients = new Set(appts.filter(a => a.status === 'concluido').map(a => (a as { patients?: { name: string } | { name: string }[] }).patients)).size
-    setClinicStats({
+    const canceled = appts.filter((a: { status: string }) => a.status === 'cancelado' || a.status === 'faltou').length
+    const returnPatients = new Set(appts.filter((a: { status: string }) => a.status === 'concluido').map((a: { patients?: unknown }) => a.patients)).size
+    const clinicStats = {
       totalAppts: total,
       cancelRate: total > 0 ? Math.round((canceled / total) * 100) : 0,
       convRate: total > 0 ? Math.round((concluded.length / total) * 100) : 0,
       returnRate: pats.length > 0 ? Math.round((returnPatients / pats.length) * 100) : 0,
-    })
+    }
 
-    // ── Pacientes ────────────────────────────────────────────────
-    const newMonth = pats.filter(p => p.created_at >= startOfMonth).length
-    const withConsent = pats.filter(p => p.lgpd_consent).length
-    setPatStats({ total: pats.length, newMonth, withConsent })
+    const newMonth = pats.filter((p: { created_at: string }) => p.created_at >= startOfMonth).length
+    const withConsent = pats.filter((p: { lgpd_consent: boolean }) => p.lgpd_consent).length
+    const patStats = { total: pats.length, newMonth, withConsent }
 
     const newMap: Record<string, number> = {}
     for (let i = months - 1; i >= 0; i--) {
@@ -137,22 +105,19 @@ function RelatoriosContent() {
       newMap[key] = 0
     }
     for (const p of pats) {
-      const key = p.created_at!.slice(0, 7)
+      const key = (p.created_at as string).slice(0, 7)
       if (key in newMap) newMap[key]++
     }
-    setNewByMonth(Object.entries(newMap).map(([key, count]) => ({
+    const newByMonth = Object.entries(newMap).map(([key, count]) => ({
       month: new Date(key + '-01').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/'),
       count,
-    })))
+    }))
 
-    // ── Equipe ───────────────────────────────────────────────────
-    const rows: ProfRow[] = profs.map(prof => {
+    const profRows: ProfRow[] = profs.map(prof => {
       const mine = appts.filter((a: { professional_id?: string }) => a.professional_id === prof.id)
-      const myConc = mine.filter(a => a.status === 'concluido').length
-      const myCanceled = mine.filter(a => a.status === 'cancelado' || a.status === 'faltou').length
-      const myRev = fins
-        .filter(f => f.type === 'receita')
-        .reduce((s, f) => s + Number(f.total_amount), 0)
+      const myConc = mine.filter((a: { status: string }) => a.status === 'concluido').length
+      const myCanceled = mine.filter((a: { status: string }) => a.status === 'cancelado' || a.status === 'faltou').length
+      const myRev = fins.filter((f: { type: string }) => f.type === 'receita').reduce((s: number, f: { total_amount: number }) => s + Number(f.total_amount), 0)
       return {
         name: prof.name,
         concluded: myConc,
@@ -160,12 +125,11 @@ function RelatoriosContent() {
         cancelRate: mine.length > 0 ? Math.round((myCanceled / mine.length) * 100) : 0,
       }
     }).sort((a, b) => b.concluded - a.concluded)
-    setProfRows(rows)
 
-    setLoading(false)
-  }, [clinic?.id, period, cachedProfessionals, cachedProcedures])
+    return { monthly, finTotals, procRevenue, procRank, clinicStats, patStats, newByMonth, profRows }
+  }, [rawData, period, cachedProfessionals, cachedProcedures])
 
-  useEffect(() => { load() }, [load])
+  const { monthly, finTotals, procRevenue, procRank, clinicStats, patStats, newByMonth, profRows } = computed
 
   async function exportXLSX() {
     if (!clinic?.id) return

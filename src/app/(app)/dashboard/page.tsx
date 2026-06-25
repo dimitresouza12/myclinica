@@ -1,13 +1,12 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency, formatCurrencyCompact, formatDate } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsApp } from '@/lib/planGates'
 import { Icon } from '@/components/ui/Icon'
-import type { Appointment, FinancialRecord } from '@/types'
+import { useDashboardData } from '@/hooks/useClinicData'
 import type { ComponentProps } from 'react'
 import styles from './dashboard.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -29,76 +28,19 @@ interface Stats {
 
 function DashboardContent() {
   const { clinic, user } = useAuthStore()
-  const [stats, setStats] = useState<Stats>({ totalPatients: 0, appointmentsToday: 0, monthRevenue: 0, monthExpense: 0, pendingAppointments: 0, newPatientsMonth: 0 })
-  const [recentAppts, setRecentAppts] = useState<Appointment[]>([])
-  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
-  const [loading, setLoading] = useState(true)
   const [hideValues, setHideValues] = useState(false)
 
+  const { data, isLoading: loading } = useDashboardData(clinic?.id)
+
+  // Fire-and-forget in background — does not block dashboard queries
   useEffect(() => {
-    if (!clinic?.id) return
-    // Reset estado ao trocar de clínica
-    setStats({ totalPatients: 0, appointmentsToday: 0, monthRevenue: 0, monthExpense: 0, pendingAppointments: 0, newPatientsMonth: 0 })
-    setRecentAppts([])
-    setLoading(true)
-    loadDashboard()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (clinic && hasWhatsApp(clinic.plan)) syncLeadAppointments(clinic.id, clinic.slug)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinic?.id])
 
-  async function loadDashboard() {
-    if (!clinic) return
-    if (hasWhatsApp(clinic.plan)) {
-      await syncLeadAppointments(clinic.id, clinic.slug)
-    }
-    const today = new Date()
-    const now = new Date().toISOString()
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0).toISOString()
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString()
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
-    const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString()
-
-    const [patientsRes, todayApptRes, pendingRes, allFinRes, newPatientsRes, recentRes] = await Promise.all([
-      supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinic.id).eq('is_active', true),
-      supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('clinic_id', clinic.id).gte('scheduled_at', startOfDay).lte('scheduled_at', endOfDay),
-      supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('clinic_id', clinic.id).eq('status', 'agendado'),
-      supabase.from('financial_records').select('total_amount, type, created_at').eq('clinic_id', clinic.id).gte('created_at', sixMonthsAgo),
-      supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinic.id).eq('is_active', true).gte('created_at', startOfMonth),
-      supabase.from('appointments').select('*, patients(name, phone)').eq('clinic_id', clinic.id).gte('scheduled_at', now).order('scheduled_at', { ascending: true }).limit(8),
-    ])
-
-    const allFin = (allFinRes.data ?? []) as Pick<FinancialRecord, 'total_amount' | 'type' | 'created_at'>[]
-
-    // Build last 6 months data
-    const monthMap: Record<string, MonthlyData> = {}
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const label = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
-      monthMap[key] = { month: label, receita: 0, despesa: 0 }
-    }
-    allFin.forEach((r) => {
-      const key = r.created_at!.slice(0, 7)
-      if (!monthMap[key]) return
-      if (r.type === 'receita') monthMap[key].receita += r.total_amount ?? 0
-      else monthMap[key].despesa += r.total_amount ?? 0
-    })
-    setMonthlyData(Object.values(monthMap))
-
-    const currentMonthFin = allFin.filter(r => r.created_at!.slice(0, 7) === startOfMonth.slice(0, 7))
-    const monthRevenue = currentMonthFin.filter(r => r.type === 'receita').reduce((s, r) => s + (r.total_amount ?? 0), 0)
-    const monthExpense = currentMonthFin.filter(r => r.type === 'despesa').reduce((s, r) => s + (r.total_amount ?? 0), 0)
-
-    setStats({
-      totalPatients: patientsRes.count ?? 0,
-      appointmentsToday: todayApptRes.count ?? 0,
-      pendingAppointments: pendingRes.count ?? 0,
-      newPatientsMonth: newPatientsRes.count ?? 0,
-      monthRevenue,
-      monthExpense,
-    })
-    setRecentAppts((recentRes.data ?? []) as Appointment[])
-    setLoading(false)
-  }
+  const stats = data?.stats ?? { totalPatients: 0, appointmentsToday: 0, monthRevenue: 0, monthExpense: 0, pendingAppointments: 0, newPatientsMonth: 0 }
+  const recentAppts = data?.recentAppts ?? []
+  const monthlyData = data?.monthlyData ?? []
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'

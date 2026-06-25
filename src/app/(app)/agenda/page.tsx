@@ -9,7 +9,8 @@ import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsApp } from '@/lib/planGates'
-import { useProfessionals, useProcedures } from '@/hooks/useClinicData'
+import { useProfessionals, useProcedures, useAgendaData } from '@/hooks/useClinicData'
+import { useQueryClient } from '@tanstack/react-query'
 import type { Appointment, Patient, Professional, Procedure } from '@/types'
 import { type CalendarEvent } from '@/components/agenda/FullCalendarWrapper'
 import { DiaGeralView } from '@/components/agenda/DiaGeralView'
@@ -266,11 +267,12 @@ function ApptDetailContent({
 // ── Main component ─────────────────────────────────────────────
 function AgendaContent() {
   const { clinic, user, setSession } = useAuthStore()
+  const queryClient = useQueryClient()
+  const { data: agendaData, isLoading: loading } = useAgendaData(clinic?.id)
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const { data: professionals = [] } = useProfessionals(clinic?.id)
   const { data: procedures = [] } = useProcedures(clinic?.id)
-  const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('calendar')
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -305,40 +307,17 @@ function AgendaContent() {
 
   useScrollLock(showModal || !!selectedGcal || (isMobile && !!selected))
 
-  const loadData = useCallback(async () => {
-    if (!clinic?.id) return
-    const clinicId = clinic.id
-    try {
-      if (hasWhatsApp(clinic.plan)) {
-        await syncLeadAppointments(clinicId, clinic.slug)
-      }
-      const threeMonthsAgo = new Date()
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
-      const [apptRes, patRes] = await Promise.all([
-        supabase
-          .from('appointments')
-          .select('*, patients(id, name, phone), professionals(id, name)')
-          .eq('clinic_id', clinicId)
-          .gte('scheduled_at', threeMonthsAgo.toISOString())
-          .order('scheduled_at', { ascending: true }),
-        supabase.from('patients').select('id, name, phone').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
-      ])
-      if (clinic?.id !== clinicId) return
-      setAppointments((apptRes.data ?? []) as Appointment[])
-      setPatients((patRes.data ?? []) as Patient[])
-    } catch { /* rede silenciado */ }
-    finally { setLoading(false) }
-  }, [clinic])
-
+  // Sync hook cache → local state (enables optimistic mutations while keeping cache benefit)
   useEffect(() => {
-    if (!clinic?.id) return
-    setAppointments([])
-    setPatients([])
-    setGcalEvents([])
-    setLoading(true)
-    loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clinic?.id])
+    if (agendaData) {
+      setAppointments(agendaData.appointments)
+      setPatients(agendaData.patients)
+    }
+  }, [agendaData])
+
+  function loadData() {
+    queryClient.invalidateQueries({ queryKey: ['agenda', clinic?.id] })
+  }
 
   useEffect(() => {
     const connected = isGCalConnected(clinic?.gcalConnected)

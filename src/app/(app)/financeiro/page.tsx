@@ -1,11 +1,13 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatCurrency, formatCurrencyCompact } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
+import { useFinanceiroData } from '@/hooks/useClinicData'
 import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -30,12 +32,13 @@ const BLANK: NewRecord = { type: 'receita', patient_id: '', total_amount: '', pa
 
 function FinanceiroContent() {
   const { clinic } = useAuthStore()
+  const queryClient = useQueryClient()
   const { isAdmin, canEdit, metadata } = usePermissions('financeiro')
   // Admin sempre vê totais; outros usuários dependem da permissão configurada (padrão: true)
   const showTotals = isAdmin || (metadata.show_totals !== false)
-  const [records, setRecords] = useState<FinancialRecord[]>([])
-  const [patients, setPatients] = useState<Patient[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: finData, isLoading: loading } = useFinanceiroData(clinic?.id)
+  const records = finData?.records ?? []
+  const patients = finData?.patients ?? []
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState<'receita' | 'despesa'>('receita')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -52,26 +55,8 @@ function FinanceiroContent() {
   const [exportStartMonth, setExportStartMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [exportEndMonth, setExportEndMonth] = useState(() => new Date().toISOString().slice(0, 7))
 
-  useEffect(() => {
-    if (!clinic?.id) return
-    // Reset estado ao trocar de clínica
-    setRecords([])
-    setPatients([])
-    setLoading(true)
-    loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clinic?.id])
-
-  async function loadData() {
-    if (!clinic) return
-    const [recRes, patRes] = await Promise.all([
-      supabase.from('financial_records').select('*, patients(id, name)')
-        .eq('clinic_id', clinic.id).order('created_at', { ascending: false }),
-      supabase.from('patients').select('id, name').eq('clinic_id', clinic.id).eq('is_active', true).order('name'),
-    ])
-    setRecords((recRes.data ?? []) as FinancialRecord[])
-    setPatients((patRes.data ?? []) as Patient[])
-    setLoading(false)
+  function loadData() {
+    queryClient.invalidateQueries({ queryKey: ['financeiro', clinic?.id] })
   }
 
   const periodRecords = useMemo(() => {

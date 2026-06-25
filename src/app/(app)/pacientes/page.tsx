@@ -2,11 +2,12 @@
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatPhone, getStatusClass } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsApp } from '@/lib/planGates'
-import { useProfessionals } from '@/hooks/useClinicData'
+import { useProfessionals, usePacientesData } from '@/hooks/useClinicData'
 import { getGCalToken, isGCalConnected, createGCalEvent } from '@/lib/googleCalendar'
 import type { Patient, Appointment, Professional } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
@@ -24,14 +25,16 @@ const BLANK_APPT = { patient_id: '', professional_id: '', procedure_name: '', sc
 function PacientesContent() {
   const { clinic } = useAuthStore()
   const searchParams = useSearchParams()
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState<ActiveTab>('atendimentos')
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [patients, setPatients] = useState<Patient[]>([])
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
-  const [loading, setLoading] = useState(true)
 
   const { data: professionals = [] } = useProfessionals(clinic?.id)
+  const { data: pacientesData, isLoading: loading } = usePacientesData(clinic?.id)
+  const appointments = pacientesData?.appointments ?? []
+  const patients = pacientesData?.patients ?? []
+
   const [prontuarioPatient, setProntuarioPatient] = useState<Patient | null>(null)
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
@@ -45,40 +48,22 @@ function PacientesContent() {
 
   useScrollLock(!!prontuarioPatient || !!editPatient || showNewPatient || showNewAppt)
 
+  // Fire-and-forget sync in background
   useEffect(() => {
-    if (!clinic?.id) return
-    // Reset estado ao trocar de clínica para evitar exibir dados da clínica anterior
-    setAppointments([])
-    setPatients([])
-    setLoading(true)
-    loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (clinic && hasWhatsApp(clinic.plan)) syncLeadAppointments(clinic.id, clinic.slug)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinic?.id])
 
-  async function loadData() {
-    if (!clinic) return
-    // Sincroniza leads do WhatsApp/n8n apenas no plano Plus
-    if (hasWhatsApp(clinic.plan)) {
-      await syncLeadAppointments(clinic.id, clinic.slug)
-    }
-    const [apptRes, patRes] = await Promise.all([
-      supabase.from('appointments').select('*, patients(id, name, phone)').eq('clinic_id', clinic.id).order('scheduled_at', { ascending: false }),
-      supabase.from('patients').select('*').eq('clinic_id', clinic.id).eq('is_active', true).order('name'),
-    ])
-    setAppointments((apptRes.data ?? []) as Appointment[])
-    const pats = (patRes.data ?? []) as Patient[]
-    setPatients(pats)
-    setLoading(false)
-
-    // Open prontuário directly if ?patient=<id> is in URL
+  // Open prontuário directly if ?patient=<id> is in URL
+  useEffect(() => {
     const targetId = searchParams.get('patient')
-    if (targetId) {
-      const target = pats.find(p => p.id === targetId)
-      if (target) {
-        setTab('pacientes')
-        setProntuarioPatient(target)
-      }
-    }
+    if (!targetId || !patients.length) return
+    const target = patients.find(p => p.id === targetId)
+    if (target) { setTab('pacientes'); setProntuarioPatient(target) }
+  }, [patients, searchParams])
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ['pacientes', clinic?.id] })
   }
 
   const filteredAppointments = useMemo(() => {
@@ -105,7 +90,7 @@ function PacientesContent() {
   function handleSaved() {
     setEditPatient(null)
     setShowNewPatient(false)
-    loadData()
+    invalidate()
   }
 
   async function handleSaveAppt() {
@@ -147,7 +132,7 @@ function PacientesContent() {
     setShowNewAppt(false)
     setApptForm(BLANK_APPT)
     setSyncToGCal(false)
-    loadData()
+    invalidate()
   }
 
   return (
