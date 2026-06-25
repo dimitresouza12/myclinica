@@ -130,8 +130,8 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'ficha', label: 'Ficha Clínica' },
-    ...(clinic.type === 'odonto'   ? [{ key: 'odontograma' as Tab,  label: 'Odontograma' }] : []),
-    ...(clinic.type === 'estetica' ? [{ key: 'faceograma'  as Tab,  label: 'Faceograma'  }] : []),
+    ...(['odonto', 'estetica'].includes(clinic.type)                ? [{ key: 'odontograma' as Tab, label: 'Odontograma' }] : []),
+    ...(['estetica', 'odonto'].includes(clinic.type)                ? [{ key: 'faceograma'  as Tab, label: 'Faceograma'  }] : []),
     { key: 'timeline',   label: 'Evolução'    },
     { key: 'documentos', label: 'Documentos'  },
     { key: 'chat',       label: 'Chat IA'     },
@@ -202,68 +202,67 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
         </div>
 
         <div className={styles.body}>
-          {loading ? (
-            <p className={styles.loading}>Carregando prontuário...</p>
-          ) : (
-            <>
-              {/* Ficha: always mounted (default tab) */}
-              <div style={{ display: tab === 'ficha' ? undefined : 'none' }}>
-                <TabFicha
-                  patient={patient}
-                  record={record}
-                  entries={entries}
-                  clinic={clinic}
-                  clinicId={clinicId}
-                  clinicName={clinicName}
-                  onSaved={loadRecord}
-                />
-              </div>
-
-              {/* Heavy tabs: lazy-mount on first visit, then keep mounted */}
-              {clinic.type === 'odonto' && visited.has('odontograma') && (
-                <div style={{ display: tab === 'odontograma' ? undefined : 'none' }}>
-                  <TabOdontograma
-                    record={record}
-                    patient={patient}
-                    clinicId={clinicId}
-                    onSaved={loadRecord}
-                  />
-                </div>
-              )}
-              {visited.has('faceograma') && (
-                <div style={{ display: tab === 'faceograma' ? undefined : 'none' }}>
-                  <TabFaceograma
-                    record={record}
-                    patient={patient}
-                    clinicId={clinicId}
-                    onSaved={loadRecord}
-                  />
-                </div>
-              )}
-              {visited.has('timeline') && (
-                <div style={{ display: tab === 'timeline' ? undefined : 'none' }}>
-                  <TabTimeline
+          <>
+            {/* Ficha: always mounted (default tab) */}
+            <div style={{ display: tab === 'ficha' ? undefined : 'none' }}>
+              {loading
+                ? <p className={styles.loading}>Carregando prontuário...</p>
+                : <TabFicha
                     patient={patient}
                     record={record}
                     entries={entries}
+                    clinic={clinic}
                     clinicId={clinicId}
+                    clinicName={clinicName}
                     onSaved={loadRecord}
-                    onPendingChange={setTimelinePending}
                   />
-                </div>
-              )}
-              {visited.has('documentos') && (
-                <div style={{ display: tab === 'documentos' ? undefined : 'none' }}>
-                  <TabDocumentos patient={patient} />
-                </div>
-              )}
-              {visited.has('chat') && (
-                <div style={{ display: tab === 'chat' ? undefined : 'none' }}>
-                  <TabChatIA phone={patient.phone} />
-                </div>
-              )}
-            </>
-          )}
+              }
+            </div>
+
+            {/* Heavy tabs: lazy-mount on first visit, then keep mounted */}
+            {['odonto', 'estetica'].includes(clinic.type) && visited.has('odontograma') && (
+              <div style={{ display: tab === 'odontograma' ? undefined : 'none' }}>
+                <TabOdontograma
+                  record={record}
+                  patient={patient}
+                  clinicId={clinicId}
+                  onSaved={loadRecord}
+                />
+              </div>
+            )}
+            {visited.has('faceograma') && (
+              <div style={{ display: tab === 'faceograma' ? undefined : 'none' }}>
+                <TabFaceograma
+                  record={record}
+                  patient={patient}
+                  clinicId={clinicId}
+                  onSaved={loadRecord}
+                />
+              </div>
+            )}
+            {visited.has('timeline') && (
+              <div style={{ display: tab === 'timeline' ? undefined : 'none' }}>
+                <TabTimeline
+                  patient={patient}
+                  record={record}
+                  entries={entries}
+                  clinicId={clinicId}
+                  onSaved={loadRecord}
+                  onPendingChange={setTimelinePending}
+                />
+              </div>
+            )}
+            {visited.has('documentos') && (
+              <div style={{ display: tab === 'documentos' ? undefined : 'none' }}>
+                <TabDocumentos patient={patient} />
+              </div>
+            )}
+            {visited.has('chat') && (
+              <div style={{ display: tab === 'chat' ? undefined : 'none' }}>
+                <TabChatIA phone={patient.phone} />
+              </div>
+            )}
+          </>
         </div>
       </div>
     </div>
