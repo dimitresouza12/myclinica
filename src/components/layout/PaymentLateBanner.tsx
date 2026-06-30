@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useAuthStore } from '@/store/auth'
 import styles from './PaymentLateBanner.module.css'
 
-const WHATSAPP = 'https://wa.me/5588988557247?text=Olá!%20Quero%20mais%20tempo%20para%20testar%20o%20MyClinica.'
+const WHATSAPP = 'https://wa.me/55889200205070?text=Olá!%20Quero%20mais%20tempo%20para%20testar%20o%20MyClinica.'
 
 const PLANS = [
   { value: 'essencial', label: 'Essencial',  price: 'R$99/mês',      desc: 'Agenda, prontuário e financeiro básico' },

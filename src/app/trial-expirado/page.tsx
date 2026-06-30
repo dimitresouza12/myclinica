@@ -84,7 +84,7 @@ export default function TrialExpiradoPage() {
 
         {user?.isSuperAdmin === false && (
           <a
-            href="https://wa.me/5588988557247?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20pagamento%20do%20MyClinica."
+            href="https://wa.me/55889200205070?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20pagamento%20do%20MyClinica."
             target="_blank"
             rel="noopener noreferrer"
             className={styles.linkBack}

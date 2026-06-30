@@ -606,7 +606,7 @@ function LoginContent() {
               </p>
             </div>
             <a
-              href="https://wa.me/5588988557247?text=Olá!%20Gostaria%20de%20efetivar%20minha%20vantagem%20de%20indicação."
+              href="https://wa.me/55889200205070?text=Olá!%20Gostaria%20de%20efetivar%20minha%20vantagem%20de%20indicação."
               target="_blank"
               rel="noopener noreferrer"
               className={styles.promoIndicaBtn}
@@ -799,7 +799,7 @@ function LoginContent() {
             </p>
           </div>
           <a
-            href="https://wa.me/5588988557247?text=Olá!%20Gostaria%20de%20efetivar%20minha%20vantagem%20de%20indicação."
+            href="https://wa.me/55889200205070?text=Olá!%20Gostaria%20de%20efetivar%20minha%20vantagem%20de%20indicação."
             target="_blank"
             rel="noopener noreferrer"
             className={styles.promoIndicaBtn}
