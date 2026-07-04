@@ -1,5 +1,19 @@
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { getAdminClient } from '@/lib/supabaseAdmin'
+
+// Token configurado no painel Asaas (Webhooks → Token de autenticação) e
+// enviado de volta no header `asaas-access-token` em toda chamada.
+function isValidAsaasToken(req: Request): boolean {
+  const expected = process.env.ASAAS_WEBHOOK_TOKEN
+  if (!expected) return false
+
+  const received = req.headers.get('asaas-access-token') ?? ''
+  const a = Buffer.from(received)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
+}
 
 async function findClinicId(payment: Record<string, string | null>): Promise<string | null> {
   // 1. externalReference direto no pagamento (clinicId)
@@ -19,6 +33,11 @@ async function findClinicId(payment: Record<string, string | null>): Promise<str
 }
 
 export async function POST(req: Request) {
+  if (!isValidAsaasToken(req)) {
+    console.warn('[asaas/webhook] Token de autenticação inválido ou ausente')
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = await req.json()
     const { event, payment } = body

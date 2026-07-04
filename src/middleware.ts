@@ -79,7 +79,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/trial-expirado') ||
-    pathname.startsWith('/financial-demo')
+    pathname.startsWith('/financial-demo') ||
+    // Chamada server-to-server do Asaas — sem cookie de sessão. Autenticada
+    // por token próprio (ver isValidAsaasToken em api/asaas/webhook/route.ts).
+    pathname.startsWith('/api/asaas/webhook')
 
   if (isPublicPath) return addSecurityHeaders(supabaseResponse)
 
