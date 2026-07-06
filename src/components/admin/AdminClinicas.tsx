@@ -7,8 +7,16 @@ import { formatDate } from '@/lib/utils'
 import type { Clinic } from '@/types'
 import { StatusBadge } from './StatusBadge'
 import { ClinicEditModal } from './ClinicEditModal'
+import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './admin.module.css'
+
+function waLink(phone: string, clinicName: string): string {
+  const clean = phone.replace(/\D/g, '')
+  const number = clean.startsWith('55') ? clean : `55${clean}`
+  const msg = encodeURIComponent(`Olá! Aqui é do MyClinica, sobre o cadastro da clínica ${clinicName}. 😊`)
+  return `https://wa.me/${number}?text=${msg}`
+}
 
 interface Props {
   clinics: Clinic[]
@@ -151,13 +159,14 @@ export function AdminClinicas({ clinics, onReload }: Props) {
               <th>Trial</th>
               <th>Pacientes</th>
               <th>Mensalidade</th>
+              <th>Contato</th>
               <th>Criada</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={9} className={styles.empty}>Nenhuma clínica encontrada.</td></tr>
+              <tr><td colSpan={10} className={styles.empty}>Nenhuma clínica encontrada.</td></tr>
             ) : filtered.map((c) => (
               <tr key={c.id} className={styles.clinicRow}>
                 <td>
@@ -201,6 +210,24 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                     <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
                       vence dia {c.billing_due_day}
                     </span>
+                  )}
+                </td>
+                <td>
+                  {c.phone ? (
+                    <div className={styles.contactCell}>
+                      <span className={styles.contactPhone}>{c.phone}</span>
+                      <a
+                        href={waLink(c.phone, c.name)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.contactWa}
+                        title={`Falar com ${c.name} no WhatsApp`}
+                      >
+                        <span>📲</span> WhatsApp
+                      </a>
+                    </div>
+                  ) : (
+                    <span className={styles.contactEmpty}>—</span>
                   )}
                 </td>
                 <td className={styles.dateCell}>{formatDate(c.created_at, true)}</td>
@@ -254,6 +281,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
       )}
 
       {deleteTarget && (
+        <Portal>
         <div className={styles.overlay} onClick={() => setDeleteTarget(null)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
@@ -280,9 +308,11 @@ export function AdminClinicas({ clinics, onReload }: Props) {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {showNewModal && (
+        <Portal>
         <div className={styles.overlay} onClick={() => setShowNewModal(false)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
@@ -314,6 +344,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </>
   )

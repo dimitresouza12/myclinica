@@ -14,7 +14,7 @@
 .bold { font-weight: 600; }
 .code { font-family: monospace; font-size: 0.78rem; background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; }
 .empty { text-align: center; color: var(--text-secondary); padding: 3rem 1rem !important; }
-.btnDelete { padding: 0.3rem 0.7rem; border: 1px solid #fecaca; background: #fef2f2; color: #EF4444; border-radius: 8px; font-size: 0.78rem; cursor: pointer; transition: background .15s; }
+.btnDelete { padding: 0.3rem 0.7rem; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #fecaca; background: #fef2f2; color: #EF4444; border-radius: 8px; font-size: 0.78rem; cursor: pointer; transition: background .15s; }
 .btnDelete:hover { background: #fee2e2; }
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 1rem; overflow: hidden; overscroll-behavior: contain; touch-action: none; }
 .modal { background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 20px; width: 100%; max-width: 460px; max-height: 90vh; max-height: 90dvh; display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-xl); }

@@ -85,6 +85,7 @@
   .modalFooter { padding:1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
   .modalBody { padding:1rem; }
   .cards { grid-template-columns: repeat(2, 1fr); }
+  .btnClose { width:44px; height:44px; }
 }
 .field { display:flex; flex-direction:column; gap:.3rem; }
 .field label { font-size:.78rem; font-weight:600; color:var(--text-secondary); }
@@ -100,11 +101,11 @@
 .btnSaveDespesa:disabled { opacity:.5; cursor:not-allowed; }
 
 /* Row actions (edit/delete) */
-.rowActions { display:flex; gap:0.4rem; align-items:center; }
-.btnEdit { padding:0.3rem 0.55rem; border:1px solid var(--border-color); background:none; border-radius:8px; cursor:pointer; color:var(--text-secondary); font-size:0.9rem; line-height:1; transition:all 0.15s; }
+.rowActions { display:flex; gap:0.5rem; align-items:center; }
+.btnEdit { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--border-color); background:none; border-radius:8px; cursor:pointer; color:var(--text-secondary); font-size:0.9rem; line-height:1; transition:all 0.15s; }
 .btnEdit:hover { border-color:#4DD9C0; color:#0B9B85; background:rgba(77,217,192,0.06); }
-.btnDelete { padding:0.3rem 0.55rem; border:1px solid var(--border-color); background:none; border-radius:8px; cursor:pointer; color:var(--text-secondary); font-size:0.9rem; line-height:1; transition:all 0.15s; }
-.btnDelete:hover:not(:disabled) { border-color:#FCA5A5; color:#EF4444; background:#FEF2F2; }
+.btnDelete { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #FECACA; background:#FEF2F2; border-radius:8px; cursor:pointer; color:#EF4444; font-size:0.9rem; line-height:1; transition:all 0.15s; }
+.btnDelete:hover:not(:disabled) { border-color:#FCA5A5; background:#FEE2E2; }
 .btnDelete:disabled { opacity:0.5; cursor:wait; }
 
 /* Export period picker */

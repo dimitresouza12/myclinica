@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Clinic, ClinicStatus } from '@/types'
+import { Portal } from '@/components/ui/Portal'
 import styles from './admin.module.css'
 
 const PLANS: { value: string; label: string; hint: string }[] = [
@@ -50,7 +51,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   const [error, setError] = useState('')
 
   // Cobrança
-  const [billingPhone, setBillingPhone] = useState(clinic.billing_phone ?? '')
+  const [billingPhone, setBillingPhone] = useState(clinic.billing_phone ?? clinic.phone ?? '')
   const [billingDueDay, setBillingDueDay] = useState<string>(
     clinic.billing_due_day ? String(clinic.billing_due_day) : ''
   )
@@ -83,6 +84,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   const canCharge = billingPhone.trim().length >= 10
 
   return (
+    <Portal>
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
@@ -243,5 +245,6 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
         </div>
       </div>
     </div>
+    </Portal>
   )
 }

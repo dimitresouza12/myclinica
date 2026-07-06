@@ -618,6 +618,10 @@
 @media (max-width:600px) {
   .detailPanel { max-width:100%; max-height:100dvh; height:100dvh; border-radius:0; }
   .overlay { padding:0; align-items:stretch; }
+  .btnClose { width:44px; height:44px; }
+  .phoneInput { min-height:44px; }
+  .btnPhoneSave { min-height:44px; }
+  .btnPhoneCancel { width:44px; height:44px; }
 }
 
 .detailHeader {

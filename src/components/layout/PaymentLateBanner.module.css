@@ -248,6 +248,22 @@
 .dueIcon { font-size: 1rem; flex-shrink: 0; }
 .dueMsg  { flex: 1; min-width: 180px; }
 
+.dueBtn {
+  padding: 0.35rem 1rem;
+  background: #1E40AF;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.dueBtn:hover:not(:disabled) { opacity: 0.88; }
+.dueBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
 .dueDismiss {
   background: none;
   border: none;

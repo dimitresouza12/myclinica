@@ -161,6 +161,9 @@ export function PaymentLateBanner() {
         <span className={styles.dueMsg}>
           Seu próximo pagamento vence <strong>{label}</strong>. Certifique-se de que o método de pagamento está ativo.
         </span>
+        <button className={styles.dueBtn} onClick={() => void handlePortal()} disabled={loadingPortal}>
+          {loadingPortal ? 'Aguarde...' : 'Pagar agora'}
+        </button>
         <button className={styles.dueDismiss} onClick={() => setDismissedDue(true)} aria-label="Fechar">✕</button>
       </div>
     )

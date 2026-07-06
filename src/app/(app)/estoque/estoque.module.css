@@ -49,15 +49,15 @@
 .lowBadge { display:inline-flex; align-items:center; padding:1px 6px; background:#FEF3C7; color:#92400E; border-radius:999px; font-size:0.65rem; font-weight:700; margin-left:0.4rem; text-transform:uppercase; letter-spacing:.04em; }
 
 /* Row actions */
-.rowActions { display:flex; gap:0.3rem; align-items:center; flex-wrap:nowrap; }
-.btnEntrada { padding:0.25rem 0.6rem; border:1px solid #A7F3D0; background:#ECFDF5; color:#065F46; border-radius:8px; font-size:0.75rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s; }
+.rowActions { display:flex; gap:0.5rem; align-items:center; flex-wrap:nowrap; }
+.btnEntrada { padding:0.25rem 0.6rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #A7F3D0; background:#ECFDF5; color:#065F46; border-radius:8px; font-size:0.75rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s; }
 .btnEntrada:hover { background:#D1FAE5; }
-.btnSaida { padding:0.25rem 0.6rem; border:1px solid #FECACA; background:#FEF2F2; color:#B91C1C; border-radius:8px; font-size:0.75rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s; }
+.btnSaida { padding:0.25rem 0.6rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #FECACA; background:#FEF2F2; color:#B91C1C; border-radius:8px; font-size:0.75rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s; }
 .btnSaida:hover { background:#FEE2E2; }
-.btnEdit { padding:0.3rem 0.5rem; border:1px solid var(--border-color); background:none; border-radius:8px; cursor:pointer; color:var(--text-secondary); font-size:0.9rem; line-height:1; transition:all .15s; }
+.btnEdit { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--border-color); background:none; border-radius:8px; cursor:pointer; color:var(--text-secondary); font-size:0.9rem; line-height:1; transition:all .15s; }
 .btnEdit:hover { border-color:#4DD9C0; color:#0B9B85; background:rgba(77,217,192,0.06); }
-.btnDelete { padding:0.3rem 0.5rem; border:1px solid var(--border-color); background:none; border-radius:8px; cursor:pointer; color:var(--text-secondary); font-size:0.9rem; line-height:1; transition:all .15s; }
-.btnDelete:hover { border-color:#FCA5A5; color:#EF4444; background:#FEF2F2; }
+.btnDelete { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #FECACA; background:#FEF2F2; border-radius:8px; cursor:pointer; color:#EF4444; font-size:0.9rem; line-height:1; transition:all .15s; }
+.btnDelete:hover { border-color:#FCA5A5; background:#FEE2E2; }
 
 /* Movement badges */
 .badgeEntrada { display:inline-flex; align-items:center; padding:2px 8px; background:#ECFDF5; color:#065F46; border-radius:999px; font-size:0.72rem; font-weight:600; white-space:nowrap; }

@@ -63,10 +63,10 @@
 .patientCount { font-weight:600; font-size:0.875rem; }
 
 /* ========== Row actions ========== */
-.rowActions { display:flex; gap:0.4rem; flex-wrap:wrap; }
-.actionBtn { padding:0.3rem 0.6rem; font-size:0.78rem; border:1px solid var(--border-color); background:none; border-radius:var(--radius-sm); cursor:pointer; color:var(--text-secondary); transition:all 0.15s; }
+.rowActions { display:flex; gap:0.5rem; flex-wrap:wrap; }
+.actionBtn { padding:0.3rem 0.6rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; font-size:0.78rem; border:1px solid var(--border-color); background:none; border-radius:var(--radius-sm); cursor:pointer; color:var(--text-secondary); transition:all 0.15s; }
 .actionBtn:hover { background:var(--bg-secondary); }
-.actionBtnSecondary { padding:0.3rem 0.75rem; font-size:0.78rem; border:1px solid var(--brand-primary); background:none; border-radius:var(--radius-sm); cursor:pointer; color:var(--brand-primary); transition:all 0.15s; }
+.actionBtnSecondary { padding:0.3rem 0.75rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; font-size:0.78rem; border:1px solid var(--brand-primary); background:none; border-radius:var(--radius-sm); cursor:pointer; color:var(--brand-primary); transition:all 0.15s; }
 .actionBtnSecondary:hover { background:var(--brand-primary); color:#fff; }
 .actionBtnImpersonate { padding:0.3rem 0.75rem; font-size:0.78rem; border:1px solid #F59E0B; background:none; border-radius:var(--radius-sm); cursor:pointer; color:#D97706; transition:all 0.15s; }
 .actionBtnImpersonate:hover { background:#FEF3C7; }
@@ -159,11 +159,11 @@
 .btnSave { padding:0.55rem 1.25rem; min-height:44px; background:var(--brand-primary); color:#fff; border:none; border-radius:var(--radius-md); font-size:0.875rem; font-weight:600; cursor:pointer; }
 .btnSave:disabled { opacity:0.5; cursor:not-allowed; }
 .btnCancel { padding:0.55rem 1rem; min-height:44px; border:1px solid var(--border-color); background:none; border-radius:var(--radius-md); font-size:0.875rem; font-weight:500; color:var(--text-secondary); cursor:pointer; }
-.btnDeactivate { padding:0.3rem 0.75rem; border:1px solid #FECACA; background:none; border-radius:var(--radius-sm); font-size:0.78rem; cursor:pointer; color:#EF4444; transition:all 0.15s; }
+.btnDeactivate { padding:0.3rem 0.75rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #FECACA; background:none; border-radius:var(--radius-sm); font-size:0.78rem; cursor:pointer; color:#EF4444; transition:all 0.15s; }
 .btnDeactivate:hover { background:#FEE2E2; }
-.btnActivate { padding:0.3rem 0.75rem; border:1px solid #6EE7B7; background:none; border-radius:var(--radius-sm); font-size:0.78rem; cursor:pointer; color:#059669; transition:all 0.15s; }
+.btnActivate { padding:0.3rem 0.75rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #6EE7B7; background:none; border-radius:var(--radius-sm); font-size:0.78rem; cursor:pointer; color:#059669; transition:all 0.15s; }
 .btnActivate:hover { background:#D1FAE5; }
-.btnDanger { padding:0.3rem 0.75rem; border:1px solid #FECACA; background:none; border-radius:var(--radius-sm); font-size:0.78rem; cursor:pointer; color:#EF4444; }
+.btnDanger { padding:0.3rem 0.75rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #FECACA; background:none; border-radius:var(--radius-sm); font-size:0.78rem; cursor:pointer; color:#EF4444; }
 .btnDanger:hover { background:#FEE2E2; }
 .btnLoadMore { display:block; margin:1rem auto; padding:0.6rem 2rem; border:1px solid var(--border-color); background:none; border-radius:var(--radius-md); font-size:0.875rem; color:var(--text-secondary); cursor:pointer; }
 .btnLoadMore:hover { background:var(--bg-secondary); }
@@ -272,3 +272,15 @@
   white-space: nowrap;
 }
 .btnWhatsApp:hover { opacity: 0.88; }
+
+/* ========== Contato (telefone do cadastro) ========== */
+.contactCell { display:flex; flex-direction:column; gap:0.25rem; align-items:flex-start; }
+.contactPhone { font-size:0.8rem; color:var(--text-primary); font-weight:500; white-space:nowrap; }
+.contactWa {
+  display:inline-flex; align-items:center; gap:0.3rem;
+  padding:0.2rem 0.55rem; background:#25D366; color:#fff;
+  border-radius:99px; font-size:0.7rem; font-weight:700;
+  text-decoration:none; white-space:nowrap; transition:opacity 0.15s;
+}
+.contactWa:hover { opacity:0.88; }
+.contactEmpty { color:var(--text-secondary); font-size:0.8rem; }
