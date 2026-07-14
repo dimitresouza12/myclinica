@@ -58,9 +58,12 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
   }, [entries])
 
   function extractStoragePath(url: string): string | null {
+    if (!url) return null
+    // Valor atual: já é o path relativo salvo direto pelo upload (ex: evolucao/clinicId/pacienteId/123.jpg)
+    if (!/^https?:\/\//i.test(url)) return url
     try {
       const u = new URL(url)
-      // URL pública: /storage/v1/object/public/pacientes/...
+      // Compat com dados antigos salvos como URL completa: /storage/v1/object/public/pacientes/...
       const match = u.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/pacientes\/(.+)/)
       return match ? match[1] : null
     } catch {
