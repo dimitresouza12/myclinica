@@ -287,59 +287,31 @@ function FinanceiroContent() {
               valueMobile: formatCurrencyCompact(stats.receitas),
               label: `Receitas ${periodLabel}`,
               pct: stats.receitasPct,
-              iconBg: '#E8FBF7',
-              iconColor: '#0B9B85',
               bar: 'linear-gradient(to right, #4DD9C0, #0B9B85)',
-              icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 18, height: 18 }}>
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" strokeLinecap="round" />
-                </svg>
-              ),
             },
             {
               value: formatCurrency(stats.despesas),
               valueMobile: formatCurrencyCompact(stats.despesas),
               label: `Despesas ${periodLabel}`,
               pct: stats.despesasPct,
-              iconBg: '#FEF2F2',
-              iconColor: '#DC2626',
               bar: 'linear-gradient(to right, #FCA5A5, #EF4444)',
-              icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 18, height: 18 }}>
-                  <path d="M3 3h18M3 9h18M3 15h18M3 21h18" strokeLinecap="round" />
-                </svg>
-              ),
             },
             {
               value: formatCurrency(stats.saldo),
               valueMobile: formatCurrencyCompact(stats.saldo),
               label: `Saldo ${periodLabel}`,
               pct: stats.saldoPct,
-              iconBg: stats.saldo >= 0 ? '#E8FBF7' : '#FFFBEB',
-              iconColor: stats.saldo >= 0 ? '#0B9B85' : '#D97706',
               bar: stats.saldo >= 0
                 ? 'linear-gradient(to right, #4DD9C0, #0B9B85)'
                 : 'linear-gradient(to right, #FCD34D, #F59E0B)',
               valueColor: stats.saldo >= 0 ? '#059669' : '#DC2626',
-              icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 18, height: 18 }}>
-                  <path d="M12 22V2M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" strokeLinecap="round" />
-                </svg>
-              ),
             },
             {
               value: String(stats.count),
               valueMobile: undefined,
               label: 'Lançamentos',
               pct: Math.min(stats.count * 5, 100),
-              iconBg: '#EFF6FF',
-              iconColor: '#2563EB',
               bar: 'linear-gradient(to right, #60A5FA, #2563EB)',
-              icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 18, height: 18 }}>
-                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" />
-                </svg>
-              ),
             },
           ] as const).map((m, i) => (
             <motion.div
@@ -350,9 +322,6 @@ function FinanceiroContent() {
               transition={{ type: 'spring', stiffness: 90, damping: 18, delay: i * 0.08 }}
               whileHover={{ y: -4, transition: { type: 'spring', stiffness: 300, damping: 22 } }}
             >
-              <div className={styles.cardIcon} style={{ background: m.iconBg, color: m.iconColor }}>
-                {m.icon}
-              </div>
               <div className={styles.cardBody}>
                 <span className={styles.cardValue} style={'valueColor' in m ? { color: m.valueColor } : undefined}>
                   <span className={styles.valueDesktop}>{m.value}</span>
@@ -383,7 +352,8 @@ function FinanceiroContent() {
             <div className={styles.filterTabs}>
               {(['todos', 'receita', 'despesa'] as const).map(t => (
                 <button key={t} className={`${styles.filterTab} ${filterType === t ? styles.filterTabActive : ''}`} onClick={() => setFilterType(t)}>
-                  {t === 'todos' ? 'Todos' : t === 'receita' ? '📈 Receitas' : '📉 Despesas'}
+                  {t !== 'todos' && <span className={styles.filterDot} style={{ background: t === 'receita' ? '#0B9B85' : '#DC2626' }} />}
+                  {t === 'todos' ? 'Todos' : t === 'receita' ? 'Receitas' : 'Despesas'}
                 </button>
               ))}
             </div>
@@ -405,8 +375,8 @@ function FinanceiroContent() {
           )}
         </div>
         {loading ? <p className={styles.loading}>Carregando...</p> : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
+          <div className={`${styles.tableWrap} resp-table-wrap`}>
+            <table className={`${styles.table} resp-table`}>
               <thead>
                 <tr>
                   <th>Tipo</th>
@@ -429,15 +399,15 @@ function FinanceiroContent() {
                         {r.type === 'receita' ? '↑ Receita' : '↓ Despesa'}
                       </span>
                     </td>
-                    <td>{formatDate(r.created_at, true)}</td>
-                    <td>{r.patients?.name ?? '—'}</td>
-                    <td>{r.category ?? '—'}</td>
-                    <td>{r.notes ?? '—'}</td>
-                    <td className={styles.method}>{r.payment_method ?? '—'}</td>
-                    <td className={r.type === 'receita' ? styles.valuePos : styles.valueNeg}>
+                    <td data-label="Data">{formatDate(r.created_at, true)}</td>
+                    <td data-label="Paciente">{r.patients?.name ?? '—'}</td>
+                    <td data-label="Categoria">{r.category ?? '—'}</td>
+                    <td data-label="Descrição">{r.notes ?? '—'}</td>
+                    <td data-label="Método" className={styles.method}>{r.payment_method ?? '—'}</td>
+                    <td data-label="Valor" className={r.type === 'receita' ? styles.valuePos : styles.valueNeg}>
                       {r.type === 'despesa' ? '−' : '+'}{formatCurrency(r.total_amount ?? 0)}
                     </td>
-                    <td>
+                    <td data-label="Ações">
                       <div className={styles.rowActions}>
                         {canEdit && <button className={styles.btnEdit} onClick={() => openEdit(r)} title="Editar lançamento">
                           ✎

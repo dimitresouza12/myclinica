@@ -114,8 +114,8 @@ function ProcedimentosContent() {
       {loading ? (
         <p className={styles.loading}>Carregando...</p>
       ) : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
+        <div className={`${styles.tableWrap} resp-table-wrap`}>
+          <table className={`${styles.table} resp-table`}>
             <thead>
               <tr>
                 <th>Nome</th>
@@ -131,14 +131,14 @@ function ProcedimentosContent() {
               ) : procedures.map((p) => (
                 <tr key={p.id}>
                   <td className={styles.bold}>{p.name}</td>
-                  <td>{p.category ?? '—'}</td>
-                  <td className={styles.price}>{formatCurrency(p.price)}</td>
-                  <td>
+                  <td data-label="Categoria">{p.category ?? '—'}</td>
+                  <td data-label="Valor" className={styles.price}>{formatCurrency(p.price)}</td>
+                  <td data-label="Status">
                     {p.is_active
                       ? <span className={styles.tagActive}>Ativo</span>
                       : <span className={styles.tagInactive}>Inativo</span>}
                   </td>
-                  <td>
+                  <td data-label="Ações">
                     <div className={styles.actions}>
                       <button className={styles.btnEdit} onClick={() => openEdit(p)}>Editar</button>
                       <button className={styles.btnDelete} onClick={() => handleDelete(p)}>Excluir</button>

@@ -148,8 +148,8 @@ export function AdminClinicas({ clinics, onReload }: Props) {
         <button className={styles.btnPrimary} onClick={() => setShowNewModal(true)}>+ Nova Clínica</button>
       </div>
 
-      <div className={styles.richTable}>
-        <table className={styles.table}>
+      <div className={`${styles.richTable} resp-table-wrap`}>
+        <table className={`${styles.table} resp-table`}>
           <thead>
             <tr>
               <th>Clínica</th>
@@ -183,14 +183,14 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                     </div>
                   </div>
                 </td>
-                <td><span className={styles.typeChip}>{c.clinic_type}</span></td>
-                <td>
+                <td data-label="Tipo"><span className={styles.typeChip}>{c.clinic_type}</span></td>
+                <td data-label="Plano">
                   <span className={styles.planPill} style={{ background: `${PLAN_COLORS[c.plan ?? 'basico']}22`, color: PLAN_COLORS[c.plan ?? 'basico'], borderColor: `${PLAN_COLORS[c.plan ?? 'basico']}55` }}>
                     {c.plan ?? 'basico'}
                   </span>
                 </td>
-                <td><StatusBadge status={c.status ?? 'active'} /></td>
-                <td>
+                <td data-label="Status"><StatusBadge status={c.status ?? 'active'} /></td>
+                <td data-label="Trial">
                   {!c.trial_ends_at ? (
                     <span style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 600 }}>Permanente</span>
                   ) : new Date() > new Date(c.trial_ends_at) ? (
@@ -201,8 +201,8 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                     </span>
                   )}
                 </td>
-                <td className={styles.patientCount}>{c.max_patients ?? 200}</td>
-                <td>
+                <td data-label="Pacientes" className={styles.patientCount}>{c.max_patients ?? 200}</td>
+                <td data-label="Mensalidade">
                   <span className={c.billing_paid ? styles.paidBadge : styles.unpaidBadge}>
                     {c.billing_paid ? '✓ Pago' : '⚠ Pendente'}
                   </span>
@@ -212,7 +212,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                     </span>
                   )}
                 </td>
-                <td>
+                <td data-label="Contato">
                   {c.phone ? (
                     <div className={styles.contactCell}>
                       <span className={styles.contactPhone}>{c.phone}</span>
@@ -230,8 +230,8 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                     <span className={styles.contactEmpty}>—</span>
                   )}
                 </td>
-                <td className={styles.dateCell}>{formatDate(c.created_at, true)}</td>
-                <td>
+                <td data-label="Criada" className={styles.dateCell}>{formatDate(c.created_at, true)}</td>
+                <td data-label="Ações">
                   <div className={styles.rowActions}>
                     {c.status === 'pending' ? (
                       <>

@@ -76,8 +76,8 @@ function EquipeContent() {
       </div>
 
       {loading ? <p className={styles.loading}>Carregando...</p> : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
+        <div className={`${styles.tableWrap} resp-table-wrap`}>
+          <table className={`${styles.table} resp-table`}>
             <thead>
               <tr>
                 <th>Nome</th>
@@ -92,9 +92,9 @@ function EquipeContent() {
               ) : professionals.map((p) => (
                 <tr key={p.id}>
                   <td className={styles.bold}>{p.name}</td>
-                  <td>{p.specialty ?? '-'}</td>
-                  <td>{formatDate(p.created_at, true)}</td>
-                  <td>
+                  <td data-label="Especialidade">{p.specialty ?? '-'}</td>
+                  <td data-label="Cadastrado em">{formatDate(p.created_at, true)}</td>
+                  <td data-label="Ações">
                     <button className={styles.btnDelete} onClick={() => handleDelete(p.id)}>Remover</button>
                   </td>
                 </tr>

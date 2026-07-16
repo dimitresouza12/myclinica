@@ -50,7 +50,7 @@
 .logoText {
   font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
   font-size: 1.35rem;
-  color: #0D2421;
+  color: var(--text-primary);
   font-weight: 700;
   letter-spacing: -0.4px;
   line-height: 1;
@@ -152,7 +152,7 @@
 
 .active {
   background: var(--sidebar-bg-active);
-  color: #0D2421;
+  color: var(--sidebar-text-active);
   font-weight: 600;
 }
 .active::before {
@@ -285,7 +285,7 @@
 
 .userName {
   font-size: 0.78rem; font-weight: 600;
-  color: #0D2421;
+  color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .userRole { font-size: 0.68rem; color: var(--sidebar-text); text-transform: capitalize; }

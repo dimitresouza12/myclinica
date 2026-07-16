@@ -359,8 +359,8 @@ function RelatoriosContent() {
 
               <div className={styles.card}>
                 <div className={styles.cardTitle}>Lucro líquido mensal</div>
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
+                <div className={`${styles.tableWrap} resp-table-wrap`}>
+                  <table className={`${styles.table} resp-table`}>
                     <thead>
                       <tr>
                         <th>Mês</th><th>Receita</th><th>Despesa</th><th>Lucro</th><th>Margem</th>
@@ -370,10 +370,10 @@ function RelatoriosContent() {
                       {monthly.map(m => (
                         <tr key={m.month}>
                           <td>{m.month}</td>
-                          <td className={styles.kpiGreen}>{formatCurrency(m.receita)}</td>
-                          <td className={styles.kpiRed}>{formatCurrency(m.despesa)}</td>
-                          <td className={m.lucro >= 0 ? styles.kpiGreen : styles.kpiRed}>{formatCurrency(m.lucro)}</td>
-                          <td>
+                          <td data-label="Receita" className={styles.kpiGreen}>{formatCurrency(m.receita)}</td>
+                          <td data-label="Despesa" className={styles.kpiRed}>{formatCurrency(m.despesa)}</td>
+                          <td data-label="Lucro" className={m.lucro >= 0 ? styles.kpiGreen : styles.kpiRed}>{formatCurrency(m.lucro)}</td>
+                          <td data-label="Margem">
                             <span className={m.lucro >= 0 ? styles.tagGreen : styles.tagRed}>
                               {m.receita > 0 ? Math.round((m.lucro / m.receita) * 100) : 0}%
                             </span>
@@ -388,8 +388,8 @@ function RelatoriosContent() {
               {procRevenue.length > 0 && (
                 <div className={styles.card}>
                   <div className={styles.cardTitle}>Faturamento por procedimento</div>
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
+                  <div className={`${styles.tableWrap} resp-table-wrap`}>
+                    <table className={`${styles.table} resp-table`}>
                       <thead>
                         <tr>
                           <th>Procedimento</th><th>Atendimentos</th><th>Faturamento</th><th>Ticket médio</th>
@@ -399,9 +399,9 @@ function RelatoriosContent() {
                         {procRevenue.map(p => (
                           <tr key={p.name}>
                             <td>{p.name}</td>
-                            <td>{p.count}</td>
-                            <td className={styles.kpiGreen}>{formatCurrency(p.revenue)}</td>
-                            <td>{formatCurrency(p.count > 0 ? p.revenue / p.count : 0)}</td>
+                            <td data-label="Atendimentos">{p.count}</td>
+                            <td data-label="Faturamento" className={styles.kpiGreen}>{formatCurrency(p.revenue)}</td>
+                            <td data-label="Ticket médio">{formatCurrency(p.count > 0 ? p.revenue / p.count : 0)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -503,8 +503,8 @@ function RelatoriosContent() {
               ) : (
                 <div className={styles.card}>
                   <div className={styles.cardTitle}>Produção por profissional</div>
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
+                  <div className={`${styles.tableWrap} resp-table-wrap`}>
+                    <table className={`${styles.table} resp-table`}>
                       <thead>
                         <tr>
                           <th>Profissional</th>
@@ -516,8 +516,8 @@ function RelatoriosContent() {
                         {profRows.map(p => (
                           <tr key={p.name}>
                             <td>{p.name}</td>
-                            <td><span className={styles.tagGreen}>{p.concluded}</span></td>
-                            <td>
+                            <td data-label="Consultas concluídas"><span className={styles.tagGreen}>{p.concluded}</span></td>
+                            <td data-label="Cancelamentos">
                               <span className={p.cancelRate > 20 ? styles.tagRed : styles.tagBlue}>
                                 {p.cancelRate}%
                               </span>

@@ -2,11 +2,14 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) both;
+  /* backwards, não both — "both" prende o transform num matrix residual após
+     a animação (nunca vira o keyword none), o que cria containing block e
+     quebra modais position:fixed dentro da página no mobile. */
+  animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) backwards;
 }
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; }
+  to   { opacity: 1; transform: none; }
 }
 
 .header {

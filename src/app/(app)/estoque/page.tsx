@@ -253,8 +253,8 @@ function EstoqueContent() {
       {loading ? <p className={styles.loading}>Carregando...</p> : (
         <>
           {tab === 'produtos' && (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
+            <div className={`${styles.tableWrap} resp-table-wrap`}>
+              <table className={`${styles.table} resp-table`}>
                 <thead>
                   <tr>
                     <th>Nome</th>
@@ -275,13 +275,13 @@ function EstoqueContent() {
                     return (
                       <tr key={item.id} className={isLow ? styles.rowLow : ''}>
                         <td className={styles.bold}>{item.name}{isLow && <span className={styles.lowBadge}>Baixo</span>}</td>
-                        <td className={styles.capitalize}>{item.category ?? '—'}</td>
-                        <td className={styles.bold} style={{ color: isLow ? '#F59E0B' : undefined }}>{item.quantity}</td>
-                        <td>{item.min_quantity}</td>
-                        <td>{item.unit}</td>
-                        <td>{item.cost_price != null ? formatCurrency(item.cost_price) : '—'}</td>
-                        <td>{item.supplier ?? '—'}</td>
-                        <td>
+                        <td data-label="Categoria" className={styles.capitalize}>{item.category ?? '—'}</td>
+                        <td data-label="Qtd Atual" className={styles.bold} style={{ color: isLow ? '#F59E0B' : undefined }}>{item.quantity}</td>
+                        <td data-label="Qtd Mín.">{item.min_quantity}</td>
+                        <td data-label="Unidade">{item.unit}</td>
+                        <td data-label="Preço Custo">{item.cost_price != null ? formatCurrency(item.cost_price) : '—'}</td>
+                        <td data-label="Fornecedor">{item.supplier ?? '—'}</td>
+                        <td data-label="Ações">
                           <div className={styles.rowActions}>
                             <button className={styles.btnEntrada} onClick={() => openMovModal(item, 'entrada')} title="Registrar entrada">+ Entrada</button>
                             <button className={styles.btnSaida} onClick={() => openMovModal(item, 'saida')} title="Registrar saída">− Saída</button>
@@ -298,8 +298,8 @@ function EstoqueContent() {
           )}
 
           {tab === 'movimentacoes' && (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
+            <div className={`${styles.tableWrap} resp-table-wrap`}>
+              <table className={`${styles.table} resp-table`}>
                 <thead>
                   <tr>
                     <th>Data</th>
@@ -316,15 +316,15 @@ function EstoqueContent() {
                   ) : filteredMovements.map(m => (
                     <tr key={m.id}>
                       <td>{formatDate(m.created_at, true)}</td>
-                      <td className={styles.bold}>{m.stock_items?.name ?? '—'}</td>
-                      <td>
+                      <td data-label="Produto" className={styles.bold}>{m.stock_items?.name ?? '—'}</td>
+                      <td data-label="Tipo">
                         <span className={m.type === 'entrada' ? styles.badgeEntrada : m.type === 'saida' ? styles.badgeSaida : styles.badgeAjuste}>
                           {m.type === 'entrada' ? '↑ Entrada' : m.type === 'saida' ? '↓ Saída' : '⇄ Ajuste'}
                         </span>
                       </td>
-                      <td>{m.quantity} {m.stock_items?.unit ?? ''}</td>
-                      <td>{m.reason ?? '—'}</td>
-                      <td>{m.user_name ?? '—'}</td>
+                      <td data-label="Quantidade">{m.quantity} {m.stock_items?.unit ?? ''}</td>
+                      <td data-label="Motivo">{m.reason ?? '—'}</td>
+                      <td data-label="Responsável">{m.user_name ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

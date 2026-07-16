@@ -1,5 +1,9 @@
-.page { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) both; max-width: 1200px; }
-@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; } }
+/* backwards, não both — "both" prende o transform num matrix residual após a
+   animação (nunca vira o keyword none), o que cria containing block e quebra
+   o modal position:fixed (Nova Receita/Despesa) dentro da página no mobile —
+   o rodapé com o botão Salvar ficava cortado fora da tela. */
+.page { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) backwards; max-width: 1200px; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 
 .header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
 .title { font-family:'Plus Jakarta Sans',-apple-system,sans-serif; font-size:1.6rem; font-weight:800; color:var(--text-primary); letter-spacing:-0.3px; }
@@ -16,11 +20,10 @@
 
 /* Metric cards */
 .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; }
-.card { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; padding:1.5rem; display:flex; align-items:center; gap:1rem; transition:box-shadow .2s, transform .2s; box-shadow:var(--shadow-sm); }
+.card { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; padding:1.5rem; display:flex; align-items:center; gap:1rem; transition:box-shadow .2s, transform .2s; box-shadow:var(--shadow-sm); min-width:0; }
 .card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
-.cardIcon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
 .cardBody { display:flex; flex-direction:column; gap:0.2rem; min-width:0; flex:1 1 auto; }
-.cardValue { font-size:1.35rem; font-weight:800; color:var(--text-primary); line-height:1.05; letter-spacing:-0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.cardValue { font-size:1.35rem; font-weight:800; color:var(--text-primary); line-height:1.05; letter-spacing:-0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; font-variant-numeric:tabular-nums; }
 .valueDesktop { display:inline; }
 .valueMobile  { display:none; }
 .cardLabel { font-size:0.78rem; font-weight:600; color:var(--text-secondary); }
@@ -42,9 +45,10 @@
 .sectionHeader { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.25rem; border-bottom:1px solid var(--border-color); gap:0.75rem; flex-wrap:wrap; }
 .filterRow { display:flex; align-items:center; gap:0.625rem; flex-wrap:wrap; }
 .filterTabs { display:flex; border-bottom:1px solid var(--border-subtle); }
-.filterTab { padding:0.65rem 1.25rem; border:none; border-bottom:2px solid transparent; background:none; font-size:0.82rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; white-space:nowrap; }
+.filterTab { display:inline-flex; align-items:center; gap:0.4rem; padding:0.65rem 1.25rem; border:none; border-bottom:2px solid transparent; background:none; font-size:0.82rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; white-space:nowrap; }
 .filterTab:hover { color:var(--text-primary); }
 .filterTabActive { color:#0D2421; font-weight:700; border-bottom-color:#4DD9C0; }
+.filterDot { width:7px; height:7px; border-radius:999px; flex-shrink:0; }
 .periodTabs { display:flex; border-bottom:1px solid var(--border-subtle); }
 .periodTab { padding:0.65rem 1.25rem; border:none; border-bottom:2px solid transparent; background:none; font-size:0.78rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; white-space:nowrap; }
 .periodTab:hover { color:var(--text-primary); }

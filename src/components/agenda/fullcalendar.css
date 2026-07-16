@@ -79,8 +79,10 @@
   color: var(--text-primary) !important;
 }
 
-/* ── Grid / borders ── */
-.fc-theme-standard .fc-scrollgrid { border-color: var(--border-color); border-radius: 12px; overflow: hidden; }
+/* ── Grid / borders ──
+   Sem moldura própria: a grade vive dentro do cartão único da página
+   (TopBar = header do cartão), então aqui só as linhas internas. */
+.fc-theme-standard .fc-scrollgrid { border: none; }
 .fc-theme-standard td,
 .fc-theme-standard th { border-color: var(--border-subtle); }
 
@@ -180,6 +182,16 @@
 .fc .fc-highlight {
   background: rgba(13, 148, 136, 0.12);
   border-radius: 6px;
+}
+
+/* ── Linha de "agora" (visões Semana/Dia) ── */
+.fc .fc-timegrid-now-indicator-line {
+  border-color: #EF4444;
+  border-width: 2px;
+}
+.fc .fc-timegrid-now-indicator-arrow {
+  border-color: #EF4444;
+  color: #EF4444;
 }
 
 /* ── Mobile ── */

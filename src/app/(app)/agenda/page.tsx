@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
@@ -12,8 +12,7 @@ import { hasWhatsApp } from '@/lib/planGates'
 import { useProfessionals, useProcedures, useAgendaData } from '@/hooks/useClinicData'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Appointment, Patient, Professional, Procedure } from '@/types'
-import { type CalendarEvent } from '@/components/agenda/FullCalendarWrapper'
-import { DiaGeralView } from '@/components/agenda/DiaGeralView'
+import { type CalendarEvent, type FullCalendarHandle } from '@/components/agenda/FullCalendarWrapper'
 import styles from './agenda.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
@@ -39,7 +38,7 @@ const BLANK: NewAppt = {
   scheduled_at: '', duration_minutes: 60, status: 'agendado', notes: '',
 }
 
-type ViewMode = 'calendar' | 'diageral' | 'lista'
+type ViewMode = 'mes' | 'semana' | 'dia'
 
 // 30-min slots from 07:00 to 19:00
 const TIME_SLOTS: string[] = []
@@ -60,15 +59,16 @@ function profColor(profId: string | null, profIndex: Record<string, number>): st
   return PROF_COLORS[idx % PROF_COLORS.length]
 }
 
+function initials(name: string): string {
+  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+}
+
 const STATUS_LABELS: Record<string, string> = {
   agendado: 'Agendado', confirmado: 'Confirmado',
   concluido: 'Concluído', cancelado: 'Cancelado', faltou: 'Faltou',
 }
 const STATUS_DOTS: Record<string, string> = {
   agendado: '#94A3B8', confirmado: '#4DD9C0', concluido: '#10B981', cancelado: '#EF4444', faltou: '#F59E0B',
-}
-const STATUS_BG: Record<string, string> = {
-  agendado: '#F8FAFC', confirmado: '#F0FDFB', concluido: '#F0FDF4', cancelado: '#FEF2F2', faltou: '#FFFBEB',
 }
 // Cores mais distintas para o FullCalendar (evita coincidência com profColor teal)
 const STATUS_CAL: Record<string, string> = {
@@ -273,7 +273,10 @@ function AgendaContent() {
   const [patients, setPatients] = useState<Patient[]>([])
   const { data: professionals = [] } = useProfessionals(clinic?.id)
   const { data: procedures = [] } = useProcedures(clinic?.id)
-  const [viewMode, setViewMode] = useState<ViewMode>('calendar')
+  const [viewMode, setViewMode] = useState<ViewMode>('dia')
+  const calRef = useRef<FullCalendarHandle>(null)
+  const [calendarTitle, setCalendarTitle] = useState('')
+  const [hiddenProfIds, setHiddenProfIds] = useState<Set<string>>(new Set())
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<NewAppt>(BLANK)
@@ -390,8 +393,23 @@ function AgendaContent() {
     return map
   }, [appointments, form.scheduled_at, form.professional_id, editingId])
 
+  function toggleProfFilter(profId: string) {
+    setHiddenProfIds(prev => {
+      const next = new Set(prev)
+      if (next.has(profId)) next.delete(profId)
+      else next.add(profId)
+      return next
+    })
+  }
+
+  // Agendamentos visíveis após o filtro de profissionais (chips com anel colorido na TopBar)
+  const visibleAppointments = useMemo(
+    () => appointments.filter(a => !hiddenProfIds.has(a.professional_id ?? '')),
+    [appointments, hiddenProfIds]
+  )
+
   const calendarEvents = useMemo<CalendarEvent[]>(() => {
-    const clinicEvents: CalendarEvent[] = appointments.map(a => {
+    const clinicEvents: CalendarEvent[] = visibleAppointments.map(a => {
       const start = a.scheduled_at
       let end: string | undefined
       if (start) {
@@ -419,17 +437,17 @@ function AgendaContent() {
       extendedProps: { gcal: true, link: e.htmlLink },
     }))
     return [...clinicEvents, ...gEvents]
-  }, [appointments, gcalEvents, profColorIndex])
+  }, [visibleAppointments, gcalEvents])
 
   // Helper: local date string "YYYY-MM-DD" from a Date object (respects timezone)
   function localDateStr(d: Date) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
   }
 
-  // Filter for list view
+  // Agendamentos do dia em foco, com busca e filtro de status (visão Dia)
   const filtered = useMemo(() => {
     const targetDate = localDateStr(currentDate)
-    return appointments.filter(a => {
+    return visibleAppointments.filter(a => {
       const matchStatus = !filterStatus || a.status === filterStatus
       const matchDate = a.scheduled_at && localDateStr(new Date(a.scheduled_at)) === targetDate
       const matchSearch = !searchQ ||
@@ -438,31 +456,50 @@ function AgendaContent() {
         a.professionals?.name?.toLowerCase().includes(searchQ.toLowerCase())
       return matchStatus && matchDate && matchSearch
     })
-  }, [appointments, filterStatus, currentDate, searchQ])
-
-  // Agendamentos do dia (apenas por data) — usado pela view Dia geral
-  const dayAppointments = useMemo(() => {
-    const targetDate = localDateStr(currentDate)
-    return appointments.filter(a => a.scheduled_at && localDateStr(new Date(a.scheduled_at)) === targetDate)
-  }, [appointments, currentDate])
-
-  // Group list by hour
-  const grouped = useMemo(() => {
-    const groups: Record<string, Appointment[]> = {}
-    filtered.forEach(a => {
-      if (!a.scheduled_at) return
-      const d = new Date(a.scheduled_at)
-      const hKey = `${d.getHours().toString().padStart(2, '0')}h${d.getMinutes().toString().padStart(2, '0')}`
-      if (!groups[hKey]) groups[hKey] = []
-      groups[hKey].push(a)
-    })
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))
-  }, [filtered])
+  }, [visibleAppointments, filterStatus, currentDate, searchQ])
 
   // Date nav
   function prevDay() { setCurrentDate(d => { const nd = new Date(d); nd.setDate(nd.getDate() - 1); return nd }) }
   function nextDay() { setCurrentDate(d => { const nd = new Date(d); nd.setDate(nd.getDate() + 1); return nd }) }
   function goToday() { setCurrentDate(new Date()) }
+
+  const isCalendarView = viewMode === 'mes' || viewMode === 'semana'
+
+  // Troca de visão preservando a data em foco — o calendário e a data (Dia/Lista)
+  // são mantidos em sincronia para que a navegação da TopBar seja única e contínua.
+  function switchView(next: ViewMode) {
+    const wasCalendar = isCalendarView
+    const isNextCalendar = next === 'mes' || next === 'semana'
+    if (wasCalendar && !isNextCalendar) {
+      const d = calRef.current?.getDate()
+      if (d) setCurrentDate(d)
+    } else if (!wasCalendar && isNextCalendar) {
+      calRef.current?.gotoDate(currentDate)
+    }
+    setViewMode(next)
+  }
+
+  // Mantém o FullCalendar na visão certa (Mês/Semana) sem desmontar o componente
+  useEffect(() => {
+    if (viewMode === 'mes') calRef.current?.changeView('dayGridMonth')
+    else if (viewMode === 'semana') calRef.current?.changeView('timeGridWeek')
+  }, [viewMode])
+
+  // Navegação unificada da TopBar — dirige o FullCalendar (Mês/Semana) ou currentDate (Dia/Lista)
+  function handlePrev() { isCalendarView ? calRef.current?.prev() : prevDay() }
+  function handleNext() { isCalendarView ? calRef.current?.next() : nextDay() }
+  function handleToday() { isCalendarView ? calRef.current?.today() : goToday() }
+
+  // Faixa de 7 dias (3 antes / 3 depois do dia atual) para o date-picker deslizante do mobile
+  const dateStripDays = useMemo(() => {
+    const days: Date[] = []
+    for (let i = -3; i <= 3; i++) {
+      const d = new Date(currentDate)
+      d.setDate(d.getDate() + i)
+      days.push(d)
+    }
+    return days
+  }, [currentDate])
 
   function handleEventClick(id: string) {
     if (id.startsWith('gcal-')) {
@@ -747,32 +784,38 @@ function AgendaContent() {
       {/* ── Topbar ── */}
       <div className={styles.topbar}>
         <div className={styles.tbLeft}>
-          <button className={styles.navBtn} onClick={prevDay} title="Dia anterior"><ChevronLeft /></button>
-          <button className={styles.navBtn} onClick={nextDay} title="Próximo dia"><ChevronRight /></button>
-          <button className={styles.todayBtn} onClick={goToday}>Hoje</button>
+          <button className={styles.navBtn} onClick={handlePrev} title="Anterior"><ChevronLeft /></button>
+          <button className={styles.navBtn} onClick={handleNext} title="Próximo"><ChevronRight /></button>
+          <button className={styles.todayBtn} onClick={handleToday}>Hoje</button>
           <div className={styles.tbDate}>
-            <h1>{fmtTopbarDate(currentDate)}</h1>
-            <span>{fmtTopbarWeekday(currentDate)}</span>
+            {isCalendarView ? (
+              <h1>{calendarTitle}</h1>
+            ) : (
+              <>
+                <h1>{fmtTopbarDate(currentDate)}</h1>
+                <span>{fmtTopbarWeekday(currentDate)}</span>
+              </>
+            )}
           </div>
         </div>
 
         <div className={styles.seg}>
           <button
-            className={`${styles.segBtn} ${viewMode === 'calendar' ? styles.segBtnActive : ''}`}
-            onClick={() => setViewMode('calendar')}
-          >Calendário</button>
+            className={`${styles.segBtn} ${viewMode === 'mes' ? styles.segBtnActive : ''}`}
+            onClick={() => switchView('mes')}
+          >Mês</button>
           <button
-            className={`${styles.segBtn} ${viewMode === 'diageral' ? styles.segBtnActive : ''}`}
-            onClick={() => setViewMode('diageral')}
-          >Dia geral</button>
+            className={`${styles.segBtn} ${viewMode === 'semana' ? styles.segBtnActive : ''}`}
+            onClick={() => switchView('semana')}
+          >Semana</button>
           <button
-            className={`${styles.segBtn} ${viewMode === 'lista' ? styles.segBtnActive : ''}`}
-            onClick={() => setViewMode('lista')}
-          >Lista</button>
+            className={`${styles.segBtn} ${viewMode === 'dia' ? styles.segBtnActive : ''}`}
+            onClick={() => switchView('dia')}
+          >Dia</button>
         </div>
 
         <div className={styles.tbRight}>
-          {viewMode === 'lista' && (
+          {viewMode === 'dia' && (
             <div className={styles.search}>
               <SearchIcon />
               <input
@@ -780,6 +823,36 @@ function AgendaContent() {
                 value={searchQ}
                 onChange={e => setSearchQ(e.target.value)}
               />
+            </div>
+          )}
+
+          {professionals.length > 1 && (
+            <div className={styles.profFilters}>
+              {professionals.map((p, i) => {
+                const color = PROF_COLORS[i % PROF_COLORS.length]
+                const active = !hiddenProfIds.has(p.id)
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={styles.profFilterBtn}
+                    data-active={active}
+                    title={`${active ? 'Ocultar' : 'Mostrar'} ${p.name}`}
+                    onClick={() => toggleProfFilter(p.id)}
+                  >
+                    <span className={styles.profAvatar} style={{ background: color }}>{initials(p.name)}</span>
+                  </button>
+                )
+              })}
+              <button
+                type="button"
+                className={styles.profFilterBtn}
+                data-active={!hiddenProfIds.has('')}
+                title={`${!hiddenProfIds.has('') ? 'Ocultar' : 'Mostrar'} agendamentos sem profissional`}
+                onClick={() => toggleProfFilter('')}
+              >
+                <span className={`${styles.profAvatar} ${styles.profAvatarNone}`}>—</span>
+              </button>
             </div>
           )}
 
@@ -812,8 +885,60 @@ function AgendaContent() {
 
       {gcalError && <p className={styles.gcalErrorMsg}>{gcalError}</p>}
 
-      {/* ── Filters (list view only) ── */}
-      {viewMode === 'lista' && (
+      {/* ── Date strip: date-picker horizontal deslizante (mobile, visões Dia/Lista) ── */}
+      {!isCalendarView && (
+        <div className={styles.dateStrip}>
+          {dateStripDays.map(d => {
+            const isToday = localDateStr(d) === localDateStr(new Date())
+            const isSel = localDateStr(d) === localDateStr(currentDate)
+            return (
+              <button
+                key={localDateStr(d)}
+                type="button"
+                className={`${styles.dateStripItem} ${isSel ? styles.dateStripItemSel : ''} ${isToday ? styles.dateStripItemToday : ''}`}
+                onClick={() => setCurrentDate(d)}
+              >
+                <span className={styles.dateStripDow}>{d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
+                <span className={styles.dateStripNum}>{d.getDate()}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ── Filtro de profissionais (mobile): chips com avatar + nome, rolagem horizontal ── */}
+      {professionals.length > 1 && (
+        <div className={styles.profFiltersMobile}>
+          {professionals.map((p, i) => {
+            const color = PROF_COLORS[i % PROF_COLORS.length]
+            const active = !hiddenProfIds.has(p.id)
+            return (
+              <button
+                key={p.id}
+                type="button"
+                className={styles.profChip}
+                data-active={active}
+                onClick={() => toggleProfFilter(p.id)}
+              >
+                <span className={styles.profChipAvatar} style={{ background: color }}>{initials(p.name)}</span>
+                {p.name}
+              </button>
+            )
+          })}
+          <button
+            type="button"
+            className={styles.profChip}
+            data-active={!hiddenProfIds.has('')}
+            onClick={() => toggleProfFilter('')}
+          >
+            <span className={`${styles.profChipAvatar} ${styles.profAvatarNone}`}>—</span>
+            Sem profissional
+          </button>
+        </div>
+      )}
+
+      {/* ── Filters (visão Dia) ── */}
+      {viewMode === 'dia' && (
         <div className={styles.filters}>
           <select className={styles.filterInput} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
             <option value="">Todos os status</option>
@@ -838,46 +963,22 @@ function AgendaContent() {
       ) : (
         <div className={styles.stage}>
           <div className={styles.calWrap}>
-            {viewMode === 'calendar' ? (
+            {isCalendarView ? (
               <div className={styles.calendarWrap}>
-                {professionals.length > 1 && (
-                  <div className={styles.profLegend}>
-                    <span className={styles.profLegendItem} style={{ color: 'var(--text-tertiary)' }}>
-                      <span className={styles.profDot} style={{ background: '#9BB5B3' }} />
-                      Sem profissional
-                    </span>
-                    {professionals.map((p, i) => (
-                      <span key={p.id} className={styles.profLegendItem}>
-                        <span className={styles.profDot} style={{ background: PROF_COLORS[i % PROF_COLORS.length] }} />
-                        {p.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
                 <FullCalendarWrapper
+                  ref={calRef}
+                  view={viewMode === 'mes' ? 'dayGridMonth' : 'timeGridWeek'}
                   events={calendarEvents}
                   onEventClick={handleEventClick}
                   onDateSelect={handleDateSelect}
+                  onTitleChange={setCalendarTitle}
                 />
                 <p className={styles.calHint}>Clique num evento para ver detalhes • Clique numa data para criar agendamento</p>
               </div>
-            ) : viewMode === 'diageral' ? (
-              /* ── Dia geral view (colunas por profissional) ── */
-              <DiaGeralView
-                date={currentDate}
-                appointments={dayAppointments}
-                professionals={professionals}
-                profColorIndex={profColorIndex}
-                onSelect={setSelected}
-                onSlotClick={(professionalId, dateISO) => {
-                  setForm({ ...BLANK, professional_id: professionalId ?? '', scheduled_at: dateISO })
-                  setShowModal(true)
-                }}
-              />
             ) : (
-              /* ── List view ── */
+              /* ── Visão Dia: cards com trilho de horário ── */
               <div className={styles.listScroll}>
-                {grouped.length === 0 ? (
+                {filtered.length === 0 ? (
                   <div className={styles.listEmpty}>
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="4" width="18" height="18" rx="2"/>
@@ -890,34 +991,27 @@ function AgendaContent() {
                       <PlusIcon /> Novo Agendamento
                     </button>
                   </div>
-                ) : grouped.map(([hour, appts]) => (
-                  <div key={hour} className={styles.listGroup}>
-                    <div className={styles.listHour}>{hour}</div>
-                    <div className={styles.listRows}>
-                      {appts.map(a => {
-                        const color = profColor(a.professional_id, profColorIndex)
-                        const initials = (a.professionals?.name ?? '')
-                          .split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '—'
-                        return (
-                          <button key={a.id} className={styles.listRow} style={{ borderColor: STATUS_DOTS[a.status ?? 'agendado'], backgroundColor: STATUS_BG[a.status ?? 'agendado'] }} onClick={() => setSelected(a)}>
-                            <div className={styles.lrTime}>
-                              {fmtTime(a.scheduled_at)}
-                              <span className={styles.lrTimeEnd}>até {fmtEndTime(a.scheduled_at, a.duration_minutes ?? 60)}</span>
+                ) : (
+                  <div className={styles.lrList}>
+                    {filtered.map(a => {
+                      const color = profColor(a.professional_id, profColorIndex)
+                      return (
+                        <div key={a.id} className={styles.lrItem}>
+                          <div className={styles.lrRailWrap}>
+                            <div className={styles.lrRail}>
+                              <span className={styles.lrRailTime}>{fmtTime(a.scheduled_at)}</span>
+                              <span className={styles.lrRailDur}>{a.duration_minutes ?? 60}min</span>
                             </div>
-                            <div className={styles.lrBar} style={{ background: color }} />
-                            <div className={styles.lrMain}>
-                              <strong>{a.patients?.name ?? '-'}</strong>
-                              <span>{a.procedure_name ?? 'Consulta'}</span>
-                            </div>
-                            {a.professionals?.name && (
-                              <div className={styles.lrPro}>
-                                <div className={styles.lrProAvatar} style={{ background: color }}>{initials}</div>
-                                {a.professionals.name}
-                              </div>
-                            )}
-                            <span className={`${styles.lrStatus} ${styles[`badge_${a.status ?? 'agendado'}`]}`}>
-                              {STATUS_LABELS[a.status ?? ''] ?? a.status}
-                            </span>
+                            <div className={styles.lrDotLine} />
+                          </div>
+                          <div
+                            className={styles.lrCard}
+                            style={{ '--lr-accent': color } as React.CSSProperties}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setSelected(a)}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(a) } }}
+                          >
                             <button
                               className={styles.lrGcal}
                               onClick={e => { e.stopPropagation(); openGCal(a) }}
@@ -925,16 +1019,29 @@ function AgendaContent() {
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                             </button>
-                          </button>
-                        )
-                      })}
-                    </div>
+                            <strong className={styles.lrCardName}>{a.patients?.name ?? '-'}</strong>
+                            <span className={styles.lrCardProc}>{a.procedure_name ?? 'Consulta'}</span>
+                            <div className={styles.lrCardFoot}>
+                              {a.professionals?.name && (
+                                <>
+                                  <span className={styles.lrProAvatar} style={{ background: color }}>{initials(a.professionals.name)}</span>
+                                  <span className={styles.lrProName}>{a.professionals.name}</span>
+                                </>
+                              )}
+                              <span className={`${styles.lrStatus} ${styles[`badge_${a.status ?? 'agendado'}`]}`}>
+                                {STATUS_LABELS[a.status ?? ''] ?? a.status}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                ))}
+                )}
               </div>
             )}
 
-            {/* FAB — always visible on mobile, visible in list view */}
+            {/* FAB — único CTA no mobile (≤600px) */}
             <button className={styles.fab} onClick={() => setShowModal(true)} title="Novo agendamento">
               <PlusIcon />
               <span className={styles.fabLabel}>Novo agendamento</span>

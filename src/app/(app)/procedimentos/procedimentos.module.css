@@ -1,4 +1,9 @@
-.page { display:flex; flex-direction:column; gap:1.5rem; animation:fadeUp .3s ease both; max-width:1200px; }
+/* fill-mode backwards (não "both"): "both"/"forwards" mantém a animação
+   "presa" no transform final (matrix identidade, não o keyword none) mesmo
+   após terminar, o que vira containing block pra filhos position:fixed —
+   qualquer modal dentro da página passa a se posicionar relativo à página
+   em vez da viewport, cortando rodapés fixos no mobile. */
+.page { display:flex; flex-direction:column; gap:1.5rem; animation:fadeUp .3s ease backwards; max-width:1200px; }
 @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
 .header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }

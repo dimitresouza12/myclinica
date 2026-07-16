@@ -18,6 +18,7 @@ const NAV = [
   { path: '/financeiro',    label: 'Financeiro',    icon: 'finance'     as const, plusOnly: false },
   { path: '/procedimentos', label: 'Procedimentos', icon: 'procedures' as const, plusOnly: false },
   { path: '/relatorios',    label: 'Relatórios',    icon: 'reports'    as const, plusOnly: false },
+  { path: '/metas',         label: 'Metas',         icon: 'target'     as const, plusOnly: false },
   { path: '/estoque',       label: 'Estoque',       icon: 'stock'      as const, plusOnly: false },
   { path: '/equipe',        label: 'Equipe',        icon: 'team'       as const, plusOnly: false },
   { path: '/crm',           label: 'CRM',           icon: 'crm'        as const, plusOnly: true  },

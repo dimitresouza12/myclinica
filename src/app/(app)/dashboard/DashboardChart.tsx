@@ -1,9 +1,10 @@
 'use client'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 
 interface MonthlyData { month: string; receita: number; despesa: number }
+interface Props { data: MonthlyData[]; goal?: number | null }
 
 const fmt = (v: number) =>
   `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
@@ -65,7 +66,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   )
 }
 
-export default function DashboardChart({ data }: { data: MonthlyData[] }) {
+export default function DashboardChart({ data, goal }: Props) {
   return (
     <>
       <style>{`
@@ -112,10 +113,19 @@ export default function DashboardChart({ data }: { data: MonthlyData[] }) {
           />
           <Bar dataKey="receita" name="Receita" shape={<RoundedBarReceita />} isAnimationActive={false} />
           <Bar dataKey="despesa" name="Despesa" shape={<RoundedBarDespesa />} isAnimationActive={false} />
+          {!!goal && goal > 0 && (
+            <ReferenceLine
+              y={goal}
+              stroke="#F59E0B"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+              label={{ value: `Meta ${fmt(goal)}`, position: 'insideTopRight', fill: '#F59E0B', fontSize: 11, fontWeight: 700 }}
+            />
+          )}
         </BarChart>
       </ResponsiveContainer>
 
-      <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+      <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ width: 10, height: 10, borderRadius: 3, background: '#4DD9C0' }} />
           <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Receita</span>
@@ -124,6 +134,12 @@ export default function DashboardChart({ data }: { data: MonthlyData[] }) {
           <div style={{ width: 10, height: 10, borderRadius: 3, background: '#EF4444' }} />
           <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Despesa</span>
         </div>
+        {!!goal && goal > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 14, height: 2, background: '#F59E0B' }} />
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Meta de faturamento</span>
+          </div>
+        )}
       </div>
     </>
   )

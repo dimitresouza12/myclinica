@@ -43,8 +43,8 @@ export function AdminUsuarios({ users, clinics }: Props) {
         </select>
       </div>
 
-      <div className={styles.richTable}>
-        <table className={styles.table}>
+      <div className={`${styles.richTable} resp-table-wrap`}>
+        <table className={`${styles.table} resp-table`}>
           <thead>
             <tr><th>Usuário</th><th>Clínica</th><th>Função</th><th>Status</th><th>Cadastro</th></tr>
           </thead>
@@ -62,14 +62,14 @@ export function AdminUsuarios({ users, clinics }: Props) {
                     </div>
                   </div>
                 </td>
-                <td>{u.clinics?.name ?? <span className={styles.dimText}>—</span>}</td>
-                <td><span className={styles.roleChip}>{ROLE_LABELS[u.role] ?? u.role}</span></td>
-                <td>
+                <td data-label="Clínica">{u.clinics?.name ?? <span className={styles.dimText}>—</span>}</td>
+                <td data-label="Função"><span className={styles.roleChip}>{ROLE_LABELS[u.role] ?? u.role}</span></td>
+                <td data-label="Status">
                   <span className={`${styles.statusPill} ${u.is_active ? styles.statusActive : styles.statusInactive}`}>
                     {u.is_active ? 'Ativo' : 'Inativo'}
                   </span>
                 </td>
-                <td className={styles.dateCell}>{formatDate(u.created_at, true)}</td>
+                <td data-label="Cadastro" className={styles.dateCell}>{formatDate(u.created_at, true)}</td>
               </tr>
             ))}
           </tbody>

@@ -93,8 +93,8 @@ export function AdminLogs({ clinics }: { clinics: Clinic[] }) {
         )}
       </div>
 
-      <div className={styles.richTable}>
-        <table className={styles.table}>
+      <div className={`${styles.richTable} resp-table-wrap`}>
+        <table className={`${styles.table} resp-table`}>
           <thead>
             <tr>
               <th>Data</th>
@@ -113,15 +113,15 @@ export function AdminLogs({ clinics }: { clinics: Clinic[] }) {
               return (
                 <tr key={l.id} className={styles.logRow}>
                   <td className={styles.dateCell}>{formatDate(l.created_at)}</td>
-                  <td>{l.clinics?.name ?? <span className={styles.dimText}>—</span>}</td>
-                  <td><span className={styles.moduleChip}>{l.module}</span></td>
-                  <td>
+                  <td data-label="Clínica">{l.clinics?.name ?? <span className={styles.dimText}>—</span>}</td>
+                  <td data-label="Módulo"><span className={styles.moduleChip}>{l.module}</span></td>
+                  <td data-label="Ação">
                     <span className={styles.actionBadge} style={{ background: `${color}22`, color, borderColor: `${color}44` }}>
                       {l.action}
                     </span>
                   </td>
-                  <td className={styles.dimText}>{l.ip_address ?? '—'}</td>
-                  <td>
+                  <td data-label="IP" className={styles.dimText}>{l.ip_address ?? '—'}</td>
+                  <td data-label="Detalhes">
                     {l.details && Object.keys(l.details).length > 0 ? (
                       <details className={styles.detailsEl}>
                         <summary className={styles.detailsSummary}>Ver</summary>

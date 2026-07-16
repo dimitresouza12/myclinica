@@ -1,4 +1,6 @@
-.page { display:flex; flex-direction:column; gap:1.5rem; animation:fadeUp .3s ease both; max-width:1200px; }
+/* backwards, não both — evita transform residual (matrix, não "none") que
+   vira containing block e quebra modais position:fixed no mobile. */
+.page { display:flex; flex-direction:column; gap:1.5rem; animation:fadeUp .3s ease backwards; max-width:1200px; }
 @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
 .header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
@@ -83,11 +85,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 .kpiSub { font-size:.75rem; color:var(--text-secondary); }
-.kpiGreen { color:#059669; }
-.kpiRed   { color:#C0392B; }
-.kpiBlue  { color:#0B9B85; }
+.kpiGreen { color:#059669; font-variant-numeric: tabular-nums; }
+.kpiRed   { color:#C0392B; font-variant-numeric: tabular-nums; }
+.kpiBlue  { color:#0B9B85; font-variant-numeric: tabular-nums; }
 
 /* 2-col grid */
 .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; }

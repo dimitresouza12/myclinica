@@ -1,12 +1,21 @@
 /* ─── Page shell ─────────────────────────────────────────────── */
+/* TopBar + grade vivem dentro do mesmo cartão — a TopBar é o header
+   do cartão, a grade é o corpo, sem caixa flutuante separada dentro. */
 .page {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) both;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  /* backwards, não both — evita transform residual (matrix, não "none") que
+     vira containing block e quebra modais position:fixed no mobile. */
+  animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) backwards;
 }
-@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; } }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
 /* ─── Topbar ─────────────────────────────────────────────────── */
 .topbar {
@@ -170,6 +179,44 @@
 }
 .btnPrimary:hover { background: #3CCCB4; transform: translateY(-1px); }
 
+/* ─── Date strip: date-picker horizontal deslizante (só mobile) ── */
+.dateStrip {
+  display: none;
+}
+
+/* ─── Filtro de profissionais em chips (só mobile) ────────────── */
+.profFiltersMobile { display: none; }
+.profChip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 5px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+.profChip[data-active="false"] { opacity: 0.45; }
+.profChipAvatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
 /* ─── Filters bar (list view) ────────────────────────────────── */
 .filters {
   flex-shrink: 0;
@@ -221,28 +268,46 @@
   position: absolute;
   inset: 0;
   overflow: auto;
-  padding: 16px;
+  padding: 10px;
 }
-.profLegend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.875rem;
-  margin-bottom: 12px;
-  padding: 0.5rem 0.75rem;
-  background: var(--bg-secondary);
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-}
-.profLegendItem {
+/* ─── Filtro de profissionais (chips de avatar na TopBar) ────── */
+.profFilters {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
+  gap: 5px;
+  padding: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  flex-shrink: 0;
 }
-.profDot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.profFilterBtn {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 0;
+  border-radius: 50%;
+}
+.profAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #fff;
+  transition: opacity 0.15s, filter 0.15s, transform 0.15s;
+}
+.profFilterBtn:hover .profAvatar { transform: scale(1.08); }
+.profAvatarNone { background: var(--bg-tertiary); color: var(--text-tertiary); }
+.profFilterBtn[data-active="false"] .profAvatar {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
 
 /* ─── List view ──────────────────────────────────────────────── */
 .listScroll {
@@ -264,133 +329,140 @@
 }
 .listEmpty svg { opacity: 0.35; }
 
-.listGroup { margin-bottom: 22px; }
-.listHour {
-  font-size: 11.5px;
-  font-weight: 800;
-  color: var(--text-tertiary);
-  letter-spacing: .07em;
-  text-transform: uppercase;
-  margin: 0 0 8px 2px;
-}
-.listRows { display: flex; flex-direction: column; gap: 7px; }
+/* Lista de cards de agendamento, com trilho de horário à esquerda */
+.lrList { display: flex; flex-direction: column; }
 
-.listRow {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  padding: 12px 16px;
-  border-radius: 14px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  cursor: pointer;
-  transition: border-color 0.14s, box-shadow 0.14s, transform 0.14s;
-  text-align: left;
-}
-.listRow:hover {
-  border-color: var(--brand-primary);
-  box-shadow: 0 6px 18px -8px rgba(13,36,33,0.18);
-  transform: translateY(-1px);
+.lrItem {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 10px;
 }
 
-.lrTime {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  width: 96px;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.4;
-}
-.lrTimeEnd {
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-tertiary);
-  margin-top: 1px;
-}
-
-.lrBar {
-  width: 4px;
-  align-self: stretch;
-  border-radius: 4px;
-  flex-shrink: 0;
-  min-height: 36px;
-}
-
-.lrMain {
-  flex: 1;
-  min-width: 0;
+.lrRailWrap {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: flex-end;
 }
-.lrMain strong {
-  font-size: 14px;
+.lrRail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding-top: 2px;
+}
+.lrRailTime {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+.lrRailDur {
+  font-size: 0.6rem;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  margin-top: 1px;
+}
+.lrDotLine {
+  flex: 1;
+  width: 2px;
+  min-height: 10px;
+  background: var(--border-subtle);
+  margin: 4px 5px 0;
+}
+
+.lrCard {
+  position: relative;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--lr-accent, var(--brand-primary));
+  border-radius: 11px;
+  padding: 10px 34px 10px 12px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: border-color 0.14s, box-shadow 0.14s, transform 0.14s;
+}
+.lrCard:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.lrCard:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.lrCardName {
+  display: block;
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lrMain span {
-  font-size: 12px;
+.lrCardProc {
+  display: block;
+  font-size: 0.76rem;
   color: var(--text-secondary);
+  margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.lrPro {
+.lrCardFoot {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  width: 160px;
-  flex-shrink: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin-top: 9px;
 }
 .lrProAvatar {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 800;
   color: #fff;
   flex-shrink: 0;
+  box-shadow: 0 0 0 1.5px var(--lr-accent, var(--brand-primary));
+}
+.lrProName {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lrStatus {
-  font-size: 11.5px;
+  margin-left: auto;
+  font-size: 0.64rem;
   font-weight: 700;
-  padding: 4px 11px;
-  border-radius: 20px;
+  padding: 2px 8px;
+  border-radius: 999px;
   flex-shrink: 0;
   white-space: nowrap;
 }
 .lrGcal {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   background: none;
   border: none;
-  font-size: 1rem;
   cursor: pointer;
-  padding: 0.75rem 0.5rem;
-  margin: -0.5rem 0;
+  padding: 8px;
   border-radius: 8px;
   opacity: 0.4;
-  transition: opacity 0.14s;
-  flex-shrink: 0;
+  transition: opacity 0.14s, background 0.14s;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.lrGcal:hover { opacity: 0.85; }
+.lrGcal:hover { opacity: 0.85; background: var(--bg-secondary); }
 
 /* Status badge colors */
 .badge_agendado  { background: #EFF6FF; color: #1D4ED8; }
@@ -399,15 +471,16 @@
 .badge_cancelado { background: #FEF2F2; color: #991B1B; }
 .badge_faltou    { background: #FFF7ED; color: #9A3412; }
 
-/* Status border colors for listRow */
-.listRow_agendado  { border-color: #94A3B8; }
-.listRow_confirmado { border-color: #4DD9C0; }
-.listRow_concluido { border-color: #10B981; }
-.listRow_cancelado { border-color: #EF4444; }
-.listRow_faltou    { border-color: #F59E0B; }
+/* Status badge colors */
+.badge_agendado  { background: #EFF6FF; color: #1D4ED8; }
+.badge_confirmado { background: #ECFDF5; color: #065F46; }
+.badge_concluido { background: #F0FDF4; color: #15803D; }
+.badge_cancelado { background: #FEF2F2; color: #991B1B; }
+.badge_faltou    { background: #FFF7ED; color: #9A3412; }
 
-/* ─── FAB ────────────────────────────────────────────────────── */
+/* ─── FAB — único CTA no mobile; no desktop o CTA é o botão da TopBar ── */
 .fab {
+  display: none;
   position: absolute;
   right: 24px;
   bottom: 24px;
@@ -1015,6 +1088,52 @@
   .tbLeft { flex: 1; min-width: 0; }
   .tbDate h1 { font-size: 15px; }
   .tbDate span { display: none; }
+
+  /* Date-picker horizontal deslizante — navegação rápida entre dias nas visões Dia/Lista */
+  .dateStrip {
+    display: flex;
+    gap: 7px;
+    padding: 10px 14px 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .dateStrip::-webkit-scrollbar { display: none; }
+  .dateStripItem {
+    flex: 0 0 auto;
+    width: 42px;
+    padding: 7px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    border: none;
+    background: none;
+    border-radius: 12px;
+    scroll-snap-align: center;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .dateStripDow {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+  }
+  .dateStripNum {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .dateStripItemToday .dateStripDow,
+  .dateStripItemToday .dateStripNum { color: #0B9B85; }
+  .dateStripItemSel {
+    background: #4DD9C0;
+  }
+  .dateStripItemSel .dateStripDow { color: #04312B; opacity: 0.7; }
+  .dateStripItemSel .dateStripNum { color: #04312B; }
   .seg {
     order: 10;
     width: 100%;
@@ -1030,11 +1149,23 @@
   .gcalStatus, .gcalUnlinked, .btnGcalConnect { display: none; }
   .gcalErrorMsg { margin: 0 14px 0; }
 
-  .lrPro { display: none; }
+  /* Filtro de profissionais (avatares) some da TopBar apertada do mobile
+     e reaparece como faixa de chips deslizante abaixo do date-strip */
+  .profFilters { display: none; }
+  .profFiltersMobile {
+    display: flex;
+    gap: 7px;
+    padding: 0 14px 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .profFiltersMobile::-webkit-scrollbar { display: none; }
+
   .listScroll { padding: 14px 14px 90px; }
 
-  /* FAB extendido com texto no mobile */
+  /* FAB extendido com texto no mobile — único CTA nesta largura */
   .fab {
+    display: flex;
     width: auto;
     height: 52px;
     border-radius: 26px;

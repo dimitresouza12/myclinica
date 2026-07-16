@@ -276,6 +276,7 @@ export interface AuthClinic {
   asaasSubscriptionId: string | null
   billingOverdueSince: string | null
   nextBillingDate: string | null
+  monthlyRevenueGoal: number | null
 }
 
 export interface AuthUser {

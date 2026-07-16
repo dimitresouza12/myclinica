@@ -1,10 +1,11 @@
 'use client'
+import { forwardRef, useImperativeHandle, useRef } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import googleCalendarPlugin from '@fullcalendar/google-calendar'
-import type { EventClickArg, DateSelectArg } from '@fullcalendar/core'
+import type { EventClickArg, DateSelectArg, DatesSetArg } from '@fullcalendar/core'
 import './fullcalendar.css'
 
 export interface CalendarEvent {
@@ -16,11 +17,24 @@ export interface CalendarEvent {
   extendedProps: Record<string, unknown>
 }
 
+export type CalendarView = 'dayGridMonth' | 'timeGridWeek'
+
+export interface FullCalendarHandle {
+  prev: () => void
+  next: () => void
+  today: () => void
+  changeView: (view: CalendarView) => void
+  gotoDate: (date: Date) => void
+  getDate: () => Date | null
+}
+
 interface Props {
   events: CalendarEvent[]
+  view: CalendarView
   googleCalendarId?: string
   onEventClick: (id: string) => void
   onDateSelect: (dateStr: string) => void
+  onTitleChange?: (title: string) => void
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -35,8 +49,12 @@ export function statusColor(status: string) {
   return STATUS_COLORS[status] ?? '#3B82F6'
 }
 
-export default function FullCalendarWrapper({ events, googleCalendarId, onEventClick, onDateSelect }: Props) {
+const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullCalendarWrapper(
+  { events, view, googleCalendarId, onEventClick, onDateSelect, onTitleChange },
+  ref
+) {
   const GAPI_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
+  const calRef = useRef<FullCalendar>(null)
 
   const eventSources = [
     { events },
@@ -45,19 +63,25 @@ export default function FullCalendarWrapper({ events, googleCalendarId, onEventC
       : []),
   ]
 
+  useImperativeHandle(ref, () => ({
+    prev: () => calRef.current?.getApi().prev(),
+    next: () => calRef.current?.getApi().next(),
+    today: () => calRef.current?.getApi().today(),
+    changeView: (v: CalendarView) => calRef.current?.getApi().changeView(v),
+    gotoDate: (date: Date) => calRef.current?.getApi().gotoDate(date),
+    getDate: () => calRef.current?.getApi().getDate() ?? null,
+  }))
+
   return (
     <FullCalendar
+      ref={calRef}
       plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, googleCalendarPlugin]}
-      initialView="dayGridMonth"
+      initialView={view}
       locale="pt-br"
-      headerToolbar={{
-        left: 'prev,next today',
-        center: 'title',
-        right: 'dayGridMonth,timeGridWeek,timeGridDay',
-      }}
-      buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia' }}
+      headerToolbar={false}
       googleCalendarApiKey={GAPI_KEY}
       eventSources={eventSources}
+      nowIndicator
       selectable
       selectMirror
       select={(arg: DateSelectArg) => onDateSelect(arg.startStr)}
@@ -66,8 +90,11 @@ export default function FullCalendarWrapper({ events, googleCalendarId, onEventC
         const id = arg.event.id
         if (id) onEventClick(id)
       }}
+      datesSet={(arg: DatesSetArg) => onTitleChange?.(arg.view.title)}
       height="auto"
       eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
     />
   )
-}
+})
+
+export default FullCalendarWrapper

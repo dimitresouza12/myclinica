@@ -56,3 +56,91 @@ a {
     font-size: 16px !important;
   }
 }
+
+/* ─── Mobile: tabelas de dados viram cartões empilhados ──────────────
+   Aplicar a classe global "resp-table-wrap" no wrapper e "resp-table" na
+   <table>, mantendo a classe do CSS module (ex: styles.tableWrap) junto.
+   Cada <td> (exceto o primeiro, que vira o "título" do cartão) precisa de
+   um atributo data-label="Nome da coluna" para o rótulo aparecer. */
+@media (max-width: 768px) {
+  .resp-table-wrap {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .resp-table thead { display: none; }
+
+  .resp-table,
+  .resp-table tbody,
+  .resp-table tr,
+  .resp-table td {
+    display: block;
+    width: 100%;
+    /* Alguns módulos definem min-width no desktop (ex: tabela de Estoque com
+       8 colunas) para permitir scroll horizontal em telas médias. min-width
+       sempre vence width, então sem isso o valor da célula é empurrado pra
+       fora da tela no mobile — só o rótulo fica visível. !important porque
+       a regra do CSS module concorrente tem a mesma especificidade e pode
+       carregar depois desta no bundle final. */
+    min-width: 0 !important;
+  }
+
+  .resp-table tr {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.625rem;
+  }
+  .resp-table tr:last-child { margin-bottom: 0; }
+
+  /* Linha de estado vazio ("Nenhum registro encontrado") — sem virar cartão */
+  .resp-table tr:has(td[colspan]) {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+  .resp-table td[colspan] {
+    text-align: center;
+    padding: 2rem 0 !important;
+  }
+
+  .resp-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.4rem 0 !important;
+    border: none !important;
+    text-align: right;
+  }
+  .resp-table td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    text-align: left;
+  }
+
+  /* Primeira célula = título do cartão (nome do paciente/produto/clínica...) */
+  .resp-table td:first-child {
+    display: block;
+    text-align: left;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    padding: 0 0 0.5rem !important;
+    margin-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border-subtle) !important;
+  }
+  .resp-table td:first-child::before { content: none; }
+}
