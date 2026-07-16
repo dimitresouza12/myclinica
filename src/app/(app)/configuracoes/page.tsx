@@ -8,6 +8,7 @@ import styles from './configuracoes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { showToast } from '@/components/ui/Toast'
 import { Portal } from '@/components/ui/Portal'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
 
 const DOC_TEMPLATE_TYPES: { type: DocumentTemplateType; label: string }[] = [
   { type: 'receita_comum',             label: 'Receita Comum' },
@@ -478,7 +479,7 @@ function ConfiguracoesContent() {
 
   async function handleLogoRemove() {
     if (!clinic?.id) return
-    if (!confirm('Remover a logo da clínica?')) return
+    if (!(await confirmDialog({ message: 'Remover a logo da clínica?', confirmText: 'Remover', danger: true }))) return
     await supabase.from('clinics').update({ logo_url: null }).eq('id', clinic.id)
     setClinicLogo('')
     setLogoMsg({ ok: true, text: 'Logo removida.' })

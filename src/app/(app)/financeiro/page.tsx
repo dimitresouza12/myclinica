@@ -11,6 +11,7 @@ import { useFinanceiroData } from '@/hooks/useClinicData'
 import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { usePermissions } from '@/hooks/usePermissions'
 import { motion } from 'framer-motion'
 
@@ -176,7 +177,7 @@ function FinanceiroContent() {
   }
 
   async function handleDelete(record: FinancialRecord) {
-    if (!confirm(`Excluir este lançamento de ${formatCurrency(record.total_amount ?? 0)}? Esta ação não pode ser desfeita.`)) return
+    if (!(await confirmDialog({ message: `Excluir este lançamento de ${formatCurrency(record.total_amount ?? 0)}? Esta ação não pode ser desfeita.`, confirmText: 'Excluir', danger: true }))) return
     setDeletingId(record.id)
     await supabase.from('financial_records').delete().eq('id', record.id)
     setDeletingId(null)

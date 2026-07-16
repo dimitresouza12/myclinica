@@ -15,6 +15,7 @@ import type { Appointment, Patient, Professional, Procedure } from '@/types'
 import { type CalendarEvent, type FullCalendarHandle } from '@/components/agenda/FullCalendarWrapper'
 import styles from './agenda.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
 
 const FullCalendarWrapper = dynamic(
   () => import('@/components/agenda/FullCalendarWrapper'),
@@ -757,7 +758,7 @@ function AgendaContent() {
   }
 
   async function handleDelete(appt: Appointment) {
-    if (!confirm(`Excluir agendamento de ${appt.patients?.name ?? 'Paciente'}? Esta ação não pode ser desfeita.`)) return
+    if (!(await confirmDialog({ message: `Excluir agendamento de ${appt.patients?.name ?? 'Paciente'}? Esta ação não pode ser desfeita.`, confirmText: 'Excluir', danger: true }))) return
     if (appt.gcal_event_id && gcalConnected) {
       const token = getGCalToken()
       if (token) {

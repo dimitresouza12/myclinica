@@ -11,6 +11,7 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import { useEstoqueData } from '@/hooks/useClinicData'
 import styles from './estoque.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
 
 const EstoqueChart = dynamic(() => import('./EstoqueChart'), { ssr: false, loading: () => null })
 
@@ -178,7 +179,7 @@ function EstoqueContent() {
   }
 
   async function handleDelete(item: StockItem) {
-    if (!confirm(`Desativar "${item.name}"? O histórico de movimentações será mantido.`)) return
+    if (!(await confirmDialog({ message: `Desativar "${item.name}"? O histórico de movimentações será mantido.`, confirmText: 'Desativar', danger: true }))) return
     await supabase.from('stock_items').update({ is_active: false }).eq('id', item.id)
     loadData()
   }

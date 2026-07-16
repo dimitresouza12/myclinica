@@ -8,6 +8,7 @@ import type { Procedure } from '@/types'
 import styles from './procedimentos.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { Portal } from '@/components/ui/Portal'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
 
 import type { ClinicType } from '@/types'
 
@@ -94,7 +95,7 @@ function ProcedimentosContent() {
   }
 
   async function handleDelete(p: Procedure) {
-    if (!confirm(`Excluir o procedimento "${p.name}"? Esta ação não pode ser desfeita.`)) return
+    if (!(await confirmDialog({ message: `Excluir o procedimento "${p.name}"? Esta ação não pode ser desfeita.`, confirmText: 'Excluir', danger: true }))) return
     await supabase.from('procedures').delete().eq('id', p.id).eq('clinic_id', clinic!.id)
     loadData()
   }

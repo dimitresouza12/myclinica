@@ -11,6 +11,7 @@ import { SystemAlertBanner } from '@/components/layout/SystemAlertBanner'
 import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner'
 import { PaymentLateBanner } from '@/components/layout/PaymentLateBanner'
 import { ToastContainer } from '@/components/ui/Toast'
+import { ConfirmDialogContainer } from '@/components/ui/ConfirmDialog'
 import styles from './app.module.css'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -135,6 +136,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <main key={clinic.id} className={styles.main}>{children}</main>
       </div>
       <ToastContainer />
+      <ConfirmDialogContainer />
     </div>
   )
 }

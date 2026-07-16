@@ -8,6 +8,7 @@ import type { Clinic } from '@/types'
 import { StatusBadge } from './StatusBadge'
 import { ClinicEditModal } from './ClinicEditModal'
 import { Portal } from '@/components/ui/Portal'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './admin.module.css'
 
@@ -53,13 +54,13 @@ export function AdminClinicas({ clinics, onReload }: Props) {
   }
 
   async function handleApprove(c: Clinic) {
-    if (!confirm(`Aprovar a clínica "${c.name}"?`)) return
+    if (!(await confirmDialog({ message: `Aprovar a clínica "${c.name}"?`, confirmText: 'Aprovar' }))) return
     await supabase.from('clinics').update({ status: 'active', is_active: true }).eq('id', c.id)
     onReload()
   }
 
   async function handleReject(c: Clinic) {
-    if (!confirm(`Rejeitar e marcar como inativa a clínica "${c.name}"?`)) return
+    if (!(await confirmDialog({ message: `Rejeitar e marcar como inativa a clínica "${c.name}"?`, confirmText: 'Rejeitar', danger: true }))) return
     await supabase.from('clinics').update({ status: 'inactive', is_active: false }).eq('id', c.id)
     onReload()
   }

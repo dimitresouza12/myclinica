@@ -8,6 +8,7 @@ import type { Professional } from '@/types'
 import styles from './equipe.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { Portal } from '@/components/ui/Portal'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
 
 interface NewProf { name: string; specialty: string }
 const BLANK: NewProf = { name: '', specialty: '' }
@@ -59,7 +60,7 @@ function EquipeContent() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remover profissional?')) return
+    if (!(await confirmDialog({ message: 'Remover profissional?', confirmText: 'Remover', danger: true }))) return
     // supabase singleton
     await supabase.from('professionals').delete().eq('id', id).eq('clinic_id', clinic!.id)
     loadData()
