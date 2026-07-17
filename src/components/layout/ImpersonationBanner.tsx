@@ -2,6 +2,7 @@
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
 import styles from './ImpersonationBanner.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 export function ImpersonationBanner() {
   const { impersonatedClinicId, impersonatedClinicName, stopImpersonation } = useAuthStore()
@@ -17,7 +18,7 @@ export function ImpersonationBanner() {
   return (
     <div className={styles.banner}>
       <span className={styles.stripe} />
-      <span className={styles.icon}>👁</span>
+      <span className={styles.icon}><Icon name="eye" size={14} /></span>
       <span className={styles.msg}>
         Modo suporte ativo — visualizando como <strong>{impersonatedClinicName}</strong>
       </span>

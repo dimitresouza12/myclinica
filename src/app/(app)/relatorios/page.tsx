@@ -8,6 +8,7 @@ import { formatCurrency } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { useProfessionals, useProcedures, useRelatoriosRawData } from '@/hooks/useClinicData'
 import styles from './relatorios.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 const { FinanceiroBarChart, PacientesBarChart } = {
   FinanceiroBarChart: dynamic(() => import('./RelatoriosCharts').then(m => m.FinanceiroBarChart), { ssr: false, loading: () => <div className={styles.loading}>Carregando gráfico...</div> }),
@@ -305,7 +306,7 @@ function RelatoriosContent() {
             <option value="12m">Últimos 12 meses</option>
           </select>
           <button className={styles.btnExport} onClick={() => setShowExportModal(true)}>
-            ↓ Exportar planilha
+            <Icon name="download" size={14} /> Exportar planilha
           </button>
         </div>
       </div>
@@ -539,7 +540,7 @@ function RelatoriosContent() {
           <div className={styles.exportModal} onClick={e => e.stopPropagation()}>
             <div className={styles.exportModalHeader}>
               <h3>Exportar planilha</h3>
-              <button className={styles.exportBtnClose} onClick={() => setShowExportModal(false)}>✕</button>
+              <button className={styles.exportBtnClose} onClick={() => setShowExportModal(false)}><Icon name="close" size={16} /></button>
             </div>
             <div className={styles.exportModalBody}>
               <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', margin: 0 }}>Escolha o período para exportar:</p>
@@ -559,7 +560,7 @@ function RelatoriosContent() {
             <div className={styles.exportModalFooter}>
               <button className={styles.exportBtnCancel} onClick={() => setShowExportModal(false)}>Cancelar</button>
               <button className={styles.exportBtnConfirm} onClick={exportXLSX} disabled={exporting}>
-                {exporting ? 'Exportando...' : '↓ Exportar'}
+                {exporting ? 'Exportando...' : <><Icon name="download" size={14} /> Exportar</>}
               </button>
             </div>
           </div>

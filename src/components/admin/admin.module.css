@@ -30,8 +30,8 @@
   background:var(--kpi-grad,var(--brand-primary));
 }
 .kpiIcon { font-size:1.75rem; flex-shrink:0; }
-.kpiBody { display:flex; flex-direction:column; gap:0.1rem; }
-.kpiValue { font-size:1.6rem; font-weight:800; color:var(--text-primary); letter-spacing:-0.5px; line-height:1; }
+.kpiBody { display:flex; flex-direction:column; gap:0.1rem; min-width:0; }
+.kpiValue { font-size:1.6rem; font-weight:800; color:var(--text-primary); letter-spacing:-0.5px; line-height:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .kpiLabel { font-size:0.75rem; color:var(--text-secondary); font-weight:500; }
 
 /* ========== Charts ========== */
@@ -71,11 +71,11 @@
 .actionBtn:hover { background:var(--bg-secondary); }
 .actionBtnSecondary { padding:0.3rem 0.75rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; font-size:0.78rem; border:1px solid var(--brand-primary); background:none; border-radius:var(--radius-sm); cursor:pointer; color:var(--brand-primary); transition:all 0.15s; }
 .actionBtnSecondary:hover { background:var(--brand-primary); color:#fff; }
-.actionBtnImpersonate { padding:0.3rem 0.75rem; font-size:0.78rem; border:1px solid #F59E0B; background:none; border-radius:var(--radius-sm); cursor:pointer; color:#D97706; transition:all 0.15s; }
+.actionBtnImpersonate { display:inline-flex; align-items:center; gap:0.3rem; padding:0.3rem 0.75rem; font-size:0.78rem; border:1px solid #F59E0B; background:none; border-radius:var(--radius-sm); cursor:pointer; color:#D97706; transition:all 0.15s; }
 .actionBtnImpersonate:hover { background:#FEF3C7; }
-.actionBtnApprove { padding:0.3rem 0.85rem; font-size:0.78rem; font-weight:600; border:none; background:linear-gradient(135deg,#10B981,#34D399); color:#fff; border-radius:var(--radius-sm); cursor:pointer; transition:all 0.15s; box-shadow:0 2px 6px rgba(16,185,129,0.3); }
+.actionBtnApprove { display:inline-flex; align-items:center; gap:0.3rem; padding:0.3rem 0.85rem; font-size:0.78rem; font-weight:600; border:none; background:linear-gradient(135deg,#10B981,#34D399); color:#fff; border-radius:var(--radius-sm); cursor:pointer; transition:all 0.15s; box-shadow:0 2px 6px rgba(16,185,129,0.3); }
 .actionBtnApprove:hover { transform:translateY(-1px); opacity:0.92; }
-.actionBtnReject { padding:0.3rem 0.75rem; font-size:0.78rem; border:1px solid #FCA5A5; background:none; border-radius:var(--radius-sm); cursor:pointer; color:#DC2626; transition:all 0.15s; }
+.actionBtnReject { display:inline-flex; align-items:center; gap:0.3rem; padding:0.3rem 0.75rem; font-size:0.78rem; border:1px solid #FCA5A5; background:none; border-radius:var(--radius-sm); cursor:pointer; color:#DC2626; transition:all 0.15s; }
 .actionBtnReject:hover { background:#FEE2E2; }
 .pendingAlert { padding:0.5rem 0.85rem; background:#FEF3C7; border:1px solid #FCD34D; border-radius:var(--radius-md); font-size:0.82rem; color:#92400E; font-weight:600; cursor:pointer; transition:all 0.15s; }
 .pendingAlert:hover { background:#FDE68A; }
@@ -245,6 +245,9 @@
   cursor: pointer;
 }
 .paidBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0.15rem 0.55rem;
   background: #D1FAE5;
   color: #065F46;
@@ -253,6 +256,9 @@
   font-weight: 700;
 }
 .unpaidBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0.15rem 0.55rem;
   background: #FEF3C7;
   color: #92400E;

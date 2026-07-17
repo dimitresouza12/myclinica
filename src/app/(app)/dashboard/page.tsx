@@ -97,7 +97,7 @@ function buildInsights(params: {
   const pace = getGoalPace(stats.monthRevenue, monthlyRevenueGoal)
   if (pace) {
     if (pace.status === 'done') {
-      out.push({ icon: 'target', color: '#10B981', text: `Meta do mês batida — você já alcançou ${Math.round(pace.pct * 100)}% do objetivo de faturamento. 🎉` })
+      out.push({ icon: 'target', color: '#10B981', text: `Meta do mês batida — você já alcançou ${Math.round(pace.pct * 100)}% do objetivo de faturamento.` })
     } else if (pace.status === 'behind') {
       out.push({ icon: 'target', color: '#EF4444', text: `Abaixo do ritmo para bater a meta: faltam ${formatCurrency(pace.remaining)} com ${pace.daysLeft} dia(s) restantes no mês.` })
     } else {
@@ -153,6 +153,7 @@ function DashboardContent() {
   const { clinic, user } = useAuthStore()
   const [hideValues, setHideValues] = useState(false)
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
+  const [alertsCollapsed, setAlertsCollapsed] = useState(false)
 
   const { data, isLoading: loading } = useDashboardData(clinic?.id)
 
@@ -237,7 +238,16 @@ function DashboardContent() {
                 <span className={styles.alertHeaderIcon}><Icon name="alert" size={16} /></span>
                 <h2 className={styles.alertTitle}>Ações necessárias</h2>
                 <span className={styles.alertCount}>{alerts.length}</span>
+                <button
+                  className={styles.alertCollapseBtn}
+                  onClick={() => setAlertsCollapsed(v => !v)}
+                  title={alertsCollapsed ? 'Expandir' : 'Encolher'}
+                  aria-label={alertsCollapsed ? 'Expandir' : 'Encolher'}
+                >
+                  <Icon name="chevronRight" size={14} className={alertsCollapsed ? '' : styles.alertCollapseIconOpen} />
+                </button>
               </div>
+              {!alertsCollapsed && (
               <div className={styles.alertList}>
                 {alerts.slice(0, 6).map((a) => {
                   const meta = ALERT_META[a.reason]
@@ -270,6 +280,7 @@ function DashboardContent() {
                   )
                 })}
               </div>
+              )}
             </div>
           )}
 
@@ -325,7 +336,7 @@ function DashboardContent() {
               <Link href="/metas" className={styles.metaCard}>
                 <div className={styles.cardHead}>
                   <span className={styles.eyebrow}>Meta do mês</span>
-                  <span className={styles.metaEdit}>Editar →</span>
+                  <span className={styles.metaEdit}>Editar <Icon name="chevronRight" size={12} /></span>
                 </div>
                 <div className={styles.ring}>
                   <svg width="128" height="128" viewBox="0 0 128 128">
@@ -356,7 +367,7 @@ function DashboardContent() {
                   <div className={styles.metaPace}>
                     <span className={styles.pacePill} style={{ background: pace.status === 'behind' ? '#EF4444' : '#10B981' }} />
                     {pace.status === 'done'
-                      ? 'Meta batida 🎉'
+                      ? 'Meta batida'
                       : `${pace.status === 'ahead' ? 'No ritmo' : 'Abaixo do ritmo'} — faltam ${hideValues ? '••••' : formatCurrency(pace.remaining)} em ${pace.daysLeft} dia(s)`}
                   </div>
                 )}
@@ -365,7 +376,7 @@ function DashboardContent() {
               <Link href="/metas" className={styles.metaCardEmpty}>
                 <span className={styles.metaEmptyIcon}><Icon name="target" size={20} /></span>
                 <p>Defina uma meta de faturamento mensal para acompanhar seu progresso aqui.</p>
-                <span className={styles.metaEdit}>Definir meta →</span>
+                <span className={styles.metaEdit}>Definir meta <Icon name="chevronRight" size={12} /></span>
               </Link>
             )}
           </div>

@@ -9,6 +9,7 @@ import { AdminAlertas } from '@/components/admin/AdminAlertas'
 import { AdminLogs } from '@/components/admin/AdminLogs'
 import { AdminUsuarios } from '@/components/admin/AdminUsuarios'
 import styles from '@/components/admin/admin.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 type AdminTab = 'overview' | 'clinicas' | 'alertas' | 'logs' | 'usuarios'
 
@@ -65,7 +66,7 @@ export default function AdminPage() {
   }
 
   if (verified === null) return <div className={styles.denied}>Verificando permissões...</div>
-  if (!verified) return <div className={styles.denied}>⛔ Acesso restrito a superadmins.</div>
+  if (!verified) return <div className={styles.denied}><Icon name="ban" size={16} /> Acesso restrito a superadmins.</div>
 
   return (
     <div className={styles.adminPage}>

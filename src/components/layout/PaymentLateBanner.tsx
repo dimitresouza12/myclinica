@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/store/auth'
 import styles from './PaymentLateBanner.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 const WHATSAPP = 'https://wa.me/55889200205070?text=Olá!%20Quero%20mais%20tempo%20para%20testar%20o%20MyClinica.'
 
@@ -102,7 +103,7 @@ export function PaymentLateBanner() {
               onChange={e => setCoupon(e.target.value)}
               maxLength={20}
             />
-            {couponValid   && <span className={styles.couponOk}>✓ 50% de desconto na 1ª mensalidade</span>}
+            {couponValid   && <span className={styles.couponOk}><Icon name="check" size={12} /> 50% de desconto na 1ª mensalidade</span>}
             {couponInvalid && <span className={styles.couponErr}>Código inválido</span>}
           </div>
 
@@ -138,7 +139,7 @@ export function PaymentLateBanner() {
   if (isOverdue) {
     return (
       <div className={styles.overdueBanner}>
-        <span className={styles.overdueIcon}>⚠️</span>
+        <span className={styles.overdueIcon}><Icon name="alert" size={15} /></span>
         <span className={styles.overdueMsg}>
           {daysOverdue > 1
             ? `Pagamento em atraso há ${daysOverdue} dias.`
@@ -157,14 +158,14 @@ export function PaymentLateBanner() {
     const label = daysUntilDue === 0 ? 'hoje' : 'amanhã'
     return (
       <div className={styles.dueBanner}>
-        <span className={styles.dueIcon}>🔔</span>
+        <span className={styles.dueIcon}><Icon name="bell" size={15} /></span>
         <span className={styles.dueMsg}>
           Seu próximo pagamento vence <strong>{label}</strong>. Certifique-se de que o método de pagamento está ativo.
         </span>
         <button className={styles.dueBtn} onClick={() => void handlePortal()} disabled={loadingPortal}>
           {loadingPortal ? 'Aguarde...' : 'Pagar agora'}
         </button>
-        <button className={styles.dueDismiss} onClick={() => setDismissedDue(true)} aria-label="Fechar">✕</button>
+        <button className={styles.dueDismiss} onClick={() => setDismissedDue(true)} aria-label="Fechar"><Icon name="close" size={14} /></button>
       </div>
     )
   }

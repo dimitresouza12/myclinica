@@ -6,6 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie,
 } from 'recharts'
+import { Icon } from './Icon'
 
 /* ─── Data ──────────────────────────────────────────────────────────── */
 const monthlyData = [
@@ -355,7 +356,7 @@ export default function FinancialDashboard() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 0" stroke="#f1f5f9" vertical={false} />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} dy={6} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => `${v/1000}k`} dx={-2} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => v.toLocaleString('pt-BR')} dx={-2} />
                     <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', radius: 8 } as any} />
                     <Bar dataKey="value" shape={<RoundedBar />} isAnimationActive={false}>
                       {monthlyData.map((_, i) => (
@@ -395,7 +396,7 @@ export default function FinancialDashboard() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 0" stroke="#f1f5f9" vertical={false} />
                     <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} dy={6} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${v/1000}k`} dx={-2} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => v.toLocaleString('pt-BR')} dx={-2} />
                     <Tooltip content={<CustomTooltip />} cursor={false} />
                     <Bar
                       dataKey="value"
@@ -487,7 +488,7 @@ export default function FinancialDashboard() {
                   <h2 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: 0 }}>Top Clientes</h2>
                   <p style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginTop: 3 }}>Maior MRR · Este mês</p>
                 </div>
-                <span style={{ fontSize: 11, color: '#7C3AED', fontWeight: 700, cursor: 'pointer' }}>Ver todos →</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#7C3AED', fontWeight: 700, cursor: 'pointer' }}>Ver todos <Icon name="chevronRight" size={10} /></span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

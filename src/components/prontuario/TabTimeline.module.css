@@ -35,6 +35,9 @@
 .hiddenInput { display: none; }
 
 .btnAttach {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.45rem 0.9rem;
   background: none;
   border: 1px dashed var(--border-color);
@@ -74,13 +77,21 @@
   100% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0); }
 }
 
+.photoPreviewGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
 .photoPreviewWrap {
   position: relative;
-  display: inline-block;
-  max-width: 240px;
+  width: 110px;
+  height: 110px;
+  flex-shrink: 0;
 }
 .photoPreview {
   width: 100%;
+  height: 100%;
+  object-fit: cover;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   display: block;
@@ -159,22 +170,28 @@
   line-height: 1.5;
 }
 
+.itemImgGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
 .itemImgBtn {
   padding: 0;
   background: none;
   border: none;
   cursor: zoom-in;
-  align-self: flex-start;
+  flex-shrink: 0;
 }
 .itemImg {
-  max-width: 260px;
-  max-height: 200px;
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
   border-radius: 8px;
   border: 1px solid var(--border-color);
   display: block;
   transition: transform 0.15s;
 }
-.itemImgBtn:hover .itemImg { transform: scale(1.02); }
+.itemImgBtn:hover .itemImg { transform: scale(1.04); }
 
 .itemFooter {
   display: flex;

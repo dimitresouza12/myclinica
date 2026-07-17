@@ -76,7 +76,7 @@
 }
 .tab:hover { color: var(--text-primary); }
 .tabActive {
-  color: #0D2421;
+  color: var(--text-primary);
   font-weight: 700;
   border-bottom-color: #4DD9C0;
 }
@@ -146,6 +146,9 @@
 .table tr:hover td { background: var(--bg-secondary); }
 
 .bold { font-weight: 600; }
+
+.patientCell { display: flex; align-items: center; gap: 0.625rem; }
+.petName { font-weight: 500; font-size: 0.78rem; color: var(--text-secondary); margin-top: 1px; }
 
 .empty {
   text-align: center;

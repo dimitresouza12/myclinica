@@ -240,10 +240,17 @@
   gap: 1.25rem;
 }
 .pendingText {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
   font-size: 0.9rem;
   color: var(--text-primary);
   line-height: 1.5;
 }
+.pendingText svg { flex-shrink: 0; margin-top: 0.15rem; }
+
+.spinIcon { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .pendingActions {
   display: flex;
   flex-direction: column;

@@ -370,6 +370,9 @@
   gap: 1rem;
 }
 .savedMsg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font-size: 0.875rem;
   color: #059669;
   font-weight: 600;

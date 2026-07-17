@@ -41,9 +41,9 @@
 }
 .cardTitle { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); text-transform: capitalize; }
 
-.progress { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
-.progressHeader { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
-.progressValue { font-size: 1.9rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.3px; }
+.progress { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; min-width: 0; }
+.progressHeader { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; min-width: 0; }
+.progressValue { font-size: 1.9rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.3px; min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .progressGoal { font-size: 0.9rem; color: var(--text-secondary); font-weight: 500; }
 .progressTrack { height: 12px; border-radius: 999px; background: var(--bg-secondary); overflow: hidden; }
 .progressFill { height: 100%; border-radius: 999px; transition: width 0.5s cubic-bezier(0.22,1,0.36,1); }
@@ -60,23 +60,23 @@
 .btnSave { padding: 0.6rem 1.25rem; min-height: 44px; background: #4DD9C0; color: #0D2421; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 700; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
 .btnSave:hover:not(:disabled) { background: #3CCCB4; }
 .btnSave:disabled { opacity: 0.6; cursor: not-allowed; }
-.savedMsg { font-size: 0.8rem; font-weight: 600; color: #10B981; }
+.savedMsg { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; font-weight: 600; color: #10B981; }
 .goalErrorMsg { color: #EF4444; font-size: 0.82rem; margin-top: 0.5rem; }
 
 .hint { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: var(--text-tertiary); margin-top: 1.25rem; }
 
 /* ─── Histórico ─── */
 .historyList { display: flex; flex-direction: column; gap: 0.75rem; }
-.historyRow { display: grid; grid-template-columns: 90px 1fr auto 42px; align-items: center; gap: 0.75rem; }
+.historyRow { display: grid; grid-template-columns: 90px 1fr minmax(0, auto) 42px; align-items: center; gap: 0.75rem; }
 .historyMonth { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); text-transform: capitalize; display: flex; align-items: center; gap: 0.4rem; }
 .historyNow { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; background: rgba(77,217,192,0.16); color: #0B9B85; padding: 1px 6px; border-radius: 999px; }
 .historyBarTrack { height: 8px; border-radius: 999px; background: var(--bg-secondary); overflow: hidden; }
 .historyBarFill { height: 100%; border-radius: 999px; transition: width 0.5s cubic-bezier(0.22,1,0.36,1); }
-.historyValue { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.historyValue { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .historyPct { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-align: right; }
 
 @media (max-width: 600px) {
-  .historyRow { grid-template-columns: 70px 1fr auto; }
+  .historyRow { grid-template-columns: 70px 1fr minmax(0, auto); }
   .historyPct { display: none; }
   .editRow { flex-direction: column; align-items: stretch; }
   .field { max-width: none; }

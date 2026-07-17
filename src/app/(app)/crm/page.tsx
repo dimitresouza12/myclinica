@@ -10,6 +10,7 @@ import { formatDate, cleanPhone } from '@/lib/utils'
 import styles from './crm.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { hasWhatsApp } from '@/lib/planGates'
+import { Icon } from '@/components/ui/Icon'
 
 interface PatientRow { id: string; phone: string }
 
@@ -258,7 +259,7 @@ function CRMContent() {
           <h1 className={styles.title}>CRM — Leads WhatsApp</h1>
           <p className={styles.sub}>Contatos captados pelo bot de IA</p>
         </div>
-        <button className={styles.btnRefresh} onClick={loadLeads}>↻ Atualizar</button>
+        <button className={styles.btnRefresh} onClick={loadLeads}><Icon name="refresh" size={14} /> Atualizar</button>
       </div>
 
       {/* Stats */}
@@ -350,7 +351,7 @@ function CRMContent() {
                     <p className={styles.panelPhone}>{fmtPhone(selected.phone)}</p>
                   </div>
                 </div>
-                <button className={styles.btnClose} onClick={() => setSelected(null)}>✕</button>
+                <button className={styles.btnClose} onClick={() => setSelected(null)}><Icon name="close" size={18} /></button>
               </div>
 
               <div className={styles.panelMeta}>
@@ -391,12 +392,12 @@ function CRMContent() {
 
               {/* Convert action */}
               <div className={styles.panelFooter}>
-                {convertMsg === 'ok' && <p className={styles.msgOk}>✓ Paciente criado com sucesso!</p>}
+                {convertMsg === 'ok' && <p className={styles.msgOk}><Icon name="check" size={14} /> Paciente criado com sucesso!</p>}
                 {convertMsg === 'already' && <p className={styles.msgWarn}>Telefone já cadastrado como paciente.</p>}
                 {convertMsg === 'error' && <p className={styles.msgErr}>Erro ao criar paciente.</p>}
                 {existingPatients.has(cleanPhone(selected.phone)) ? (
                   <>
-                    <button className={styles.btnPatientExists} disabled>✓ Já é paciente</button>
+                    <button className={styles.btnPatientExists} disabled><Icon name="check" size={14} /> Já é paciente</button>
                     {patientIdMap[cleanPhone(selected.phone)] && (
                       <button
                         className={styles.btnAtendimento}

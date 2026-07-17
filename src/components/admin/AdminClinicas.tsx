@@ -11,6 +11,7 @@ import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './admin.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 function waLink(phone: string, clinicName: string): string {
   const clean = phone.replace(/\D/g, '')
@@ -205,7 +206,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                 <td data-label="Pacientes" className={styles.patientCount}>{c.max_patients ?? 200}</td>
                 <td data-label="Mensalidade">
                   <span className={c.billing_paid ? styles.paidBadge : styles.unpaidBadge}>
-                    {c.billing_paid ? '✓ Pago' : '⚠ Pendente'}
+                    {c.billing_paid ? <><Icon name="check" size={11} /> Pago</> : <><Icon name="alert" size={11} /> Pendente</>}
                   </span>
                   {c.billing_due_day && (
                     <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
@@ -224,7 +225,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                         className={styles.contactWa}
                         title={`Falar com ${c.name} no WhatsApp`}
                       >
-                        <span>📲</span> WhatsApp
+                        <Icon name="phone" size={12} /> WhatsApp
                       </a>
                     </div>
                   ) : (
@@ -240,22 +241,22 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                           Plano: {c.plan ?? 'basico'}
                         </span>
                         <button className={styles.actionBtnApprove} onClick={() => handleApprove(c)} title="Aprovar cadastro">
-                          ✓ Aprovar
+                          <Icon name="check" size={12} /> Aprovar
                         </button>
                         <button className={styles.actionBtnReject} onClick={() => handleReject(c)} title="Rejeitar cadastro">
-                          ✕ Rejeitar
+                          <Icon name="close" size={12} /> Rejeitar
                         </button>
                       </>
                     ) : (
                       <>
                         <button className={styles.actionBtn} onClick={() => triggerLogoUpload(c)} disabled={uploadingId === c.id} title="Upload logo">
-                          {uploadingId === c.id ? '...' : '↑'}
+                          {uploadingId === c.id ? '...' : <Icon name="upload" size={13} />}
                         </button>
                         <button className={styles.actionBtnSecondary} onClick={() => setEditTarget(c)} title="Editar plano/status">
                           Editar
                         </button>
                         <button className={styles.actionBtnImpersonate} onClick={() => handleImpersonate(c)} title="Visualizar como esta clínica">
-                          👁 Ver como
+                          <Icon name="eye" size={12} /> Ver como
                         </button>
                         <button className={styles.btnDanger} onClick={() => setDeleteTarget(c)} title="Excluir clínica">
                           Excluir
@@ -287,14 +288,14 @@ export function AdminClinicas({ clinics, onReload }: Props) {
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <h2>Excluir clínica</h2>
-              <button className={styles.btnClose} onClick={() => setDeleteTarget(null)}>✕</button>
+              <button className={styles.btnClose} onClick={() => setDeleteTarget(null)}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
               <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: 1.6 }}>
                 Tem certeza que deseja excluir permanentemente a clínica <strong>{deleteTarget.name}</strong>?
               </p>
-              <p style={{ fontSize: '0.82rem', color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--radius-md)', padding: '0.6rem 0.75rem', marginTop: '0.5rem' }}>
-                ⚠️ Esta ação é irreversível. Todos os dados da clínica serão apagados.
+              <p style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--radius-md)', padding: '0.6rem 0.75rem', marginTop: '0.5rem' }}>
+                <Icon name="alert" size={13} /> Esta ação é irreversível. Todos os dados da clínica serão apagados.
               </p>
             </div>
             <div className={styles.modalFooter}>
@@ -318,7 +319,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <h2>Nova Clínica</h2>
-              <button className={styles.btnClose} onClick={() => setShowNewModal(false)}>✕</button>
+              <button className={styles.btnClose} onClick={() => setShowNewModal(false)}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
               {([['name','Nome *','text'],['slug','Slug *','text'],['email','E-mail','email'],['phone','Telefone','tel'],['address','Endereço','text']] as [string,string,string][]).map(([k,l,t]) => (

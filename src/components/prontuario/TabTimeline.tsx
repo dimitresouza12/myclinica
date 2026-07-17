@@ -6,6 +6,7 @@ import { audit } from '@/lib/audit'
 import { formatDate } from '@/lib/utils'
 import type { Patient, MedicalRecord, RecordEntry } from '@/types'
 import styles from './TabTimeline.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 interface Props {
   patient: Patient
@@ -16,14 +17,15 @@ interface Props {
   onPendingChange?: (hasPending: boolean) => void
 }
 
+interface PendingPhoto { file: File; previewUrl: string }
+
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024  // 5MB
 const SIGNED_URL_EXPIRES = 3600           // 1 hora
 
 export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPendingChange }: Props) {
   const { user, clinic } = useAuthStore()
   const [text, setText] = useState('')
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photos, setPhotos] = useState<PendingPhoto[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [lightbox, setLightbox] = useState<string | null>(null)
@@ -31,16 +33,16 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // notifica o pai sobre texto pendente
+  // notifica o pai sobre texto/fotos pendentes
   useEffect(() => {
-    onPendingChange?.(!!text.trim() || !!photoFile)
-  }, [text, photoFile]) // eslint-disable-line react-hooks/exhaustive-deps
+    onPendingChange?.(!!text.trim() || photos.length > 0)
+  }, [text, photos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Gera signed URLs para todas as fotos ao carregar as entradas
   useEffect(() => {
     const photoPaths = entries
-      .filter(e => e.photo_url)
-      .map(e => extractStoragePath(e.photo_url!))
+      .flatMap(e => (e.photo_urls?.length ? e.photo_urls : (e.photo_url ? [e.photo_url] : [])))
+      .map(extractStoragePath)
       .filter(Boolean) as string[]
 
     if (photoPaths.length === 0) return
@@ -71,49 +73,63 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
     }
   }
 
-  function getPhotoUrl(entry: RecordEntry): string | null {
-    if (!entry.photo_url) return null
-    const path = extractStoragePath(entry.photo_url)
-    if (path && signedUrls[path]) return signedUrls[path]
-    return entry.photo_url // fallback enquanto signed URL carrega
+  function getEntryPhotoUrls(entry: RecordEntry): string[] {
+    const raw = entry.photo_urls?.length ? entry.photo_urls : (entry.photo_url ? [entry.photo_url] : [])
+    return raw.map(url => {
+      const path = extractStoragePath(url)
+      if (path && signedUrls[path]) return signedUrls[path]
+      return url // fallback enquanto signed URL carrega
+    })
   }
 
-  function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setError('Selecione um arquivo de imagem.')
-      return
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError('Imagem muito grande (máx 5MB).')
-      return
-    }
-    setError('')
-    setPhotoFile(file)
-    setPhotoPreview(URL.createObjectURL(file))
-  }
+  function handlePickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
 
-  function clearPhoto() {
-    setPhotoFile(null)
-    setPhotoPreview(null)
+    const accepted: PendingPhoto[] = []
+    const rejected: string[] = []
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) { rejected.push(`${file.name} (não é imagem)`); continue }
+      if (file.size > MAX_IMAGE_BYTES) { rejected.push(`${file.name} (maior que 5MB)`); continue }
+      accepted.push({ file, previewUrl: URL.createObjectURL(file) })
+    }
+
+    setError(rejected.length > 0 ? `Não foi possível anexar: ${rejected.join(', ')}.` : '')
+    if (accepted.length > 0) setPhotos(prev => [...prev, ...accepted])
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  async function uploadPhoto(): Promise<string | null> {
-    if (!photoFile) return null
-    const ext = photoFile.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-    const path = `evolucao/${clinicId}/${patient.id}/${Date.now()}.${ext}`
-    const { error: upErr } = await supabase.storage
-      .from('pacientes')
-      .upload(path, photoFile, { upsert: false, contentType: photoFile.type })
-    if (upErr) throw new Error('Erro ao subir imagem: ' + upErr.message)
-    // Armazena o path, não a URL pública — signed URL é gerada no display
-    return path
+  function removePhoto(index: number) {
+    setPhotos(prev => {
+      const target = prev[index]
+      if (target) URL.revokeObjectURL(target.previewUrl)
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
+  function clearPhotos() {
+    photos.forEach(p => URL.revokeObjectURL(p.previewUrl))
+    setPhotos([])
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  async function uploadPhotos(): Promise<string[]> {
+    if (photos.length === 0) return []
+    const uploads = await Promise.all(photos.map(async ({ file }) => {
+      const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+      const path = `evolucao/${clinicId}/${patient.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('pacientes')
+        .upload(path, file, { upsert: false, contentType: file.type })
+      if (upErr) throw new Error('Erro ao subir imagem: ' + upErr.message)
+      // Armazena o path, não a URL pública — signed URL é gerada no display
+      return path
+    }))
+    return uploads
   }
 
   async function handleAddEntry() {
-    const hasContent = text.trim() || photoFile
+    const hasContent = text.trim() || photos.length > 0
     if (!hasContent) return
     setSaving(true)
     setError('')
@@ -130,8 +146,7 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
       }
       if (!recordId) throw new Error('Falha ao criar prontuário.')
 
-      let photoPath: string | null = null
-      if (photoFile) photoPath = await uploadPhoto()
+      const photoPaths = await uploadPhotos()
 
       const { error: entryErr } = await supabase.from('record_entries').insert([{
         clinic_id: clinicId,
@@ -140,8 +155,8 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
         entry_text: text.trim() || '(imagem anexada)',
         author_name: user?.displayName ?? 'Sistema',
         entry_type: 'evolucao',
-        // Salva o path relativo; URL assinada é gerada no display
-        photo_url: photoPath,
+        // Salva os paths relativos; URL assinada é gerada no display
+        photo_urls: photoPaths,
       }])
       if (entryErr) throw new Error('Erro ao salvar evolução: ' + entryErr.message)
 
@@ -153,12 +168,12 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
           clinic_id: clinic.id,
           module: 'prontuario',
           resource_id: patient.id,
-          details: { has_photo: !!photoPath, text_length: text.trim().length },
+          details: { photo_count: photoPaths.length, text_length: text.trim().length },
         })
       }
 
       setText('')
-      clearPhoto()
+      clearPhotos()
       onSaved()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar.')
@@ -178,12 +193,16 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
           onChange={(e) => setText(e.target.value)}
         />
 
-        {photoPreview && (
-          <div className={styles.photoPreviewWrap}>
-            <img src={photoPreview} alt="Pré-visualização" className={styles.photoPreview} />
-            <button type="button" className={styles.btnRemovePhoto} onClick={clearPhoto} title="Remover imagem">
-              ✕
-            </button>
+        {photos.length > 0 && (
+          <div className={styles.photoPreviewGrid}>
+            {photos.map((p, i) => (
+              <div className={styles.photoPreviewWrap} key={p.previewUrl}>
+                <img src={p.previewUrl} alt={`Pré-visualização ${i + 1}`} className={styles.photoPreview} />
+                <button type="button" className={styles.btnRemovePhoto} onClick={() => removePhoto(i)} title="Remover imagem">
+                  <Icon name="close" size={14} />
+                </button>
+              </div>
+            ))}
           </div>
         )}
 
@@ -194,7 +213,8 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
             ref={fileRef}
             type="file"
             accept="image/*"
-            onChange={handlePickFile}
+            multiple
+            onChange={handlePickFiles}
             className={styles.hiddenInput}
           />
           <button
@@ -203,12 +223,12 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
             onClick={() => fileRef.current?.click()}
             disabled={saving}
           >
-            📎 {photoFile ? 'Trocar imagem' : 'Anexar imagem'}
+            <Icon name="paperclip" size={13} /> {photos.length > 0 ? `Adicionar mais imagens (${photos.length})` : 'Anexar imagens'}
           </button>
           <button
-            className={`${styles.btnAdd} ${(text.trim() || photoFile) ? styles.btnAddPulse : ''}`}
+            className={`${styles.btnAdd} ${(text.trim() || photos.length > 0) ? styles.btnAddPulse : ''}`}
             onClick={handleAddEntry}
-            disabled={saving || (!text.trim() && !photoFile)}
+            disabled={saving || (!text.trim() && photos.length === 0)}
           >
             {saving ? 'Salvando...' : '+ Adicionar Anotação'}
           </button>
@@ -223,41 +243,45 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
       <div className={styles.timeline}>
         {entries.length === 0 ? (
           <p className={styles.empty}>Nenhuma anotação ainda. Adicione a primeira acima.</p>
-        ) : entries.map((entry) => (
-          <div key={entry.id} className={styles.item}>
-            <div className={styles.itemDate}>{formatDate(entry.created_at)}</div>
-            <div className={styles.itemCard}>
-              {entry.entry_text && entry.entry_text !== '(imagem anexada)' && (
-                <p className={styles.itemText}>{entry.entry_text}</p>
-              )}
-              {entry.photo_url && (
-                <button
-                  type="button"
-                  className={styles.itemImgBtn}
-                  onClick={() => setLightbox(getPhotoUrl(entry))}
-                  title="Clique para ampliar"
-                >
-                  <img
-                    src={getPhotoUrl(entry) ?? ''}
-                    alt="Anexo da evolução"
-                    className={styles.itemImg}
-                  />
-                </button>
-              )}
-              <div className={styles.itemFooter}>
-                {entry.author_name && (
-                  <span className={styles.itemAuthor}>por {entry.author_name}</span>
+        ) : entries.map((entry) => {
+          const photoUrls = getEntryPhotoUrls(entry)
+          return (
+            <div key={entry.id} className={styles.item}>
+              <div className={styles.itemDate}>{formatDate(entry.created_at)}</div>
+              <div className={styles.itemCard}>
+                {entry.entry_text && entry.entry_text !== '(imagem anexada)' && (
+                  <p className={styles.itemText}>{entry.entry_text}</p>
                 )}
+                {photoUrls.length > 0 && (
+                  <div className={styles.itemImgGrid}>
+                    {photoUrls.map((url, i) => (
+                      <button
+                        key={url + i}
+                        type="button"
+                        className={styles.itemImgBtn}
+                        onClick={() => setLightbox(url)}
+                        title="Clique para ampliar"
+                      >
+                        <img src={url} alt={`Anexo da evolução ${i + 1}`} className={styles.itemImg} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className={styles.itemFooter}>
+                  {entry.author_name && (
+                    <span className={styles.itemAuthor}>por {entry.author_name}</span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Lightbox */}
       {lightbox && (
         <div className={styles.lightboxOverlay} onClick={() => setLightbox(null)}>
-          <button className={styles.lightboxClose} onClick={() => setLightbox(null)}>✕</button>
+          <button className={styles.lightboxClose} onClick={() => setLightbox(null)}><Icon name="close" size={20} /></button>
           <img src={lightbox} alt="Imagem ampliada" className={styles.lightboxImg} onClick={(e) => e.stopPropagation()} />
         </div>
       )}

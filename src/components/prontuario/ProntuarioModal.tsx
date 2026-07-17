@@ -14,6 +14,7 @@ import { TabDocumentos } from './TabDocumentos'
 import { Portal } from '@/components/ui/Portal'
 import { printProntuario } from '@/lib/print'
 import styles from './ProntuarioModal.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 type Tab = 'ficha' | 'odontograma' | 'faceograma' | 'timeline' | 'documentos' | 'chat'
 
@@ -148,7 +149,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
         {showPendingWarning && (
           <div className={styles.pendingOverlay}>
             <div className={styles.pendingDialog}>
-              <p className={styles.pendingText}>⚠️ Você tem uma anotação não salva. Se fechar agora ela será perdida.</p>
+              <p className={styles.pendingText}><Icon name="alert" size={14} /> Você tem uma anotação não salva. Se fechar agora ela será perdida.</p>
               <div className={styles.pendingActions}>
                 <button className={styles.btnPendingDiscard} onClick={onClose}>Descartar e fechar</button>
                 <button className={styles.btnPendingKeep} onClick={() => setShowPendingWarning(false)}>Voltar e salvar</button>
@@ -164,7 +165,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
                 ? <img src={avatarUrl} alt={patient.name} className={styles.avatar} />
                 : <div className={styles.avatarInitials}>{initials}</div>
               }
-              <div className={styles.avatarOverlay}>{uploadingAvatar ? '⟳' : '📷'}</div>
+              <div className={styles.avatarOverlay}>{uploadingAvatar ? <Icon name="refresh" size={16} className={styles.spinIcon} /> : <Icon name="camera" size={16} />}</div>
               <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
             </div>
             <div>
@@ -185,7 +186,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
                 {entriesLoading ? 'Carregando...' : 'Imprimir'}
               </button>
             )}
-            <button className={styles.btnClose} onClick={tryClose}>✕</button>
+            <button className={styles.btnClose} onClick={tryClose}><Icon name="close" size={18} /></button>
           </div>
         </div>
 

@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { SystemAlert } from '@/types'
 import styles from './SystemAlertBanner.module.css'
+import { Icon, type IconName } from '@/components/ui/Icon'
 
-const SEV_STYLE: Record<string, { bg: string; border: string; text: string; icon: string }> = {
-  info:     { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8', icon: 'ℹ️' },
-  warning:  { bg: '#FFFBEB', border: '#FDE68A', text: '#B45309', icon: '⚠️' },
-  critical: { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', icon: '🚨' },
+const SEV_STYLE: Record<string, { bg: string; border: string; text: string; icon: IconName }> = {
+  info:     { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8', icon: 'info' },
+  warning:  { bg: '#FFFBEB', border: '#FDE68A', text: '#B45309', icon: 'alert' },
+  critical: { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', icon: 'alert' },
 }
 
 export function SystemAlertBanner() {
@@ -33,7 +34,7 @@ export function SystemAlertBanner() {
 
   return (
     <div className={styles.banner} style={{ background: s.bg, borderColor: s.border, color: s.text }}>
-      <span className={styles.icon}>{s.icon}</span>
+      <span className={styles.icon}><Icon name={s.icon} size={15} /></span>
       <span className={styles.msg}>{alert.message}</span>
     </div>
   )

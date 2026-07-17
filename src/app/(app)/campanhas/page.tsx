@@ -6,6 +6,7 @@ import { callN8n } from '@/lib/supabase-n8n'
 import { formatDate } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import styles from './campanhas.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 interface Patient { id: string; name: string; phone: string | null; created_at: string }
 
@@ -299,7 +300,7 @@ function CampanhasContent() {
                 onClick={handleSend}
                 disabled={sending || audience.length === 0}
               >
-                {sending ? 'Enviando...' : `📲 Enviar para ${audience.length} pacientes`}
+                {sending ? 'Enviando...' : <><Icon name="phone" size={14} /> Enviar para {audience.length} pacientes</>}
               </button>
             </div>
           </div>

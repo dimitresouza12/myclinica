@@ -14,7 +14,7 @@
 .colorPicker { width: 44px; height: 36px; border: 1px solid var(--border-color); border-radius: 10px; padding: 2px; cursor: pointer; background: var(--bg-secondary); }
 .colorText { flex: 1; padding: 0.6rem 0.875rem; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.875rem; font-family: monospace; outline: none; }
 .saveRow { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; padding-top: 0.25rem; }
-.savedMsg { font-size: 0.875rem; color: #059669; font-weight: 500; }
+.savedMsg { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.875rem; color: #059669; font-weight: 500; }
 .pwError { font-size: 0.82rem; color: #EF4444; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; padding: 0.5rem 0.75rem; }
 .btnSave { padding: 0.6rem 1.5rem; min-height: 44px; background: #4DD9C0; color: #0D2421; border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; }
 .btnSave:hover:not(:disabled) { background: #3CCCB4; transform: translateY(-1px); }
@@ -28,7 +28,7 @@
 /* Google Calendar */
 .gcalHeader { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
 .gcalDesc { font-size:0.82rem; color:var(--text-secondary); margin-top:0.2rem; line-height:1.5; }
-.gcalLogo { font-size:2rem; }
+.gcalLogo { display:flex; align-items:center; justify-content:center; width:2.5rem; height:2.5rem; border-radius:10px; background:rgba(66,133,244,.1); color:#4285F4; flex-shrink:0; }
 .gcalWarning { background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; padding:.75rem 1rem; font-size:.82rem; color:#92400E; line-height:1.6; }
 .gcalConnected { display:flex; align-items:center; gap:.75rem; padding:.75rem 1rem; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px; font-size:.875rem; color:#065F46; font-weight:500; }
 .gcalDot { width:8px; height:8px; border-radius:50%; background:#10B981; flex-shrink:0; }
@@ -46,7 +46,7 @@
 .docTemplateRow { display: flex; align-items: center; justify-content: space-between; padding: 0.625rem 0.875rem; background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 10px; gap: 0.75rem; flex-wrap: wrap; }
 .docTemplateLabel { font-size: 0.875rem; font-weight: 600; color: var(--text-primary); flex: 1; min-width: 160px; }
 .docTemplateActions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.docTemplateStatus { font-size: 0.78rem; color: #059669; font-weight: 600; }
+.docTemplateStatus { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; color: #059669; font-weight: 600; }
 .docTemplateStatusEmpty { font-size: 0.78rem; color: var(--text-secondary); }
 .docTemplateSaved { font-size: 0.78rem; color: #059669; font-weight: 600; }
 .docTemplateError { font-size: 0.78rem; color: #EF4444; }
@@ -113,7 +113,7 @@
 .btnReactivate { padding: 0.3rem 0.625rem; background: none; border: 1px solid #6EE7B7; border-radius: 8px; font-size: 0.75rem; color: #059669; cursor: pointer; transition: all .15s; white-space: nowrap; }
 .btnReactivate:hover { background: #ECFDF5; }
 .btnReactivate:disabled { opacity: 0.5; cursor: not-allowed; }
-.btnDelete { padding: 0.55rem 1rem; background: none; border: 1px solid #FCA5A5; border-radius: 8px; font-size: 0.875rem; color: #EF4444; cursor: pointer; transition: all .15s; white-space: nowrap; margin-right: auto; }
+.btnDelete { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.55rem 1rem; background: none; border: 1px solid #FCA5A5; border-radius: 8px; font-size: 0.875rem; color: #EF4444; cursor: pointer; transition: all .15s; white-space: nowrap; margin-right: auto; }
 .btnDelete:hover { background: #FEF2F2; }
 .btnDelete:disabled { opacity: 0.5; cursor: not-allowed; }
 .selfBadge { padding: 0.15rem 0.4rem; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px; font-size: 0.65rem; font-weight: 700; color: #0D2421; }

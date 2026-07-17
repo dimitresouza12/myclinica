@@ -64,6 +64,8 @@
   --border-color:  #1E3634;
   --border-subtle: #172E2C;
 
+  --brand-light: rgba(77,217,192,0.08);
+
   --shadow-sm:  0 1px 3px rgba(0,0,0,0.3);
   --shadow-md:  0 4px 16px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.25);
   --shadow-lg:  0 12px 36px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);

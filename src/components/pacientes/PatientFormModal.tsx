@@ -7,6 +7,7 @@ import { sanitizeString, sanitizeEmail, sanitizeDigits } from '@/lib/sanitize'
 import type { Patient } from '@/types'
 import { Portal } from '@/components/ui/Portal'
 import styles from './PatientFormModal.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 interface Props {
   patient: Patient | null
@@ -126,7 +127,7 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
       <div className={styles.modal}>
         <div className={styles.modalHeader}>
           <h2>{isNew ? 'Novo Paciente' : 'Editar Paciente'}</h2>
-          <button className={styles.btnClose} onClick={onClose}>✕</button>
+          <button className={styles.btnClose} onClick={onClose}><Icon name="close" size={18} /></button>
         </div>
 
         <form id="patient-form" onSubmit={handleSubmit} className={styles.form}>

@@ -2,6 +2,7 @@
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
+import { Icon } from '@/components/ui/Icon'
 
 interface MonthlyData { month: string; receita: number; despesa: number }
 interface Props { data: MonthlyData[]; goal?: number | null }
@@ -28,7 +29,7 @@ const CustomTooltip = ({ active, payload, label, goal }: any) => {
         <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>Receita:</span>
         <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 800 }}>{fmt(value)}</span>
       </div>
-      {hit && <p style={{ fontSize: 10.5, color: '#0B9B85', fontWeight: 700, margin: '4px 0 0' }}>Meta batida ✓</p>}
+      {hit && <p style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: '#0B9B85', fontWeight: 700, margin: '4px 0 0' }}><Icon name="check" size={11} /> Meta batida</p>}
     </div>
   )
 }
@@ -68,11 +69,11 @@ export default function MetasHistoryChart({ data, goal }: Props) {
           dy={4}
         />
         <YAxis
-          tickFormatter={v => v === 0 ? '0' : `${v / 1000}k`}
+          tickFormatter={v => v.toLocaleString('pt-BR')}
           tick={{ fontSize: 10, fill: 'var(--text-secondary)' }}
           axisLine={false}
           tickLine={false}
-          width={36}
+          width={56}
         />
         <Tooltip content={<CustomTooltip goal={goal} />} cursor={{ stroke: 'var(--border-color)', strokeDasharray: '3 3' }} />
         {!!goal && goal > 0 && (

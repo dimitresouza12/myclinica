@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import styles from './toast.module.css'
+import { Icon } from './Icon'
 
 export interface ToastData {
   id: string
@@ -42,7 +43,7 @@ export function ToastContainer() {
     <div className={styles.container}>
       {items.map(t => (
         <div key={t.id} className={`${styles.toast} ${t.type === 'ok' ? styles.toastOk : styles.toastError}`}>
-          <span className={styles.icon}>{t.type === 'ok' ? '✓' : '⚠'}</span>
+          <span className={styles.icon}>{t.type === 'ok' ? <Icon name="check" size={12} /> : <Icon name="alert" size={12} />}</span>
           <span className={styles.text}>{t.text}</span>
         </div>
       ))}

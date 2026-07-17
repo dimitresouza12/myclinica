@@ -16,6 +16,7 @@ import { type CalendarEvent, type FullCalendarHandle } from '@/components/agenda
 import styles from './agenda.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { Icon } from '@/components/ui/Icon'
 
 const FullCalendarWrapper = dynamic(
   () => import('@/components/agenda/FullCalendarWrapper'),
@@ -177,7 +178,7 @@ function ApptDetailContent({
             </span>
           </div>
         </div>
-        <button className={styles.btnClose} onClick={onClose}>✕</button>
+        <button className={styles.btnClose} onClick={onClose}><Icon name="close" size={18} /></button>
       </div>
 
       <div className={styles.detailBody}>
@@ -240,7 +241,7 @@ function ApptDetailContent({
               <button className={styles.btnPhoneSave} onClick={savePhone} disabled={savingPhone || !phoneInput.trim()}>
                 {savingPhone ? '...' : 'Salvar'}
               </button>
-              <button className={styles.btnPhoneCancel} onClick={() => setShowPhoneInput(false)}>✕</button>
+              <button className={styles.btnPhoneCancel} onClick={() => setShowPhoneInput(false)}><Icon name="close" size={14} /></button>
             </div>
           ) : (
             <button className={styles.btnWhatsAppNoPhone} onClick={() => setShowPhoneInput(true)}>
@@ -257,7 +258,7 @@ function ApptDetailContent({
             </button>
           )}
           {appt.gcal_event_id && (
-            <span className={styles.gcalSynced}>✓ Google Agenda</span>
+            <span className={styles.gcalSynced}><Icon name="check" size={12} /> Google Agenda</span>
           )}
         </div>
       </div>
@@ -1116,13 +1117,13 @@ function AgendaContent() {
             <div className={styles.detailPanel} onClick={e => e.stopPropagation()}>
               <div className={styles.detailHeader}>
                 <div className={styles.detailPatientInfo}>
-                  <div className={styles.detailAvatar} style={{ background: '#4285F4' }}>📅</div>
+                  <div className={styles.detailAvatar} style={{ background: '#4285F4', color: '#fff' }}><Icon name="calendar" size={18} /></div>
                   <div>
                     <div className={styles.detailName}>{selectedGcal.summary}</div>
                     <span className={`${styles.detailStatusBadge} ${styles.badge_confirmado}`}>Google Calendar</span>
                   </div>
                 </div>
-                <button className={styles.btnClose} onClick={() => setSelectedGcal(null)}>✕</button>
+                <button className={styles.btnClose} onClick={() => setSelectedGcal(null)}><Icon name="close" size={18} /></button>
               </div>
               <div className={styles.detailBody}>
                 <div className={styles.detailInfoGrid}>
@@ -1156,7 +1157,7 @@ function AgendaContent() {
             <div className={styles.modal} onClick={e => e.stopPropagation()}>
               <div className={styles.modalHeader}>
                 <h2>{editingId ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
-                <button className={styles.btnClose} onClick={closeModal}>✕</button>
+                <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
               </div>
               <div className={styles.modalBody}>
                 {/* ── Paciente ── */}
@@ -1168,7 +1169,7 @@ function AgendaContent() {
                       className={styles.btnNewPatient}
                       onClick={() => { setShowNewPatient(p => !p); setPatientSearch('') }}
                     >
-                      {showNewPatient ? '← Voltar à lista' : '+ Novo paciente'}
+                      {showNewPatient ? <><Icon name="chevronLeft" size={12} /> Voltar à lista</> : '+ Novo paciente'}
                     </button>
                   </div>
                   {showNewPatient ? (
@@ -1211,7 +1212,7 @@ function AgendaContent() {
                         onBlur={() => setTimeout(() => setShowPatientDrop(false), 150)}
                       />
                       {form.patient_id && (
-                        <span className={styles.patientComboCheck}>✓</span>
+                        <span className={styles.patientComboCheck}><Icon name="check" size={12} /></span>
                       )}
                       {showPatientDrop && (
                         <div className={styles.patientDrop}>

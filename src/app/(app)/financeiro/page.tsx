@@ -12,6 +12,7 @@ import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { Icon } from '@/components/ui/Icon'
 import { usePermissions } from '@/hooks/usePermissions'
 import { motion } from 'framer-motion'
 
@@ -272,7 +273,7 @@ function FinanceiroContent() {
         </div>
         <div className={styles.headerActions}>
           <button className={styles.btnExport} onClick={() => setShowExportModal(true)} disabled={records.length === 0} title="Exportar planilha Excel">
-            ⬇ Exportar
+            <Icon name="download" size={14} /> Exportar
           </button>
           {canEdit && <button className={styles.btnDespesa} onClick={() => openModal('despesa')}>− Despesa</button>}
           {canEdit && <button className={styles.btnReceita} onClick={() => openModal('receita')}>+ Receita</button>}
@@ -397,7 +398,7 @@ function FinanceiroContent() {
                   <tr key={r.id}>
                     <td>
                       <span className={r.type === 'receita' ? styles.tagReceita : styles.tagDespesa}>
-                        {r.type === 'receita' ? '↑ Receita' : '↓ Despesa'}
+                        {r.type === 'receita' ? <><Icon name="arrowUp" size={11} /> Receita</> : <><Icon name="arrowUp" size={11} style={{ transform: 'rotate(180deg)' }} /> Despesa</>}
                       </span>
                     </td>
                     <td data-label="Data">{formatDate(r.created_at, true)}</td>
@@ -411,7 +412,7 @@ function FinanceiroContent() {
                     <td data-label="Ações">
                       <div className={styles.rowActions}>
                         {canEdit && <button className={styles.btnEdit} onClick={() => openEdit(r)} title="Editar lançamento">
-                          ✎
+                          <Icon name="edit" size={13} />
                         </button>}
                         {canEdit && <button
                           className={styles.btnDelete}
@@ -419,7 +420,7 @@ function FinanceiroContent() {
                           disabled={deletingId === r.id}
                           title="Excluir lançamento"
                         >
-                          {deletingId === r.id ? '...' : '🗑'}
+                          {deletingId === r.id ? '...' : <Icon name="trash" size={13} />}
                         </button>}
                       </div>
                     </td>
@@ -437,7 +438,7 @@ function FinanceiroContent() {
           <div className={styles.exportModal} onClick={e => e.stopPropagation()}>
             <div className={styles.exportModalHeader}>
               <h3>Exportar planilha</h3>
-              <button className={styles.exportBtnClose} onClick={() => setShowExportModal(false)}>✕</button>
+              <button className={styles.exportBtnClose} onClick={() => setShowExportModal(false)}><Icon name="close" size={16} /></button>
             </div>
             <div className={styles.exportModalBody}>
               <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', margin: 0 }}>Escolha o período para exportar:</p>
@@ -471,7 +472,7 @@ function FinanceiroContent() {
             </div>
             <div className={styles.exportModalFooter}>
               <button className={styles.exportBtnCancel} onClick={() => setShowExportModal(false)}>Cancelar</button>
-              <button className={styles.exportBtnConfirm} onClick={exportXLSX}>⬇ Exportar</button>
+              <button className={styles.exportBtnConfirm} onClick={exportXLSX}><Icon name="download" size={14} /> Exportar</button>
             </div>
           </div>
         </div>,
@@ -485,10 +486,10 @@ function FinanceiroContent() {
             <div className={styles.modalHeader}>
               <h2>
                 {editingId
-                  ? `${form.type === 'receita' ? '📈 Editar Receita' : '📉 Editar Despesa'}`
-                  : `${form.type === 'receita' ? '📈 Nova Receita' : '📉 Nova Despesa'}`}
+                  ? (form.type === 'receita' ? 'Editar Receita' : 'Editar Despesa')
+                  : (form.type === 'receita' ? 'Nova Receita' : 'Nova Despesa')}
               </h2>
-              <button className={styles.btnClose} onClick={closeModal}>✕</button>
+              <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
               <div className={styles.field}>

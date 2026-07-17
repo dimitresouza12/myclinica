@@ -23,6 +23,9 @@
 .sub   { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem; }
 
 .btnRefresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   padding: 0.5rem 1rem;
   border: 1px solid var(--border-color);
   background: var(--bg-primary);
@@ -38,7 +41,7 @@
 /* ─── Stats ───────────────────────────────────── */
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -52,10 +55,11 @@
   gap: 0.2rem;
   transition: box-shadow 0.2s, transform 0.2s;
   box-shadow: var(--shadow-sm);
+  min-width: 0;
 }
 .stat:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
 
-.statVal   { font-size: 1.75rem; font-weight: 750; color: var(--text-primary); line-height: 1; letter-spacing: -0.5px; }
+.statVal   { font-size: 1.75rem; font-weight: 750; color: var(--text-primary); line-height: 1; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .statLabel { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
 
 /* ─── Kanban ──────────────────────────────────── */
@@ -391,6 +395,10 @@
   font-size: 0.9rem;
   font-weight: 600;
   cursor: default;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
 }
 
 .btnAtendimento {
@@ -407,7 +415,7 @@
 }
 .btnAtendimento:hover { background: var(--bg-tertiary); }
 
-.msgOk   { font-size: 0.8rem; color: #059669; text-align: center; }
+.msgOk   { font-size: 0.8rem; color: #059669; text-align: center; display: flex; align-items: center; justify-content: center; gap: 0.35rem; }
 .msgWarn { font-size: 0.8rem; color: #D97706; text-align: center; }
 .msgErr  { font-size: 0.8rem; color: #EF4444; text-align: center; }
 

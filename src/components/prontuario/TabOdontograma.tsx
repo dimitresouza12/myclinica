@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Patient, MedicalRecord } from '@/types'
 import styles from './TabOdontograma.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 // ── Status ──────────────────────────────────────────────────────
 export const TOOTH_STATUS = [
@@ -441,7 +442,7 @@ export function TabOdontograma({ record, patient, clinicId, onSaved }: Props) {
         <div className={styles.selPanel}>
           <div className={styles.selPanelHeader}>
             <span className={styles.selPanelTitle}>Dente {selectedTooth}</span>
-            <button type="button" className={styles.selPanelClose} onClick={()=>{setSelected(null);setActiveSurf(null)}}>✕</button>
+            <button type="button" className={styles.selPanelClose} onClick={()=>{setSelected(null);setActiveSurf(null)}}><Icon name="close" size={16} /></button>
           </div>
           <div className={styles.selPanelBody}>
             <div className={styles.selPanelLeft}>
@@ -480,7 +481,7 @@ export function TabOdontograma({ record, patient, clinicId, onSaved }: Props) {
 
       {/* Save */}
       <div className={styles.saveRow}>
-        {saved&&<span className={styles.savedMsg}>✓ Salvo com sucesso!</span>}
+        {saved&&<span className={styles.savedMsg}><Icon name="check" size={12} /> Salvo com sucesso!</span>}
         <button type="button" className={styles.btnSave} onClick={handleSave} disabled={saving}>
           {saving?'Salvando...':'Salvar Odontograma'}
         </button>

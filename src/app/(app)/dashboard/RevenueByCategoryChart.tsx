@@ -30,7 +30,7 @@ export default function RevenueByCategoryChart({ data }: Props) {
     <ResponsiveContainer width="100%" height={Math.max(180, top.length * 38)}>
       <BarChart data={top} layout="vertical" margin={{ top: 4, right: 24, left: 4, bottom: 0 }} barCategoryGap="28%">
         <CartesianGrid strokeDasharray="3 0" stroke="var(--border-subtle)" horizontal={false} />
-        <XAxis type="number" tickFormatter={v => v === 0 ? '0' : `${v / 1000}k`} tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+        <XAxis type="number" tickFormatter={v => v.toLocaleString('pt-BR')} tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
         <YAxis type="category" dataKey="category" width={120} tick={{ fontSize: 11, fill: 'var(--text-secondary)', fontWeight: 600 }} axisLine={false} tickLine={false} />
         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--bg-secondary)' }} />
         <Bar dataKey="value" radius={[0, 6, 6, 0]} isAnimationActive={false}>

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Patient, MedicalRecord } from '@/types'
 import styles from './TabFaceograma.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 const TOOLS = [
   { key: 'toxina',         label: 'Toxina botulínica', abbr: 'Tx', color: '#3B82F6', bg: '#DBEAFE' },
@@ -222,7 +223,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
               <div className={styles.annHeader}>
                 <span className={styles.annDot} style={{ background: tColor(selAnn.type) }}/>
                 <span className={styles.annTitle}>{tLabel(selAnn.type)}</span>
-                <button type="button" className={styles.annDel} onClick={() => delAnn(selAnn.id)}>✕</button>
+                <button type="button" className={styles.annDel} onClick={() => delAnn(selAnn.id)}><Icon name="close" size={13} /></button>
               </div>
 
               <div className={styles.annFields}>
@@ -293,7 +294,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
 
       {/* ── Save ── */}
       <div className={styles.saveRow}>
-        {saved && <span className={styles.savedMsg}>✓ Salvo com sucesso!</span>}
+        {saved && <span className={styles.savedMsg}><Icon name="check" size={12} /> Salvo com sucesso!</span>}
         <button type="button" className={styles.btnSave} onClick={handleSave} disabled={saving}>
           {saving ? 'Salvando...' : 'Salvar Faceograma'}
         </button>

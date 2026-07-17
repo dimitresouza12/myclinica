@@ -143,6 +143,7 @@ export interface RecordEntry {
   entry_text: string
   entry_type: string
   photo_url: string | null
+  photo_urls: string[]
   created_at: string
 }
 

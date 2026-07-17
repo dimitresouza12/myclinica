@@ -157,9 +157,11 @@
 }
 
 .promoCopaEmoji {
-  font-size: 1.8rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  color: #FFD700;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
@@ -370,6 +372,10 @@
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   padding: 0.75rem 1rem;
   background: linear-gradient(135deg, #0D9488 0%, #0f9d8e 100%);
   color: #fff;
@@ -715,6 +721,9 @@
   color: #94a3b8;
 }
 .trialCtaBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   font-size: 0.85rem;
   font-weight: 600;
   color: #0D9488;
@@ -737,6 +746,10 @@
 .madebyLink:hover { color: #0a7a6f; }
 
 .btnLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
   background: none;
   border: none;
   color: #0D9488;
@@ -830,6 +843,9 @@
   margin: 0;
 }
 .termsClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: #94a3b8;
@@ -923,6 +939,9 @@
 }
 
 .registerModalClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   cursor: pointer;

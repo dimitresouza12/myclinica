@@ -116,11 +116,11 @@ export default function FinanceiroCharts({
               dy={4}
             />
             <YAxis
-              tickFormatter={v => v === 0 ? '0' : `${v / 1000}k`}
+              tickFormatter={v => v.toLocaleString('pt-BR')}
               tick={{ fontSize: 10, fill: 'var(--text-secondary)' }}
               axisLine={false}
               tickLine={false}
-              width={36}
+              width={56}
             />
             <Tooltip
               content={<CustomTooltip />}

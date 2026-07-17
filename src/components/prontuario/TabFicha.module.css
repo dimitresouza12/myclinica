@@ -41,6 +41,7 @@
 }
 
 .field input,
+.field select,
 .field textarea {
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--border-color);
@@ -54,7 +55,10 @@
   resize: vertical;
 }
 
+.field select { cursor: pointer; }
+
 .field input:focus,
+.field select:focus,
 .field textarea:focus { border-color: var(--brand-primary); }
 
 .bigArea {
@@ -80,6 +84,9 @@
 }
 
 .savedMsg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font-size: 0.875rem;
   color: #059669;
   font-weight: 500;

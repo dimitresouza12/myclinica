@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import type { Clinic, ClinicStatus } from '@/types'
 import { Portal } from '@/components/ui/Portal'
 import styles from './admin.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 const PLANS: { value: string; label: string; hint: string }[] = [
   { value: 'essencial',     label: 'Essencial',  hint: 'R$99/mês — até 100 pacientes, 1 usuário' },
@@ -89,7 +90,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <h2>Editar clínica: {clinic.name}</h2>
-          <button className={styles.btnClose} onClick={onClose}>✕</button>
+          <button className={styles.btnClose} onClick={onClose}><Icon name="close" size={18} /></button>
         </div>
         <div className={styles.modalBody}>
 
@@ -218,7 +219,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
                 />
                 <span>Mensalidade paga</span>
                 <span className={billingPaid ? styles.paidBadge : styles.unpaidBadge}>
-                  {billingPaid ? '✓ Pago' : '⚠ Pendente'}
+                  {billingPaid ? <><Icon name="check" size={11} /> Pago</> : <><Icon name="alert" size={11} /> Pendente</>}
                 </span>
               </label>
 
@@ -229,7 +230,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
                   rel="noopener noreferrer"
                   className={styles.btnWhatsApp}
                 >
-                  <span>📲</span> Cobrar via WhatsApp
+                  <Icon name="phone" size={13} /> Cobrar via WhatsApp
                 </a>
               )}
             </div>

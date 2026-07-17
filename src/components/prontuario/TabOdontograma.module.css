@@ -181,6 +181,9 @@
 .selPanelClose {
   width: 28px;
   height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
   border: none;
   background: var(--bg-secondary);
@@ -288,6 +291,9 @@
   gap: 1rem;
 }
 .savedMsg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font-size: 0.875rem;
   color: #059669;
   font-weight: 600;

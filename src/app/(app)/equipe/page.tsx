@@ -9,6 +9,7 @@ import styles from './equipe.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { Icon } from '@/components/ui/Icon'
 
 interface NewProf { name: string; specialty: string }
 const BLANK: NewProf = { name: '', specialty: '' }
@@ -111,7 +112,7 @@ function EquipeContent() {
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <h2>Novo Profissional</h2>
-              <button className={styles.btnClose} onClick={() => setShowModal(false)}>✕</button>
+              <button className={styles.btnClose} onClick={() => setShowModal(false)}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
               <div className={styles.field}>

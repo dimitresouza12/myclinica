@@ -158,7 +158,7 @@
 .couponInputValid   { border-color: #0D9488 !important; background: #f0fdf9 !important; }
 .couponInputInvalid { border-color: #ef4444 !important; }
 
-.couponOk  { font-size: 0.75rem; font-weight: 600; color: #0D9488; }
+.couponOk  { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; font-weight: 600; color: #0D9488; }
 .couponErr { font-size: 0.75rem; color: #ef4444; }
 
 .modalActions {
@@ -265,6 +265,9 @@
 .dueBtn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .dueDismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   cursor: pointer;

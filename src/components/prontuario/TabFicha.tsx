@@ -5,6 +5,8 @@ import type { Patient, MedicalRecord, RecordEntry } from '@/types'
 import type { AuthClinic } from '@/types'
 import { printProntuario, printContrato } from '@/lib/print'
 import styles from './TabFicha.module.css'
+import { Icon } from '@/components/ui/Icon'
+import { PET_SPECIES, PET_BREEDS, VET_ANAMNESIS_EXTRA_BY_SPECIES, VET_EXAM_EXTRA_BY_SPECIES } from '@/lib/vetSpecies'
 
 interface Props {
   patient: Patient
@@ -349,8 +351,13 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
     ]
   }
 
-  const currentAnamnesisFields = anamnesisFields[clinic.type] || anamnesisFields.odonto
-  const currentClinicalExamFields = clinicalExamFields[clinic.type] || clinicalExamFields.odonto
+  const petSpecies = anamnesis['p-pet_especie'] ?? ''
+  const currentAnamnesisFields = clinic.type === 'vet'
+    ? [...anamnesisFields.vet, ...(VET_ANAMNESIS_EXTRA_BY_SPECIES[petSpecies] ?? [])]
+    : (anamnesisFields[clinic.type] || anamnesisFields.odonto)
+  const currentClinicalExamFields = clinic.type === 'vet'
+    ? [...clinicalExamFields.vet, ...(VET_EXAM_EXTRA_BY_SPECIES[petSpecies] ?? [])]
+    : (clinicalExamFields[clinic.type] || clinicalExamFields.odonto)
 
   return (
     <div className={styles.wrap}>
@@ -394,16 +401,85 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
             </div>
           ))}
 
-          {clinic.type === 'vet' && [
-            ['p-pet_nome','Nome do Pet'], ['p-pet_especie','Espécie'],
-            ['p-pet_raca','Raça'], ['p-pet_idade','Idade do Pet'],
-            ['p-pet_peso','Peso do Pet (kg)'], ['p-pet_castrado','Castrado?'],
-          ].map(([k,l]) => (
-            <div className={styles.field} key={k}>
-              <label>{l}</label>
-              <input value={anamnesis[k] ?? ''} onChange={e => setA(k, e.target.value)} />
-            </div>
-          ))}
+          {clinic.type === 'vet' && (
+            <>
+              <div className={styles.field}>
+                <label>Nome do Pet</label>
+                <input value={anamnesis['p-pet_nome'] ?? ''} onChange={e => setA('p-pet_nome', e.target.value)} />
+              </div>
+
+              <div className={styles.field}>
+                <label>Espécie</label>
+                <select
+                  value={petSpecies}
+                  onChange={e => {
+                    const newSpecies = e.target.value
+                    setA('p-pet_especie', newSpecies)
+                    const breedList = PET_BREEDS[newSpecies] ?? []
+                    const currentRaca = anamnesis['p-pet_raca'] ?? ''
+                    if (currentRaca && !breedList.includes(currentRaca)) setA('p-pet_raca', '')
+                  }}
+                >
+                  <option value="">Selecionar</option>
+                  {PET_SPECIES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+              {(() => {
+                const breedList = PET_BREEDS[petSpecies] ?? []
+                const racaValue = anamnesis['p-pet_raca'] ?? ''
+                if (breedList.length === 0) {
+                  return (
+                    <div className={styles.field}>
+                      <label>Raça</label>
+                      <input
+                        value={racaValue}
+                        onChange={e => setA('p-pet_raca', e.target.value)}
+                        placeholder={petSpecies ? 'Digite a raça' : 'Selecione a espécie primeiro'}
+                      />
+                    </div>
+                  )
+                }
+                const isCustomBreed = racaValue !== '' && !breedList.includes(racaValue)
+                const selectValue = isCustomBreed ? 'Outra' : racaValue
+                return (
+                  <>
+                    <div className={styles.field}>
+                      <label>Raça</label>
+                      <select
+                        value={selectValue}
+                        onChange={e => setA('p-pet_raca', e.target.value === 'Outra' ? '' : e.target.value)}
+                      >
+                        <option value="">Selecionar</option>
+                        {breedList.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    {selectValue === 'Outra' && (
+                      <div className={styles.field}>
+                        <label>Qual raça?</label>
+                        <input
+                          value={isCustomBreed ? racaValue : ''}
+                          onChange={e => setA('p-pet_raca', e.target.value)}
+                          placeholder="Digite a raça"
+                        />
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+
+              {[
+                ['p-pet_idade','Idade do Pet'],
+                ['p-pet_peso','Peso do Pet (kg)'],
+                ['p-pet_castrado','Castrado?'],
+              ].map(([k,l]) => (
+                <div className={styles.field} key={k}>
+                  <label>{l}</label>
+                  <input value={anamnesis[k] ?? ''} onChange={e => setA(k, e.target.value)} />
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
         <div className={styles.field} style={{ marginTop: '0.75rem' }}>
@@ -457,7 +533,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       </section>
 
       <div className={styles.saveRow}>
-        {saved && <span className={styles.savedMsg}>✓ Salvo com sucesso!</span>}
+        {saved && <span className={styles.savedMsg}><Icon name="check" size={12} /> Salvo com sucesso!</span>}
         <button
           className={styles.btnPrint}
           onClick={() => printProntuario(clinicInfo, patient, recordForPrint, entries)}

@@ -22,9 +22,11 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 22px;
-  height: 68px;
+  flex-wrap: wrap;
+  row-gap: 8px;
+  column-gap: 14px;
+  padding: 14px 22px;
+  min-height: 68px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-primary);
 }
@@ -120,7 +122,10 @@
 .tbRight {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
+  margin-left: auto;
 }
 
 /* Search bar */
@@ -490,7 +495,6 @@
   background: #4DD9C0;
   color: #0D2421;
   border: none;
-  display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -813,6 +817,9 @@
 }
 .fieldLabelRow label { margin: 0; }
 .btnNewPatient {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
   font-size: .75rem;
   font-weight: 600;
   color: #0B9B85;

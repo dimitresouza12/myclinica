@@ -95,7 +95,7 @@ export function FinanceiroBarChart({ data }: { data: MonthlyFin[] }) {
           </defs>
           <CartesianGrid strokeDasharray="3 0" stroke="var(--border-subtle)" vertical={false} />
           <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'var(--text-secondary)', fontWeight: 600 }} axisLine={false} tickLine={false} dy={4} />
-          <YAxis tickFormatter={v => v === 0 ? '0' : `${v / 1000}k`} tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} width={36} />
+          <YAxis tickFormatter={v => v.toLocaleString('pt-BR')} tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} width={56} />
           <Tooltip content={<FinTooltip />} cursor={{ fill: 'var(--bg-secondary)', radius: [8, 8, 0, 0] } as any} />
           <Bar dataKey="receita" name="Receita" shape={<BarReceita />} isAnimationActive={false} />
           <Bar dataKey="despesa" name="Despesa" shape={<BarDespesa />} isAnimationActive={false} />

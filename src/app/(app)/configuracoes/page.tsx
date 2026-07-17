@@ -9,6 +9,7 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { showToast } from '@/components/ui/Toast'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { Icon } from '@/components/ui/Icon'
 
 const DOC_TEMPLATE_TYPES: { type: DocumentTemplateType; label: string }[] = [
   { type: 'receita_comum',             label: 'Receita Comum' },
@@ -569,13 +570,13 @@ function ConfiguracoesContent() {
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               {clinic?.billingPaid && !clinic?.billingOverdueSince && (
-                <span style={{ padding: '0.25rem 0.75rem', background: '#D1FAE5', color: '#065F46', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                  ✓ Ativo
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.75rem', background: '#D1FAE5', color: '#065F46', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                  <Icon name="check" size={12} /> Ativo
                 </span>
               )}
               {isLate && (
-                <span style={{ padding: '0.25rem 0.75rem', background: '#FEF3C7', color: '#92400E', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                  ⚠ Pagamento atrasado
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.75rem', background: '#FEF3C7', color: '#92400E', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                  <Icon name="alert" size={12} /> Pagamento atrasado
                 </span>
               )}
               {!!clinic?.billingOverdueSince && (
@@ -629,11 +630,11 @@ function ConfiguracoesContent() {
                         transition: 'border-color 0.15s',
                       }}
                     >
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: isCurrent ? 'var(--teal)' : 'var(--text-primary)' }}>
-                        {info.label}{isCurrent ? ' ✓' : ''}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', fontWeight: 700, color: isCurrent ? 'var(--teal)' : 'var(--text-primary)' }}>
+                        {info.label}{isCurrent ? <Icon name="check" size={12} /> : ''}
                       </span>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{info.price}</span>
-                      {!isCurrent && <span style={{ fontSize: '0.72rem', color: 'var(--teal)', fontWeight: 600, marginTop: '0.15rem' }}>Solicitar via WhatsApp →</span>}
+                      {!isCurrent && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.72rem', color: 'var(--teal)', fontWeight: 600, marginTop: '0.15rem' }}>Solicitar via WhatsApp <Icon name="chevronRight" size={11} /></span>}
                     </a>
                   )
                 })}
@@ -698,8 +699,8 @@ function ConfiguracoesContent() {
                 </div>
               )}
               {dueDayMsg && (
-                <p style={{ fontSize: '0.8rem', marginTop: '0.4rem', color: dueDayMsg.ok ? '#065F46' : '#DC2626' }}>
-                  {dueDayMsg.ok ? '✓ ' : '⚠ '}{dueDayMsg.text}
+                <p style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', marginTop: '0.4rem', color: dueDayMsg.ok ? '#065F46' : '#DC2626' }}>
+                  {dueDayMsg.ok ? <Icon name="check" size={13} /> : <Icon name="alert" size={13} />}{dueDayMsg.text}
                 </p>
               )}
             </div>
@@ -707,7 +708,7 @@ function ConfiguracoesContent() {
 
           {/* Erro geral de billing */}
           {billingError && (
-            <p style={{ fontSize: '0.82rem', color: '#DC2626' }}>⚠ {billingError}</p>
+            <p style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.82rem', color: '#DC2626' }}><Icon name="alert" size={13} /> {billingError}</p>
           )}
 
           {/* Botões de ação */}
@@ -748,7 +749,7 @@ function ConfiguracoesContent() {
             <input value={address} onChange={(e) => setAddress(e.target.value)} />
           </div>
           <div className={styles.saveRow}>
-            {saved && <span className={styles.savedMsg}>✓ Salvo!</span>}
+            {saved && <span className={styles.savedMsg}><Icon name="check" size={12} /> Salvo!</span>}
             <button type="submit" className={styles.btnSave} disabled={saving}>
               {saving ? 'Salvando...' : 'Salvar Configurações'}
             </button>
@@ -857,12 +858,12 @@ function ConfiguracoesContent() {
             <h2 className={styles.cardTitle} style={{ marginBottom: '0.25rem' }}>Google Calendar</h2>
             <p className={styles.gcalDesc}>Sincronize sua agenda com o Google Calendar para ver e criar eventos diretamente.</p>
           </div>
-          <div className={styles.gcalLogo}>📅</div>
+          <div className={styles.gcalLogo}><Icon name="calendar" size={20} /></div>
         </div>
 
         {!hasClientId ? (
           <div className={styles.gcalWarning}>
-            <strong>⚠️ NEXT_PUBLIC_GOOGLE_CLIENT_ID não configurado.</strong><br />
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}><Icon name="alert" size={14} /> NEXT_PUBLIC_GOOGLE_CLIENT_ID não configurado.</strong><br />
             Adicione o Client ID OAuth2 do Google nas variáveis de ambiente do EasyPanel para ativar esta integração.
           </div>
         ) : gcalConnected ? (
@@ -896,7 +897,7 @@ function ConfiguracoesContent() {
                 <span className={styles.docTemplateLabel}>{label}</span>
                 <div className={styles.docTemplateActions}>
                   {existing
-                    ? <span className={styles.docTemplateStatus}>✓ Modelo cadastrado</span>
+                    ? <span className={styles.docTemplateStatus}><Icon name="check" size={12} /> Modelo cadastrado</span>
                     : <span className={styles.docTemplateStatusEmpty}>Sem modelo</span>
                   }
                   {msg?.ok && <span className={styles.docTemplateSaved}>Salvo!</span>}
@@ -968,20 +969,20 @@ function ConfiguracoesContent() {
         <div className={styles.overlay} onClick={() => !confirmLoading && setConfirmModal(null)}>
           <div className={styles.modal} style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h2>
-                {confirmModal.type === 'delete'     ? '🗑 Excluir usuário'    :
-                 confirmModal.type === 'deactivate' ? '⏸ Desativar usuário'  :
-                                                      '▶ Reativar usuário'}
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                {confirmModal.type === 'delete' ? <><Icon name="trash" size={16} /> Excluir usuário</> :
+                 confirmModal.type === 'deactivate' ? <><Icon name="pause" size={16} /> Desativar usuário</> :
+                 <><Icon name="play" size={16} /> Reativar usuário</>}
               </h2>
-              <button className={styles.btnClose} onClick={() => setConfirmModal(null)} disabled={confirmLoading}>✕</button>
+              <button className={styles.btnClose} onClick={() => setConfirmModal(null)} disabled={confirmLoading}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
               <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: 1.6 }}>
                 {confirmModal.type === 'delete' && <>
                   Tem certeza que deseja <strong>excluir permanentemente</strong> o usuário <strong>{confirmModal.user.display_name}</strong>?
                   <br /><br />
-                  <span style={{ color: '#DC2626', fontSize: '0.82rem' }}>
-                    ⚠️ Esta ação não pode ser desfeita. O acesso ao sistema será removido imediatamente.
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#DC2626', fontSize: '0.82rem' }}>
+                    <Icon name="alert" size={13} /> Esta ação não pode ser desfeita. O acesso ao sistema será removido imediatamente.
                   </span>
                 </>}
                 {confirmModal.type === 'deactivate' && <>
@@ -1025,8 +1026,8 @@ function ConfiguracoesContent() {
         <div className={styles.overlay} onClick={closeUserModal}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h2>{editingUser ? '✎ Editar Usuário' : '+ Novo Usuário'}</h2>
-              <button className={styles.btnClose} onClick={closeUserModal}>✕</button>
+              <h2>{editingUser ? 'Editar Usuário' : '+ Novo Usuário'}</h2>
+              <button className={styles.btnClose} onClick={closeUserModal}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
               <div className={styles.field}>
@@ -1176,7 +1177,7 @@ function ConfiguracoesContent() {
                   className={styles.btnDelete}
                   onClick={() => { closeUserModal(); setConfirmModal({ type: 'delete', user: editingUser }) }}
                 >
-                  🗑 Excluir
+                  <Icon name="trash" size={13} /> Excluir
                 </button>
               )}
               <button className={styles.btnCancel} onClick={closeUserModal}>Cancelar</button>

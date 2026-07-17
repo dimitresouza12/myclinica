@@ -12,6 +12,7 @@ import { useEstoqueData } from '@/hooks/useClinicData'
 import styles from './estoque.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { Icon } from '@/components/ui/Icon'
 
 const EstoqueChart = dynamic(() => import('./EstoqueChart'), { ssr: false, loading: () => null })
 
@@ -286,8 +287,8 @@ function EstoqueContent() {
                           <div className={styles.rowActions}>
                             <button className={styles.btnEntrada} onClick={() => openMovModal(item, 'entrada')} title="Registrar entrada">+ Entrada</button>
                             <button className={styles.btnSaida} onClick={() => openMovModal(item, 'saida')} title="Registrar saída">− Saída</button>
-                            <button className={styles.btnEdit} onClick={() => openEditItem(item)} title="Editar">✎</button>
-                            <button className={styles.btnDelete} onClick={() => handleDelete(item)} title="Desativar">🗑</button>
+                            <button className={styles.btnEdit} onClick={() => openEditItem(item)} title="Editar"><Icon name="edit" size={13} /></button>
+                            <button className={styles.btnDelete} onClick={() => handleDelete(item)} title="Desativar"><Icon name="trash" size={13} /></button>
                           </div>
                         </td>
                       </tr>
@@ -320,7 +321,11 @@ function EstoqueContent() {
                       <td data-label="Produto" className={styles.bold}>{m.stock_items?.name ?? '—'}</td>
                       <td data-label="Tipo">
                         <span className={m.type === 'entrada' ? styles.badgeEntrada : m.type === 'saida' ? styles.badgeSaida : styles.badgeAjuste}>
-                          {m.type === 'entrada' ? '↑ Entrada' : m.type === 'saida' ? '↓ Saída' : '⇄ Ajuste'}
+                          {m.type === 'entrada'
+                            ? <><Icon name="arrowUp" size={11} /> Entrada</>
+                            : m.type === 'saida'
+                            ? <><Icon name="arrowUp" size={11} style={{ transform: 'rotate(180deg)' }} /> Saída</>
+                            : <><Icon name="swap" size={11} /> Ajuste</>}
                         </span>
                       </td>
                       <td data-label="Quantidade">{m.quantity} {m.stock_items?.unit ?? ''}</td>
@@ -341,8 +346,8 @@ function EstoqueContent() {
         <div className={styles.overlay} onClick={closeModal}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h2>{editingItem ? '✎ Editar Produto' : '📦 Novo Produto'}</h2>
-              <button className={styles.btnClose} onClick={closeModal}>✕</button>
+              <h2>{editingItem ? 'Editar Produto' : 'Novo Produto'}</h2>
+              <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
               {error && <p className={styles.error}>{error}</p>}
@@ -406,8 +411,8 @@ function EstoqueContent() {
         <div className={styles.overlay} onClick={closeModal}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h2>{modal === 'entrada' ? '↑ Entrada de Estoque' : '↓ Saída de Estoque'}</h2>
-              <button className={styles.btnClose} onClick={closeModal}>✕</button>
+              <h2>{modal === 'entrada' ? 'Entrada de Estoque' : 'Saída de Estoque'}</h2>
+              <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
               {error && <p className={styles.error}>{error}</p>}

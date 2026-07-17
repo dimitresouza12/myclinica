@@ -61,7 +61,7 @@
   flex-shrink: 0;
 }
 .tab:hover { color:var(--text-primary); }
-.tabActive { color:#0D2421; font-weight:700; border-bottom-color:#4DD9C0; }
+.tabActive { color:var(--text-primary); font-weight:700; border-bottom-color:#4DD9C0; }
 
 /* KPI strip */
 .kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:1rem; }
@@ -161,7 +161,7 @@
 .exportModalFooter { flex-shrink:0; padding:.875rem 1.5rem; border-top:1px solid var(--border-color); display:flex; justify-content:flex-end; gap:.625rem; background:var(--bg-primary); }
 .exportBtnCancel { padding:.5rem 1rem; border:1px solid var(--border-color); background:none; border-radius:10px; font-size:.875rem; color:var(--text-secondary); cursor:pointer; transition:background .15s; }
 .exportBtnCancel:hover { background:var(--bg-secondary); }
-.exportBtnConfirm { padding:.5rem 1.25rem; background:#4DD9C0; color:#0D2421; border:none; border-radius:10px; font-size:.875rem; font-weight:700; cursor:pointer; transition:opacity .15s; }
+.exportBtnConfirm { display:inline-flex; align-items:center; gap:.4rem; padding:.5rem 1.25rem; background:#4DD9C0; color:#0D2421; border:none; border-radius:10px; font-size:.875rem; font-weight:700; cursor:pointer; transition:opacity .15s; }
 .exportBtnConfirm:hover:not(:disabled) { opacity:.85; }
 .exportBtnConfirm:disabled { opacity:.5; cursor:not-allowed; }
 @media (max-width:600px) {

@@ -104,7 +104,7 @@ function MetasContent() {
                 <button className={styles.btnSave} onClick={handleSaveGoal} disabled={savingGoal}>
                   {savingGoal ? 'Salvando...' : 'Salvar meta'}
                 </button>
-                {saved && <span className={styles.savedMsg}>✓ Meta salva</span>}
+                {saved && <span className={styles.savedMsg}><Icon name="check" size={12} /> Meta salva</span>}
               </div>
             )}
             {goalError && <p className={styles.goalErrorMsg}>{goalError}</p>}

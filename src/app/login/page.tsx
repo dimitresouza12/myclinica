@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/auth'
 import { audit } from '@/lib/audit'
 import type { Clinic, ClinicUser, AuthClinic, AuthUser, ClinicPlan } from '@/types'
 import styles from './login.module.css'
+import { Icon } from '@/components/ui/Icon'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -281,10 +282,10 @@ function LoginContent() {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
-          <p className={styles.error}>
-            ⚠️ Variáveis de ambiente não configuradas.<br />
-            NEXT_PUBLIC_SUPABASE_URL: {SUPABASE_URL ? '✓' : '✗'}<br />
-            NEXT_PUBLIC_SUPABASE_ANON_KEY: {SUPABASE_KEY ? '✓' : '✗'}
+          <p className={styles.error} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}><Icon name="alert" size={14} /> Variáveis de ambiente não configuradas.</span>
+            <span>NEXT_PUBLIC_SUPABASE_URL: {SUPABASE_URL ? <Icon name="check" size={12} /> : <Icon name="close" size={12} />}</span>
+            <span>NEXT_PUBLIC_SUPABASE_ANON_KEY: {SUPABASE_KEY ? <Icon name="check" size={12} /> : <Icon name="close" size={12} />}</span>
           </p>
         </div>
       </div>
@@ -586,7 +587,7 @@ function LoginContent() {
           {/* Copa */}
           <div className={styles.promoCopa}>
             <div className={styles.promoCopaLeft}>
-              <span className={styles.promoCopaEmoji}>🏆</span>
+              <span className={styles.promoCopaEmoji}><Icon name="trophy" size={26} /></span>
               <div>
                 <p className={styles.promoCopaTag}>Promoção Copa</p>
                 <p className={styles.promoCopaHeadline}><strong>50% off</strong> no 1º mês</p>
@@ -638,7 +639,7 @@ function LoginContent() {
           <div className={styles.form}>
             {resetSent ? (
               <div className={styles.successBox}>
-                <div className={styles.successIcon}>✉️</div>
+                <div className={styles.successIcon}><Icon name="mail" size={24} /></div>
                 <h3 className={styles.successTitle}>E-mail enviado!</h3>
                 <p className={styles.successMsg}>Verifique sua caixa de entrada e siga o link para redefinir sua senha.</p>
                 <button className={styles.btnOutline} onClick={() => { setShowReset(false); setResetSent(false); setResetEmail('') }}>
@@ -708,7 +709,7 @@ function LoginContent() {
                     style={{ background: PLAN_INFO[quizResult].color, marginTop: '0.5rem' }}
                     onClick={() => goToRegisterFromQuiz(quizResult)}
                   >
-                    Começar grátis com plano {PLAN_INFO[quizResult].label} →
+                    Começar grátis com plano {PLAN_INFO[quizResult].label} <Icon name="chevronRight" size={13} />
                   </button>
                 </div>
                 <p className={styles.quizAlt}>Prefere outro plano?</p>
@@ -746,7 +747,7 @@ function LoginContent() {
                 </div>
                 {quizStep > 0 && (
                   <button className={styles.btnLink} onClick={() => { setQuizStep(s => s - 1); setQuizAnswers(a => a.slice(0, -1)) }}>
-                    ← Voltar
+                    <Icon name="chevronLeft" size={13} /> Voltar
                   </button>
                 )}
                 <button className={styles.btnLink} onClick={() => setMode('login')}>
@@ -765,7 +766,7 @@ function LoginContent() {
             <p className={styles.trialCtaHeadline}>Ainda não tem conta?</p>
             <p className={styles.trialCtaSub}>Descubra o plano ideal em 3 perguntas.</p>
           </div>
-          <span className={styles.trialCtaBtn}>Começar agora →</span>
+          <span className={styles.trialCtaBtn}>Começar agora <Icon name="chevronRight" size={13} /></span>
         </div>
       )}
 
@@ -780,7 +781,7 @@ function LoginContent() {
       <div className={styles.promosMobile}>
         <div className={styles.promoCopa}>
           <div className={styles.promoCopaLeft}>
-            <span className={styles.promoCopaEmoji}>🏆</span>
+            <span className={styles.promoCopaEmoji}><Icon name="trophy" size={26} /></span>
             <div>
               <p className={styles.promoCopaTag}>Promoção Copa</p>
               <p className={styles.promoCopaHeadline}><strong>50% off</strong> no 1º mês</p>
@@ -835,14 +836,14 @@ function LoginContent() {
                 onClick={() => { setMode('quiz'); setRegError('') }}
                 aria-label="Fechar"
               >
-                ✕
+                <Icon name="close" size={18} />
               </button>
             </div>
 
             <div className={styles.registerModalBody}>
               {regSuccess ? (
                 <div className={styles.successBox}>
-                  <div className={styles.successIcon}>🎉</div>
+                  <div className={styles.successIcon}><Icon name="checkCircle" size={24} /></div>
                   <h3 className={styles.successTitle}>Clínica criada!</h3>
                   <p className={styles.successMsg}>
                     Sua clínica está pronta. Você tem <strong>7 dias grátis</strong> para explorar tudo.<br /><br />
@@ -987,7 +988,7 @@ function LoginContent() {
                         maxLength={20}
                         className={couponValid ? styles.inputValid : couponInvalid ? styles.inputInvalid : ''}
                       />
-                      {couponValid && <span className={styles.couponBadge}>✓ 50% na 1ª mensalidade</span>}
+                      {couponValid && <span className={styles.couponBadge}><Icon name="check" size={11} /> 50% na 1ª mensalidade</span>}
                       {couponInvalid && <span className={styles.couponError}>Código inválido</span>}
                     </div>
                   </div>
@@ -1025,7 +1026,7 @@ function LoginContent() {
               <div className={styles.termsModal} onClick={e => e.stopPropagation()}>
                 <div className={styles.termsHeader}>
                   <h2 className={styles.termsTitle}>Termos de Uso — My Clinica</h2>
-                  <button className={styles.termsClose} onClick={() => setShowTerms(false)}>✕</button>
+                  <button className={styles.termsClose} onClick={() => setShowTerms(false)}><Icon name="close" size={16} /></button>
                 </div>
                 <div className={styles.termsBody}>
                   <p className={styles.termsDate}>Versão vigente: maio de 2026</p>

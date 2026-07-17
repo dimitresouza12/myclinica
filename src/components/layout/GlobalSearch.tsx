@@ -45,10 +45,10 @@ export function GlobalSearch() {
       const term = query.trim().toLowerCase()
       const { data } = await supabase
         .from('patients')
-        .select('id, name, phone')
+        .select('id, name, phone, pet_name')
         .eq('clinic_id', clinic.id)
         .eq('is_active', true)
-        .or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
+        .or(`name.ilike.%${term}%,phone.ilike.%${term}%,pet_name.ilike.%${term}%`)
         .limit(6)
       setResults((data ?? []) as Patient[])
       setOpen(true)
@@ -91,7 +91,7 @@ export function GlobalSearch() {
           >
             {results.length > 0 ? results.map(p => (
               <button key={p.id} className={styles.item} onClick={() => handleSelect(p)}>
-                <span className={styles.itemName}>{p.name}</span>
+                <span className={styles.itemName}>{p.name}{p.pet_name ? ` · ${p.pet_name}` : ''}</span>
                 {p.phone && <span className={styles.itemPhone}>{p.phone}</span>}
               </button>
             )) : (
