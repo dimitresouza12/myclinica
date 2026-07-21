@@ -615,7 +615,7 @@ function ConfiguracoesContent() {
                   return (
                     <a
                       key={slug}
-                      href={isCurrent ? undefined : `https://wa.me/55889200205070?text=${encodeURIComponent(waMsgText)}`}
+                      href={isCurrent ? undefined : `https://wa.me/5588920020570?text=${encodeURIComponent(waMsgText)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={isCurrent ? (e) => e.preventDefault() : undefined}

@@ -167,7 +167,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
 
       {/* ── Suporte — elemento único, label some com CSS ── */}
       <a
-        href="https://wa.me/55889200205070?text=Ol%C3%A1%2C+preciso+de+suporte+com+o+MyClinica."
+        href="https://wa.me/5588920020570?text=Ol%C3%A1%2C+preciso+de+suporte+com+o+MyClinica."
         target="_blank"
         rel="noopener noreferrer"
         className={`${styles.supportRow} ${isCollapsed ? styles.sideItemCollapsed : ''}`}

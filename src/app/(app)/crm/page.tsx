@@ -67,7 +67,7 @@ function fmtPhone(phone: string) {
   return phone
 }
 
-const WHATSAPP_ORCAMENTO = 'https://wa.me/55889200205070?text=Ol%C3%A1%2C+gostaria+de+fazer+um+or%C3%A7amento+para+integrar+o+CRM+com+WhatsApp+IA.'
+const WHATSAPP_ORCAMENTO = 'https://wa.me/5588920020570?text=Ol%C3%A1%2C+gostaria+de+fazer+um+or%C3%A7amento+para+integrar+o+CRM+com+WhatsApp+IA.'
 
 function CRMContent() {
   const { clinic } = useAuthStore()
