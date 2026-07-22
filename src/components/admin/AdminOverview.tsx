@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
+import { computeClinicStatus } from '@/lib/clinicStatus'
 import styles from './admin.module.css'
 
 const AdminCharts = dynamic(() => import('./AdminCharts'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráficos...</div> })
@@ -38,8 +39,8 @@ export function AdminOverview() {
       startOfMonth.setDate(1)
       startOfMonth.setHours(0, 0, 0, 0)
 
-      const [activeClinics, allUsers, appts, revenue, newClinics, allClinics] = await Promise.all([
-        supabase.from('clinics').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      const [clinicStatuses, allUsers, appts, revenue, newClinics, allClinics] = await Promise.all([
+        supabase.from('clinics').select('trial_ends_at, billing_paid, billing_overdue_since'),
         supabase.from('clinic_users').select('id', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('appointments').select('id', { count: 'exact', head: true }),
         supabase.from('financial_records').select('total_amount').eq('type', 'receita'),
@@ -50,8 +51,15 @@ export function AdminOverview() {
       const receitaTotal = ((revenue.data ?? []) as { total_amount: number | null }[])
         .reduce((s, r) => s + (r.total_amount ?? 0), 0)
 
+      // "Ativa" = clínica em uso normal (trial em andamento ou já paga) —
+      // exclui quem está travado no modal de trial expirado ou suspenso por atraso
+      const clinicasAtivas = (clinicStatuses.data ?? []).filter((c) => {
+        const s = computeClinicStatus(c)
+        return s === 'active' || s === 'trial'
+      }).length
+
       setKpi({
-        clinicasAtivas:    activeClinics.count ?? 0,
+        clinicasAtivas,
         totalUsuarios:     allUsers.count ?? 0,
         totalAgendamentos: appts.count ?? 0,
         receitaTotal,

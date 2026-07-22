@@ -26,6 +26,8 @@ export interface Clinic {
   billing_phone: string | null
   billing_due_day: number | null
   billing_paid: boolean
+  billing_overdue_since: string | null
+  next_billing_date: string | null
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
 }

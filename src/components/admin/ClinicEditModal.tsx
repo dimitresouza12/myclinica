@@ -1,8 +1,10 @@
 'use client'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { Clinic, ClinicStatus } from '@/types'
+import type { Clinic } from '@/types'
+import { computeClinicStatus } from '@/lib/clinicStatus'
 import { Portal } from '@/components/ui/Portal'
+import { StatusBadge } from './StatusBadge'
 import styles from './admin.module.css'
 import { Icon } from '@/components/ui/Icon'
 
@@ -11,12 +13,6 @@ const PLANS: { value: string; label: string; hint: string }[] = [
   { value: 'avancado',      label: 'Avançado',   hint: 'R$119,90/mês — ilimitados, até 3 usuários' },
   { value: 'completo',      label: 'Completo',   hint: 'R$129,90/mês — ilimitados + multi-clínica' },
   { value: 'completo_plus', label: 'Completo+',  hint: 'R$199/mês — Completo + IA e WhatsApp' },
-]
-const STATUSES: { value: ClinicStatus; label: string }[] = [
-  { value: 'active',    label: 'Ativa' },
-  { value: 'trial',     label: 'Trial' },
-  { value: 'inactive',  label: 'Inativa' },
-  { value: 'suspended', label: 'Suspensa (inadimplência)' },
 ]
 
 function toDateInputValue(iso: string | null | undefined): string {
@@ -43,7 +39,6 @@ interface Props {
 export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   const [plan, setPlan] = useState(clinic.plan ?? 'basico')
   const [maxPatients, setMaxPatients] = useState(clinic.max_patients ?? 200)
-  const [status, setStatus] = useState<ClinicStatus>(clinic.status ?? 'active')
   const [trialMode, setTrialMode] = useState<'trial' | 'permanente'>(
     clinic.trial_ends_at ? 'trial' : 'permanente'
   )
@@ -64,17 +59,21 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
     const trial_ends_at = trialMode === 'permanente'
       ? null
       : trialDate ? new Date(trialDate + 'T23:59:59').toISOString() : null
+    // Marcar como paga também limpa o atraso — espelha o que o webhook do Asaas faz
+    const billing_overdue_since = billingPaid ? null : clinic.billing_overdue_since
+    const status = computeClinicStatus({ trial_ends_at, billing_paid: billingPaid, billing_overdue_since })
     const { error: err } = await supabase
       .from('clinics')
       .update({
         plan,
         max_patients: maxPatients,
         status,
-        is_active: status === 'active',
+        is_active: status !== 'suspended',
         trial_ends_at,
         billing_phone: billingPhone.trim() || null,
         billing_due_day: billingDueDay ? Number(billingDueDay) : null,
         billing_paid: billingPaid,
+        billing_overdue_since,
       })
       .eq('id', clinic.id)
     if (err) { setError(err.message); setSaving(false); return }
@@ -83,6 +82,15 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   }
 
   const canCharge = billingPhone.trim().length >= 10
+
+  const previewTrialEndsAt = trialMode === 'permanente'
+    ? null
+    : trialDate ? new Date(trialDate + 'T23:59:59').toISOString() : null
+  const previewClinic = {
+    trial_ends_at: previewTrialEndsAt,
+    billing_paid: billingPaid,
+    billing_overdue_since: billingPaid ? null : clinic.billing_overdue_since,
+  }
 
   return (
     <Portal>
@@ -126,26 +134,14 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
             />
           </div>
 
-          {/* — Status — */}
-          <div className={styles.field}>
-            <label>Status</label>
-            <div className={styles.statusBtnGroup}>
-              {STATUSES.map((s) => (
-                <button
-                  key={s.value}
-                  type="button"
-                  className={`${styles.statusChoiceBtn} ${status === s.value ? styles.statusChoiceBtnActive : ''} ${styles[`statusChoice_${s.value}`]}`}
-                  onClick={() => setStatus(s.value)}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* — Trial — */}
           <div className={styles.field}>
-            <label>Período de teste</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+              <label>Período de teste</label>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Status resultante: <StatusBadge clinic={previewClinic} />
+              </span>
+            </div>
             <div className={styles.statusBtnGroup}>
               <button
                 type="button"

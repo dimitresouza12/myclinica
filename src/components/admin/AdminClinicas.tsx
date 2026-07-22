@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate } from '@/lib/utils'
 import type { Clinic } from '@/types'
+import { computeClinicStatus } from '@/lib/clinicStatus'
 import { StatusBadge } from './StatusBadge'
 import { ClinicEditModal } from './ClinicEditModal'
 import { Portal } from '@/components/ui/Portal'
@@ -44,7 +45,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
 
   const filtered = clinics.filter((c) => {
     const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.slug.includes(search.toLowerCase())
-    const matchStatus = !filterStatus || c.status === filterStatus
+    const matchStatus = !filterStatus || computeClinicStatus(c) === filterStatus
     return matchSearch && matchStatus
   })
 
@@ -130,9 +131,9 @@ export function AdminClinicas({ clinics, onReload }: Props) {
           <select className={styles.selectFilter} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">Todos os status</option>
             <option value="active">Ativa</option>
-            <option value="inactive">Inativa</option>
-            <option value="suspended">Suspensa</option>
             <option value="trial">Trial</option>
+            <option value="trial_expired">Trial expirado</option>
+            <option value="suspended">Suspensa (atraso)</option>
           </select>
         </div>
         <button className={styles.btnPrimary} onClick={() => setShowNewModal(true)}>+ Nova Clínica</button>
@@ -179,7 +180,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                     {c.plan ?? 'basico'}
                   </span>
                 </td>
-                <td data-label="Status"><StatusBadge status={c.status ?? 'active'} /></td>
+                <td data-label="Status"><StatusBadge clinic={c} /></td>
                 <td data-label="Trial">
                   {!c.trial_ends_at ? (
                     <span style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 600 }}>Permanente</span>
