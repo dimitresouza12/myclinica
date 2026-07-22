@@ -8,7 +8,6 @@ import type { Clinic } from '@/types'
 import { StatusBadge } from './StatusBadge'
 import { ClinicEditModal } from './ClinicEditModal'
 import { Portal } from '@/components/ui/Portal'
-import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './admin.module.css'
 import { Icon } from '@/components/ui/Icon'
@@ -52,18 +51,6 @@ export function AdminClinicas({ clinics, onReload }: Props) {
   function handleImpersonate(c: Clinic) {
     startImpersonation(c.id, c.name)
     router.push('/dashboard')
-  }
-
-  async function handleApprove(c: Clinic) {
-    if (!(await confirmDialog({ message: `Aprovar a clínica "${c.name}"?`, confirmText: 'Aprovar' }))) return
-    await supabase.from('clinics').update({ status: 'active', is_active: true }).eq('id', c.id)
-    onReload()
-  }
-
-  async function handleReject(c: Clinic) {
-    if (!(await confirmDialog({ message: `Rejeitar e marcar como inativa a clínica "${c.name}"?`, confirmText: 'Rejeitar', danger: true }))) return
-    await supabase.from('clinics').update({ status: 'inactive', is_active: false }).eq('id', c.id)
-    onReload()
   }
 
   function triggerLogoUpload(clinic: Clinic) {
@@ -128,8 +115,6 @@ export function AdminClinicas({ clinics, onReload }: Props) {
     completo:      '#8B5CF6',
     completo_plus: '#F59E0B',
   }
-  const pendingCount = clinics.filter(c => c.status === 'pending').length
-
   return (
     <>
       <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
@@ -144,16 +129,11 @@ export function AdminClinicas({ clinics, onReload }: Props) {
           />
           <select className={styles.selectFilter} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">Todos os status</option>
-            <option value="pending">⏳ Pendentes (novas)</option>
             <option value="active">Ativa</option>
             <option value="inactive">Inativa</option>
             <option value="suspended">Suspensa</option>
+            <option value="trial">Trial</option>
           </select>
-          {pendingCount > 0 && filterStatus !== 'pending' && (
-            <button className={styles.pendingAlert} onClick={() => setFilterStatus('pending')}>
-              {pendingCount} aguardando aprovação
-            </button>
-          )}
         </div>
         <button className={styles.btnPrimary} onClick={() => setShowNewModal(true)}>+ Nova Clínica</button>
       </div>
@@ -243,34 +223,18 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                 <td data-label="Criada" className={styles.dateCell}>{formatDate(c.created_at, true)}</td>
                 <td data-label="Ações">
                   <div className={styles.rowActions}>
-                    {c.status === 'pending' ? (
-                      <>
-                        <span className={styles.planPillPending} style={{ background: `${PLAN_COLORS[c.plan ?? 'basico']}22`, color: PLAN_COLORS[c.plan ?? 'basico'], borderColor: `${PLAN_COLORS[c.plan ?? 'basico']}55` }}>
-                          Plano: {c.plan ?? 'basico'}
-                        </span>
-                        <button className={styles.actionBtnApprove} onClick={() => handleApprove(c)} title="Aprovar cadastro">
-                          <Icon name="check" size={12} /> Aprovar
-                        </button>
-                        <button className={styles.actionBtnReject} onClick={() => handleReject(c)} title="Rejeitar cadastro">
-                          <Icon name="close" size={12} /> Rejeitar
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button className={styles.actionBtn} onClick={() => triggerLogoUpload(c)} disabled={uploadingId === c.id} title="Upload logo">
-                          {uploadingId === c.id ? '...' : <Icon name="upload" size={13} />}
-                        </button>
-                        <button className={styles.actionBtnSecondary} onClick={() => setEditTarget(c)} title="Editar plano/status">
-                          Editar
-                        </button>
-                        <button className={styles.actionBtnImpersonate} onClick={() => handleImpersonate(c)} title="Visualizar como esta clínica">
-                          <Icon name="eye" size={12} /> Ver como
-                        </button>
-                        <button className={styles.btnDanger} onClick={() => setDeleteTarget(c)} title="Excluir clínica">
-                          Excluir
-                        </button>
-                      </>
-                    )}
+                    <button className={styles.actionBtn} onClick={() => triggerLogoUpload(c)} disabled={uploadingId === c.id} title="Upload logo">
+                      {uploadingId === c.id ? '...' : <Icon name="upload" size={13} />}
+                    </button>
+                    <button className={styles.actionBtnSecondary} onClick={() => setEditTarget(c)} title="Editar plano/status">
+                      Editar
+                    </button>
+                    <button className={styles.actionBtnImpersonate} onClick={() => handleImpersonate(c)} title="Visualizar como esta clínica">
+                      <Icon name="eye" size={12} /> Ver como
+                    </button>
+                    <button className={styles.btnDanger} onClick={() => setDeleteTarget(c)} title="Excluir clínica">
+                      Excluir
+                    </button>
                   </div>
                   {uploadMsg?.id === c.id && (
                     <p className={uploadMsg.ok ? styles.msgOk : styles.msgErr}>{uploadMsg.text}</p>

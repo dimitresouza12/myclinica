@@ -14,7 +14,7 @@ const PLANS: { value: string; label: string; hint: string }[] = [
 ]
 const STATUSES: { value: ClinicStatus; label: string }[] = [
   { value: 'active',    label: 'Ativa' },
-  { value: 'pending',   label: 'Pendente (aguardando aprovação)' },
+  { value: 'trial',     label: 'Trial' },
   { value: 'inactive',  label: 'Inativa' },
   { value: 'suspended', label: 'Suspensa (inadimplência)' },
 ]
