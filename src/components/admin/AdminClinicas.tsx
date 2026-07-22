@@ -98,7 +98,15 @@ export function AdminClinicas({ clinics, onReload }: Props) {
   async function handleDelete() {
     if (!deleteTarget) return
     setDeleting(true)
-    await supabase.from('clinics').delete().eq('id', deleteTarget.id)
+    const { data: { session } } = await supabase.auth.getSession()
+    await fetch('/api/admin/delete-clinic', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({ clinicId: deleteTarget.id }),
+    })
     setDeleting(false)
     setDeleteTarget(null)
     onReload()
