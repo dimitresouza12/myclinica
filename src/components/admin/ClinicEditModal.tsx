@@ -53,6 +53,26 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   )
   const [billingPaid, setBillingPaid] = useState(clinic.billing_paid ?? false)
 
+  // Exclusão
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete() {
+    setDeleting(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    await fetch('/api/admin/delete-clinic', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({ clinicId: clinic.id }),
+    })
+    setDeleting(false)
+    onSaved()
+    onClose()
+  }
+
   async function handleSave() {
     setSaving(true)
     setError('')
@@ -235,6 +255,12 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
           {error && <p className={styles.fieldError}>{error}</p>}
         </div>
         <div className={styles.modalFooter}>
+          <button
+            style={{ padding: '0.55rem 1rem', background: 'none', border: '1px solid #FECACA', color: '#DC2626', borderRadius: 'var(--radius-md)', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', marginRight: 'auto' }}
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            Excluir clínica
+          </button>
           <button className={styles.btnCancel} onClick={onClose}>Cancelar</button>
           <button className={styles.btnSave} onClick={handleSave} disabled={saving}>
             {saving ? 'Salvando...' : 'Salvar'}
@@ -242,6 +268,35 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
         </div>
       </div>
     </div>
+
+    {showDeleteConfirm && (
+      <div className={styles.overlay} onClick={() => setShowDeleteConfirm(false)} style={{ zIndex: 1100 }}>
+        <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+          <div className={styles.modalHeader}>
+            <h2>Excluir clínica</h2>
+            <button className={styles.btnClose} onClick={() => setShowDeleteConfirm(false)}><Icon name="close" size={18} /></button>
+          </div>
+          <div className={styles.modalBody}>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: 1.6 }}>
+              Tem certeza que deseja excluir permanentemente a clínica <strong>{clinic.name}</strong>?
+            </p>
+            <p style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--radius-md)', padding: '0.6rem 0.75rem', marginTop: '0.5rem' }}>
+              <Icon name="alert" size={13} /> Esta ação é irreversível. Todos os dados da clínica e o login do responsável serão apagados.
+            </p>
+          </div>
+          <div className={styles.modalFooter}>
+            <button className={styles.btnCancel} onClick={() => setShowDeleteConfirm(false)}>Cancelar</button>
+            <button
+              style={{ padding: '0.55rem 1.25rem', background: '#DC2626', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', opacity: deleting ? 0.6 : 1 }}
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? 'Excluindo...' : 'Sim, excluir'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </Portal>
   )
 }
