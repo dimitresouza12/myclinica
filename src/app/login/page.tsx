@@ -1,7 +1,7 @@
 'use client'
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Image from 'next/image'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { audit } from '@/lib/audit'
@@ -168,6 +168,53 @@ function LoginContent() {
   const setSession = useAuthStore((s) => s.setSession)
   const clearSession = useAuthStore((s) => s.clearSession)
   const searchParams = useSearchParams()
+  const router = useRouter()
+
+  // ── Recuperação de senha (link do e-mail) ──
+  // O link enviado por resetPasswordForEmail volta pra cá com a sessão de
+  // recuperação no FRAGMENTO da URL (#access_token=...&type=recovery),
+  // não em query param. detectSessionInUrl está desligado no client, então
+  // precisamos ler o hash e chamar setSession manualmente antes de deixar
+  // a pessoa definir a nova senha. Confirmado testando um link real gerado
+  // via admin.generateLink — não é o formato ?code= (PKCE).
+  const [recovering, setRecovering] = useState(false)
+  const [recoveryChecking, setRecoveryChecking] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
+  const [recoverySaving, setRecoverySaving] = useState(false)
+  const [recoveryError, setRecoveryError] = useState('')
+  const [recoveryDone, setRecoveryDone] = useState(false)
+
+  useEffect(() => {
+    const hash = window.location.hash
+    if (!hash || !hash.includes('type=recovery')) return
+    const params = new URLSearchParams(hash.slice(1))
+    const access_token = params.get('access_token')
+    const refresh_token = params.get('refresh_token')
+    if (!access_token || !refresh_token) return
+
+    setRecoveryChecking(true)
+    supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+      setRecoveryChecking(false)
+      if (!error) setRecovering(true)
+      // Limpa o hash da URL — não deve ficar reutilizável no histórico
+      router.replace('/login')
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handleSetNewPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setRecoveryError('')
+    if (newPassword.length < 6) { setRecoveryError('A senha precisa ter no mínimo 6 caracteres.'); return }
+    if (newPassword !== newPasswordConfirm) { setRecoveryError('As senhas não coincidem.'); return }
+    setRecoverySaving(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setRecoverySaving(false)
+    if (error) { setRecoveryError('Não foi possível salvar a nova senha. Peça um novo link e tente de novo.'); return }
+    await supabase.auth.signOut()
+    setRecoveryDone(true)
+  }
 
   const [mode, setMode] = useState<Mode>(() => {
     if (searchParams.get('quiz') === 'true') return 'quiz'
@@ -636,7 +683,44 @@ function LoginContent() {
           <p className={styles.brandSub}>Gestão clínica inteligente</p>
         </div>
 
-        {mode === 'login' && showReset ? (
+        {recoveryChecking ? (
+          <div className={styles.form}>
+            <p className={styles.resetDesc}>Validando seu link...</p>
+          </div>
+        ) : recovering ? (
+          <div className={styles.form}>
+            {recoveryDone ? (
+              <div className={styles.successBox}>
+                <div className={styles.successIcon}><Icon name="checkCircle" size={24} /></div>
+                <h3 className={styles.successTitle}>Senha alterada!</h3>
+                <p className={styles.successMsg}>Sua senha foi atualizada. Faça login com a nova senha.</p>
+                <button className={styles.btnOutline} onClick={() => { setRecovering(false); setRecoveryDone(false) }}>
+                  Fazer login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSetNewPassword} className={styles.form}>
+                <p className={styles.resetDesc}>Escolha sua nova senha.</p>
+                <div className={styles.field}>
+                  <label htmlFor="newPassword">Nova senha</label>
+                  <input id="newPassword" type="password" value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="••••••••" required autoComplete="new-password" />
+                </div>
+                <div className={styles.field}>
+                  <label htmlFor="newPasswordConfirm">Confirmar nova senha</label>
+                  <input id="newPasswordConfirm" type="password" value={newPasswordConfirm}
+                    onChange={e => setNewPasswordConfirm(e.target.value)}
+                    placeholder="••••••••" required autoComplete="new-password" />
+                </div>
+                {recoveryError && <p className={styles.error}>{recoveryError}</p>}
+                <button type="submit" className={styles.btn} disabled={recoverySaving}>
+                  {recoverySaving ? 'Salvando...' : 'Salvar nova senha'}
+                </button>
+              </form>
+            )}
+          </div>
+        ) : mode === 'login' && showReset ? (
           <div className={styles.form}>
             {resetSent ? (
               <div className={styles.successBox}>
