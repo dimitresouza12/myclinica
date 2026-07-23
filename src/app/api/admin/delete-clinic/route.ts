@@ -36,6 +36,12 @@ export async function POST(req: Request) {
     .select('user_id, is_superadmin')
     .eq('clinic_id', clinicId)
 
+  // professionals e audit_logs referenciam clinics com FK NO ACTION (não
+  // CASCADE) — sem isso, a exclusão falha assim que a clínica tiver
+  // qualquer log de auditoria ou profissional cadastrado
+  await admin.from('audit_logs').delete().eq('clinic_id', clinicId)
+  await admin.from('professionals').delete().eq('clinic_id', clinicId)
+
   const { error: deleteError } = await admin.from('clinics').delete().eq('id', clinicId)
   if (deleteError) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 })
