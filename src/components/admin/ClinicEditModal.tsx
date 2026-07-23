@@ -76,6 +76,36 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   async function handleSave() {
     setSaving(true)
     setError('')
+
+    // Dia de vencimento: só mexe se o valor realmente mudou. Passa pela
+    // mesma rota que a própria clínica usa — ela grava o dia no banco E,
+    // se já existir assinatura ativa na Asaas, empurra o novo nextDueDate
+    // pra lá também (antes, o admin só editava um campo decorativo).
+    const newDueDay = billingDueDay ? Number(billingDueDay) : null
+    const dueDayChanged = newDueDay !== (clinic.billing_due_day ?? null)
+    if (dueDayChanged && newDueDay !== null) {
+      if (newDueDay < 1 || newDueDay > 28) {
+        setError('Dia de vencimento deve ser entre 1 e 28.')
+        setSaving(false)
+        return
+      }
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/asaas/billing-action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ clinicId: clinic.id, action: 'change_due_day', day: newDueDay }),
+      })
+      const data = await res.json()
+      if (!data.ok) {
+        setError(data.error ?? 'Erro ao atualizar dia de vencimento na Asaas.')
+        setSaving(false)
+        return
+      }
+    }
+
     const trial_ends_at = trialMode === 'permanente'
       ? null
       : trialDate ? new Date(trialDate + 'T23:59:59').toISOString() : null
@@ -91,7 +121,6 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
         is_active: status !== 'suspended',
         trial_ends_at,
         billing_phone: billingPhone.trim() || null,
-        billing_due_day: billingDueDay ? Number(billingDueDay) : null,
         billing_paid: billingPaid,
         billing_overdue_since,
       })
@@ -216,7 +245,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
                 <input
                   type="number"
                   min={1}
-                  max={31}
+                  max={28}
                   className={styles.fieldInput}
                   placeholder="Ex: 10"
                   value={billingDueDay}

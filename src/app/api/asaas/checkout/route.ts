@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabaseAdmin'
-import { asaasPost, asaasGet } from '@/lib/asaas'
+import { asaasPost, asaasGet, daysUntilNextOccurrence } from '@/lib/asaas'
 
 interface AsaasPaymentLink { id: string; url?: string; deleted?: boolean; active?: boolean }
 
@@ -22,9 +22,15 @@ export async function POST(req: Request) {
 
     const { data: clinic } = await getAdminClient()
       .from('clinics')
-      .select('asaas_customer_id, name, plan')
+      .select('asaas_customer_id, name, plan, billing_due_day')
       .eq('id', clinicId)
       .single()
+
+    // Se a clínica já tem um dia de vencimento preferido, a 1ª cobrança já
+    // nasce vencendo nesse dia; senão mantém o padrão de 5 dias.
+    const dueDateLimitDays = clinic?.billing_due_day
+      ? daysUntilNextOccurrence(clinic.billing_due_day)
+      : 5
 
     const linkId = clinic?.asaas_customer_id as string | undefined
 
@@ -67,7 +73,7 @@ export async function POST(req: Request) {
         chargeType: 'RECURRENT',
         value: finalValue,
         subscriptionCycle: 'MONTHLY',
-        dueDateLimitDays: 5,
+        dueDateLimitDays,
         description: `Acesso completo ao MyClinica — Plano ${planLabel} — R$${finalValue}/mês${promoNote}`,
         externalReference: clinicId,
       })
@@ -84,7 +90,7 @@ export async function POST(req: Request) {
           chargeType: 'RECURRENT',
           value: finalValue,
           subscriptionCycle: 'MONTHLY',
-          dueDateLimitDays: 5,
+          dueDateLimitDays,
           description: `Acesso completo ao MyClinica — Plano ${planLabel} — R$${finalValue}/mês${promoNote}`,
           externalReference: clinicId,
         })

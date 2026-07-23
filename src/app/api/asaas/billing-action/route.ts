@@ -1,15 +1,37 @@
 import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabaseAdmin'
-import { asaasGet, asaasPut } from '@/lib/asaas'
+import { asaasGet, asaasPut, nextOccurrenceOfDay } from '@/lib/asaas'
 
 interface AsaasPayment { id: string; invoiceUrl?: string; bankSlipUrl?: string; dueDate: string; status: string }
 interface AsaasPaymentList { data: AsaasPayment[] }
 interface AsaasSubscription { id: string; nextDueDate: string; cycle: string; value: number }
 
+async function isAuthorized(req: Request, clinicId: string): Promise<boolean> {
+  const authHeader = req.headers.get('authorization')
+  if (!authHeader?.startsWith('Bearer ')) return false
+
+  const admin = getAdminClient()
+  const { data: { user }, error } = await admin.auth.getUser(authHeader.slice(7))
+  if (error || !user) return false
+
+  const { data: callerRow } = await admin
+    .from('clinic_users')
+    .select('clinic_id, is_superadmin')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  return !!callerRow && (callerRow.is_superadmin || callerRow.clinic_id === clinicId)
+}
+
 export async function POST(req: Request) {
   try {
     const { clinicId, action, day } = await req.json()
     if (!clinicId || !action) return NextResponse.json({ error: 'clinicId e action obrigatórios' }, { status: 400 })
+
+    if (!(await isAuthorized(req, clinicId))) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 })
+    }
 
     const { data: clinic } = await getAdminClient()
       .from('clinics')
@@ -49,11 +71,9 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, message: 'Dia de preferência salvo. Será aplicado na próxima cobrança.' })
       }
 
-      // Calcula próxima data de vencimento com o dia desejado
-      const now = new Date()
-      const nextMonth = now.getMonth() + 1 >= 12 ? 0 : now.getMonth() + 1
-      const nextYear  = now.getMonth() + 1 >= 12 ? now.getFullYear() + 1 : now.getFullYear()
-      const nextDueDate = `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      // Próxima ocorrência do dia escolhido — usa este mês se ainda não passou,
+      // em vez de sempre pular pro mês seguinte
+      const nextDueDate = nextOccurrenceOfDay(day)
 
       await asaasPut<AsaasSubscription>(`/subscriptions/${subscriptionId}`, { nextDueDate })
 
