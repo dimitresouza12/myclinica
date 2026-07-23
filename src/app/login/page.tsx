@@ -218,8 +218,9 @@ function LoginContent() {
     e.preventDefault()
     setResetError('')
     setResetLoading(true)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: `${appUrl}/login`,
     })
     setResetLoading(false)
     if (error) { setResetError('E-mail não encontrado ou erro ao enviar. Verifique e tente novamente.'); return }
