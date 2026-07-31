@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/auth'
 import { formatCurrency } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import type { Procedure } from '@/types'
+import { PROCEDURE_SUGGESTIONS } from '@/lib/procedureSuggestions'
 import styles from './procedimentos.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { Portal } from '@/components/ui/Portal'
@@ -29,6 +30,7 @@ const BLANK: FormData = { name: '', price: '', category: '', is_active: true }
 function ProcedimentosContent() {
   const { clinic } = useAuthStore()
   const categorias = clinic ? (CATEGORIAS_BY_TYPE[clinic.type] ?? CATEGORIAS_BY_TYPE.odonto) : []
+  const nameSuggestions = clinic ? (PROCEDURE_SUGGESTIONS[clinic.type] ?? []) : []
   const [procedures, setProcedures] = useState<Procedure[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -134,7 +136,11 @@ function ProcedimentosContent() {
                 <tr key={p.id}>
                   <td className={styles.bold}>{p.name}</td>
                   <td data-label="Categoria">{p.category ?? '—'}</td>
-                  <td data-label="Valor" className={styles.price}>{formatCurrency(p.price)}</td>
+                  <td data-label="Valor">
+                    {p.price > 0
+                      ? <span className={styles.price}>{formatCurrency(p.price)}</span>
+                      : <span className={styles.tagInactive}>A definir</span>}
+                  </td>
                   <td data-label="Status">
                     {p.is_active
                       ? <span className={styles.tagActive}>Ativo</span>
@@ -166,10 +172,22 @@ function ProcedimentosContent() {
                 <label>Nome *</label>
                 <input
                   value={form.name}
-                  onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))}
+                  onChange={(e) => {
+                    const name = e.target.value
+                    // Se o nome digitado/selecionado bate com uma sugestão e a
+                    // categoria ainda não foi escolhida, preenche automaticamente.
+                    const match = nameSuggestions.find(s => s.name === name)
+                    setForm(p => ({ ...p, name, category: match && !p.category ? match.category : p.category }))
+                  }}
                   placeholder="Ex: Limpeza, Extração, Clareamento..."
+                  list="procedure-name-suggestions"
                   autoFocus
                 />
+                {nameSuggestions.length > 0 && (
+                  <datalist id="procedure-name-suggestions">
+                    {nameSuggestions.map(s => <option key={s.name} value={s.name} />)}
+                  </datalist>
+                )}
               </div>
               <div className={styles.row2}>
                 <div className={styles.field}>

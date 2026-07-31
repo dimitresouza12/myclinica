@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { audit } from '@/lib/audit'
+import { PROCEDURE_SUGGESTIONS } from '@/lib/procedureSuggestions'
 import type { Clinic, ClinicUser, AuthClinic, AuthUser, ClinicPlan } from '@/types'
 import styles from './login.module.css'
 import { Icon } from '@/components/ui/Icon'
@@ -538,6 +539,32 @@ function LoginContent() {
         if (rpcErr.message.includes('cpf_taken')) throw new Error('Este CPF já está cadastrado. Tente fazer login.')
         if (rpcErr.message.includes('cpf_invalid')) throw new Error('CPF inválido. Verifique e tente novamente.')
         throw new Error(`Erro ao criar clínica: ${rpcErr.message}`)
+      }
+
+      // 3. Semeia procedimentos comuns da especialidade — preço fica a definir (0).
+      // Best-effort: se falhar, a clínica já foi criada normalmente e o usuário
+      // pode cadastrar procedimentos manualmente depois.
+      try {
+        const { data: newClinic } = await supabase
+          .from('clinics')
+          .select('id')
+          .eq('slug', slug)
+          .single()
+        const suggestions = PROCEDURE_SUGGESTIONS[reg.clinic_type]
+        if (newClinic?.id && suggestions?.length) {
+          await supabase.from('procedures').insert(
+            suggestions.map(s => ({
+              clinic_id: newClinic.id,
+              name: s.name,
+              category: s.category,
+              price: 0,
+              is_active: true,
+            }))
+          )
+        }
+      } catch {
+        // não bloqueia o cadastro — ausência de procedimentos pré-cadastrados
+        // não impede o uso da clínica
       }
 
       await supabase.auth.signOut()
