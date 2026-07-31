@@ -40,15 +40,6 @@
 .btnClose:hover { background:var(--bg-tertiary); }
 .modalBody { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; touch-action:pan-y; padding:1.5rem; display:flex; flex-direction:column; gap:1rem; }
 .modalFooter { flex:0 0 auto; padding:1rem 1.5rem; border-top:1px solid var(--border-color); display:flex; justify-content:flex-end; gap:.75rem; background:var(--bg-primary); }
-@media (max-width:1024px) and (min-width:601px) { .modal { max-width:92%; } }
-@media (max-width:600px) {
-  .overlay { padding:0; align-items:stretch; }
-  .modal { max-width:100%; max-height:100dvh; height:100dvh; border-radius:0; border:none; }
-  .modalHeader { padding:1rem; padding-top: max(1rem, env(safe-area-inset-top)); }
-  .modalFooter { padding:1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
-  .modalBody { padding:1rem; }
-  .row2 { grid-template-columns: 1fr; }
-}
 .field { display:flex; flex-direction:column; gap:.3rem; }
 .field label { font-size:.78rem; font-weight:600; color:var(--text-secondary); }
 .field input, .field select { padding:.6rem .875rem; min-height:44px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-primary); color:var(--text-primary); font-size:.875rem; outline:none; transition:border-color .15s, box-shadow .15s; appearance:none; }
@@ -68,3 +59,18 @@
 .btnSave { padding:.55rem 1.25rem; min-height:44px; background:#4DD9C0; color:#0D2421; border:none; border-radius:10px; font-size:.875rem; font-weight:600; cursor:pointer; transition:background .15s, transform .1s; }
 .btnSave:hover:not(:disabled) { background:#3CCCB4; transform:translateY(-1px); }
 .btnSave:disabled { opacity:.5; cursor:not-allowed; }
+
+@media (max-width:1024px) and (min-width:601px) { .modal { max-width:92%; } }
+@media (max-width:600px) {
+  .overlay { padding:0; align-items:stretch; }
+  .modal { max-width:100%; max-height:100dvh; height:100dvh; border-radius:0; border:none; }
+  .modalHeader { padding:1rem; padding-top: max(1rem, env(safe-area-inset-top)); }
+  .modalFooter { padding:1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .modalBody { padding:1rem; }
+  /* Precisa vir DEPOIS da definição base de .row2 (acima) — com a mesma
+     especificidade, quem aparece por último no CSS vence a cascata,
+     independente de estar dentro de @media. Antes esse bloco vinha antes
+     da definição base, então o grid de 2 colunas nunca colapsava no
+     mobile e o modal transbordava horizontalmente. */
+  .row2 { grid-template-columns: 1fr; }
+}
