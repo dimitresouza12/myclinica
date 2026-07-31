@@ -320,4 +320,12 @@
   .toolbar { gap: 0.5rem; }
   .paintLabel { display: none; }
   .selPanelBody { flex-direction: column; }
+
+  /* No mobile a fileira de dentes sempre transborda o container, e ela é
+     rolável (overflow-x: auto). Com align-items:center (herdado do desktop)
+     a metade do transbordo fica "antes" da posição de scroll 0 — inacessível,
+     já que scrollLeft nunca é negativo. Os dentes das pontas (16/26, 48/38)
+     ficavam cortados e impossíveis de clicar. flex-start faz o scroll
+     começar exatamente no primeiro dente da fileira. */
+  .arcade { align-items: flex-start; }
 }
