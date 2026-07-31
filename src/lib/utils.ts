@@ -34,7 +34,14 @@ export function formatCurrency(value: number | null | undefined): string {
 }
 
 export function formatCurrencyCompact(value: number | null | undefined): string {
-  return formatCurrency(value)
+  const v = value ?? 0
+  const abs = Math.abs(v)
+  // Valores pequenos cabem inteiros no card — só abrevia quando o formato
+  // completo (ex: "R$ 3.320,00") normalmente estoura a largura do card mobile.
+  if (abs < 1000) return formatCurrency(v)
+  const sign = v < 0 ? '-' : ''
+  if (abs >= 1_000_000) return `${sign}R$ ${(abs / 1_000_000).toFixed(1).replace('.', ',')} mi`
+  return `${sign}R$ ${(abs / 1_000).toFixed(1).replace('.', ',')} mil`
 }
 
 export function getStatusClass(status: string | null | undefined): string {
