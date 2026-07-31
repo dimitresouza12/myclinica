@@ -29,9 +29,18 @@ const BLANK: FormData = { name: '', price: '', category: '', is_active: true }
 
 function ProcedimentosContent() {
   const { clinic } = useAuthStore()
-  const categorias = clinic ? (CATEGORIAS_BY_TYPE[clinic.type] ?? CATEGORIAS_BY_TYPE.odonto) : []
   const nameSuggestions = clinic ? (PROCEDURE_SUGGESTIONS[clinic.type] ?? []) : []
   const [procedures, setProcedures] = useState<Procedure[]>([])
+  // Categorias sugeridas da especialidade + as que a clínica já usa de fato
+  // (podem ter sido cadastradas fora da lista padrão) — sem isso, editar um
+  // procedimento com categoria "avulsa" mostrava o campo em branco e podia
+  // apagar a categoria real ao salvar sem querer.
+  const categorias = clinic
+    ? Array.from(new Set([
+        ...(CATEGORIAS_BY_TYPE[clinic.type] ?? CATEGORIAS_BY_TYPE.odonto),
+        ...procedures.map(p => p.category).filter((c): c is string => !!c),
+      ]))
+    : []
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -203,10 +212,17 @@ function ProcedimentosContent() {
                 </div>
                 <div className={styles.field}>
                   <label>Categoria</label>
-                  <select value={form.category} onChange={(e) => setForm(p => ({ ...p, category: e.target.value }))}>
-                    <option value="">Sem categoria</option>
-                    {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <input
+                    value={form.category}
+                    onChange={(e) => setForm(p => ({ ...p, category: e.target.value }))}
+                    placeholder="Sem categoria"
+                    list="procedure-category-suggestions"
+                  />
+                  {categorias.length > 0 && (
+                    <datalist id="procedure-category-suggestions">
+                      {categorias.map(c => <option key={c} value={c} />)}
+                    </datalist>
+                  )}
                 </div>
               </div>
               <div className={styles.toggleRow}>
