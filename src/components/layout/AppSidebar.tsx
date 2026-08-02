@@ -16,6 +16,7 @@ const NAV = [
   { path: '/pacientes',     label: 'Pacientes',     icon: 'patients'   as const, plusOnly: false },
   { path: '/agenda',        label: 'Agenda',        icon: 'calendar'   as const, plusOnly: false },
   { path: '/financeiro',    label: 'Financeiro',    icon: 'finance'     as const, plusOnly: false },
+  { path: '/comissoes',     label: 'Comissões',     icon: 'percent'    as const, plusOnly: false },
   { path: '/procedimentos', label: 'Procedimentos', icon: 'procedures' as const, plusOnly: false },
   { path: '/relatorios',    label: 'Relatórios',    icon: 'reports'    as const, plusOnly: false },
   { path: '/metas',         label: 'Metas',         icon: 'target'     as const, plusOnly: false },

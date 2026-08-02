@@ -7,7 +7,7 @@ export type IconName =
   | 'crm' | 'stock' | 'reports' | 'campaigns' | 'procedures' | 'target' | 'alert' | 'phone' | 'cake'
   | 'close' | 'check' | 'checkCircle' | 'edit' | 'trash' | 'arrowUp' | 'swap' | 'refresh'
   | 'ban' | 'eye' | 'camera' | 'paperclip' | 'bell' | 'mail' | 'trophy' | 'download' | 'upload'
-  | 'pause' | 'play' | 'info'
+  | 'pause' | 'play' | 'info' | 'percent'
 
 const PATHS: Record<IconName, string> = {
   dashboard:    'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
@@ -52,6 +52,7 @@ const PATHS: Record<IconName, string> = {
   pause:        'M6 4h4v16H6zM14 4h4v16h-4z',
   play:         'M5 3l14 9-14 9V3z',
   info:         'M12 2a10 10 0 100 20 10 10 0 000-20zM12 16v-4M12 8h.01',
+  percent:      'M19 5L5 19M6.5 9a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM17.5 20a2.5 2.5 0 100-5 2.5 2.5 0 000 5z',
 }
 
 interface Props extends SVGProps<SVGSVGElement> {

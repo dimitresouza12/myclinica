@@ -76,6 +76,7 @@ const MODULES = [
   { key: 'pacientes',     label: 'Pacientes',      icon: '' },
   { key: 'agenda',        label: 'Agenda',         icon: '' },
   { key: 'financeiro',    label: 'Financeiro',     icon: '' },
+  { key: 'comissoes',     label: 'Comissões',      icon: '' },
   { key: 'estoque',       label: 'Estoque',        icon: '' },
   { key: 'equipe',        label: 'Equipe',         icon: '' },
   { key: 'crm',           label: 'CRM',            icon: '' },

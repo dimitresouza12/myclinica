@@ -39,7 +39,12 @@ CREATE TABLE IF NOT EXISTS public.commission_rules (
   percent       numeric     NOT NULL CHECK (percent > 0 AND percent <= 100),
   is_active     boolean     DEFAULT true NOT NULL,
   created_at    timestamptz DEFAULT now() NOT NULL,
-  UNIQUE (recipient_id, procedure_id)
+  -- NULLS NOT DISTINCT: sem isso, duas regras "gerais" (procedure_id NULL) do
+  -- mesmo beneficiário não colidiriam nessa constraint — Postgres por padrão
+  -- trata NULL != NULL em índices únicos. O upsert da tela de Comissões
+  -- depende de UNIQUE(recipient_id, procedure_id) detectar a regra geral
+  -- existente; sem NULLS NOT DISTINCT, cada salvamento criaria uma duplicata.
+  UNIQUE NULLS NOT DISTINCT (recipient_id, procedure_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_commission_rules_clinic
