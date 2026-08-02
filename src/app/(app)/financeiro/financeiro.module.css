@@ -95,6 +95,7 @@
 .field label { font-size:.78rem; font-weight:600; color:var(--text-secondary); }
 .field input, .field select { padding:.6rem .875rem; min-height:44px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-primary); color:var(--text-primary); font-size:.875rem; outline:none; transition:border-color .15s, box-shadow .15s; font-family:inherit; }
 .field input:focus, .field select:focus { border-color:#4DD9C0; box-shadow:0 0 0 3px rgba(77,217,192,0.15); }
+.hint { font-size:.72rem; color:var(--text-secondary); }
 .btnCancel { padding:.55rem 1rem; min-height:44px; border:1px solid var(--border-color); background:none; border-radius:10px; font-size:.875rem; color:var(--text-secondary); cursor:pointer; transition:background .15s; }
 .btnCancel:hover { background:var(--bg-secondary); }
 .btnSaveReceita { padding:.55rem 1.25rem; min-height:44px; background:#059669; color:#fff; border:none; border-radius:10px; font-size:.875rem; font-weight:600; cursor:pointer; transition:opacity .15s; }

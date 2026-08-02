@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatCurrency, formatCurrencyCompact } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
-import { useFinanceiroData } from '@/hooks/useClinicData'
+import { useFinanceiroData, useProcedures } from '@/hooks/useClinicData'
 import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -25,12 +25,13 @@ const CATEGORIAS_DESPESA = ['Material', 'Salário', 'Aluguel', 'Equipamento', 'M
 interface NewRecord {
   type: 'receita' | 'despesa'
   patient_id: string
+  procedure_id: string
   total_amount: string
   payment_method: string
   category: string
   notes: string
 }
-const BLANK: NewRecord = { type: 'receita', patient_id: '', total_amount: '', payment_method: 'pix', category: '', notes: '' }
+const BLANK: NewRecord = { type: 'receita', patient_id: '', procedure_id: '', total_amount: '', payment_method: 'pix', category: '', notes: '' }
 
 function FinanceiroContent() {
   const { clinic } = useAuthStore()
@@ -39,8 +40,10 @@ function FinanceiroContent() {
   // Admin sempre vê totais; outros usuários dependem da permissão configurada (padrão: true)
   const showTotals = isAdmin || (metadata.show_totals !== false)
   const { data: finData, isLoading: loading } = useFinanceiroData(clinic?.id)
+  const { data: procedures = [] } = useProcedures(clinic?.id)
   const records = finData?.records ?? []
   const patients = finData?.patients ?? []
+  const activeProcedures = procedures.filter(p => p.is_active)
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState<'receita' | 'despesa'>('receita')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -141,6 +144,7 @@ function FinanceiroContent() {
     setForm({
       type: record.type,
       patient_id: record.patient_id ?? '',
+      procedure_id: record.procedure_id ?? '',
       total_amount: String(record.total_amount ?? ''),
       payment_method: record.payment_method ?? 'pix',
       category: record.category ?? '',
@@ -161,6 +165,9 @@ function FinanceiroContent() {
     const payload = {
       clinic_id: clinic.id,
       patient_id: form.patient_id || null,
+      // Procedimento só faz sentido pra receita — é o que aciona o cálculo
+      // automático de comissão (trigger generate_commission_entries).
+      procedure_id: form.type === 'receita' ? (form.procedure_id || null) : null,
       total_amount: parseFloat(form.total_amount) || 0,
       payment_method: form.payment_method,
       category: form.category,
@@ -510,6 +517,28 @@ function FinanceiroContent() {
                     <option value="">Sem paciente</option>
                     {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                </div>
+              )}
+              {form.type === 'receita' && (
+                <div className={styles.field}>
+                  <label>Procedimento</label>
+                  <select
+                    value={form.procedure_id}
+                    onChange={e => {
+                      const proc = activeProcedures.find(pr => pr.id === e.target.value)
+                      setForm(p => ({
+                        ...p,
+                        procedure_id: e.target.value,
+                        // Preenche o valor com o preço cadastrado do procedimento
+                        // — só se o campo Valor ainda não tiver sido digitado.
+                        total_amount: proc && proc.price > 0 && !p.total_amount ? String(proc.price) : p.total_amount,
+                      }))
+                    }}
+                  >
+                    <option value="">Sem procedimento vinculado</option>
+                    {activeProcedures.map(pr => <option key={pr.id} value={pr.id}>{pr.name}</option>)}
+                  </select>
+                  <p className={styles.hint}>Vincular um procedimento é o que permite calcular a comissão de cada pessoa sobre esse valor.</p>
                 </div>
               )}
               <div className={styles.field}>
