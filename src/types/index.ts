@@ -176,6 +176,40 @@ export interface Professional {
   created_at: string
 }
 
+export interface CommissionRecipient {
+  id: string
+  clinic_id: string
+  name: string
+  role_label: string | null
+  professional_id: string | null
+  clinic_user_id: string | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface CommissionRule {
+  id: string
+  clinic_id: string
+  recipient_id: string
+  procedure_id: string | null
+  percent: number
+  is_active: boolean
+  created_at: string
+  commission_recipients?: Pick<CommissionRecipient, 'id' | 'name' | 'role_label'>
+  procedures?: Pick<Procedure, 'id' | 'name'>
+}
+
+export interface CommissionEntry {
+  id: string
+  clinic_id: string
+  financial_record_id: string
+  recipient_id: string
+  recipient_name: string
+  percent: number
+  amount: number
+  created_at: string
+}
+
 export interface AuditLog {
   id: string
   clinic_id: string | null
