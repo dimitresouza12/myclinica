@@ -14,6 +14,7 @@ interface AuthState {
   setHydrated: () => void
   setClinicLogo: (logo: string) => void
   dismissOnboardingItem: (key: string) => void
+  markOnboardingModalSeen: () => void
   startImpersonation: (clinicId: string, clinicName: string) => void
   stopImpersonation: () => void
 }
@@ -38,6 +39,9 @@ export const useAuthStore = create<AuthState>()(
       // estava logado no momento do deploy.
       dismissOnboardingItem: (key) => set((s) => s.clinic
         ? { clinic: { ...s.clinic, onboardingDismissed: Array.from(new Set([...(s.clinic.onboardingDismissed ?? []), key])) } }
+        : {}),
+      markOnboardingModalSeen: () => set((s) => s.clinic
+        ? { clinic: { ...s.clinic, onboardingModalSeen: true } }
         : {}),
       startImpersonation: (clinicId, clinicName) =>
         set({ impersonatedClinicId: clinicId, impersonatedClinicName: clinicName }),

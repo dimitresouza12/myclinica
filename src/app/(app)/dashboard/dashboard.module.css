@@ -759,3 +759,96 @@
   display: flex; align-items: center; justify-content: center;
 }
 .insightText { font-size: 0.83rem; line-height: 1.5; color: var(--text-secondary); }
+
+/* ── Modal de boas-vindas ── */
+.onbOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 17, 23, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 1rem;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+.onbModal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  animation: onbSlideUp 0.22s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes onbSlideUp { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+.onbModalHeader {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.5rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+.onbModalTitle { font-size: 1.15rem; font-weight: 800; color: var(--text-primary); margin: 0; }
+.onbModalSubtitle { font-size: 0.83rem; color: var(--text-secondary); margin-top: 0.3rem; }
+.onbModalCloseX {
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-secondary);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.onbModalCloseX:hover { background: var(--bg-tertiary); }
+
+.onbModalBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  display: flex;
+  flex-direction: column;
+}
+
+.onbModalFooter {
+  flex: 0 0 auto;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+}
+.onbModalFooterBtn {
+  padding: 0.55rem 1rem;
+  min-height: 44px;
+  border: 1px solid var(--border-color);
+  background: none;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.onbModalFooterBtn:hover { background: var(--bg-secondary); }
+
+@media (max-width: 600px) {
+  .onbOverlay { padding: 0; align-items: stretch; }
+  .onbModal { max-width: 100%; max-height: 100%; height: 100%; border-radius: 0; border: none; }
+  .onbModalHeader { padding: 1rem; padding-top: max(1rem, env(safe-area-inset-top)); }
+  .onbModalFooter { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+}

@@ -13,6 +13,7 @@ import type { ComponentProps } from 'react'
 import styles from './dashboard.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { OnboardingChecklist } from './OnboardingChecklist'
+import { OnboardingModal } from './OnboardingModal'
 
 const DashboardChart = dynamic(() => import('./DashboardChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
 const RevenueByCategoryChart = dynamic(() => import('./RevenueByCategoryChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
@@ -234,6 +235,7 @@ function DashboardContent() {
         <p className={styles.loading}>Carregando...</p>
       ) : (
         <>
+          <OnboardingModal procedures={procedures} patientsCount={stats.totalPatients} />
           <OnboardingChecklist procedures={procedures} patientsCount={stats.totalPatients} />
 
           {alerts.length > 0 && (
