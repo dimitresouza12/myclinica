@@ -10,7 +10,6 @@ import styles from './procedimentos.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
-import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
 
 import type { ClinicType } from '@/types'
@@ -47,7 +46,8 @@ function ProcedimentosContent() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormData>(BLANK)
   const [saving, setSaving] = useState(false)
-  const [addingSuggestions, setAddingSuggestions] = useState(false)
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false)
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false)
 
   useScrollLock(showModal)
 
@@ -74,12 +74,16 @@ function ProcedimentosContent() {
     setEditingId(null)
     setForm(BLANK)
     setShowModal(true)
+    setShowNameSuggestions(false)
+    setShowCategorySuggestions(false)
   }
 
   function openEdit(p: Procedure) {
     setEditingId(p.id)
     setForm({ name: p.name, price: String(p.price), is_free: p.is_free, category: p.category ?? '', is_active: p.is_active })
     setShowModal(true)
+    setShowNameSuggestions(false)
+    setShowCategorySuggestions(false)
   }
 
   function closeModal() {
@@ -117,32 +121,25 @@ function ProcedimentosContent() {
     loadData()
   }
 
-  async function handleAddSuggestions() {
-    if (!clinic) return
-    const existingNames = new Set(procedures.map(p => p.name.trim().toLowerCase()))
-    const toAdd = nameSuggestions.filter(s => !existingNames.has(s.name.trim().toLowerCase()))
-    if (toAdd.length === 0) {
-      showToast('ok', 'Todos os procedimentos sugeridos já estão cadastrados.')
-      return
-    }
-    setAddingSuggestions(true)
-    await supabase.from('procedures').insert(
-      toAdd.map(s => ({
-        clinic_id: clinic.id,
-        name: s.name,
-        category: s.category,
-        price: 0,
-        is_free: false,
-        is_active: true,
-      }))
-    )
-    setAddingSuggestions(false)
-    showToast('ok', `${toAdd.length} procedimento${toAdd.length > 1 ? 's' : ''} adicionado${toAdd.length > 1 ? 's' : ''}. Os preços ficam "A definir" até você editá-los.`)
-    loadData()
-  }
-
   const active = procedures.filter(p => p.is_active).length
   const pendingPrice = procedures.filter(p => p.is_active && p.price === 0 && !p.is_free).length
+
+  const filteredNameSuggestions = nameSuggestions.filter(s =>
+    s.name.toLowerCase().includes(form.name.trim().toLowerCase())
+  )
+  const filteredCategorySuggestions = categorias.filter(c =>
+    c.toLowerCase().includes(form.category.trim().toLowerCase())
+  )
+
+  function selectNameSuggestion(s: { name: string; category: string }) {
+    setForm(p => ({ ...p, name: s.name, category: p.category || s.category }))
+    setShowNameSuggestions(false)
+  }
+
+  function selectCategorySuggestion(c: string) {
+    setForm(p => ({ ...p, category: c }))
+    setShowCategorySuggestions(false)
+  }
 
   return (
     <div className={styles.page}>
@@ -155,11 +152,6 @@ function ProcedimentosContent() {
           </p>
         </div>
         <div className={styles.headerActions}>
-          {nameSuggestions.length > 0 && (
-            <button className={styles.btnSecondary} onClick={handleAddSuggestions} disabled={addingSuggestions}>
-              {addingSuggestions ? 'Adicionando...' : '+ Sugestões da especialidade'}
-            </button>
-          )}
           <button className={styles.btnPrimary} onClick={openNew}>+ Novo Procedimento</button>
         </div>
       </div>
@@ -223,21 +215,27 @@ function ProcedimentosContent() {
                 <label>Nome *</label>
                 <input
                   value={form.name}
-                  onChange={(e) => {
-                    const name = e.target.value
-                    // Se o nome digitado/selecionado bate com uma sugestão e a
-                    // categoria ainda não foi escolhida, preenche automaticamente.
-                    const match = nameSuggestions.find(s => s.name === name)
-                    setForm(p => ({ ...p, name, category: match && !p.category ? match.category : p.category }))
-                  }}
+                  onChange={(e) => { setForm(p => ({ ...p, name: e.target.value })); setShowNameSuggestions(true) }}
+                  onFocus={() => setShowNameSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowNameSuggestions(false), 150)}
                   placeholder="Ex: Limpeza, Extração, Clareamento..."
-                  list="procedure-name-suggestions"
+                  autoComplete="off"
                   autoFocus
                 />
-                {nameSuggestions.length > 0 && (
-                  <datalist id="procedure-name-suggestions">
-                    {nameSuggestions.map(s => <option key={s.name} value={s.name} />)}
-                  </datalist>
+                {showNameSuggestions && filteredNameSuggestions.length > 0 && (
+                  <div className={styles.suggestionsDropdown}>
+                    {filteredNameSuggestions.map(s => (
+                      <button
+                        key={s.name}
+                        type="button"
+                        className={styles.suggestionItem}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectNameSuggestion(s)}
+                      >
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
               <div className={styles.row2}>
@@ -257,14 +255,26 @@ function ProcedimentosContent() {
                   <label>Categoria</label>
                   <input
                     value={form.category}
-                    onChange={(e) => setForm(p => ({ ...p, category: e.target.value }))}
+                    onChange={(e) => { setForm(p => ({ ...p, category: e.target.value })); setShowCategorySuggestions(true) }}
+                    onFocus={() => setShowCategorySuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 150)}
                     placeholder="Sem categoria"
-                    list="procedure-category-suggestions"
+                    autoComplete="off"
                   />
-                  {categorias.length > 0 && (
-                    <datalist id="procedure-category-suggestions">
-                      {categorias.map(c => <option key={c} value={c} />)}
-                    </datalist>
+                  {showCategorySuggestions && filteredCategorySuggestions.length > 0 && (
+                    <div className={styles.suggestionsDropdown}>
+                      {filteredCategorySuggestions.map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          className={styles.suggestionItem}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectCategorySuggestion(c)}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
