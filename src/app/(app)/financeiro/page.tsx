@@ -1,6 +1,6 @@
 'use client'
-import { useState, useMemo, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useMemo, useEffect, useRef, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
@@ -36,6 +36,7 @@ const BLANK: NewRecord = { type: 'receita', patient_id: '', procedure_id: '', to
 function FinanceiroContent() {
   const { clinic } = useAuthStore()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const queryClient = useQueryClient()
   const { isAdmin, canEdit, metadata } = usePermissions('financeiro')
   // Admin sempre vê totais; outros usuários dependem da permissão configurada (padrão: true)
@@ -136,22 +137,28 @@ function FinanceiroContent() {
   // o lançamento gerado automaticamente (?record=<id>) pra definir a forma de
   // pagamento, ou já abre o modal de novo lançamento pré-preenchido
   // (?new=receita&patient=<id>&notes=<texto>) quando não havia preço definido.
+  // Roda só uma vez (deepLinkHandledRef) e limpa a URL logo em seguida — sem
+  // isso, salvar o lançamento invalida `records`, o efeito reexecuta e reabre
+  // o modal sozinho depois de já ter sido fechado.
+  const deepLinkHandledRef = useRef(false)
   useEffect(() => {
-    if (loading) return
+    if (loading || deepLinkHandledRef.current) return
     const recordId = searchParams.get('record')
+    const isNewReceita = searchParams.get('new') === 'receita'
+    if (!recordId && !isNewReceita) return
+    deepLinkHandledRef.current = true
+    router.replace('/financeiro')
     if (recordId) {
       const record = records.find(r => r.id === recordId)
       if (record) openEdit(record)
       return
     }
-    if (searchParams.get('new') === 'receita') {
-      openModal('receita')
-      setForm(p => ({
-        ...p,
-        patient_id: searchParams.get('patient') ?? '',
-        notes: searchParams.get('notes') ?? '',
-      }))
-    }
+    openModal('receita')
+    setForm(p => ({
+      ...p,
+      patient_id: searchParams.get('patient') ?? '',
+      notes: searchParams.get('notes') ?? '',
+    }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, records, searchParams])
 
