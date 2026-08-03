@@ -127,3 +127,21 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
 export function getSpecialtyConfig(type: ClinicType | undefined): SpecialtyConfig {
   return SPECIALTY_CONFIG[type ?? 'odonto'] ?? SPECIALTY_CONFIG.odonto
 }
+
+// Rótulo em português pra cada slug de categoria de estoque (o valor salvo
+// no banco continua o slug em minúsculas — só a exibição muda).
+export const STOCK_CATEGORY_LABELS: Record<string, string> = {
+  material: 'Material',
+  medicamento: 'Medicamento',
+  descartavel: 'Descartável',
+  equipamento: 'Equipamento',
+  cosmetico: 'Cosmético',
+  injetavel: 'Injetável',
+  racao: 'Ração',
+  vacina: 'Vacina',
+  outro: 'Outro',
+}
+
+export function stockCategoryLabel(slug: string): string {
+  return STOCK_CATEGORY_LABELS[slug] ?? slug
+}

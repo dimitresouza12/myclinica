@@ -15,6 +15,7 @@ import styles from './financeiro.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
+import { MonthPicker } from '@/components/ui/MonthPicker'
 import { usePermissions } from '@/hooks/usePermissions'
 import { motion } from 'framer-motion'
 
@@ -407,12 +408,7 @@ function FinanceiroContent() {
             </div>
           </div>
           {filterPeriod === 'mensal' && (
-            <input
-              type="month"
-              value={filterMonth}
-              onChange={e => setFilterMonth(e.target.value)}
-              className={styles.monthInput}
-            />
+            <MonthPicker value={filterMonth} onChange={setFilterMonth} />
           )}
         </div>
         {loading ? <p className={styles.loading}>Carregando...</p> : (
@@ -500,11 +496,11 @@ function FinanceiroContent() {
                 <div className={styles.exportCustomFields}>
                   <div>
                     <label>De</label>
-                    <input type="month" value={exportStartMonth} onChange={e => setExportStartMonth(e.target.value)} />
+                    <MonthPicker value={exportStartMonth} onChange={setExportStartMonth} />
                   </div>
                   <div>
                     <label>Até</label>
-                    <input type="month" value={exportEndMonth} onChange={e => setExportEndMonth(e.target.value)} />
+                    <MonthPicker value={exportEndMonth} onChange={setExportEndMonth} />
                   </div>
                 </div>
               )}

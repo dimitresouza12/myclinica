@@ -9,7 +9,7 @@ import type { StockItem, StockMovement } from '@/types'
 import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useEstoqueData } from '@/hooks/useClinicData'
-import { getSpecialtyConfig } from '@/lib/specialtyConfig'
+import { getSpecialtyConfig, stockCategoryLabel } from '@/lib/specialtyConfig'
 import styles from './estoque.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
@@ -231,10 +231,13 @@ function EstoqueContent() {
         {tab === 'produtos' && (
           <div className={styles.filters}>
             <input className={styles.search} placeholder="Buscar produto ou fornecedor..." value={search} onChange={e => setSearch(e.target.value)} />
-            <select className={styles.select} value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
-              <option value="">Todas as categorias</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <div className={styles.selectWrap}>
+              <select className={styles.select} value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
+                <option value="">Todas as categorias</option>
+                {CATEGORIES.map(c => <option key={c} value={c}>{stockCategoryLabel(c)}</option>)}
+              </select>
+              <Icon name="chevronDown" size={14} className={styles.selectChevron} />
+            </div>
             <label className={styles.checkLabel}>
               <input type="checkbox" checked={filterLow} onChange={e => setFilterLow(e.target.checked)} />
               Estoque baixo
@@ -243,12 +246,15 @@ function EstoqueContent() {
         )}
         {tab === 'movimentacoes' && (
           <div className={styles.filters}>
-            <select className={styles.select} value={filterMovType} onChange={e => setFilterMovType(e.target.value)}>
-              <option value="">Todos os tipos</option>
-              <option value="entrada">Entrada</option>
-              <option value="saida">Saída</option>
-              <option value="ajuste">Ajuste</option>
-            </select>
+            <div className={styles.selectWrap}>
+              <select className={styles.select} value={filterMovType} onChange={e => setFilterMovType(e.target.value)}>
+                <option value="">Todos os tipos</option>
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saída</option>
+                <option value="ajuste">Ajuste</option>
+              </select>
+              <Icon name="chevronDown" size={14} className={styles.selectChevron} />
+            </div>
           </div>
         )}
       </div>
@@ -278,7 +284,7 @@ function EstoqueContent() {
                     return (
                       <tr key={item.id} className={isLow ? styles.rowLow : ''}>
                         <td className={styles.bold}>{item.name}{isLow && <span className={styles.lowBadge}>Baixo</span>}</td>
-                        <td data-label="Categoria" className={styles.capitalize}>{item.category ?? '—'}</td>
+                        <td data-label="Categoria">{item.category ? stockCategoryLabel(item.category) : '—'}</td>
                         <td data-label="Qtd Atual" className={styles.bold} style={{ color: isLow ? '#F59E0B' : undefined }}>{item.quantity}</td>
                         <td data-label="Qtd Mín.">{item.min_quantity}</td>
                         <td data-label="Unidade">{item.unit}</td>
@@ -360,7 +366,7 @@ function EstoqueContent() {
                 <div className={styles.field}>
                   <label>Categoria</label>
                   <select value={itemForm.category} onChange={e => setItemForm(p => ({ ...p, category: e.target.value }))}>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {CATEGORIES.map(c => <option key={c} value={c}>{stockCategoryLabel(c)}</option>)}
                   </select>
                 </div>
               </div>

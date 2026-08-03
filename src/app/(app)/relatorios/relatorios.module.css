@@ -24,6 +24,10 @@
 }
 .periodSelect:focus, .monthInput:focus { border-color:#4DD9C0; box-shadow:0 0 0 3px rgba(77,217,192,0.15); }
 
+.selectWrap { position:relative; display:inline-flex; }
+.selectWrap .periodSelect { padding-right:2.25rem; }
+.selectChevron { position:absolute; right:.75rem; top:50%; transform:translateY(-50%); color:var(--text-tertiary); pointer-events:none; }
+
 .btnExport {
   display:flex; align-items:center; gap:.35rem;
   padding:.45rem 1rem;

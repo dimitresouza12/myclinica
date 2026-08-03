@@ -31,7 +31,7 @@
 .loading { color:var(--text-secondary); padding:2rem; text-align:center; font-size:.875rem; }
 
 /* Recebido por beneficiário (ganhos no período) */
-.earningsCard { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; box-shadow:var(--shadow-sm); overflow:hidden; }
+.earningsCard { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; box-shadow:var(--shadow-sm); }
 .earningsHeader { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; padding:1.1rem 1.25rem .5rem; }
 .sectionTitleLg { font-size:1rem; font-weight:700; color:var(--text-primary); }
 .earningsControls { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; padding:0 1.25rem 1rem; }

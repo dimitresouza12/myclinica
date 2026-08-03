@@ -330,11 +330,14 @@ function RelatoriosContent() {
           <p className={styles.sub}>Análise completa de desempenho da clínica</p>
         </div>
         <div className={styles.headerActions}>
-          <select className={styles.periodSelect} value={period} onChange={e => setPeriod(e.target.value)}>
-            <option value="3m">Últimos 3 meses</option>
-            <option value="6m">Últimos 6 meses</option>
-            <option value="12m">Últimos 12 meses</option>
-          </select>
+          <div className={styles.selectWrap}>
+            <select className={styles.periodSelect} value={period} onChange={e => setPeriod(e.target.value)}>
+              <option value="3m">Últimos 3 meses</option>
+              <option value="6m">Últimos 6 meses</option>
+              <option value="12m">Últimos 12 meses</option>
+            </select>
+            <Icon name="chevronDown" size={14} className={styles.selectChevron} />
+          </div>
           <button className={styles.btnExport} onClick={() => setShowExportModal(true)}>
             <Icon name="download" size={14} /> Exportar planilha
           </button>

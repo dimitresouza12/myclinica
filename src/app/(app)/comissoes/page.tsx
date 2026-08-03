@@ -11,6 +11,7 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
+import { MonthPicker } from '@/components/ui/MonthPicker'
 
 type EarningsPeriod = 'diario' | 'semanal' | 'mensal'
 
@@ -260,12 +261,7 @@ function ComissoesContent() {
             ))}
           </div>
           {earningsPeriod === 'mensal' && (
-            <input
-              type="month"
-              value={earningsMonth}
-              onChange={e => setEarningsMonth(e.target.value)}
-              className={styles.monthInput}
-            />
+            <MonthPicker value={earningsMonth} onChange={setEarningsMonth} />
           )}
         </div>
         {loadingEarnings ? (

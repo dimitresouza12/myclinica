@@ -121,8 +121,6 @@
 .exportCustomFields { display:flex; gap:.75rem; margin-top:.625rem; flex-wrap:wrap; }
 .exportCustomFields > div { display:flex; flex-direction:column; gap:.3rem; flex:1; min-width:120px; }
 .exportCustomFields label { font-size:.75rem; font-weight:600; color:var(--text-secondary); }
-.exportCustomFields input { padding:.45rem .75rem; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-primary); color:var(--text-primary); font-size:.82rem; outline:none; transition:border-color .15s; width:100%; }
-.exportCustomFields input:focus { border-color:#4DD9C0; box-shadow:0 0 0 3px rgba(77,217,192,0.15); }
 
 /* ── Export modal (dedicated, sem conflito com modal de transação) ── */
 .exportOverlay { position:fixed; inset:0; background:rgba(13,17,23,.55); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:250; padding:1rem; }
