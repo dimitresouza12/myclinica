@@ -17,6 +17,7 @@ import { type CalendarEvent, type FullCalendarHandle } from '@/components/agenda
 import styles from './agenda.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
 
 const FullCalendarWrapper = dynamic(
@@ -610,7 +611,8 @@ function AgendaContent() {
           }
         }
         if (form.status === 'concluido') {
-          await ensureRevenueForAppointment({ ...(existingAppt ?? {} as Appointment), ...payload, status: form.status as Appointment['status'], id: editingId })
+          const result = await ensureRevenueForAppointment({ ...(existingAppt ?? {} as Appointment), ...payload, status: form.status as Appointment['status'], id: editingId })
+          notifyRevenuePending(result)
         } else if (existingAppt?.status === 'concluido' && form.status !== 'concluido') {
           await removeRevenueForAppointment(editingId)
         }
@@ -676,7 +678,8 @@ function AgendaContent() {
 
     await supabase.from('appointments').update({ status }).eq('id', id).eq('clinic_id', clinic!.id)
     if (status === 'concluido' && appt) {
-      await ensureRevenueForAppointment({ ...appt, status: 'concluido' })
+      const result = await ensureRevenueForAppointment({ ...appt, status: 'concluido' })
+      notifyRevenuePending(result)
     } else if (appt?.status === 'concluido' && status !== 'concluido') {
       await removeRevenueForAppointment(id)
     }
@@ -697,17 +700,21 @@ function AgendaContent() {
     setSelected(null)
   }
 
-  async function ensureRevenueForAppointment(appt: Appointment) {
+  // Retorna se uma receita nova foi lançada — usado pra decidir o texto do
+  // toast de aviso, já que em nenhum caso o método de pagamento é definido
+  // aqui (a conclusão do agendamento não pergunta isso), então o usuário
+  // sempre precisa passar no Financeiro pra completar o lançamento.
+  async function ensureRevenueForAppointment(appt: Appointment): Promise<'created' | 'existing' | 'no_price'> {
     // procedure_id pode ser null aqui: procedimento "Outro (digitar)" não tem
     // cadastro na tabela procedures, mas ainda assim tem um valor cobrado que
     // precisa aparecer no Financeiro (antes disso, "Outro" nunca gerava receita).
-    if (!clinic || !appt.procedure_price || appt.procedure_price <= 0) return
+    if (!clinic || !appt.procedure_price || appt.procedure_price <= 0) return 'no_price'
     const { data: existing } = await supabase
       .from('financial_records')
       .select('id')
       .eq('appointment_id', appt.id)
       .maybeSingle()
-    if (existing) return
+    if (existing) return 'existing'
     await supabase.from('financial_records').insert([{
       clinic_id: clinic.id,
       patient_id: appt.patient_id ?? null,
@@ -719,6 +726,15 @@ function AgendaContent() {
       payment_method: null,
       notes: appt.procedure_name,
     }])
+    return 'created'
+  }
+
+  function notifyRevenuePending(result: 'created' | 'existing' | 'no_price') {
+    if (result === 'created') {
+      showToast('ok', 'Agendamento concluído! Receita lançada — defina a forma de pagamento em Financeiro.')
+    } else if (result === 'no_price') {
+      showToast('ok', 'Agendamento concluído! Lembre-se de lançar a receita manualmente em Financeiro.')
+    }
   }
 
   async function removeRevenueForAppointment(apptId: string) {
