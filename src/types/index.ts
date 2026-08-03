@@ -94,6 +94,7 @@ export interface Procedure {
   clinic_id: string
   name: string
   price: number
+  is_free: boolean
   category: string | null
   is_active: boolean
   created_at: string

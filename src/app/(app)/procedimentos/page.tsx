@@ -10,6 +10,7 @@ import styles from './procedimentos.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
 
 import type { ClinicType } from '@/types'
@@ -24,8 +25,8 @@ const CATEGORIAS_BY_TYPE: Record<ClinicType, string[]> = {
   nutri:    ['Consulta', 'Avaliação Nutricional', 'Plano Alimentar', 'Outros'],
 }
 
-interface FormData { name: string; price: string; category: string; is_active: boolean }
-const BLANK: FormData = { name: '', price: '', category: '', is_active: true }
+interface FormData { name: string; price: string; is_free: boolean; category: string; is_active: boolean }
+const BLANK: FormData = { name: '', price: '', is_free: false, category: '', is_active: true }
 
 function ProcedimentosContent() {
   const { clinic } = useAuthStore()
@@ -46,6 +47,7 @@ function ProcedimentosContent() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormData>(BLANK)
   const [saving, setSaving] = useState(false)
+  const [addingSuggestions, setAddingSuggestions] = useState(false)
 
   useScrollLock(showModal)
 
@@ -76,7 +78,7 @@ function ProcedimentosContent() {
 
   function openEdit(p: Procedure) {
     setEditingId(p.id)
-    setForm({ name: p.name, price: String(p.price), category: p.category ?? '', is_active: p.is_active })
+    setForm({ name: p.name, price: String(p.price), is_free: p.is_free, category: p.category ?? '', is_active: p.is_active })
     setShowModal(true)
   }
 
@@ -92,7 +94,10 @@ function ProcedimentosContent() {
     const payload = {
       clinic_id: clinic.id,
       name: form.name.trim(),
-      price: parseFloat(form.price) || 0,
+      // Gratuito força o preço a zero — evita um valor "esquecido" no campo
+      // caso a pessoa marque o checkbox depois de já ter digitado algo.
+      price: form.is_free ? 0 : (parseFloat(form.price) || 0),
+      is_free: form.is_free,
       category: form.category || null,
       is_active: form.is_active,
     }
@@ -112,16 +117,51 @@ function ProcedimentosContent() {
     loadData()
   }
 
+  async function handleAddSuggestions() {
+    if (!clinic) return
+    const existingNames = new Set(procedures.map(p => p.name.trim().toLowerCase()))
+    const toAdd = nameSuggestions.filter(s => !existingNames.has(s.name.trim().toLowerCase()))
+    if (toAdd.length === 0) {
+      showToast('ok', 'Todos os procedimentos sugeridos já estão cadastrados.')
+      return
+    }
+    setAddingSuggestions(true)
+    await supabase.from('procedures').insert(
+      toAdd.map(s => ({
+        clinic_id: clinic.id,
+        name: s.name,
+        category: s.category,
+        price: 0,
+        is_free: false,
+        is_active: true,
+      }))
+    )
+    setAddingSuggestions(false)
+    showToast('ok', `${toAdd.length} procedimento${toAdd.length > 1 ? 's' : ''} adicionado${toAdd.length > 1 ? 's' : ''}. Os preços ficam "A definir" até você editá-los.`)
+    loadData()
+  }
+
   const active = procedures.filter(p => p.is_active).length
+  const pendingPrice = procedures.filter(p => p.is_active && p.price === 0 && !p.is_free).length
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Procedimentos</h1>
-          <p className={styles.sub}>{procedures.length} procedimentos · {active} ativos</p>
+          <p className={styles.sub}>
+            {procedures.length} procedimentos · {active} ativos
+            {pendingPrice > 0 && <> · <span className={styles.warnText}>{pendingPrice} sem preço definido</span></>}
+          </p>
         </div>
-        <button className={styles.btnPrimary} onClick={openNew}>+ Novo Procedimento</button>
+        <div className={styles.headerActions}>
+          {nameSuggestions.length > 0 && (
+            <button className={styles.btnSecondary} onClick={handleAddSuggestions} disabled={addingSuggestions}>
+              {addingSuggestions ? 'Adicionando...' : '+ Sugestões da especialidade'}
+            </button>
+          )}
+          <button className={styles.btnPrimary} onClick={openNew}>+ Novo Procedimento</button>
+        </div>
       </div>
 
       {loading ? (
@@ -148,7 +188,9 @@ function ProcedimentosContent() {
                   <td data-label="Valor">
                     {p.price > 0
                       ? <span className={styles.price}>{formatCurrency(p.price)}</span>
-                      : <span className={styles.tagInactive}>A definir</span>}
+                      : p.is_free
+                        ? <span className={styles.tagFree}>Gratuito</span>
+                        : <span className={styles.tagInactive}>A definir</span>}
                   </td>
                   <td data-label="Status">
                     {p.is_active
@@ -205,9 +247,10 @@ function ProcedimentosContent() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={form.price}
+                    value={form.is_free ? '0' : form.price}
                     onChange={(e) => setForm(p => ({ ...p, price: e.target.value }))}
                     placeholder="0,00"
+                    disabled={form.is_free}
                   />
                 </div>
                 <div className={styles.field}>
@@ -224,6 +267,17 @@ function ProcedimentosContent() {
                     </datalist>
                   )}
                 </div>
+              </div>
+              <div className={styles.toggleRow}>
+                <span className={styles.toggleLabel}>Procedimento gratuito (ex: avaliação)</span>
+                <label className={styles.toggle}>
+                  <input
+                    type="checkbox"
+                    checked={form.is_free}
+                    onChange={(e) => setForm(p => ({ ...p, is_free: e.target.checked }))}
+                  />
+                  <span className={styles.toggleSlider} />
+                </label>
               </div>
               <div className={styles.toggleRow}>
                 <span className={styles.toggleLabel}>Procedimento ativo</span>

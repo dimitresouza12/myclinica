@@ -28,7 +28,7 @@ export function useProcedures(clinicId: string | undefined) {
       if (!clinicId) return []
       const { data } = await supabase
         .from('procedures')
-        .select('id, name, price, category, is_active')
+        .select('id, name, price, is_free, category, is_active')
         .eq('clinic_id', clinicId)
         .order('name')
       return (data ?? []) as Procedure[]

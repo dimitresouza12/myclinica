@@ -657,8 +657,21 @@ function AgendaContent() {
   }
 
   async function updateStatus(id: string, status: string) {
-    await supabase.from('appointments').update({ status }).eq('id', id).eq('clinic_id', clinic!.id)
     const appt = appointments.find(a => a.id === id)
+
+    if (status === 'concluido' && appt) {
+      const linkedProc = procedures.find(p => p.id === appt.procedure_id)
+      const priceIsPending = !(appt.procedure_price && appt.procedure_price > 0) && !linkedProc?.is_free
+      if (priceIsPending) {
+        const confirmed = await confirmDialog({
+          message: 'Este procedimento está sem preço definido — nenhuma receita será lançada no Financeiro ao concluir. Deseja continuar mesmo assim?',
+          confirmText: 'Concluir mesmo assim',
+        })
+        if (!confirmed) return
+      }
+    }
+
+    await supabase.from('appointments').update({ status }).eq('id', id).eq('clinic_id', clinic!.id)
     if (status === 'concluido' && appt) {
       await ensureRevenueForAppointment({ ...appt, status: 'concluido' })
     } else if (appt?.status === 'concluido' && status !== 'concluido') {
@@ -682,7 +695,10 @@ function AgendaContent() {
   }
 
   async function ensureRevenueForAppointment(appt: Appointment) {
-    if (!clinic || !appt.procedure_id || !appt.procedure_price || appt.procedure_price <= 0) return
+    // procedure_id pode ser null aqui: procedimento "Outro (digitar)" não tem
+    // cadastro na tabela procedures, mas ainda assim tem um valor cobrado que
+    // precisa aparecer no Financeiro (antes disso, "Outro" nunca gerava receita).
+    if (!clinic || !appt.procedure_price || appt.procedure_price <= 0) return
     const { data: existing } = await supabase
       .from('financial_records')
       .select('id')
@@ -693,7 +709,7 @@ function AgendaContent() {
       clinic_id: clinic.id,
       patient_id: appt.patient_id ?? null,
       appointment_id: appt.id,
-      procedure_id: appt.procedure_id,
+      procedure_id: appt.procedure_id ?? null,
       total_amount: appt.procedure_price,
       category: 'Procedimento',
       type: 'receita',
