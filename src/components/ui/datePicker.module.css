@@ -1,0 +1,48 @@
+.wrap { position: relative; display: block; width: 100%; }
+
+.trigger {
+  display: flex; align-items: center; gap: .5rem;
+  width: 100%;
+  padding: .6rem .875rem;
+  min-height: 44px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: .875rem; font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.trigger:hover { border-color: #4DD9C0; }
+.trigger:focus-visible { border-color: #4DD9C0; box-shadow: 0 0 0 3px rgba(77,217,192,.15); outline: none; }
+.trigger span { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; }
+.placeholder { color: var(--text-tertiary); font-weight: 400; }
+.chevron { color: var(--text-tertiary); flex-shrink: 0; }
+
+.popover {
+  position: fixed; z-index: 300;
+  background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 14px;
+  box-shadow: var(--shadow-lg); padding: .85rem; width: 280px;
+  animation: popIn .15s ease both;
+}
+@keyframes popIn { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+
+.monthRow { display: flex; align-items: center; justify-content: space-between; margin-bottom: .6rem; padding: 0 .25rem; }
+.navBtn { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border: none; background: var(--bg-secondary); border-radius: 8px; color: var(--text-secondary); cursor: pointer; transition: background .15s, color .15s; }
+.navBtn:hover { background: var(--border-color); color: var(--text-primary); }
+.monthLabel { font-size: .85rem; font-weight: 700; color: var(--text-primary); text-transform: capitalize; }
+
+.weekdaysRow { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: .3rem; }
+.weekdaysRow span { text-align: center; font-size: .68rem; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; }
+
+.daysGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .2rem; }
+.dayBtn {
+  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 8px; background: none; color: var(--text-primary);
+  font-size: .8rem; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+}
+.dayBtn:hover { background: var(--bg-secondary); }
+.dayBtnToday { border-color: var(--border-color); color: #0B9B85; }
+.dayBtnActive, .dayBtnActive:hover { background: #4DD9C0; color: #0D2421; }

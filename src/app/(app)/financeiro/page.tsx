@@ -320,6 +320,21 @@ function FinanceiroContent() {
         </div>
       </div>
 
+      {/* Período — fica no topo (não dentro da seção da tabela, lá embaixo)
+          porque também controla os cards de totais e não só a listagem. */}
+      <div className={styles.periodBar}>
+        <div className={styles.periodTabs}>
+          {(['diario', 'semanal', 'mensal', 'geral'] as const).map(p => (
+            <button key={p} className={`${styles.periodTab} ${filterPeriod === p ? styles.periodTabActive : ''}`} onClick={() => setFilterPeriod(p)}>
+              {p === 'diario' ? 'Diário' : p === 'semanal' ? 'Semanal' : p === 'mensal' ? 'Mensal' : 'Geral'}
+            </button>
+          ))}
+        </div>
+        {filterPeriod === 'mensal' && (
+          <MonthPicker value={filterMonth} onChange={setFilterMonth} />
+        )}
+      </div>
+
       {/* Metric cards — controlado pela permissão "Ver totais" */}
       {showTotals && (
         <div className={styles.cards}>
@@ -390,26 +405,14 @@ function FinanceiroContent() {
       {/* Filters + Table */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <div className={styles.filterRow}>
-            <div className={styles.filterTabs}>
-              {(['todos', 'receita', 'despesa'] as const).map(t => (
-                <button key={t} className={`${styles.filterTab} ${filterType === t ? styles.filterTabActive : ''}`} onClick={() => setFilterType(t)}>
-                  {t !== 'todos' && <span className={styles.filterDot} style={{ background: t === 'receita' ? '#0B9B85' : '#DC2626' }} />}
-                  {t === 'todos' ? 'Todos' : t === 'receita' ? 'Receitas' : 'Despesas'}
-                </button>
-              ))}
-            </div>
-            <div className={styles.periodTabs}>
-              {(['diario', 'semanal', 'mensal', 'geral'] as const).map(p => (
-                <button key={p} className={`${styles.periodTab} ${filterPeriod === p ? styles.periodTabActive : ''}`} onClick={() => setFilterPeriod(p)}>
-                  {p === 'diario' ? 'Diário' : p === 'semanal' ? 'Semanal' : p === 'mensal' ? 'Mensal' : 'Geral'}
-                </button>
-              ))}
-            </div>
+          <div className={styles.filterTabs}>
+            {(['todos', 'receita', 'despesa'] as const).map(t => (
+              <button key={t} className={`${styles.filterTab} ${filterType === t ? styles.filterTabActive : ''}`} onClick={() => setFilterType(t)}>
+                {t !== 'todos' && <span className={styles.filterDot} style={{ background: t === 'receita' ? '#0B9B85' : '#DC2626' }} />}
+                {t === 'todos' ? 'Todos' : t === 'receita' ? 'Receitas' : 'Despesas'}
+              </button>
+            ))}
           </div>
-          {filterPeriod === 'mensal' && (
-            <MonthPicker value={filterMonth} onChange={setFilterMonth} />
-          )}
         </div>
         {loading ? <p className={styles.loading}>Carregando...</p> : (
           <div className={`${styles.tableWrap} resp-table-wrap`}>

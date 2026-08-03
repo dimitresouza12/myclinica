@@ -18,6 +18,9 @@
 .btnExport:hover:not(:disabled) { border-color:#4DD9C0; color:#0B9B85; background:rgba(77,217,192,0.06); }
 .btnExport:disabled { opacity:0.4; cursor:not-allowed; }
 
+.periodBar { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:14px; padding:.4rem .75rem; box-shadow:var(--shadow-sm); }
+.periodBar .periodTabs { border-bottom:none; }
+
 /* Metric cards */
 .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; }
 .card { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; padding:1.5rem; display:flex; align-items:center; gap:1rem; transition:box-shadow .2s, transform .2s; box-shadow:var(--shadow-sm); min-width:0; }

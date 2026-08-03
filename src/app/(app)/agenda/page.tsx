@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth'
 import { formatDate, formatPhone, formatCurrency } from '@/lib/utils'
 import { getGCalToken, isGCalConnected, silentRefreshGCal, fetchGCalEvents, createGCalEvent, updateGCalEvent, deleteGCalEvent, connectGoogleCalendar, disconnectGoogleCalendar, type GCalEvent } from '@/lib/googleCalendar'
 import { Portal } from '@/components/ui/Portal'
+import { DatePicker } from '@/components/ui/DatePicker'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsApp } from '@/lib/planGates'
@@ -1351,11 +1352,9 @@ function AgendaContent() {
                 {/* ── Data ── */}
                 <div className={styles.field}>
                   <label>Data *</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={form.scheduled_at.slice(0, 10)}
-                    onChange={e => {
-                      const date = e.target.value
+                    onChange={date => {
                       const prevTime = form.scheduled_at.slice(11, 16) || '09:00'
                       setForm(p => ({ ...p, scheduled_at: date ? `${date}T${prevTime}` : '' }))
                     }}
