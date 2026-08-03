@@ -59,7 +59,7 @@
 
 .sectionDivider { border:none; border-top:1px solid var(--border-color); margin:0; }
 .sectionTitle { font-size:.85rem; font-weight:700; color:var(--text-primary); }
-.sectionSub { font-size:.75rem; color:var(--text-secondary); margin-top:-.75rem; }
+.sectionSub { font-size:.75rem; color:var(--text-secondary); margin:.3rem 0 0; }
 
 .rulesList { display:flex; flex-direction:column; gap:.5rem; }
 .ruleRow { display:flex; align-items:center; gap:.6rem; padding:.55rem .75rem; background:var(--bg-secondary); border-radius:10px; }

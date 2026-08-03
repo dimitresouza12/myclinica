@@ -63,13 +63,19 @@ a {
    Cada <td> (exceto o primeiro, que vira o "título" do cartão) precisa de
    um atributo data-label="Nome da coluna" para o rótulo aparecer. */
 @media (max-width: 768px) {
+  /* !important: cada página tem seu próprio .tableWrap (CSS Module) com
+     fundo/borda/overflow:hidden fixos, sem media query — como CSS Modules
+     são bundlados depois do globals.css, essa regra (mesma especificidade,
+     um seletor de classe) perdia a cascata pro estilo de desktop da página,
+     deixando o card "Nenhum encontrado" cortado dentro de uma caixa que
+     devia ter deixado de existir no mobile. */
   .resp-table-wrap {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    border-radius: 0;
-    overflow: visible;
-    padding: 0;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
   }
 
   .resp-table thead { display: none; }
