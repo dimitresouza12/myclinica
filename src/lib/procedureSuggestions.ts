@@ -10,7 +10,11 @@ interface ProcedureSuggestion {
  *  a definir (0) — cada clínica precifica do seu jeito. */
 export const PROCEDURE_SUGGESTIONS: Record<ClinicType, ProcedureSuggestion[]> = {
   odonto: [
-    { name: 'Consulta / Avaliação',        category: 'Consulta' },
+    // Avaliação separada da Consulta de propósito: muita clínica de odonto
+    // faz avaliação gratuita e cobra a consulta (ou vice-versa) — deixar
+    // as duas como itens distintos permite precificar cada uma do seu jeito.
+    { name: 'Consulta',                    category: 'Consulta' },
+    { name: 'Avaliação',                   category: 'Consulta' },
     { name: 'Limpeza (Profilaxia)',        category: 'Consulta' },
     { name: 'Restauração',                 category: 'Outros' },
     { name: 'Extração Simples',            category: 'Cirurgia' },
