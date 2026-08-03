@@ -7,11 +7,12 @@ import { formatCurrency, formatCurrencyCompact, formatDate } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsApp } from '@/lib/planGates'
 import { Icon } from '@/components/ui/Icon'
-import { useDashboardData } from '@/hooks/useClinicData'
+import { useDashboardData, useProcedures } from '@/hooks/useClinicData'
 import type { DashboardAlertReason, DashboardAlert, RevenueByCategory } from '@/hooks/useClinicData'
 import type { ComponentProps } from 'react'
 import styles from './dashboard.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { OnboardingChecklist } from './OnboardingChecklist'
 
 const DashboardChart = dynamic(() => import('./DashboardChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
 const RevenueByCategoryChart = dynamic(() => import('./RevenueByCategoryChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
@@ -156,6 +157,7 @@ function DashboardContent() {
   const [alertsCollapsed, setAlertsCollapsed] = useState(false)
 
   const { data, isLoading: loading } = useDashboardData(clinic?.id)
+  const { data: procedures = [] } = useProcedures(clinic?.id)
 
   // Fire-and-forget in background — does not block dashboard queries
   useEffect(() => {
@@ -232,6 +234,8 @@ function DashboardContent() {
         <p className={styles.loading}>Carregando...</p>
       ) : (
         <>
+          <OnboardingChecklist procedures={procedures} patientsCount={stats.totalPatients} />
+
           {alerts.length > 0 && (
             <div className={styles.alertWidget}>
               <div className={styles.alertHeader}>

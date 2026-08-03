@@ -534,6 +534,107 @@
   flex-shrink: 0;
   transition: background 0.15s;
 }
+
+/* ── Checklist "Primeiros passos" ── */
+.onboardingCard {
+  background: rgba(77, 217, 192, 0.08);
+  border: 1px solid rgba(77, 217, 192, 0.35);
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+[data-theme="dark"] .onboardingCard {
+  background: rgba(77, 217, 192, 0.06);
+  border-color: rgba(77, 217, 192, 0.25);
+}
+
+.onboardingHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.25rem;
+}
+.onboardingHeaderIcon { color: #0B9B85; display: flex; }
+[data-theme="dark"] .onboardingHeaderIcon { color: #4DD9C0; }
+.onboardingTitle {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.onboardingCount {
+  background: #0B9B85;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.onboardingList {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(77, 217, 192, 0.25);
+}
+.onboardingItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  flex-wrap: wrap;
+}
+.onboardingItem:not(:last-child) {
+  border-bottom: 1px solid rgba(77, 217, 192, 0.18);
+}
+.onboardingItemLabel {
+  font-size: 0.83rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.onboardingItemActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.onboardingBtnPrimary {
+  padding: 0.4rem 0.8rem;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  background: #4DD9C0;
+  color: #0D2421;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.onboardingBtnPrimary:hover { background: #3CCCB4; }
+.onboardingBtnDone {
+  padding: 0.4rem 0.8rem;
+  min-height: 34px;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, opacity 0.15s;
+}
+.onboardingBtnDone:hover:not(:disabled) { background: var(--bg-secondary); }
+.onboardingBtnDone:disabled { opacity: 0.6; cursor: not-allowed; }
+
+@media (max-width: 640px) {
+  .onboardingItem { flex-direction: column; align-items: flex-start; }
+  .onboardingItemActions { width: 100%; }
+  .onboardingBtnPrimary, .onboardingBtnDone { flex: 1; justify-content: center; }
+}
 .alertCollapseBtn:hover { background: rgba(146, 64, 14, 0.1); }
 [data-theme="dark"] .alertCollapseBtn { color: #FBBF24; }
 [data-theme="dark"] .alertCollapseBtn:hover { background: rgba(251, 191, 36, 0.12); }

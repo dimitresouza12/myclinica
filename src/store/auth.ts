@@ -13,6 +13,7 @@ interface AuthState {
   clearSession: () => void
   setHydrated: () => void
   setClinicLogo: (logo: string) => void
+  dismissOnboardingItem: (key: string) => void
   startImpersonation: (clinicId: string, clinicName: string) => void
   stopImpersonation: () => void
 }
@@ -31,6 +32,13 @@ export const useAuthStore = create<AuthState>()(
       },
       setHydrated: () => set({ _hydrated: true }),
       setClinicLogo: (logo) => set((s) => s.clinic ? { clinic: { ...s.clinic, logo } } : {}),
+      // (s.clinic.onboardingDismissed ?? []): sessões salvas no navegador antes
+      // desse campo existir vêm sem ele — persist do zustand não migra dados
+      // antigos sozinho, então sem o fallback isso quebraria pra quem já
+      // estava logado no momento do deploy.
+      dismissOnboardingItem: (key) => set((s) => s.clinic
+        ? { clinic: { ...s.clinic, onboardingDismissed: Array.from(new Set([...(s.clinic.onboardingDismissed ?? []), key])) } }
+        : {}),
       startImpersonation: (clinicId, clinicName) =>
         set({ impersonatedClinicId: clinicId, impersonatedClinicName: clinicName }),
       stopImpersonation: () => set({ impersonatedClinicId: null, impersonatedClinicName: null }),

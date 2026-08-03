@@ -315,6 +315,7 @@ export interface AuthClinic {
   billingOverdueSince: string | null
   nextBillingDate: string | null
   monthlyRevenueGoal: number | null
+  onboardingDismissed: string[]
 }
 
 export interface AuthUser {

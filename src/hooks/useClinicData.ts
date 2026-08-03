@@ -201,6 +201,28 @@ export function useDashboardData(clinicId: string | undefined) {
   })
 }
 
+// Contagens leves usadas só pelo checklist de primeiros passos do dashboard —
+// pacientes/procedimentos já são buscados em outros hooks nessa mesma tela,
+// aqui só o que falta (profissionais e total de agendamentos já feitos).
+export function useOnboardingCounts(clinicId: string | undefined) {
+  return useQuery({
+    queryKey: ['onboarding-counts', clinicId],
+    queryFn: async () => {
+      if (!clinicId) return { professionalsCount: 0, appointmentsCount: 0 }
+      const [profRes, apptRes] = await Promise.all([
+        supabase.from('professionals').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true),
+        supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId),
+      ])
+      return {
+        professionalsCount: profRes.count ?? 0,
+        appointmentsCount: apptRes.count ?? 0,
+      }
+    },
+    enabled: !!clinicId,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 // ── Pacientes + Atendimentos ───────────────────────────────────────────────────
 
 export function usePacientesData(clinicId: string | undefined) {

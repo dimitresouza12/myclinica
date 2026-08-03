@@ -410,6 +410,7 @@ function LoginContent() {
           trialEndsAt: null, gcalConnected: false,
           billingPaid: true, asaasCustomerId: null, asaasSubscriptionId: null,
           billingOverdueSince: null, nextBillingDate: null, monthlyRevenueGoal: null,
+          onboardingDismissed: [],
         }
         clearRateLimit(cred)
         setStep('Abrindo painel...')
@@ -447,6 +448,7 @@ function LoginContent() {
         billingOverdueSince: c.billing_overdue_since ?? null,
         nextBillingDate: c.next_billing_date ?? null,
         monthlyRevenueGoal: c.monthly_revenue_goal ?? null,
+        onboardingDismissed: c.onboarding_dismissed ?? [],
       }
       const user: AuthUser = {
         id: clinicUser.user_id, role: clinicUser.role,
