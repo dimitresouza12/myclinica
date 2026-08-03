@@ -312,3 +312,39 @@ export function useRelatoriosRawData(clinicId: string | undefined, period: strin
     staleTime: 5 * 60 * 1000,
   })
 }
+
+export interface CommissionEntryRow {
+  id: string
+  recipient_id: string
+  recipient_name: string
+  percent: number
+  amount: number
+  created_at: string
+  financial_records: {
+    procedure_id: string | null
+    patient_id: string | null
+    procedures: { name: string } | null
+    patients: { name: string } | null
+  } | null
+}
+
+export function useCommissionsData(clinicId: string | undefined, period: string) {
+  return useQuery({
+    queryKey: ['comissoes-relatorio', clinicId, period],
+    queryFn: async () => {
+      if (!clinicId) return { entries: [] as CommissionEntryRow[] }
+      const now = new Date()
+      const months = period === '3m' ? 3 : period === '6m' ? 6 : 12
+      const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1).toISOString()
+      const { data } = await supabase
+        .from('commission_entries')
+        .select('id, recipient_id, recipient_name, percent, amount, created_at, financial_records(procedure_id, patient_id, procedures(name), patients(name))')
+        .eq('clinic_id', clinicId)
+        .gte('created_at', startDate)
+        .order('created_at', { ascending: false })
+      return { entries: (data ?? []) as unknown as CommissionEntryRow[] }
+    },
+    enabled: !!clinicId,
+    staleTime: 5 * 60 * 1000,
+  })
+}

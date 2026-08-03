@@ -4,9 +4,9 @@ import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
-import { useProfessionals, useProcedures, useRelatoriosRawData } from '@/hooks/useClinicData'
+import { useProfessionals, useProcedures, useRelatoriosRawData, useCommissionsData } from '@/hooks/useClinicData'
 import styles from './relatorios.module.css'
 import { Icon } from '@/components/ui/Icon'
 
@@ -15,7 +15,7 @@ const { FinanceiroBarChart, PacientesBarChart } = {
   PacientesBarChart:  dynamic(() => import('./RelatoriosCharts').then(m => m.PacientesBarChart),  { ssr: false, loading: () => <div className={styles.loading}>Carregando gráfico...</div> }),
 }
 
-type ReportTab = 'financeiro' | 'clinico' | 'pacientes' | 'equipe'
+type ReportTab = 'financeiro' | 'clinico' | 'pacientes' | 'equipe' | 'comissoes'
 
 interface MonthlyFin  { month: string; receita: number; despesa: number; lucro: number }
 interface ProcRank    { name: string; count: number }
@@ -34,6 +34,21 @@ function RelatoriosContent() {
   const [exporting, setExporting] = useState(false)
 
   const { data: rawData, isLoading: loading } = useRelatoriosRawData(clinic?.id, period)
+  const { data: commissionsData, isLoading: loadingCommissions } = useCommissionsData(clinic?.id, period)
+
+  const commissionsComputed = useMemo(() => {
+    const entries = commissionsData?.entries ?? []
+    const totalPaid = entries.reduce((s, e) => s + e.amount, 0)
+    const byRecipient = new Map<string, { name: string; total: number; count: number }>()
+    for (const e of entries) {
+      const cur = byRecipient.get(e.recipient_id) ?? { name: e.recipient_name, total: 0, count: 0 }
+      cur.total += e.amount
+      cur.count += 1
+      byRecipient.set(e.recipient_id, cur)
+    }
+    const recipientRows = Array.from(byRecipient.values()).sort((a, b) => b.total - a.total)
+    return { totalPaid, recipientRows, entries }
+  }, [commissionsData])
 
   const computed = useMemo(() => {
     const fins = rawData?.fins ?? []
@@ -290,6 +305,7 @@ function RelatoriosContent() {
     { key: 'clinico',    label: 'Clínico'    },
     { key: 'pacientes',  label: 'Pacientes'  },
     { key: 'equipe',     label: 'Equipe'     },
+    { key: 'comissoes',  label: 'Comissões'  },
   ]
 
   return (
@@ -531,6 +547,88 @@ function RelatoriosContent() {
                 </div>
               )}
             </>
+          )}
+
+          {/* ── COMISSÕES ── */}
+          {tab === 'comissoes' && (
+            loadingCommissions ? (
+              <p className={styles.loading}>Carregando comissões...</p>
+            ) : (
+              <>
+                <div className={styles.kpis}>
+                  <div className={styles.kpi}>
+                    <div className={styles.kpiLabel}>Total pago em comissões</div>
+                    <div className={`${styles.kpiValue} ${styles.kpiGreen}`}>{formatCurrency(commissionsComputed.totalPaid)}</div>
+                  </div>
+                  <div className={styles.kpi}>
+                    <div className={styles.kpiLabel}>Beneficiários com lançamento</div>
+                    <div className={`${styles.kpiValue} ${styles.kpiBlue}`}>{commissionsComputed.recipientRows.length}</div>
+                  </div>
+                </div>
+
+                {commissionsComputed.recipientRows.length === 0 ? (
+                  <div className={styles.card}>
+                    <p className={styles.cardEmpty}>Nenhuma comissão calculada no período. Configure beneficiários e % na aba Comissões do menu.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className={styles.card}>
+                      <div className={styles.cardTitle}>Total por beneficiário</div>
+                      <div className={`${styles.tableWrap} resp-table-wrap`}>
+                        <table className={`${styles.table} resp-table`}>
+                          <thead>
+                            <tr>
+                              <th>Beneficiário</th>
+                              <th>Lançamentos</th>
+                              <th>Total recebido</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {commissionsComputed.recipientRows.map(r => (
+                              <tr key={r.name}>
+                                <td>{r.name}</td>
+                                <td data-label="Lançamentos"><span className={styles.tagBlue}>{r.count}</span></td>
+                                <td data-label="Total recebido"><span className={styles.tagGreen}>{formatCurrency(r.total)}</span></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className={styles.card}>
+                      <div className={styles.cardTitle}>Detalhamento dos lançamentos</div>
+                      <div className={`${styles.tableWrap} resp-table-wrap`}>
+                        <table className={`${styles.table} resp-table`}>
+                          <thead>
+                            <tr>
+                              <th>Data</th>
+                              <th>Beneficiário</th>
+                              <th>Procedimento</th>
+                              <th>Paciente</th>
+                              <th>%</th>
+                              <th>Valor</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {commissionsComputed.entries.map(e => (
+                              <tr key={e.id}>
+                                <td data-label="Data">{formatDate(e.created_at, true)}</td>
+                                <td data-label="Beneficiário">{e.recipient_name}</td>
+                                <td data-label="Procedimento">{e.financial_records?.procedures?.name ?? '—'}</td>
+                                <td data-label="Paciente">{e.financial_records?.patients?.name ?? '—'}</td>
+                                <td data-label="%">{e.percent}%</td>
+                                <td data-label="Valor">{formatCurrency(e.amount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )
           )}
         </>
       )}
