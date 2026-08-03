@@ -125,7 +125,14 @@ function RelatoriosContent() {
       if (key in newMap) newMap[key]++
     }
     const newByMonth = Object.entries(newMap).map(([key, count]) => ({
-      month: new Date(key + '-01').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/'),
+      // new Date(key + '-01') parseia como UTC meia-noite — em fuso horário
+      // atrás de UTC isso "volta" um dia ao formatar em horário local,
+      // rotulando o mês errado no eixo do gráfico. Construir com
+      // componentes locais evita o bug.
+      month: (() => {
+        const [y, m] = key.split('-').map(Number)
+        return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/')
+      })(),
       count,
     }))
 
@@ -255,7 +262,14 @@ function RelatoriosContent() {
         if (key in newMap) newMap[key]++
       }
       const newByMonthExport = Object.entries(newMap).map(([key, count]) => ({
-        month: new Date(key + '-01').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/'),
+        // new Date(key + '-01') parseia como UTC meia-noite — em fuso horário
+      // atrás de UTC isso "volta" um dia ao formatar em horário local,
+      // rotulando o mês errado no eixo do gráfico. Construir com
+      // componentes locais evita o bug.
+      month: (() => {
+        const [y, m] = key.split('-').map(Number)
+        return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/')
+      })(),
         count,
       }))
 

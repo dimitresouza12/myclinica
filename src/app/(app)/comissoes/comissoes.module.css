@@ -30,6 +30,33 @@
 .empty { text-align:center; color:var(--text-secondary); padding:3rem 1rem; font-size:.875rem; background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; }
 .loading { color:var(--text-secondary); padding:2rem; text-align:center; font-size:.875rem; }
 
+/* Recebido por beneficiário (ganhos no período) */
+.earningsCard { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; box-shadow:var(--shadow-sm); overflow:hidden; }
+.earningsHeader { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; padding:1.1rem 1.25rem .5rem; }
+.sectionTitleLg { font-size:1rem; font-weight:700; color:var(--text-primary); }
+.earningsControls { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; padding:0 1.25rem 1rem; }
+.periodTabs { display:flex; border-bottom:1px solid var(--border-subtle); }
+.periodTab { padding:0.6rem 1rem; border:none; border-bottom:2px solid transparent; background:none; font-size:.78rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; white-space:nowrap; }
+.periodTab:hover { color:var(--text-primary); }
+.periodTabActive { color:var(--text-primary); font-weight:700; border-bottom-color:#4DD9C0; }
+.monthInput { padding:.4rem .75rem; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-primary); color:var(--text-primary); font-size:.82rem; outline:none; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+.monthInput:focus { border-color:#4DD9C0; box-shadow:0 0 0 3px rgba(77,217,192,.15); }
+
+.earningsList { display:flex; flex-direction:column; padding:0 1.25rem 1.25rem; }
+.earningsRow { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.7rem 0; border-bottom:1px solid var(--border-subtle); }
+.earningsRow:last-of-type { border-bottom:none; }
+.earningsName { font-size:.875rem; font-weight:600; color:var(--text-primary); flex:1; min-width:0; }
+.earningsCount { font-size:.72rem; color:var(--text-secondary); white-space:nowrap; }
+.earningsAmount { font-size:.95rem; font-weight:700; color:#0B9B85; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.earningsTotalRow { display:flex; align-items:center; justify-content:space-between; padding:.85rem 0 0; margin-top:.35rem; border-top:1px solid var(--border-color); font-size:.85rem; font-weight:700; color:var(--text-primary); }
+.emptySmall { text-align:center; color:var(--text-secondary); font-size:.83rem; padding:1.5rem 1.25rem; }
+
+@media (max-width:600px) {
+  .earningsHeader { padding:1rem 1rem .25rem; }
+  .earningsControls { padding:0 1rem .85rem; }
+  .earningsList { padding:0 1rem 1rem; }
+}
+
 /* Modal */
 .overlay { position:fixed; inset:0; background:rgba(13,17,23,.6); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:200; padding:1rem; overflow:hidden; overscroll-behavior:contain; touch-action:none; }
 .modal { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:20px; width:100%; max-width:520px; max-height:90dvh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow-xl); animation:slideUp .22s cubic-bezier(.22,1,.36,1) both; }

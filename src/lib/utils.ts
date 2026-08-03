@@ -12,6 +12,16 @@ export function formatDate(dateString: string | null | undefined, short = false)
   }).format(date)
 }
 
+/** Formata um mês no formato "YYYY-MM" (de um <input type="month">) como
+ *  "agosto de 2026". new Date("2026-08-01") parseia como UTC meia-noite —
+ *  em fuso horário atrás de UTC (ex: Brasil) isso "volta" um dia ao formatar
+ *  em horário local, mostrando o mês errado. Construir com componentes
+ *  locais evita o bug. */
+export function formatMonthLabel(monthStr: string): string {
+  const [y, m] = monthStr.split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+}
+
 export function formatPhone(phone: string | null | undefined): string {
   if (!phone) return '-'
   let str = String(phone)

@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
-import { formatDate, formatCurrency, formatCurrencyCompact } from '@/lib/utils'
+import { formatDate, formatCurrency, formatCurrencyCompact, formatMonthLabel } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useFinanceiroData, useProcedures } from '@/hooks/useClinicData'
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
@@ -306,7 +306,7 @@ function FinanceiroContent() {
           <p className={styles.sub}>{filtered.length} lançamentos — {
             filterPeriod === 'diario' ? 'hoje' :
             filterPeriod === 'semanal' ? 'esta semana' :
-            filterPeriod === 'mensal' ? new Date(filterMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) :
+            filterPeriod === 'mensal' ? formatMonthLabel(filterMonth) :
             'todos os períodos'
           }</p>
         </div>

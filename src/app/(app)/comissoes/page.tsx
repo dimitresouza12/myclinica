@@ -1,15 +1,18 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { useScrollLock } from '@/hooks/useScrollLock'
-import { useProcedures } from '@/hooks/useClinicData'
+import { useProcedures, useCommissionsData } from '@/hooks/useClinicData'
+import { formatCurrency, formatMonthLabel } from '@/lib/utils'
 import type { CommissionRecipient, CommissionRule } from '@/types'
 import styles from './comissoes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
+
+type EarningsPeriod = 'diario' | 'semanal' | 'mensal'
 
 interface RuleDraft { procedure_id: string; percent: string }
 interface RecipientForm {
@@ -35,6 +38,48 @@ function ComissoesContent() {
   const [saving, setSaving] = useState(false)
   const [newRuleProc, setNewRuleProc] = useState('')
   const [newRulePercent, setNewRulePercent] = useState('')
+
+  // Recebido por beneficiário — busca uma janela ampla (12 meses) uma vez só
+  // e filtra no cliente por dia/semana/mês, igual ao padrão já usado no
+  // Financeiro. Evita reconsultar o banco a cada troca de período.
+  const [earningsPeriod, setEarningsPeriod] = useState<EarningsPeriod>('mensal')
+  const [earningsMonth, setEarningsMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const { data: commissionsData, isLoading: loadingEarnings } = useCommissionsData(clinic?.id, '12m')
+  const allEntries = commissionsData?.entries ?? []
+
+  const periodEntries = useMemo(() => {
+    const now = new Date()
+    if (earningsPeriod === 'mensal') {
+      return allEntries.filter(e => e.created_at?.startsWith(earningsMonth))
+    }
+    if (earningsPeriod === 'semanal') {
+      const startOfWeek = new Date(now)
+      startOfWeek.setDate(now.getDate() - now.getDay())
+      startOfWeek.setHours(0, 0, 0, 0)
+      return allEntries.filter(e => new Date(e.created_at) >= startOfWeek)
+    }
+    // diário
+    const todayStr = now.toISOString().slice(0, 10)
+    return allEntries.filter(e => e.created_at?.startsWith(todayStr))
+  }, [allEntries, earningsPeriod, earningsMonth])
+
+  const earningsByRecipient = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; total: number; count: number }>()
+    for (const e of periodEntries) {
+      const cur = map.get(e.recipient_id) ?? { id: e.recipient_id, name: e.recipient_name, total: 0, count: 0 }
+      cur.total += e.amount
+      cur.count += 1
+      map.set(e.recipient_id, cur)
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total)
+  }, [periodEntries])
+
+  const earningsTotal = earningsByRecipient.reduce((s, e) => s + e.total, 0)
+
+  const earningsPeriodLabel =
+    earningsPeriod === 'diario' ? 'hoje' :
+    earningsPeriod === 'semanal' ? 'esta semana' :
+    formatMonthLabel(earningsMonth)
 
   useScrollLock(showModal)
 
@@ -197,6 +242,51 @@ function ComissoesContent() {
       <div className={styles.warnBanner}>
         <Icon name="info" size={16} />
         <span>A % é aplicada sobre o valor de cada procedimento no momento em que a receita é lançada. Mudar a % aqui não altera comissões já calculadas — só vale para novos lançamentos.</span>
+      </div>
+
+      <div className={styles.earningsCard}>
+        <div className={styles.earningsHeader}>
+          <h2 className={styles.sectionTitleLg}>Recebido por beneficiário</h2>
+          {earningsByRecipient.length > 0 && (
+            <span className={styles.recipientRulesCount}>Total {earningsPeriodLabel}: {formatCurrency(earningsTotal)}</span>
+          )}
+        </div>
+        <div className={styles.earningsControls}>
+          <div className={styles.periodTabs}>
+            {(['diario', 'semanal', 'mensal'] as const).map(p => (
+              <button key={p} className={`${styles.periodTab} ${earningsPeriod === p ? styles.periodTabActive : ''}`} onClick={() => setEarningsPeriod(p)}>
+                {p === 'diario' ? 'Diário' : p === 'semanal' ? 'Semanal' : 'Mensal'}
+              </button>
+            ))}
+          </div>
+          {earningsPeriod === 'mensal' && (
+            <input
+              type="month"
+              value={earningsMonth}
+              onChange={e => setEarningsMonth(e.target.value)}
+              className={styles.monthInput}
+            />
+          )}
+        </div>
+        {loadingEarnings ? (
+          <p className={styles.loading}>Carregando...</p>
+        ) : earningsByRecipient.length === 0 ? (
+          <p className={styles.emptySmall}>Nenhuma comissão {earningsPeriodLabel === 'hoje' ? 'hoje' : `em ${earningsPeriodLabel}`}.</p>
+        ) : (
+          <div className={styles.earningsList}>
+            {earningsByRecipient.map(e => (
+              <div key={e.id} className={styles.earningsRow}>
+                <span className={styles.earningsName}>{e.name}</span>
+                <span className={styles.earningsCount}>{e.count} lançamento{e.count > 1 ? 's' : ''}</span>
+                <span className={styles.earningsAmount}>{formatCurrency(e.total)}</span>
+              </div>
+            ))}
+            <div className={styles.earningsTotalRow}>
+              <span>Total {earningsPeriodLabel}</span>
+              <span>{formatCurrency(earningsTotal)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {loading ? (
