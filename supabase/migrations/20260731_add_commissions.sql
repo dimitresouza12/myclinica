@@ -76,7 +76,12 @@ CREATE INDEX IF NOT EXISTS idx_commission_entries_record
   ON public.commission_entries (financial_record_id);
 
 -- ─── 4. RLS — mesmo padrão de isolamento por clínica já usado no app ────────
--- (public.my_clinic_ids() já existe, criada em 20260608_audit_security.sql)
+-- O padrão real em produção é get_my_clinic_id() (retorna 1 uuid) +
+-- is_superadmin() — não my_clinic_ids(): essa função nunca existiu de fato
+-- no banco (a migration 20260608_audit_security.sql que a criava está no
+-- repo local mas nunca foi aplicada em produção; a função real foi criada
+-- por outro caminho, direto no dashboard). Descoberto testando esta mesma
+-- migration contra o banco real antes de confiar nela.
 
 ALTER TABLE public.commission_recipients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.commission_rules      ENABLE ROW LEVEL SECURITY;
@@ -88,7 +93,7 @@ DO $$ BEGIN
   ) THEN
     CREATE POLICY "tenant_isolation_commission_recipients" ON public.commission_recipients
       FOR ALL
-      USING (clinic_id = ANY(public.my_clinic_ids()));
+      USING (clinic_id = public.get_my_clinic_id() OR public.is_superadmin());
   END IF;
 END $$;
 
@@ -98,7 +103,7 @@ DO $$ BEGIN
   ) THEN
     CREATE POLICY "tenant_isolation_commission_rules" ON public.commission_rules
       FOR ALL
-      USING (clinic_id = ANY(public.my_clinic_ids()));
+      USING (clinic_id = public.get_my_clinic_id() OR public.is_superadmin());
   END IF;
 END $$;
 
@@ -108,7 +113,7 @@ DO $$ BEGIN
   ) THEN
     CREATE POLICY "tenant_isolation_commission_entries" ON public.commission_entries
       FOR ALL
-      USING (clinic_id = ANY(public.my_clinic_ids()));
+      USING (clinic_id = public.get_my_clinic_id() OR public.is_superadmin());
   END IF;
 END $$;
 

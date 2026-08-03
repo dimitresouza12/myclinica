@@ -10,7 +10,7 @@
 -- de chamar uma função.
 
 CREATE OR REPLACE FUNCTION public.generate_commission_entries()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
 DECLARE
   rule RECORD;
 BEGIN
