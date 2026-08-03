@@ -52,6 +52,25 @@
   line-height: 1.4;
 }
 
+.toastClickable {
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform .1s, box-shadow .15s;
+}
+.toastClickable:hover, .toastClickable:focus-visible {
+  box-shadow: 0 10px 28px rgba(0,0,0,0.22);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.action {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(12px) scale(0.95); }
   to   { opacity: 1; transform: translateY(0) scale(1); }

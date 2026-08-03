@@ -611,8 +611,9 @@ function AgendaContent() {
           }
         }
         if (form.status === 'concluido') {
-          const result = await ensureRevenueForAppointment({ ...(existingAppt ?? {} as Appointment), ...payload, status: form.status as Appointment['status'], id: editingId })
-          notifyRevenuePending(result)
+          const concludedAppt = { ...(existingAppt ?? {} as Appointment), ...payload, status: form.status as Appointment['status'], id: editingId }
+          const result = await ensureRevenueForAppointment(concludedAppt)
+          notifyRevenuePending(result, concludedAppt)
         } else if (existingAppt?.status === 'concluido' && form.status !== 'concluido') {
           await removeRevenueForAppointment(editingId)
         }
@@ -678,8 +679,9 @@ function AgendaContent() {
 
     await supabase.from('appointments').update({ status }).eq('id', id).eq('clinic_id', clinic!.id)
     if (status === 'concluido' && appt) {
-      const result = await ensureRevenueForAppointment({ ...appt, status: 'concluido' })
-      notifyRevenuePending(result)
+      const concludedAppt = { ...appt, status: 'concluido' as const }
+      const result = await ensureRevenueForAppointment(concludedAppt)
+      notifyRevenuePending(result, concludedAppt)
     } else if (appt?.status === 'concluido' && status !== 'concluido') {
       await removeRevenueForAppointment(id)
     }
@@ -700,22 +702,23 @@ function AgendaContent() {
     setSelected(null)
   }
 
-  // Retorna se uma receita nova foi lançada — usado pra decidir o texto do
-  // toast de aviso, já que em nenhum caso o método de pagamento é definido
-  // aqui (a conclusão do agendamento não pergunta isso), então o usuário
-  // sempre precisa passar no Financeiro pra completar o lançamento.
-  async function ensureRevenueForAppointment(appt: Appointment): Promise<'created' | 'existing' | 'no_price'> {
+  // Retorna se uma receita nova foi lançada (+ o id dela) — usado pra decidir
+  // o texto do toast de aviso e o link direto pro Financeiro, já que em
+  // nenhum caso o método de pagamento é definido aqui (a conclusão do
+  // agendamento não pergunta isso), então o usuário sempre precisa passar no
+  // Financeiro pra completar o lançamento.
+  async function ensureRevenueForAppointment(appt: Appointment): Promise<{ status: 'created' | 'existing' | 'no_price'; recordId?: string }> {
     // procedure_id pode ser null aqui: procedimento "Outro (digitar)" não tem
     // cadastro na tabela procedures, mas ainda assim tem um valor cobrado que
     // precisa aparecer no Financeiro (antes disso, "Outro" nunca gerava receita).
-    if (!clinic || !appt.procedure_price || appt.procedure_price <= 0) return 'no_price'
+    if (!clinic || !appt.procedure_price || appt.procedure_price <= 0) return { status: 'no_price' }
     const { data: existing } = await supabase
       .from('financial_records')
       .select('id')
       .eq('appointment_id', appt.id)
       .maybeSingle()
-    if (existing) return 'existing'
-    await supabase.from('financial_records').insert([{
+    if (existing) return { status: 'existing', recordId: existing.id }
+    const { data: inserted } = await supabase.from('financial_records').insert([{
       clinic_id: clinic.id,
       patient_id: appt.patient_id ?? null,
       appointment_id: appt.id,
@@ -725,15 +728,24 @@ function AgendaContent() {
       type: 'receita',
       payment_method: null,
       notes: appt.procedure_name,
-    }])
-    return 'created'
+    }]).select('id').single()
+    return { status: 'created', recordId: inserted?.id }
   }
 
-  function notifyRevenuePending(result: 'created' | 'existing' | 'no_price') {
-    if (result === 'created') {
-      showToast('ok', 'Agendamento concluído! Receita lançada — defina a forma de pagamento em Financeiro.')
-    } else if (result === 'no_price') {
-      showToast('ok', 'Agendamento concluído! Lembre-se de lançar a receita manualmente em Financeiro.')
+  function notifyRevenuePending(result: { status: 'created' | 'existing' | 'no_price'; recordId?: string }, appt: Appointment) {
+    if (result.status === 'created') {
+      showToast('ok', 'Agendamento concluído! Receita lançada — defina a forma de pagamento em Financeiro.', {
+        href: result.recordId ? `/financeiro?record=${result.recordId}` : '/financeiro',
+        actionLabel: 'Definir pagamento',
+      })
+    } else if (result.status === 'no_price') {
+      const params = new URLSearchParams({ new: 'receita' })
+      if (appt.patient_id) params.set('patient', appt.patient_id)
+      if (appt.procedure_name) params.set('notes', appt.procedure_name)
+      showToast('ok', 'Agendamento concluído! Lembre-se de lançar a receita manualmente em Financeiro.', {
+        href: `/financeiro?${params.toString()}`,
+        actionLabel: 'Lançar receita',
+      })
     }
   }
 

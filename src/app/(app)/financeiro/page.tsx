@@ -1,5 +1,6 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
@@ -34,6 +35,7 @@ const BLANK: NewRecord = { type: 'receita', patient_id: '', procedure_id: '', to
 
 function FinanceiroContent() {
   const { clinic } = useAuthStore()
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const { isAdmin, canEdit, metadata } = usePermissions('financeiro')
   // Admin sempre vê totais; outros usuários dependem da permissão configurada (padrão: true)
@@ -129,6 +131,29 @@ function FinanceiroContent() {
   }, [periodRecords])
 
   const filtered = periodRecords.filter(r => filterType === 'todos' || r.type === filterType)
+
+  // Deep link vindo do toast de "agendamento concluído" (Agenda): abre direto
+  // o lançamento gerado automaticamente (?record=<id>) pra definir a forma de
+  // pagamento, ou já abre o modal de novo lançamento pré-preenchido
+  // (?new=receita&patient=<id>&notes=<texto>) quando não havia preço definido.
+  useEffect(() => {
+    if (loading) return
+    const recordId = searchParams.get('record')
+    if (recordId) {
+      const record = records.find(r => r.id === recordId)
+      if (record) openEdit(record)
+      return
+    }
+    if (searchParams.get('new') === 'receita') {
+      openModal('receita')
+      setForm(p => ({
+        ...p,
+        patient_id: searchParams.get('patient') ?? '',
+        notes: searchParams.get('notes') ?? '',
+      }))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, records, searchParams])
 
   function openModal(type: 'receita' | 'despesa') {
     setModalType(type)
@@ -572,5 +597,11 @@ function FinanceiroContent() {
 }
 
 export default function FinanceiroPage() {
-  return <PermissionGuard module="financeiro"><FinanceiroContent /></PermissionGuard>
+  return (
+    <PermissionGuard module="financeiro">
+      <Suspense fallback={<div />}>
+        <FinanceiroContent />
+      </Suspense>
+    </PermissionGuard>
+  )
 }
