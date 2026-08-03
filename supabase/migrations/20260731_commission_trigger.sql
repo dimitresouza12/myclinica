@@ -14,6 +14,20 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   rule RECORD;
 BEGIN
+  -- Em UPDATE, só refaz as entries se algo que afeta o cálculo mudou
+  -- (valor, procedimento ou virou despesa/deixou de ser). Editar só a
+  -- categoria ou a observação, por exemplo, não deve apagar e recriar.
+  IF TG_OP = 'UPDATE'
+     AND NEW.total_amount IS NOT DISTINCT FROM OLD.total_amount
+     AND NEW.procedure_id IS NOT DISTINCT FROM OLD.procedure_id
+     AND NEW.type         IS NOT DISTINCT FROM OLD.type THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    DELETE FROM public.commission_entries WHERE financial_record_id = NEW.id;
+  END IF;
+
   -- Só gera comissão para receita vinculada a um procedimento com valor.
   -- Despesas e receitas sem procedimento (ex: lançamento avulso "outros")
   -- não passam por aqui.
@@ -51,8 +65,8 @@ $$;
 
 DROP TRIGGER IF EXISTS trg_generate_commission_entries ON public.financial_records;
 CREATE TRIGGER trg_generate_commission_entries
-  AFTER INSERT ON public.financial_records
+  AFTER INSERT OR UPDATE ON public.financial_records
   FOR EACH ROW EXECUTE FUNCTION public.generate_commission_entries();
 
 COMMENT ON FUNCTION public.generate_commission_entries() IS
-  'Ao criar uma receita vinculada a um procedimento, gera 1 commission_entry por beneficiário ativo com regra pra esse procedimento (ou regra geral, se não houver específica). Snapshot congelado: mudar a regra depois não reprocessa receitas já lançadas. Excluir a receita (financial_records) apaga as entries junto via ON DELETE CASCADE.';
+  'Ao criar (ou editar valor/procedimento/tipo de) uma receita vinculada a um procedimento, gera 1 commission_entry por beneficiário ativo com regra pra esse procedimento (ou regra geral, se não houver específica). Regra em si é congelada por lançamento: mudar a % depois não reprocessa receitas já lançadas — só edições no próprio lançamento disparam recálculo. Excluir a receita apaga as entries junto via ON DELETE CASCADE.';
