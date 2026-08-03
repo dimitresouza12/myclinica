@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { connectGoogleCalendar, disconnectGoogleCalendar, isGCalConnected } from '@/lib/googleCalendar'
 import type { AuthClinic, ClinicDocumentTemplate, DocumentTemplateType, ClinicUser, UserRole } from '@/types'
+import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import styles from './configuracoes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { showToast } from '@/components/ui/Toast'
@@ -11,19 +12,13 @@ import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 
-const DOC_TEMPLATE_TYPES: { type: DocumentTemplateType; label: string }[] = [
-  { type: 'receita_comum',             label: 'Receita Comum' },
-  { type: 'receita_especial',          label: 'Receita Especial' },
-  { type: 'declaracao_comparecimento', label: 'Declaração de Comparecimento' },
-  { type: 'atestado',                  label: 'Atestado' },
-]
-
 const ROLE_LABELS: Record<UserRole, string> = {
-  recepcao:   'Recepção',
-  dentista:   'Dentista',
-  medico:     'Médico',
-  admin:      'Admin',
-  superadmin: 'Superadmin',
+  recepcao:     'Recepção',
+  dentista:     'Dentista',
+  medico:       'Médico',
+  profissional: 'Profissional',
+  admin:        'Admin',
+  superadmin:   'Superadmin',
 }
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024 // 2 MB
@@ -116,6 +111,9 @@ const BLANK_USER: UserForm = { display_name: '', username: '', email: '', passwo
 
 function ConfiguracoesContent() {
   const { clinic, user, setSession, setClinicLogo } = useAuthStore()
+  const specialty = getSpecialtyConfig(clinic?.type)
+  const DOC_TEMPLATE_TYPES = specialty.documents
+  const roleLabel = (role: string) => specialty.roles.find(r => r.value === role)?.label ?? ROLE_LABELS[role as UserRole] ?? role
   const [name, setName] = useState(clinic?.name ?? '')
   const [address, setAddress] = useState(clinic?.address ?? '')
   const [phone, setPhone] = useState(clinic?.phone ?? '')
@@ -830,7 +828,7 @@ function ConfiguracoesContent() {
                   </div>
                   <div className={styles.userBadges}>
                     {u.user_id === user?.id && <span className={styles.selfBadge}>Você</span>}
-                    <span className={styles.roleChip}>{ROLE_LABELS[u.role as UserRole] ?? u.role}</span>
+                    <span className={styles.roleChip}>{roleLabel(u.role)}</span>
                     <span className={`${styles.statusDot} ${u.is_active ? styles.statusDotActive : styles.statusDotInactive}`} title={u.is_active ? 'Ativo' : 'Inativo'} />
                   </div>
                   {u.user_id !== user?.id && (
@@ -958,7 +956,7 @@ function ConfiguracoesContent() {
         <h2 className={styles.cardTitle}>Informações da Conta</h2>
         <div className={styles.infoGrid}>
           <InfoRow label="Usuário" value={user?.displayName ?? '-'} />
-          <InfoRow label="Função" value={ROLE_LABELS[user?.role as UserRole] ?? user?.role ?? '-'} />
+          <InfoRow label="Função" value={user?.role ? roleLabel(user.role) : '-'} />
           <InfoRow label="Clínica ID" value={clinic?.id ?? '-'} mono />
           <InfoRow label="Plano" value={planLabel(clinic?.plan)} />
         </div>
@@ -1076,10 +1074,7 @@ function ConfiguracoesContent() {
               <div className={styles.field}>
                 <label>Função</label>
                 <select value={userForm.role} onChange={e => setUserForm(p => ({ ...p, role: e.target.value as UserRole }))}>
-                  <option value="recepcao">Recepção</option>
-                  <option value="dentista">Dentista</option>
-                  <option value="medico">Médico</option>
-                  <option value="admin">Admin (acesso total)</option>
+                  {specialty.roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </div>
 

@@ -9,6 +9,7 @@ import type { StockItem, StockMovement } from '@/types'
 import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useEstoqueData } from '@/hooks/useClinicData'
+import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import styles from './estoque.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
@@ -16,10 +17,8 @@ import { Icon } from '@/components/ui/Icon'
 
 const EstoqueChart = dynamic(() => import('./EstoqueChart'), { ssr: false, loading: () => null })
 
-const CATEGORIES = ['material', 'medicamento', 'descartavel', 'equipamento', 'outro']
 const UNITS = ['un', 'caixa', 'ml', 'L', 'kg', 'g', 'par', 'rolo']
 
-const BLANK_ITEM = { name: '', category: 'material', unit: 'un', quantity: 0, min_quantity: 5, cost_price: '', supplier: '', notes: '' }
 const BLANK_MOV = { quantity: '', reason: '', type: 'entrada' as 'entrada' | 'saida' | 'ajuste' }
 
 type Tab = 'produtos' | 'movimentacoes'
@@ -27,6 +26,8 @@ type ModalMode = 'item' | 'entrada' | 'saida' | null
 
 function EstoqueContent() {
   const { clinic, user } = useAuthStore()
+  const CATEGORIES = getSpecialtyConfig(clinic?.type).stockCategories
+  const blankItem = { name: '', category: CATEGORIES[0], unit: 'un', quantity: 0, min_quantity: 5, cost_price: '', supplier: '', notes: '' }
   const queryClient = useQueryClient()
   const { data: estoqueData, isLoading: loading } = useEstoqueData(clinic?.id)
   const items = estoqueData?.items ?? []
@@ -40,7 +41,7 @@ function EstoqueContent() {
   const [modal, setModal] = useState<ModalMode>(null)
   const [editingItem, setEditingItem] = useState<StockItem | null>(null)
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null)
-  const [itemForm, setItemForm] = useState(BLANK_ITEM)
+  const [itemForm, setItemForm] = useState(blankItem)
   const [movForm, setMovForm] = useState(BLANK_MOV)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -92,7 +93,7 @@ function EstoqueContent() {
 
   function openNewItem() {
     setEditingItem(null)
-    setItemForm(BLANK_ITEM)
+    setItemForm(blankItem)
     setError('')
     setModal('item')
   }

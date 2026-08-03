@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth'
 import { formatDate, formatCurrency, formatCurrencyCompact } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useFinanceiroData, useProcedures } from '@/hooks/useClinicData'
+import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -19,8 +20,6 @@ import { motion } from 'framer-motion'
 // Recharts – dynamic import to avoid SSR issues
 const Charts = dynamic(() => import('./FinanceiroCharts'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráficos...</div> })
 
-const CATEGORIAS_RECEITA = ['Consulta', 'Procedimento', 'Exame', 'Plano', 'Outros']
-const CATEGORIAS_DESPESA = ['Material', 'Salário', 'Aluguel', 'Equipamento', 'Marketing', 'Outros']
 
 interface NewRecord {
   type: 'receita' | 'despesa'
@@ -192,7 +191,8 @@ function FinanceiroContent() {
     loadData()
   }
 
-  const categorias = form.type === 'receita' ? CATEGORIAS_RECEITA : CATEGORIAS_DESPESA
+  const specialty = getSpecialtyConfig(clinic?.type)
+  const categorias = form.type === 'receita' ? specialty.financeCategoriasReceita : specialty.financeCategoriasDespesa
 
   const periodLabel =
     filterPeriod === 'diario' ? 'hoje' :

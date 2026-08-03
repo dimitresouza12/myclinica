@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
+import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import type { Professional } from '@/types'
 import styles from './equipe.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -16,11 +17,17 @@ const BLANK: NewProf = { name: '', specialty: '' }
 
 function EquipeContent() {
   const { clinic } = useAuthStore()
+  const specialtySuggestions = getSpecialtyConfig(clinic?.type).professionalSpecialties
   const [professionals, setProfessionals] = useState<Professional[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<NewProf>(BLANK)
   const [saving, setSaving] = useState(false)
+  const [showSpecialtySuggestions, setShowSpecialtySuggestions] = useState(false)
+
+  const filteredSpecialtySuggestions = specialtySuggestions.filter(s =>
+    s.toLowerCase().includes(form.specialty.trim().toLowerCase())
+  )
 
   useScrollLock(showModal)
 
@@ -57,6 +64,7 @@ function EquipeContent() {
     setSaving(false)
     setShowModal(false)
     setForm(BLANK)
+    setShowSpecialtySuggestions(false)
     loadData()
   }
 
@@ -121,7 +129,29 @@ function EquipeContent() {
               </div>
               <div className={styles.field}>
                 <label>Especialidade</label>
-                <input value={form.specialty} onChange={(e) => setForm((p) => ({ ...p, specialty: e.target.value }))} placeholder="Ex: Ortodontia, Clínico Geral..." />
+                <input
+                  value={form.specialty}
+                  onChange={(e) => { setForm((p) => ({ ...p, specialty: e.target.value })); setShowSpecialtySuggestions(true) }}
+                  onFocus={() => setShowSpecialtySuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSpecialtySuggestions(false), 150)}
+                  placeholder="Ex: Ortodontia, Clínico Geral..."
+                  autoComplete="off"
+                />
+                {showSpecialtySuggestions && filteredSpecialtySuggestions.length > 0 && (
+                  <div className={styles.suggestionsDropdown}>
+                    {filteredSpecialtySuggestions.map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={styles.suggestionItem}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { setForm(p => ({ ...p, specialty: s })); setShowSpecialtySuggestions(false) }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className={styles.modalFooter}>

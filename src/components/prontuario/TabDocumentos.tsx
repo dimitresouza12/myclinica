@@ -3,15 +3,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { printDocumento } from '@/lib/print'
+import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import type { Patient, ClinicDocumentTemplate, DocumentTemplateType } from '@/types'
 import styles from './TabDocumentos.module.css'
-
-const DOC_TYPES: { type: DocumentTemplateType; label: string; title: string }[] = [
-  { type: 'receita_comum',               label: 'Receita Comum',               title: 'RECEITA MÉDICA' },
-  { type: 'receita_especial',            label: 'Receita Especial',             title: 'RECEITA DE CONTROLE ESPECIAL' },
-  { type: 'declaracao_comparecimento',   label: 'Declaração de Comparecimento', title: 'DECLARAÇÃO DE COMPARECIMENTO' },
-  { type: 'atestado',                    label: 'Atestado',                     title: 'ATESTADO MÉDICO' },
-]
 
 interface Props {
   patient: Patient
@@ -19,7 +13,8 @@ interface Props {
 
 export function TabDocumentos({ patient }: Props) {
   const { clinic, user } = useAuthStore()
-  const [selectedType, setSelectedType] = useState<DocumentTemplateType>('receita_comum')
+  const DOC_TYPES = getSpecialtyConfig(clinic?.type).documents
+  const [selectedType, setSelectedType] = useState<DocumentTemplateType>(DOC_TYPES[0]?.type ?? 'declaracao_comparecimento')
   const [templates, setTemplates] = useState<ClinicDocumentTemplate[]>([])
   const [templatesLoaded, setTemplatesLoaded] = useState(false)
   const [bgImage, setBgImage] = useState<string | null>(null)

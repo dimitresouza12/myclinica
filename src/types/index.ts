@@ -1,5 +1,5 @@
 export type ClinicType = 'odonto' | 'medico' | 'estetica' | 'vet' | 'fisio' | 'psico' | 'nutri'
-export type UserRole = 'recepcao' | 'dentista' | 'medico' | 'admin' | 'superadmin'
+export type UserRole = 'recepcao' | 'dentista' | 'medico' | 'profissional' | 'admin' | 'superadmin'
 export type AppointmentStatus = 'agendado' | 'confirmado' | 'concluido' | 'cancelado' | 'faltou'
 export type PaymentMethod = 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'convenio' | 'outro'
 

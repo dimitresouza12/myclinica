@@ -36,13 +36,28 @@
   /* Touch targets mínimos 44px */
   .btnClose { width: 44px; height: 44px; }
 }
-.field { display: flex; flex-direction: column; gap: 0.3rem; }
+.field { display: flex; flex-direction: column; gap: 0.3rem; position: relative; }
 .field label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
 .field input { padding: 0.6rem 0.875rem; min-height: 44px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.875rem; outline: none; transition: border-color .15s, box-shadow .15s; }
 .field input:focus { border-color: #4DD9C0; box-shadow: 0 0 0 3px rgba(77,217,192,0.15); }
 .hint { font-size: 0.72rem; color: var(--text-secondary); }
+
+.suggestionsDropdown {
+  position:absolute; top:100%; left:0; right:0; margin-top:.3rem;
+  background:var(--bg-primary); border:1px solid var(--border-color); border-radius:10px;
+  box-shadow:var(--shadow-md); max-height:220px; overflow-y:auto; z-index:20;
+  -webkit-overflow-scrolling:touch;
+}
+.suggestionItem {
+  display:block; width:100%; text-align:left; padding:.6rem .875rem;
+  background:none; border:none; font-size:.875rem; color:var(--text-primary);
+  cursor:pointer; transition:background .12s;
+}
+.suggestionItem:hover, .suggestionItem:focus-visible { background:var(--bg-secondary); }
+.suggestionItem:not(:last-child) { border-bottom:1px solid var(--border-subtle); }
 .btnCancel { padding: 0.55rem 1rem; min-height: 44px; border: 1px solid var(--border-color); background: none; border-radius: 10px; font-size: 0.875rem; color: var(--text-secondary); cursor: pointer; transition: background .15s; }
 .btnCancel:hover { background: var(--bg-secondary); }
 .btnSave { padding: 0.55rem 1.25rem; min-height: 44px; background: #4DD9C0; color: #0D2421; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; }
 .btnSave:hover:not(:disabled) { background: #3CCCB4; transform: translateY(-1px); }
 .btnSave:disabled { opacity: 0.5; cursor: not-allowed; }
+

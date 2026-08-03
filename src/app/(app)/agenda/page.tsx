@@ -10,6 +10,7 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsApp } from '@/lib/planGates'
 import { useProfessionals, useProcedures, useAgendaData } from '@/hooks/useClinicData'
+import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Appointment, Patient, Professional, Procedure } from '@/types'
 import { type CalendarEvent, type FullCalendarHandle } from '@/components/agenda/FullCalendarWrapper'
@@ -269,6 +270,8 @@ function ApptDetailContent({
 // ── Main component ─────────────────────────────────────────────
 function AgendaContent() {
   const { clinic, user, setSession } = useAuthStore()
+  const defaultDuration = getSpecialtyConfig(clinic?.type).defaultDurationMinutes
+  const blankAppt = useCallback((): NewAppt => ({ ...BLANK, duration_minutes: defaultDuration }), [defaultDuration])
   const queryClient = useQueryClient()
   const { data: agendaData, isLoading: loading } = useAgendaData(clinic?.id)
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -281,7 +284,7 @@ function AgendaContent() {
   const [hiddenProfIds, setHiddenProfIds] = useState<Set<string>>(new Set())
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<NewAppt>(BLANK)
+  const [form, setForm] = useState<NewAppt>(blankAppt)
   const [saving, setSaving] = useState(false)
   const [syncToGCal, setSyncToGCal] = useState(false)
   const [filterStatus, setFilterStatus] = useState('')
@@ -515,7 +518,7 @@ function AgendaContent() {
   }
 
   function handleDateSelect(dateStr: string) {
-    setForm({ ...BLANK, scheduled_at: dateStr.length <= 10 ? dateStr + 'T09:00' : dateStr })
+    setForm({ ...blankAppt(), scheduled_at: dateStr.length <= 10 ? dateStr + 'T09:00' : dateStr })
     setShowModal(true)
   }
 
@@ -643,13 +646,13 @@ function AgendaContent() {
       }
 
       setShowModal(false)
-      setForm(BLANK)
+      setForm(blankAppt())
       setEditingId(null)
       loadData()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       if (msg.toLowerCase().includes('load failed') || msg.toLowerCase().includes('network')) {
-        setShowModal(false); setForm(BLANK); setEditingId(null); loadData()
+        setShowModal(false); setForm(blankAppt()); setEditingId(null); loadData()
       } else {
         setSaveError(`Erro inesperado: ${msg}`)
       }
@@ -725,7 +728,7 @@ function AgendaContent() {
   function closeModal() {
     setShowModal(false)
     setEditingId(null)
-    setForm(BLANK)
+    setForm(blankAppt())
     setSaveError('')
     setShowNewPatient(false)
     setNpName('')

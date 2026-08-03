@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { useOnboardingCounts } from '@/hooks/useClinicData'
+import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import type { Procedure } from '@/types'
 
 export interface OnboardingItem {
@@ -20,6 +21,7 @@ export function useOnboardingItems(procedures: Procedure[], patientsCount: numbe
   const dismissOnboardingItem = useAuthStore(s => s.dismissOnboardingItem)
   const { data: counts } = useOnboardingCounts(clinic?.id)
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const clinicalRoleLabel = getSpecialtyConfig(clinic?.type).roles.find(r => r.value !== 'recepcao' && r.value !== 'admin')?.label ?? 'profissionais'
 
   const activeProcedures = procedures.filter(p => p.is_active)
   const pendingPriceCount = activeProcedures.filter(p => p.price === 0 && !p.is_free).length
@@ -37,7 +39,7 @@ export function useOnboardingItems(procedures: Procedure[], patientsCount: numbe
     },
     {
       key: 'team',
-      label: 'Cadastre sua equipe (dentistas, médicos...)',
+      label: `Cadastre sua equipe (${clinicalRoleLabel.toLowerCase()})`,
       done: (counts?.professionalsCount ?? 0) > 0,
       href: '/equipe',
       cta: 'Ir para Equipe',

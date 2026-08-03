@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { formatDate } from '@/lib/utils'
+import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import type { ClinicUser, Clinic } from '@/types'
 import styles from './admin.module.css'
 
@@ -12,11 +13,12 @@ interface Props {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  admin:      'Admin',
-  recepcao:   'Recepção',
-  dentista:   'Dentista',
-  medico:     'Médico',
-  superadmin: 'Superadmin',
+  admin:        'Admin',
+  recepcao:     'Recepção',
+  dentista:     'Dentista',
+  medico:       'Médico',
+  profissional: 'Profissional',
+  superadmin:   'Superadmin',
 }
 
 export function AdminUsuarios({ users, clinics }: Props) {
@@ -31,6 +33,11 @@ export function AdminUsuarios({ users, clinics }: Props) {
 
   function initials(name: string) {
     return name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+  }
+
+  function roleLabel(u: UserWithClinic) {
+    const clinicType = clinics.find(c => c.id === u.clinic_id)?.clinic_type
+    return getSpecialtyConfig(clinicType).roles.find(r => r.value === u.role)?.label ?? ROLE_LABELS[u.role] ?? u.role
   }
 
   return (
@@ -63,7 +70,7 @@ export function AdminUsuarios({ users, clinics }: Props) {
                   </div>
                 </td>
                 <td data-label="Clínica">{u.clinics?.name ?? <span className={styles.dimText}>—</span>}</td>
-                <td data-label="Função"><span className={styles.roleChip}>{ROLE_LABELS[u.role] ?? u.role}</span></td>
+                <td data-label="Função"><span className={styles.roleChip}>{roleLabel(u)}</span></td>
                 <td data-label="Status">
                   <span className={`${styles.statusPill} ${u.is_active ? styles.statusActive : styles.statusInactive}`}>
                     {u.is_active ? 'Ativo' : 'Inativo'}
