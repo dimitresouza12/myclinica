@@ -9,6 +9,7 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { useProfessionals, useProcedures, useRelatoriosRawData, useCommissionsData } from '@/hooks/useClinicData'
 import styles from './relatorios.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 const { FinanceiroBarChart, PacientesBarChart } = {
   FinanceiroBarChart: dynamic(() => import('./RelatoriosCharts').then(m => m.FinanceiroBarChart), { ssr: false, loading: () => <div className={styles.loading}>Carregando gráfico...</div> }),
@@ -330,14 +331,15 @@ function RelatoriosContent() {
           <p className={styles.sub}>Análise completa de desempenho da clínica</p>
         </div>
         <div className={styles.headerActions}>
-          <div className={styles.selectWrap}>
-            <select className={styles.periodSelect} value={period} onChange={e => setPeriod(e.target.value)}>
-              <option value="3m">Últimos 3 meses</option>
-              <option value="6m">Últimos 6 meses</option>
-              <option value="12m">Últimos 12 meses</option>
-            </select>
-            <Icon name="chevronDown" size={14} className={styles.selectChevron} />
-          </div>
+          <SelectMenu
+            value={period}
+            onChange={setPeriod}
+            options={[
+              { value: '3m', label: 'Últimos 3 meses' },
+              { value: '6m', label: 'Últimos 6 meses' },
+              { value: '12m', label: 'Últimos 12 meses' },
+            ]}
+          />
           <button className={styles.btnExport} onClick={() => setShowExportModal(true)}>
             <Icon name="download" size={14} /> Exportar planilha
           </button>

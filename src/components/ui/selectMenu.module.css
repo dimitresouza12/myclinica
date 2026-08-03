@@ -1,0 +1,38 @@
+.wrap { position: relative; display: inline-flex; }
+
+.trigger {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .5rem .875rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: .84rem; font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.trigger:hover { border-color: #4DD9C0; }
+.trigger:focus-visible { border-color: #4DD9C0; box-shadow: 0 0 0 3px rgba(77,217,192,.15); outline: none; }
+.chevron { color: var(--text-tertiary); flex-shrink: 0; }
+
+.popover {
+  position: fixed; z-index: 300;
+  background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 12px;
+  box-shadow: var(--shadow-lg); padding: .4rem; max-height: 280px; overflow-y: auto;
+  animation: popIn .15s ease both;
+}
+@keyframes popIn { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+
+.option {
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+  width: 100%; padding: .55rem .7rem;
+  border: none; border-radius: 8px; background: none;
+  color: var(--text-primary); font-size: .84rem; font-weight: 500;
+  text-align: left; cursor: pointer; white-space: nowrap;
+  transition: background .12s;
+}
+.option:hover { background: var(--bg-secondary); }
+.optionActive { font-weight: 700; color: #0B9B85; }
+.optionActive svg { flex-shrink: 0; color: #0B9B85; }

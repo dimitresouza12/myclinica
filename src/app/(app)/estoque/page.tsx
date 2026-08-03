@@ -14,6 +14,7 @@ import styles from './estoque.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 const EstoqueChart = dynamic(() => import('./EstoqueChart'), { ssr: false, loading: () => null })
 
@@ -231,13 +232,11 @@ function EstoqueContent() {
         {tab === 'produtos' && (
           <div className={styles.filters}>
             <input className={styles.search} placeholder="Buscar produto ou fornecedor..." value={search} onChange={e => setSearch(e.target.value)} />
-            <div className={styles.selectWrap}>
-              <select className={styles.select} value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
-                <option value="">Todas as categorias</option>
-                {CATEGORIES.map(c => <option key={c} value={c}>{stockCategoryLabel(c)}</option>)}
-              </select>
-              <Icon name="chevronDown" size={14} className={styles.selectChevron} />
-            </div>
+            <SelectMenu
+              value={filterCategory}
+              onChange={setFilterCategory}
+              options={[{ value: '', label: 'Todas as categorias' }, ...CATEGORIES.map(c => ({ value: c, label: stockCategoryLabel(c) }))]}
+            />
             <label className={styles.checkLabel}>
               <input type="checkbox" checked={filterLow} onChange={e => setFilterLow(e.target.checked)} />
               Estoque baixo
@@ -246,15 +245,16 @@ function EstoqueContent() {
         )}
         {tab === 'movimentacoes' && (
           <div className={styles.filters}>
-            <div className={styles.selectWrap}>
-              <select className={styles.select} value={filterMovType} onChange={e => setFilterMovType(e.target.value)}>
-                <option value="">Todos os tipos</option>
-                <option value="entrada">Entrada</option>
-                <option value="saida">Saída</option>
-                <option value="ajuste">Ajuste</option>
-              </select>
-              <Icon name="chevronDown" size={14} className={styles.selectChevron} />
-            </div>
+            <SelectMenu
+              value={filterMovType}
+              onChange={setFilterMovType}
+              options={[
+                { value: '', label: 'Todos os tipos' },
+                { value: 'entrada', label: 'Entrada' },
+                { value: 'saida', label: 'Saída' },
+                { value: 'ajuste', label: 'Ajuste' },
+              ]}
+            />
           </div>
         )}
       </div>
