@@ -256,7 +256,11 @@
 /* userRow responsivo */
 @media (max-width: 480px) {
   .userRow { flex-wrap: wrap; }
-  .userBadges { order: 3; }
+  /* width:100% (não só order) é o que força a quebra pra linha própria —
+     sem isso, os badges (flex-shrink:0, ~190px) ficam na mesma linha do
+     avatar+nome e espremem .userInfo (flex:1) quase a zero, colapsando o
+     nome/e-mail numa coluna de 1 caractere de largura. */
+  .userBadges { order: 3; width: 100%; margin-top: 0.3rem; }
   .userRow > div:last-child { order: 4; width: 100%; display: flex; gap: 0.4rem; }
   .btnEditUser, .btnDeactivate, .btnReactivate { flex: 1; justify-content: center; text-align: center; }
   .modalFooter { flex-direction: column-reverse; }
