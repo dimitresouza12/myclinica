@@ -831,15 +831,18 @@ function ConfiguracoesContent() {
                     <span className={styles.roleChip}>{roleLabel(u.role)}</span>
                     <span className={`${styles.statusDot} ${u.is_active ? styles.statusDotActive : styles.statusDotInactive}`} title={u.is_active ? 'Ativo' : 'Inativo'} />
                   </div>
-                  {u.user_id !== user?.id && (
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
-                      <button className={styles.btnEditUser} onClick={() => openEditUser(u)}>Editar</button>
-                      {u.is_active
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button className={styles.btnEditUser} onClick={() => openEditUser(u)}>Editar</button>
+                    {/* Desativar/reativar a própria conta é bloqueado pela RPC
+                        (cannot_deactivate_self) — nem mostra o botão pra evitar
+                        o usuário bater nesse erro à toa. Editar (nome, função)
+                        continua liberado pra própria conta. */}
+                    {u.user_id !== user?.id && (
+                      u.is_active
                         ? <button className={styles.btnDeactivate} onClick={() => setConfirmModal({ type: 'deactivate', user: u })}>Desativar</button>
                         : <button className={styles.btnReactivate} onClick={() => setConfirmModal({ type: 'reactivate', user: u })}>Reativar</button>
-                      }
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               ))}
               {clinicUsers.length === 0 && (
@@ -1153,7 +1156,7 @@ function ConfiguracoesContent() {
                 </div>
               )}
 
-              {editingUser && (
+              {editingUser && editingUser.user_id !== user?.id && (
                 <div className={styles.toggleRow}>
                   <span className={styles.toggleLabel}>Usuário ativo</span>
                   <label className={styles.toggleSwitch}>
@@ -1168,7 +1171,7 @@ function ConfiguracoesContent() {
               )}
             </div>
             <div className={styles.modalFooter}>
-              {editingUser && (
+              {editingUser && editingUser.user_id !== user?.id && (
                 <button
                   className={styles.btnDelete}
                   onClick={() => { closeUserModal(); setConfirmModal({ type: 'delete', user: editingUser }) }}
