@@ -1,7 +1,7 @@
 'use client'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AuthClinic, AuthUser } from '@/types'
+import type { AuthClinic, AuthUser, ClinicType } from '@/types'
 
 interface AuthState {
   clinic: AuthClinic | null
@@ -13,6 +13,7 @@ interface AuthState {
   clearSession: () => void
   setHydrated: () => void
   setClinicLogo: (logo: string) => void
+  addClinicSpecialty: (type: ClinicType) => void
   dismissOnboardingItem: (key: string) => void
   markOnboardingModalSeen: () => void
   startImpersonation: (clinicId: string, clinicName: string) => void
@@ -33,6 +34,14 @@ export const useAuthStore = create<AuthState>()(
       },
       setHydrated: () => set({ _hydrated: true }),
       setClinicLogo: (logo) => set((s) => s.clinic ? { clinic: { ...s.clinic, logo } } : {}),
+      // O RPC de criar/editar usuário já grava a área nova em
+      // clinics.specialties no banco — isso só espelha localmente pra não
+      // repetir o mesmo bug do plano em cache (userLimitFor "1 de 1" com
+      // plano completo): sem isso, o seletor de área da PRÓXIMA pessoa
+      // criada não veria a área que acabou de ser adicionada até relogar.
+      addClinicSpecialty: (type) => set((s) => s.clinic && !s.clinic.specialties.includes(type)
+        ? { clinic: { ...s.clinic, specialties: [...s.clinic.specialties, type] } }
+        : {}),
       // (s.clinic.onboardingDismissed ?? []): sessões salvas no navegador antes
       // desse campo existir vêm sem ele — persist do zustand não migra dados
       // antigos sozinho, então sem o fallback isso quebraria pra quem já

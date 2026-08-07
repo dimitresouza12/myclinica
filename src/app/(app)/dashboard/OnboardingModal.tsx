@@ -53,6 +53,13 @@ export function OnboardingModal({ procedures, patientsCount }: Props) {
             <button className={styles.onbModalCloseX} onClick={handleClose}><Icon name="close" size={18} /></button>
           </div>
           <div className={styles.onbModalBody}>
+            <div className={styles.roleInfoBox}>
+              <p className={styles.roleInfoTitle}>Como funciona o acesso por cargo</p>
+              <p className={styles.roleInfoText}>
+                Cada pessoa que você cadastrar em Equipe recebe um cargo — Recepção, Auxiliar, o cargo clínico da especialidade ou Admin — e já vem com um conjunto de permissões pronto (dá pra ajustar depois). Você, como admin, sempre enxerga tudo.
+                {clinic.founderIsProfessional && ' Isso inclui a agenda e o prontuário — não precisa de um preset separado pra você.'}
+              </p>
+            </div>
             {visible.map(item => (
               <div key={item.key} className={styles.onboardingItem}>
                 <span className={styles.onboardingItemLabel}>{item.label}</span>

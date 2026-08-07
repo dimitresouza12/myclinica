@@ -1,0 +1,466 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ── Session bar ── */
+.sessionBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1.5px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+.sessionTabs {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.sessionTab {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.75rem;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.sessionTab:hover { background: var(--bg-secondary); }
+.sessionTabActive {
+  background: var(--brand-primary) !important;
+  color: #fff !important;
+  border-color: var(--brand-primary) !important;
+}
+.sessionDel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.25);
+  color: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+.sessionTabActive .sessionDel:hover { background: rgba(255,255,255,0.40); }
+.sessionDel:hover { background: var(--border-color); }
+
+.btnNewSession {
+  padding: 0.28rem 0.8rem;
+  border: 1.5px dashed var(--border-color);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+.btnNewSession:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
+
+/* ── Layout ── */
+.layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+/* ── Body column ── */
+.bodyCol {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  width: 230px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 0.5rem 0.75rem;
+}
+.toolbarLabel {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+  margin-right: 0.15rem;
+  flex-shrink: 0;
+}
+.toolBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.toolBtn:hover {
+  background: var(--tbg, #d1fae5);
+  color: var(--tc, #10b981);
+  border-color: var(--tc, #10b981);
+}
+.toolBtnActive {
+  background: var(--tbg, #d1fae5) !important;
+  color: var(--tc, #10b981) !important;
+  border-color: var(--tc, #10b981) !important;
+}
+.toolDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.toolLabel { white-space: nowrap; }
+
+/* ── Frente/Costas toggle ── */
+.viewToggle {
+  display: flex;
+  gap: 0.3rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 0.3rem;
+}
+.viewBtn {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.viewBtn:hover { background: var(--bg-primary); }
+.viewBtnActive {
+  background: var(--brand-primary) !important;
+  color: #fff !important;
+}
+
+.bodyWrap {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  padding: 10px;
+}
+.bodySvg {
+  width: 100%;
+  display: block;
+  border-radius: 8px;
+}
+.bodyHint {
+  font-size: 0.67rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: 0 0.5rem;
+}
+
+/* ── Side panel ── */
+.sidePanel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sideSec {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 0.875rem 1rem;
+}
+.sideLabel {
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+  margin-bottom: 0.35rem;
+  display: block;
+}
+.dateInput {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.notesArea {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+/* ── Annotation editor panel ── */
+.annPanel {
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--ann-color, #10b981);
+  border-radius: var(--radius-lg);
+  padding: 0.875rem 1rem;
+  animation: slideUp 0.15s ease both;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: none; }
+}
+.annHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.annDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.annTitle {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+}
+.annDel {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.annDel:hover { background: #fee2e2; color: #ef4444; }
+
+.annFields { display: flex; flex-direction: column; gap: 0.65rem; }
+.annField  { display: flex; flex-direction: column; gap: 0.25rem; }
+.annFieldLabel {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.typeGrid { display: flex; flex-wrap: wrap; gap: 0.28rem; }
+.typeBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.48rem;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.typeBtn:hover, .typeBtnActive {
+  background: var(--tbg, #d1fae5) !important;
+  color: var(--tc, #10b981) !important;
+  border-color: var(--tc, #10b981) !important;
+}
+.annInput {
+  padding: 0.38rem 0.6rem;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.annNote {
+  padding: 0.4rem 0.6rem;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-family: inherit;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Annotation list ── */
+.annList { display: flex; flex-direction: column; gap: 0.28rem; }
+.annItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.38rem 0.5rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.1s;
+  border: 1.5px solid transparent;
+}
+.annItem:hover { background: var(--bg-primary); }
+.annItemActive {
+  background: var(--bg-primary) !important;
+  border-color: var(--ann-color, var(--brand-primary)) !important;
+}
+.annItemDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.annItemBody { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem; min-width: 0; }
+.annItemName { font-size: 0.78rem; font-weight: 600; color: var(--text-primary); }
+.annItemQty  {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+.annItemNote {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+/* ── Empty state ── */
+.emptyHint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2rem 1rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+/* ── Save row ── */
+.saveRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+.savedMsg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+  color: #059669;
+  font-weight: 600;
+}
+.btnSave {
+  padding: 0.6rem 1.5rem;
+  background: var(--brand-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btnSave:hover:not(:disabled) { opacity: 0.88; }
+.btnSave:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Mobile ── */
+@media (max-width: 680px) {
+  .layout   { flex-direction: column; }
+  .bodyCol  { width: 100%; }
+
+  /* Toolbar: horizontal scroll, bigger touch targets */
+  .toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0.35rem;
+    padding: 0.5rem 0.5rem;
+  }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .toolbarLabel { display: none; }
+  .toolBtn {
+    flex-shrink: 0;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.45rem 0.6rem;
+    min-width: 52px;
+    min-height: 44px;
+    font-size: 0.62rem;
+    text-align: center;
+  }
+  .toolDot {
+    width: 10px;
+    height: 10px;
+    margin: 0 auto;
+  }
+  .toolLabel {
+    display: block;
+    font-size: 0.58rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 52px;
+  }
+
+  /* Body canvas: keep a sane max height so it doesn't dominate the screen */
+  .bodyWrap { padding: 6px; }
+  .bodySvg { max-height: 60vh; }
+
+  .bodyHint { font-size: 0.65rem; }
+}

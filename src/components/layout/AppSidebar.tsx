@@ -10,6 +10,20 @@ import { Icon } from '@/components/ui/Icon'
 import type { AuthClinic, AuthUser } from '@/types'
 import styles from './AppSidebar.module.css'
 import { hasWhatsApp } from '@/lib/planGates'
+import { getSpecialtyConfig, specialtyRoleLabel } from '@/lib/specialtyConfig'
+
+// Rótulo humano do cargo — mesmo padrão de configuracoes/page.tsx e
+// AdminUsuarios.tsx: primeiro tenta o rótulo específico da especialidade da
+// clínica (ex: "Dentista", "Esteticista"), com fallback genérico.
+const ROLE_LABELS_FALLBACK: Record<string, string> = {
+  admin:        'Admin',
+  recepcao:     'Recepção',
+  auxiliar:     'Auxiliar',
+  dentista:     'Dentista',
+  medico:       'Médico',
+  profissional: 'Profissional',
+  superadmin:   'Superadmin',
+}
 
 const NAV = [
   { path: '/dashboard',     label: 'Dashboard',     icon: 'dashboard'  as const, plusOnly: false },
@@ -43,6 +57,16 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   const [collapsed, setCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const isAdmin = user.role === 'admin' || user.isSuperAdmin
+  // specialtyType manda quando existe — é o que diferencia "Nutricionista"
+  // de "Esteticista" numa clínica multi-área (os dois têm o mesmo cargo
+  // genérico 'profissional' no banco).
+  const roleLabel = user.isSuperAdmin
+    ? 'Superadmin'
+    : user.specialtyType
+      ? specialtyRoleLabel(user.specialtyType)
+      : getSpecialtyConfig(clinic.type).roles.find(r => r.value === user.role)?.label
+        ?? ROLE_LABELS_FALLBACK[user.role]
+        ?? user.role
 
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed')
@@ -187,7 +211,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
         <div className={styles.avatar}>{initials}</div>
         <div className={styles.userInfo}>
           <span className={styles.userName}>{user.displayName}</span>
-          <span className={styles.userRole}>{user.role}</span>
+          <span className={styles.userRole}>{roleLabel}</span>
         </div>
         <button onClick={handleLogout} className={styles.logoutBtn} title="Sair">
           <Icon name="logout" size={15} />

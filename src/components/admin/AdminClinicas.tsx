@@ -10,6 +10,7 @@ import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './admin.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 
 function waLink(phone: string, clinicName: string): string {
   const clean = phone.replace(/\D/g, '')
@@ -198,10 +199,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
               <div className={styles.field}>
                 <label>Tipo</label>
                 <select className={styles.fieldInput} value={newForm.clinic_type} onChange={(e) => setNewForm((p) => ({ ...p, clinic_type: e.target.value }))}>
-                  <option value="odonto">Odontologia</option>
-                  <option value="medico">Medicina</option>
-                  <option value="estetica">Estética</option>
-                  <option value="vet">Veterinária</option>
+                  {CLINIC_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
             </div>

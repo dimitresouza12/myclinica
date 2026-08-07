@@ -10,12 +10,12 @@
 .sub { font-size:0.8rem; color:var(--text-secondary); margin-top:0.2rem; }
 .headerActions { display:flex; gap:0.625rem; }
 
-.btnReceita { display:inline-flex; align-items:center; gap:.375rem; padding:.45rem .875rem; background:rgba(5,150,105,.08); color:#059669; border:1px solid rgba(5,150,105,.25); border-radius:10px; font-size:.84rem; font-weight:600; cursor:pointer; transition:background .15s,border-color .15s; white-space:nowrap; }
-.btnDespesa { display:inline-flex; align-items:center; gap:.375rem; padding:.45rem .875rem; background:rgba(220,38,38,.07); color:#DC2626; border:1px solid rgba(220,38,38,.2); border-radius:10px; font-size:.84rem; font-weight:600; cursor:pointer; transition:background .15s,border-color .15s; white-space:nowrap; }
-.btnReceita:hover { background:rgba(5,150,105,.14); border-color:rgba(5,150,105,.4); }
-.btnDespesa:hover { background:rgba(220,38,38,.13); border-color:rgba(220,38,38,.35); }
-.btnExport { display:inline-flex; align-items:center; gap:.4rem; padding:0.6rem 1.1rem; background:var(--bg-primary); color:var(--text-secondary); border:1px solid var(--border-color); border-radius:10px; font-size:0.875rem; font-weight:600; cursor:pointer; transition:all .15s; }
-.btnExport:hover:not(:disabled) { border-color:#4DD9C0; color:#0B9B85; background:rgba(77,217,192,0.06); }
+.btnReceita { display:inline-flex; align-items:center; gap:.375rem; padding:.45rem .875rem; min-height:44px; background:rgba(5,150,105,.1); color:#059669; border:none; border-radius:999px; font-size:.84rem; font-weight:600; cursor:pointer; transition:background .15s; white-space:nowrap; }
+.btnDespesa { display:inline-flex; align-items:center; gap:.375rem; padding:.45rem .875rem; min-height:44px; background:rgba(220,38,38,.08); color:#DC2626; border:none; border-radius:999px; font-size:.84rem; font-weight:600; cursor:pointer; transition:background .15s; white-space:nowrap; }
+.btnReceita:hover { background:rgba(5,150,105,.18); }
+.btnDespesa:hover { background:rgba(220,38,38,.15); }
+.btnExport { display:inline-flex; align-items:center; gap:.4rem; padding:0.6rem 1.1rem; min-height:44px; background:var(--bg-tertiary); color:var(--text-secondary); border:none; border-radius:999px; font-size:0.875rem; font-weight:600; cursor:pointer; transition:all .15s; }
+.btnExport:hover:not(:disabled) { color:#0B9B85; background:rgba(77,217,192,0.14); }
 .btnExport:disabled { opacity:0.4; cursor:not-allowed; }
 
 .periodBar { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:14px; padding:.4rem .75rem; box-shadow:var(--shadow-sm); }
@@ -48,16 +48,28 @@
 .sectionHeader { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.25rem; border-bottom:1px solid var(--border-color); gap:0.75rem; flex-wrap:wrap; }
 .filterRow { display:flex; align-items:center; gap:0.625rem; flex-wrap:wrap; }
 .filterTabs { display:flex; border-bottom:1px solid var(--border-subtle); }
-.filterTab { display:inline-flex; align-items:center; gap:0.4rem; padding:0.65rem 1.25rem; border:none; border-bottom:2px solid transparent; background:none; font-size:0.82rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; white-space:nowrap; }
+.filterTab { display:inline-flex; align-items:center; gap:0.4rem; padding:0.65rem 1.25rem; min-height:44px; border:none; border-bottom:2px solid transparent; background:none; font-size:0.82rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; white-space:nowrap; }
 .filterTab:hover { color:var(--text-primary); }
 .filterTabActive { color:var(--text-primary); font-weight:700; border-bottom-color:#4DD9C0; }
 .filterDot { width:7px; height:7px; border-radius:999px; flex-shrink:0; }
 .periodTabs { display:flex; border-bottom:1px solid var(--border-subtle); }
-.periodTab { padding:0.65rem 1.25rem; border:none; border-bottom:2px solid transparent; background:none; font-size:0.78rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; white-space:nowrap; }
+.periodTab { padding:0.65rem 1.25rem; min-height:44px; border:none; border-bottom:2px solid transparent; background:none; font-size:0.78rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; white-space:nowrap; }
 .periodTab:hover { color:var(--text-primary); }
 .periodTabActive { color:var(--text-primary); font-weight:700; border-bottom-color:#4DD9C0; }
 .monthInput { padding:0.4rem 0.75rem; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-primary); color:var(--text-primary); font-size:0.82rem; outline:none; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
 .monthInput:focus { border-color:#4DD9C0; box-shadow:0 0 0 3px rgba(77,217,192,0.15); }
+.patientFilters { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
+.patientSearchBox { position:relative; display:flex; align-items:center; gap:0.4rem; padding:0.45rem 0.75rem; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-primary); color:var(--text-tertiary); }
+.patientSearchInput { border:none; outline:none; background:none; font-size:0.82rem; color:var(--text-primary); width:220px; font-family:inherit; }
+.patientSearchInput::placeholder { color:var(--text-tertiary); }
+.patientSearchClear { display:flex; align-items:center; justify-content:center; width:18px; height:18px; border:none; background:var(--bg-secondary); border-radius:50%; color:var(--text-tertiary); cursor:pointer; flex-shrink:0; transition:background .15s,color .15s; }
+.patientSearchClear:hover { background:var(--bg-tertiary); color:var(--text-primary); }
+.patientSuggestions { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:20; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:10px; box-shadow:var(--shadow-md); overflow:hidden; max-height:240px; overflow-y:auto; }
+.patientSuggestion { display:block; width:100%; text-align:left; padding:0.55rem 0.75rem; border:none; background:none; font-size:0.82rem; color:var(--text-primary); cursor:pointer; transition:background .12s; }
+.patientSuggestion:hover { background:rgba(77,217,192,0.1); }
+.patientSuggestion + .patientSuggestion { border-top:1px solid var(--border-subtle); }
+.patientSummary { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; padding:0.75rem 1.25rem; background:var(--bg-primary); border-left:3px solid var(--brand-primary); border-bottom:1px solid var(--border-color); font-size:0.82rem; color:var(--text-secondary); }
+.appointmentLink { display:flex; align-items:center; gap:0.4rem; padding:0.6rem 0.75rem; margin-bottom:1rem; background:var(--bg-secondary); border-radius:8px; font-size:0.8rem; color:var(--text-secondary); }
 .loading { color:var(--text-secondary); padding:2rem 1.25rem; }
 .tableWrap { overflow-x:auto; }
 .table { width:100%; border-collapse:collapse; font-size:0.855rem; }
@@ -110,10 +122,10 @@
 
 /* Row actions (edit/delete) */
 .rowActions { display:flex; gap:0.5rem; align-items:center; }
-.btnEdit { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--border-color); background:none; border-radius:8px; cursor:pointer; color:var(--text-secondary); font-size:0.9rem; line-height:1; transition:all 0.15s; }
-.btnEdit:hover { border-color:#4DD9C0; color:#0B9B85; background:rgba(77,217,192,0.06); }
-.btnDelete { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #FECACA; background:#FEF2F2; border-radius:8px; cursor:pointer; color:#EF4444; font-size:0.9rem; line-height:1; transition:all 0.15s; }
-.btnDelete:hover:not(:disabled) { border-color:#FCA5A5; background:#FEE2E2; }
+.btnEdit { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:none; background:var(--bg-tertiary); border-radius:999px; cursor:pointer; color:var(--text-secondary); font-size:0.9rem; line-height:1; transition:all 0.15s; }
+.btnEdit:hover { color:#0B9B85; background:rgba(77,217,192,0.14); }
+.btnDelete { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:none; background:rgba(239,68,68,0.08); border-radius:999px; cursor:pointer; color:#EF4444; font-size:0.9rem; line-height:1; transition:all 0.15s; }
+.btnDelete:hover:not(:disabled) { background:rgba(239,68,68,0.15); }
 .btnDelete:disabled { opacity:0.5; cursor:wait; }
 
 /* Export period picker */

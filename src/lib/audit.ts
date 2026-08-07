@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 
 export type AuditAction =
   | 'auth.login'
@@ -29,6 +29,12 @@ export type AuditAction =
   | 'admin.impersonation_stop'
   | 'config.update'
   | 'stock.update'
+  | 'stock.movement'
+  | 'user.create'
+  | 'user.update'
+  | 'user.delete'
+  | 'user.deactivate'
+  | 'user.reactivate'
 
 interface AuditPayload {
   action: AuditAction
@@ -42,18 +48,14 @@ interface AuditPayload {
   details?: Record<string, string | number | boolean>
 }
 
-// Cliente com service role para contornar RLS na tabela de logs (insert-only)
-function getAuditClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  // SERVICE_ROLE_KEY deve existir apenas em variáveis server-side (sem NEXT_PUBLIC_)
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  return createClient(url, key, { auth: { persistSession: false } })
-}
-
+// audit() é chamado só de componentes 'use client' (nenhum call site é
+// server-side hoje) — reaproveita o cliente autenticado do navegador em vez
+// de criar um cliente anônimo à parte, que nunca teria sessão e sempre
+// falharia na policy de RLS "actor_id/user_id = auth.uid()" (sem gerar erro
+// visível: o catch abaixo engolia a falha).
 export async function audit(payload: AuditPayload): Promise<void> {
   try {
-    const client = getAuditClient()
-    await client.from('audit_logs').insert({
+    await supabase.from('audit_logs').insert({
       action:      payload.action,
       user_id:     payload.user_id,
       clinic_id:   payload.clinic_id,

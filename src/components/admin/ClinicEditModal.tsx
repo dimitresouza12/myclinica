@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Clinic } from '@/types'
 import { computeClinicStatus } from '@/lib/clinicStatus'
+import { userLimitFor } from '@/lib/planGates'
 import { Portal } from '@/components/ui/Portal'
 import { StatusBadge } from './StatusBadge'
 import styles from './admin.module.css'
@@ -39,6 +40,7 @@ interface Props {
 export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   const [plan, setPlan] = useState(clinic.plan ?? 'basico')
   const [maxPatients, setMaxPatients] = useState(clinic.max_patients ?? 200)
+  const [maxUsers, setMaxUsers] = useState<number | ''>(clinic.max_users ?? '')
   const [trialMode, setTrialMode] = useState<'trial' | 'permanente'>(
     clinic.trial_ends_at ? 'trial' : 'permanente'
   )
@@ -117,6 +119,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
       .update({
         plan,
         max_patients: maxPatients,
+        max_users: maxUsers === '' ? null : maxUsers,
         status,
         is_active: status !== 'suspended',
         trial_ends_at,
@@ -181,6 +184,23 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
               onChange={(e) => setMaxPatients(Number(e.target.value))}
               className={styles.fieldInput}
             />
+          </div>
+
+          {/* — Limite de usuários — */}
+          <div className={styles.field}>
+            <label>Limite de usuários</label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              placeholder={`Padrão do plano (${userLimitFor(plan, null) ?? 'ilimitado'})`}
+              value={maxUsers}
+              onChange={(e) => setMaxUsers(e.target.value === '' ? '' : Number(e.target.value))}
+              className={styles.fieldInput}
+            />
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+              Vazio = usa o padrão do plano. Preencha para dar uma exceção a essa clínica sem trocar o plano.
+            </p>
           </div>
 
           {/* — Trial — */}

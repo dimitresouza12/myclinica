@@ -9,7 +9,8 @@ import type { StockItem, StockMovement } from '@/types'
 import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useEstoqueData } from '@/hooks/useClinicData'
-import { getSpecialtyConfig, stockCategoryLabel } from '@/lib/specialtyConfig'
+import { mergeSpecialtyConfigs, stockCategoryLabel } from '@/lib/specialtyConfig'
+import { audit } from '@/lib/audit'
 import styles from './estoque.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
@@ -27,7 +28,9 @@ type ModalMode = 'item' | 'entrada' | 'saida' | null
 
 function EstoqueContent() {
   const { clinic, user } = useAuthStore()
-  const CATEGORIES = getSpecialtyConfig(clinic?.type).stockCategories
+  // Clínica multi-área usa a união de categorias das áreas que ela já tem
+  // (ex: material odonto + ração vet), não só a área principal do cadastro.
+  const CATEGORIES = mergeSpecialtyConfigs(clinic?.specialties?.length ? clinic.specialties : [clinic?.type ?? 'odonto']).stockCategories
   const blankItem = { name: '', category: CATEGORIES[0], unit: 'un', quantity: 0, min_quantity: 5, cost_price: '', supplier: '', notes: '' }
   const queryClient = useQueryClient()
   const { data: estoqueData, isLoading: loading } = useEstoqueData(clinic?.id)
@@ -176,6 +179,7 @@ function EstoqueContent() {
         user_name: user?.displayName ?? null,
       }]),
     ])
+    if (user) audit({ action: 'stock.movement', user_id: user.id, clinic_id: clinic.id, module: 'estoque', resource_id: selectedItem.id, details: { type: String(modal), quantity: qty } })
     setSaving(false)
     closeModal()
     loadData()

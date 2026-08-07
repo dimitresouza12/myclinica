@@ -55,7 +55,7 @@ function RelatoriosContent() {
     const fins = rawData?.fins ?? []
     const appts = rawData?.appts ?? []
     const pats = rawData?.pats ?? []
-    const profs = cachedProfessionals.filter(p => p.is_active)
+    const profs = cachedProfessionals
     const procNameMap: Record<string, string> = {}
     for (const p of cachedProcedures) procNameMap[p.id] = p.name
 
@@ -168,7 +168,7 @@ function RelatoriosContent() {
       supabase.from('financial_records').select('total_amount,type,created_at,procedure_id').eq('clinic_id', clinic.id).gte('created_at', startDate),
       supabase.from('appointments').select('status,procedure_name,professional_id,scheduled_at').eq('clinic_id', clinic.id).gte('scheduled_at', startDate),
       supabase.from('patients').select('id,created_at,lgpd_consent').eq('clinic_id', clinic.id).eq('is_active', true),
-      supabase.from('professionals').select('id,name').eq('clinic_id', clinic.id).eq('is_active', true),
+      supabase.from('professionals').select('id,name').eq('clinic_id', clinic.id),
       supabase.from('procedures').select('id,name').eq('clinic_id', clinic.id),
     ])
 

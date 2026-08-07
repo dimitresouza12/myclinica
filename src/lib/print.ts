@@ -1,4 +1,5 @@
-import type { Patient, MedicalRecord, RecordEntry } from '@/types'
+import type { Patient, MedicalRecord, RecordEntry, FinancialRecord, ClinicType } from '@/types'
+import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 
 interface ClinicInfo {
   name: string
@@ -42,9 +43,20 @@ function field(label: string, value: string | null | undefined) {
   return `<div class="field"><div class="field-label">${label}</div><div class="field-value">${value}</div></div>`
 }
 
-export function printProntuario(clinic: ClinicInfo, patient: Patient, record: MedicalRecord | null, entries: RecordEntry[]) {
-  const an = record?.anamnesis ?? {}
-  const ex = record?.clinical_exam ?? {}
+function formatDateBR(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = iso.slice(0, 10).split('-')
+  return d.length === 3 ? `${d[2]}/${d[1]}/${d[0]}` : iso
+}
+
+// area: qual namespace do jsonb (anamnesis/clinical_exam por área — ver Bloco B)
+// imprimir. Os rótulos vêm de getSpecialtyConfig(area), então o impresso
+// mostra os campos certos da área do profissional, não mais fixo em odonto
+// (limitação de antes: outras áreas imprimiam com rótulos de odontologia).
+export function printProntuario(clinic: ClinicInfo, patient: Patient, record: MedicalRecord | null, entries: RecordEntry[], area: ClinicType) {
+  const an = record?.anamnesis?.[area] ?? {}
+  const ex = record?.clinical_exam?.[area] ?? {}
+  const specialty = getSpecialtyConfig(area)
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Prontuário – ${patient.name}</title>${baseStyles()}</head><body>
     ${clinicHeader(clinic)}
@@ -54,33 +66,22 @@ export function printProntuario(clinic: ClinicInfo, patient: Patient, record: Me
       ${field('Nome', patient.name)}
       ${field('Telefone', patient.phone)}
       ${field('E-mail', patient.email)}
-      ${field('CPF', an['p-cpf'])}
-      ${field('RG', an['p-rg'])}
-      ${field('Data de Nascimento', an['p-nasc'])}
-      ${field('Gênero', an['p-genero'])}
-      ${field('Ocupação', an['p-ocupacao'])}
-      ${field('Endereço', an['p-endereco'])}
-      ${field('Indicação', an['p-indicado'])}
-      ${field('Contato de Emergência', an['p-emergencia'])}
+      ${field('CPF', patient.cpf)}
+      ${field('RG', patient.rg)}
+      ${field('Data de Nascimento', formatDateBR(patient.birth_date))}
+      ${field('Gênero', patient.gender)}
+      ${field('Ocupação', patient.occupation)}
+      ${field('Endereço', patient.address)}
+      ${field('Indicação', patient.referred_by)}
+      ${field('Contato de Emergência', patient.emergency_contact)}
     </div>
     <h3>Anamnese</h3>
     <div class="grid">
-      ${field('Estado geral de saúde', an['a-saude'])}
-      ${field('Em tratamento médico', an['a-tratamento'])}
-      ${field('Medicamentos', an['a-medicamentos'])}
-      ${field('Alergias', an['a-alergia'])}
-      ${field('Pressão arterial', an['a-pressao'])}
-      ${field('Fumante / Álcool', an['a-fumante'])}
-      ${field('Sangramento gengival', an['a-gengiva'])}
-      ${field('Hábitos bucais', an['a-habitos'])}
+      ${specialty.anamnesisFields.map(([k, label]) => field(label, an[k])).join('')}
     </div>
     <h3>Exame Clínico</h3>
     <div class="grid">
-      ${field('Higiene bucal', ex['e-higiene'])}
-      ${field('Halitose', ex['e-halitose'])}
-      ${field('Mucosa', ex['e-mucosa'])}
-      ${field('Palato', ex['e-palato'])}
-      ${field('Observações', ex['e-obs'])}
+      ${specialty.clinicalExamFields.map(([k, label]) => field(label, ex[k])).join('')}
     </div>
     ${record?.treatment_plan ? `<h3>Plano de Tratamento</h3><div class="field-value">${record.treatment_plan}</div>` : ''}
     ${entries.length > 0 ? `
@@ -112,6 +113,49 @@ export function printContrato(clinic: ClinicInfo, patient: Patient, contractText
       </div>
       <div style="border-top:1px solid #333;padding-top:8px;font-size:12px;color:#555">
         Assinatura do Paciente<br><strong>${patient.name}</strong>
+      </div>
+    </div>
+    <div class="footer">
+      <span>${clinic.name}</span>
+      <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
+    </div>
+  </body></html>`
+
+  openPrint(html)
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  dinheiro: 'Dinheiro',
+  pix: 'PIX',
+  cartao_credito: 'Cartão de Crédito',
+  cartao_debito: 'Cartão de Débito',
+  convenio: 'Convênio',
+  outro: 'Outro',
+}
+
+export function printRecibo(clinic: ClinicInfo, record: FinancialRecord, patientName: string) {
+  const dataEmissao = new Date(record.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+  const valor = (record.total_amount ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const metodo = PAYMENT_METHOD_LABELS[record.payment_method ?? ''] ?? record.payment_method ?? '—'
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Recibo – ${patientName}</title>${baseStyles()}</head><body>
+    ${clinicHeader(clinic)}
+    <h2>Recibo de Pagamento</h2>
+    <p style="font-size:13px;line-height:1.8;margin-top:12px">
+      Recebi de <strong>${patientName}</strong> a quantia de <strong>${valor}</strong>,
+      referente a ${record.category ? `<strong>${record.category}</strong>` : 'serviço prestado'}${record.notes ? ` (${record.notes})` : ''},
+      pago via ${metodo}.
+    </p>
+    <div class="grid" style="margin-top:24px">
+      ${field('Paciente', patientName)}
+      ${field('Valor', valor)}
+      ${field('Forma de pagamento', metodo)}
+      ${field('Data', dataEmissao)}
+      ${field('Categoria', record.category)}
+    </div>
+    <div style="margin-top:64px;display:grid;grid-template-columns:1fr;gap:8px;max-width:340px">
+      <div style="border-top:1px solid #333;padding-top:8px;font-size:12px;color:#555;text-align:center">
+        ${clinic.name}
       </div>
     </div>
     <div class="footer">

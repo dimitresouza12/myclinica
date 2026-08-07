@@ -7,7 +7,7 @@
 .title { font-family:'Plus Jakarta Sans',-apple-system,sans-serif; font-size:1.6rem; font-weight:800; color:var(--text-primary); letter-spacing:-0.3px; }
 .sub { font-size:0.8rem; color:var(--text-secondary); margin-top:0.2rem; }
 
-.btnPrimary { padding:0.6rem 1.25rem; background:#4DD9C0; color:#0D2421; border:none; border-radius:10px; font-size:0.875rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s, transform .1s; }
+.btnPrimary { padding:0.6rem 1.25rem; min-height:44px; background:#4DD9C0; color:#0D2421; border:none; border-radius:10px; font-size:0.875rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s, transform .1s; }
 .btnPrimary:hover { background:#3CCCB4; transform:translateY(-1px); }
 
 /* Stats */
@@ -23,7 +23,7 @@
 /* Toolbar */
 .toolbar { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
 .tabs { display:flex; border-bottom:1px solid var(--border-subtle); }
-.tab { padding:0.65rem 1.25rem; border:none; border-bottom:2px solid transparent; background:none; font-size:0.875rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; }
+.tab { padding:0.65rem 1.25rem; min-height:44px; border:none; border-bottom:2px solid transparent; background:none; font-size:0.875rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; }
 .tab:hover { color:var(--text-primary); }
 .tabActive { color:var(--text-primary); font-weight:700; border-bottom-color:#4DD9C0; }
 .filters { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
@@ -55,14 +55,14 @@
 
 /* Row actions */
 .rowActions { display:flex; gap:0.5rem; align-items:center; flex-wrap:nowrap; }
-.btnEntrada { padding:0.25rem 0.6rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #A7F3D0; background:#ECFDF5; color:#065F46; border-radius:8px; font-size:0.75rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s; }
-.btnEntrada:hover { background:#D1FAE5; }
-.btnSaida { padding:0.25rem 0.6rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #FECACA; background:#FEF2F2; color:#B91C1C; border-radius:8px; font-size:0.75rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s; }
-.btnSaida:hover { background:#FEE2E2; }
-.btnEdit { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--border-color); background:none; border-radius:8px; cursor:pointer; color:var(--text-secondary); font-size:0.9rem; line-height:1; transition:all .15s; }
-.btnEdit:hover { border-color:#4DD9C0; color:#0B9B85; background:rgba(77,217,192,0.06); }
-.btnDelete { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #FECACA; background:#FEF2F2; border-radius:8px; cursor:pointer; color:#EF4444; font-size:0.9rem; line-height:1; transition:all .15s; }
-.btnDelete:hover { border-color:#FCA5A5; background:#FEE2E2; }
+.btnEntrada { padding:0.3rem 0.65rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:none; background:rgba(16,185,129,0.1); color:#065F46; border-radius:999px; font-size:0.74rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s; }
+.btnEntrada:hover { background:rgba(16,185,129,0.18); }
+.btnSaida { padding:0.3rem 0.65rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:none; background:rgba(239,68,68,0.08); color:#B91C1C; border-radius:999px; font-size:0.74rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s; }
+.btnSaida:hover { background:rgba(239,68,68,0.15); }
+.btnEdit { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:none; background:var(--bg-tertiary); border-radius:999px; cursor:pointer; color:var(--text-secondary); font-size:0.9rem; line-height:1; transition:all .15s; }
+.btnEdit:hover { color:#0B9B85; background:rgba(77,217,192,0.14); }
+.btnDelete { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:none; background:rgba(239,68,68,0.08); border-radius:999px; cursor:pointer; color:#EF4444; font-size:0.9rem; line-height:1; transition:all .15s; }
+.btnDelete:hover { background:rgba(239,68,68,0.15); }
 
 /* Movement badges */
 .badgeEntrada { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; background:#ECFDF5; color:#065F46; border-radius:999px; font-size:0.72rem; font-weight:600; white-space:nowrap; }
@@ -87,6 +87,7 @@
   .modal { max-width:100%; max-height:100vh; max-height:100dvh; height:100vh; height:100dvh; border-radius:0; border:none; }
   .modalHeader, .modalFooter { padding:1rem; }
   .modalBody { padding:1rem; }
+  .btnClose { width:44px; height:44px; }
 }
 .fieldRow { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:0.75rem; }
 .field { display:flex; flex-direction:column; gap:.3rem; }

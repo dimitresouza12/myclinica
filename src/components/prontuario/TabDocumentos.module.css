@@ -14,7 +14,7 @@
 .toolBtn:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
 .toolSep { width: 1px; height: 20px; background: var(--border-color); margin: 0 2px; }
 .toolSelect { padding: 0.2rem 0.4rem; border: 1px solid var(--border-color); background: var(--bg-primary); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--text-primary); cursor: pointer; outline: none; }
-.btnPrint { margin-left: auto; padding: 0.35rem 0.9rem; background: linear-gradient(135deg, #059669, #10B981); color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+.btnPrint { margin-left: auto; padding: 0.35rem 0.9rem; min-height: 44px; background: linear-gradient(135deg, #059669, #10B981); color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
 .btnPrint:hover { opacity: .88; }
 
 /* Editor */

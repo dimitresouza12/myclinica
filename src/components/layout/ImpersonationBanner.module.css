@@ -28,6 +28,7 @@
 
 .exitBtn {
   padding: 0.3rem 0.85rem;
+  min-height: 44px;
   background: #92400E;
   color: #fff;
   border: none;

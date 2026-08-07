@@ -7,9 +7,11 @@ import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatCurrency, formatCurrencyCompact, formatMonthLabel } from '@/lib/utils'
+import { printRecibo } from '@/lib/print'
+import { audit } from '@/lib/audit'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useFinanceiroData, useProcedures } from '@/hooks/useClinicData'
-import { getSpecialtyConfig } from '@/lib/specialtyConfig'
+import { mergeSpecialtyConfigs } from '@/lib/specialtyConfig'
 import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -35,7 +37,7 @@ interface NewRecord {
 const BLANK: NewRecord = { type: 'receita', patient_id: '', procedure_id: '', total_amount: '', payment_method: 'pix', category: '', notes: '' }
 
 function FinanceiroContent() {
-  const { clinic } = useAuthStore()
+  const { clinic, user } = useAuthStore()
   const searchParams = useSearchParams()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -56,6 +58,9 @@ function FinanceiroContent() {
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<'todos' | 'receita' | 'despesa'>('todos')
+  const [filterPatient, setFilterPatient] = useState('')
+  const [patientSearch, setPatientSearch] = useState('')
+  const [showPatientSuggestions, setShowPatientSuggestions] = useState(false)
   const [filterPeriod, setFilterPeriod] = useState<'diario' | 'semanal' | 'mensal' | 'geral'>('mensal')
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [showExportModal, setShowExportModal] = useState(false)
@@ -132,7 +137,40 @@ function FinanceiroContent() {
     return Object.entries(map).map(([name, value]) => ({ name, value }))
   }, [periodRecords])
 
-  const filtered = periodRecords.filter(r => filterType === 'todos' || r.type === filterType)
+  const filtered = periodRecords.filter(r =>
+    (filterType === 'todos' || r.type === filterType) &&
+    (!filterPatient || r.patient_id === filterPatient) &&
+    (!patientSearch.trim() || (r.patients?.name ?? '').toLowerCase().includes(patientSearch.trim().toLowerCase()))
+  )
+
+  const patientSuggestions = useMemo(() => {
+    const q = patientSearch.trim().toLowerCase()
+    if (!q) return []
+    return patients
+      .filter(p => p.name.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+      .slice(0, 8)
+  }, [patients, patientSearch])
+
+  function selectPatientSuggestion(p: Patient) {
+    setFilterPatient(p.id)
+    setPatientSearch(p.name)
+    setShowPatientSuggestions(false)
+  }
+
+  const patientSummary = useMemo(() => {
+    const paid = filtered.filter(r => r.type === 'receita').reduce((s, r) => s + (r.total_amount ?? 0), 0)
+    if (filterPatient) {
+      const name = patients.find(p => p.id === filterPatient)?.name
+        ?? filtered.find(r => r.patient_id === filterPatient)?.patients?.name
+        ?? 'Paciente'
+      return { name, paid, count: filtered.length }
+    }
+    if (patientSearch.trim()) {
+      return { name: null, paid, count: filtered.length }
+    }
+    return null
+  }, [filterPatient, patientSearch, filtered, patients])
 
   // Deep link vindo do toast de "agendamento concluído" (Agenda): abre direto
   // o lançamento gerado automaticamente (?record=<id>) pra definir a forma de
@@ -146,6 +184,17 @@ function FinanceiroContent() {
     if (loading || deepLinkHandledRef.current) return
     const recordId = searchParams.get('record')
     const isNewReceita = searchParams.get('new') === 'receita'
+    const patientFilter = searchParams.get('patient')
+    // Vindo da lista de Pacientes ("Financeiro" na linha do paciente) — só
+    // pré-filtra a listagem, não abre nenhum modal.
+    if (!recordId && !isNewReceita && patientFilter) {
+      deepLinkHandledRef.current = true
+      router.replace('/financeiro')
+      setFilterPatient(patientFilter)
+      setPatientSearch(patients.find(p => p.id === patientFilter)?.name ?? '')
+      setFilterPeriod('geral')
+      return
+    }
     if (!recordId && !isNewReceita) return
     deepLinkHandledRef.current = true
     router.replace('/financeiro')
@@ -209,22 +258,33 @@ function FinanceiroContent() {
     if (editingId) {
       await supabase.from('financial_records').update(payload).eq('id', editingId)
     } else {
-      await supabase.from('financial_records').insert([payload])
+      const { data: inserted } = await supabase.from('financial_records').insert([payload]).select('id').single()
+      if (user) audit({ action: 'financial.create', user_id: user.id, clinic_id: clinic.id, module: 'financeiro', resource_id: inserted?.id, details: { type: form.type, amount: payload.total_amount } })
     }
     setSaving(false)
     closeModal()
     loadData()
   }
 
+  function handlePrintRecibo(record: FinancialRecord) {
+    if (!clinic) return
+    printRecibo(
+      { name: clinic.name, logo: clinic.logo, address: clinic.address, phone: clinic.phone },
+      record,
+      record.patients?.name ?? 'Paciente'
+    )
+  }
+
   async function handleDelete(record: FinancialRecord) {
     if (!(await confirmDialog({ message: `Excluir este lançamento de ${formatCurrency(record.total_amount ?? 0)}? Esta ação não pode ser desfeita.`, confirmText: 'Excluir', danger: true }))) return
     setDeletingId(record.id)
     await supabase.from('financial_records').delete().eq('id', record.id)
+    if (user && clinic) audit({ action: 'financial.delete', user_id: user.id, clinic_id: clinic.id, module: 'financeiro', resource_id: record.id, details: { type: record.type, amount: record.total_amount ?? 0 } })
     setDeletingId(null)
     loadData()
   }
 
-  const specialty = getSpecialtyConfig(clinic?.type)
+  const specialty = mergeSpecialtyConfigs(clinic?.specialties?.length ? clinic.specialties : [clinic?.type ?? 'odonto'])
   const categorias = form.type === 'receita' ? specialty.financeCategoriasReceita : specialty.financeCategoriasDespesa
 
   const periodLabel =
@@ -413,7 +473,56 @@ function FinanceiroContent() {
               </button>
             ))}
           </div>
+          <div className={styles.patientFilters}>
+            <div className={styles.patientSearchBox}>
+              <Icon name="search" size={13} />
+              <input
+                className={styles.patientSearchInput}
+                placeholder="Buscar por nome do paciente..."
+                value={patientSearch}
+                onChange={e => {
+                  setPatientSearch(e.target.value)
+                  setFilterPatient('')
+                  setShowPatientSuggestions(true)
+                }}
+                onFocus={() => setShowPatientSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowPatientSuggestions(false), 120)}
+              />
+              {patientSearch && (
+                <button
+                  type="button"
+                  className={styles.patientSearchClear}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => { setPatientSearch(''); setFilterPatient(''); setShowPatientSuggestions(false) }}
+                  title="Limpar busca"
+                >
+                  <Icon name="close" size={12} />
+                </button>
+              )}
+              {showPatientSuggestions && patientSuggestions.length > 0 && (
+                <div className={styles.patientSuggestions}>
+                  {patientSuggestions.map(p => (
+                    <button
+                      type="button"
+                      key={p.id}
+                      className={styles.patientSuggestion}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => selectPatientSuggestion(p)}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+        {patientSummary && (
+          <div className={styles.patientSummary}>
+            <span>{patientSummary.name ? <>Extrato de <strong>{patientSummary.name}</strong></> : 'Resultado da busca'} — {periodLabel}</span>
+            <span>{patientSummary.count} lançamento{patientSummary.count === 1 ? '' : 's'} · <strong>{formatCurrency(patientSummary.paid)}</strong> pago em receitas</span>
+          </div>
+        )}
         {loading ? <p className={styles.loading}>Carregando...</p> : (
           <div className={`${styles.tableWrap} resp-table-wrap`}>
             <table className={`${styles.table} resp-table`}>
@@ -449,6 +558,9 @@ function FinanceiroContent() {
                     </td>
                     <td data-label="Ações">
                       <div className={styles.rowActions}>
+                        {r.type === 'receita' && <button className={styles.btnEdit} onClick={() => handlePrintRecibo(r)} title="Imprimir recibo">
+                          <Icon name="receipt" size={13} />
+                        </button>}
                         {canEdit && <button className={styles.btnEdit} onClick={() => openEdit(r)} title="Editar lançamento">
                           <Icon name="edit" size={13} />
                         </button>}
@@ -530,6 +642,17 @@ function FinanceiroContent() {
               <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
+              {(() => {
+                const appt = editingId ? records.find(r => r.id === editingId)?.appointments : null
+                if (!appt) return null
+                return (
+                  <div className={styles.appointmentLink}>
+                    <Icon name="calendar" size={13} />
+                    Vinculado ao agendamento de {formatDate(appt.scheduled_at, true)}
+                    {appt.procedure_name ? ` — ${appt.procedure_name}` : ''}
+                  </div>
+                )
+              })()}
               <div className={styles.field}>
                 <label>Valor (R$) *</label>
                 <input type="number" step="0.01" min="0" value={form.total_amount}

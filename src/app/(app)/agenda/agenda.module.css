@@ -21,14 +21,21 @@
 .topbar {
   flex-shrink: 0;
   display: flex;
+  flex-direction: column;
+  row-gap: 10px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.topbarRow {
+  display: flex;
   align-items: center;
   flex-wrap: wrap;
   row-gap: 8px;
   column-gap: 14px;
-  padding: 14px 22px;
-  min-height: 68px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  width: 100%;
+  min-width: 0;
 }
 
 .tbLeft {
@@ -123,6 +130,13 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tbActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   margin-left: auto;
@@ -154,14 +168,31 @@
 .search input::placeholder { color: var(--text-tertiary); }
 
 /* GCal status */
-.gcalStatus { display:flex; align-items:center; gap:.45rem; padding:.35rem .8rem; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:10px; font-size:.78rem; font-weight:600; color:#065F46; white-space:nowrap; }
-.gcalDot { width:7px; height:7px; border-radius:50%; background:#10B981; flex-shrink:0; }
+.gcalStatus { display:flex; align-items:center; gap:.4rem; padding:.35rem .75rem; background:rgba(16,185,129,0.1); border:none; border-radius:999px; font-size:.74rem; font-weight:600; color:#065F46; white-space:nowrap; }
+.gcalDot { width:6px; height:6px; border-radius:50%; background:#10B981; flex-shrink:0; }
 .gcalEventsCount { font-size:.7rem; color:#059669; opacity:.75; }
-.gcalUnlinked { display:flex; align-items:center; gap:.45rem; padding:.35rem .8rem; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:10px; font-size:.78rem; color:var(--text-secondary); white-space:nowrap; }
-.gcalDotOff { width:7px; height:7px; border-radius:50%; background:var(--border-color); flex-shrink:0; }
-.btnGcalConnect { display:flex; align-items:center; gap:.4rem; padding:.35rem .8rem; font-size:.78rem; font-weight:600; background:none; border:1px solid var(--border-color); border-radius:10px; cursor:pointer; color:var(--text-secondary); font-family:inherit; white-space:nowrap; transition:background 0.14s, color 0.14s; }
-.btnGcalConnect:hover { background:var(--bg-secondary); color:var(--text-primary); }
+.gcalUnlinked { display:flex; align-items:center; gap:.4rem; padding:.35rem .75rem; background:var(--bg-tertiary); border:none; border-radius:999px; font-size:.74rem; color:var(--text-secondary); white-space:nowrap; }
+.gcalDotOff { width:6px; height:6px; border-radius:50%; background:var(--border-color); flex-shrink:0; }
+.btnGcalConnect { display:flex; align-items:center; gap:.4rem; padding:.35rem .75rem; font-size:.74rem; font-weight:600; background:var(--bg-tertiary); border:none; border-radius:999px; cursor:pointer; color:var(--text-secondary); font-family:inherit; white-space:nowrap; transition:background 0.14s, color 0.14s; }
+.btnGcalConnect:hover { background:var(--border-color); color:var(--text-primary); }
 .gcalErrorMsg { font-size:.82rem; color:#EF4444; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:.5rem .875rem; margin:0.5rem 1.25rem 0; flex-shrink:0; }
+
+.btnSecondaryAction {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  color: var(--text-secondary);
+  transition: background 0.14s, color 0.14s;
+}
+.btnSecondaryAction:hover { background: var(--border-color); color: var(--text-primary); }
 
 /* Primary button */
 .btnPrimary {
@@ -170,7 +201,7 @@
   background: #4DD9C0;
   color: #0D2421;
   border: none;
-  border-radius: 11px;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -189,38 +220,8 @@
   display: none;
 }
 
-/* ─── Filtro de profissionais em chips (só mobile) ────────────── */
+/* ─── Filtro de profissionais (só mobile): mesmos avatares do desktop ── */
 .profFiltersMobile { display: none; }
-.profChip {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px 5px 5px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-secondary);
-  border-radius: 999px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  cursor: pointer;
-  font-family: inherit;
-  transition: opacity 0.15s, border-color 0.15s;
-}
-.profChip[data-active="false"] { opacity: 0.45; }
-.profChipAvatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  font-weight: 800;
-  color: #fff;
-  flex-shrink: 0;
-}
 
 /* ─── Filters bar (list view) ────────────────────────────────── */
 .filters {
@@ -377,6 +378,7 @@
 
 .lrCard {
   position: relative;
+  min-width: 0;
   background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
   border-left: 3px solid var(--lr-accent, var(--brand-primary));
@@ -482,6 +484,9 @@
 .badge_concluido { background: #F0FDF4; color: #15803D; }
 .badge_cancelado { background: #FEF2F2; color: #991B1B; }
 .badge_faltou    { background: #FFF7ED; color: #9A3412; }
+.badge_bloqueado { background: #F3F4F6; color: #4B5563; }
+
+.lrCardBlocked { background: #F9FAFB; opacity: 0.85; }
 
 /* ─── FAB — único CTA no mobile; no desktop o CTA é o botão da TopBar ── */
 .fab {
@@ -1144,11 +1149,12 @@
   .seg {
     order: 10;
     width: 100%;
+    min-width: 0;
     justify-content: center;
     padding: 3px;
     border-radius: 10px;
   }
-  .segBtn { flex: 1; text-align: center; padding: 6px 12px; font-size: 12.5px; }
+  .segBtn { flex: 1; min-width: 0; text-align: center; padding: 6px 12px; font-size: 12.5px; }
   .tbRight { gap: 6px; }
   .btnPrimary { display: none; }
 

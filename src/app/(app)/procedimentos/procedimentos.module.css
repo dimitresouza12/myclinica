@@ -15,7 +15,7 @@
 .tagFree { display:inline-flex; padding:2px 8px; background:#EFF6FF; color:#1D4ED8; border-radius:999px; font-size:.72rem; font-weight:600; }
 .title { font-family:'Plus Jakarta Sans',-apple-system,sans-serif; font-size:1.6rem; font-weight:800; color:var(--text-primary); letter-spacing:-.3px; }
 .sub { font-size:.8rem; color:var(--text-secondary); margin-top:.2rem; }
-.btnPrimary { display:inline-flex; align-items:center; gap:.375rem; padding:.5rem 1.1rem; background:#4DD9C0; color:#0D2421; border:none; border-radius:10px; font-size:.875rem; font-weight:600; cursor:pointer; transition:background .15s, transform .1s; white-space:nowrap; }
+.btnPrimary { display:inline-flex; align-items:center; gap:.375rem; padding:.5rem 1.1rem; min-height:44px; background:#4DD9C0; color:#0D2421; border:none; border-radius:10px; font-size:.875rem; font-weight:600; cursor:pointer; transition:background .15s, transform .1s; white-space:nowrap; }
 .btnPrimary:hover { background:#3CCCB4; transform:translateY(-1px); }
 
 .tableWrap { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; overflow:hidden; overflow-x:auto; box-shadow:var(--shadow-sm); }
@@ -30,10 +30,10 @@
 .tagInactive { display:inline-flex; padding:2px 8px; background:var(--bg-secondary); color:var(--text-secondary); border-radius:999px; font-size:.72rem; font-weight:600; }
 .empty { text-align:center; color:var(--text-secondary); padding:3rem 1rem !important; font-size:.875rem; }
 .actions { display:flex; gap:.5rem; }
-.btnEdit { padding:.3rem .7rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); border-radius:8px; font-size:.78rem; cursor:pointer; transition:background .15s; }
-.btnEdit:hover { background:var(--bg-secondary); }
-.btnDelete { padding:.3rem .7rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #fecaca; background:#fef2f2; color:#EF4444; border-radius:8px; font-size:.78rem; cursor:pointer; transition:background .15s; }
-.btnDelete:hover { background:#fee2e2; }
+.btnEdit { padding:.35rem .7rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:none; background:var(--bg-tertiary); color:var(--text-secondary); border-radius:999px; font-size:.76rem; font-weight:600; cursor:pointer; transition:background .15s; }
+.btnEdit:hover { background:var(--border-color); }
+.btnDelete { padding:.35rem .7rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:none; background:rgba(239,68,68,0.08); color:#EF4444; border-radius:999px; font-size:.76rem; font-weight:600; cursor:pointer; transition:background .15s; }
+.btnDelete:hover { background:rgba(239,68,68,0.15); }
 .loading { color:var(--text-secondary); padding:2rem; text-align:center; font-size:.875rem; }
 
 /* Modal */
@@ -91,6 +91,7 @@
   .modalHeader { padding:1rem; padding-top: max(1rem, env(safe-area-inset-top)); }
   .modalFooter { padding:1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
   .modalBody { padding:1rem; }
+  .btnClose { width:44px; height:44px; }
   /* Precisa vir DEPOIS da definição base de .row2 (acima) — com a mesma
      especificidade, quem aparece por último no CSS vence a cascata,
      independente de estar dentro de @media. Antes esse bloco vinha antes

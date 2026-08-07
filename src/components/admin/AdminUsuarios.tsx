@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { formatDate } from '@/lib/utils'
-import { getSpecialtyConfig } from '@/lib/specialtyConfig'
+import { getSpecialtyConfig, specialtyRoleLabel } from '@/lib/specialtyConfig'
 import type { ClinicUser, Clinic } from '@/types'
 import styles from './admin.module.css'
 
@@ -15,6 +15,7 @@ interface Props {
 const ROLE_LABELS: Record<string, string> = {
   admin:        'Admin',
   recepcao:     'Recepção',
+  auxiliar:     'Auxiliar',
   dentista:     'Dentista',
   medico:       'Médico',
   profissional: 'Profissional',
@@ -36,6 +37,7 @@ export function AdminUsuarios({ users, clinics }: Props) {
   }
 
   function roleLabel(u: UserWithClinic) {
+    if (u.specialty_type) return specialtyRoleLabel(u.specialty_type)
     const clinicType = clinics.find(c => c.id === u.clinic_id)?.clinic_type
     return getSpecialtyConfig(clinicType).roles.find(r => r.value === u.role)?.label ?? ROLE_LABELS[u.role] ?? u.role
   }

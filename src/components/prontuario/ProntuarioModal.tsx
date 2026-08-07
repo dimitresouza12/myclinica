@@ -8,6 +8,7 @@ import type { AuthClinic } from '@/types'
 import { TabFicha } from './TabFicha'
 import { TabOdontograma } from './TabOdontograma'
 import { TabFaceograma } from './TabFaceograma'
+import { TabCorpograma } from './TabCorpograma'
 import { TabTimeline } from './TabTimeline'
 import { TabChatIA } from './TabChatIA'
 import { TabDocumentos } from './TabDocumentos'
@@ -15,8 +16,9 @@ import { Portal } from '@/components/ui/Portal'
 import { printProntuario } from '@/lib/print'
 import styles from './ProntuarioModal.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { mergeSpecialtyConfigs } from '@/lib/specialtyConfig'
 
-type Tab = 'ficha' | 'odontograma' | 'faceograma' | 'timeline' | 'documentos' | 'chat'
+type Tab = 'ficha' | 'odontograma' | 'faceograma' | 'corpograma' | 'timeline' | 'documentos' | 'chat'
 
 interface Props {
   patient: Patient
@@ -129,10 +131,17 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
     setUploadingAvatar(false)
   }
 
+  // Abas extras (odontograma/faceograma/corpograma) vêm da união das áreas
+  // que a clínica de fato atende (clinic.specialties), não só da área
+  // principal — sem isso, odonto+estética com principal odonto não via o
+  // Corpograma que a parte de estética da clínica precisa.
+  const clinicSpecialties = clinic.specialties?.length ? clinic.specialties : [clinic.type]
+  const recordTabs = mergeSpecialtyConfigs(clinicSpecialties).recordTabs
+  const RECORD_TAB_LABELS: Record<string, string> = { odontograma: 'Odontograma', faceograma: 'Faceograma', corpograma: 'Corpograma' }
+
   const tabs: { key: Tab; label: string }[] = [
     { key: 'ficha', label: 'Ficha Clínica' },
-    ...(['odonto', 'estetica'].includes(clinic.type)                ? [{ key: 'odontograma' as Tab, label: 'Odontograma' }] : []),
-    ...(['estetica', 'odonto'].includes(clinic.type)                ? [{ key: 'faceograma'  as Tab, label: 'Faceograma'  }] : []),
+    ...recordTabs.map(t => ({ key: t as Tab, label: RECORD_TAB_LABELS[t] })),
     { key: 'timeline',   label: 'Evolução'    },
     { key: 'documentos', label: 'Documentos'  },
     { key: 'chat',       label: 'Chat IA'     },
@@ -179,7 +188,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
             {tab !== 'documentos' && (
               <button
                 className={styles.btnPrint}
-                onClick={() => printProntuario({ name: clinicName, logo: clinic.logo, address: clinic.address, phone: clinic.phone }, patient, record, entries)}
+                onClick={() => printProntuario({ name: clinicName, logo: clinic.logo, address: clinic.address, phone: clinic.phone }, patient, record, entries, user?.specialtyType ?? clinicSpecialties[0])}
                 title={entriesLoading ? 'Carregando dados...' : 'Imprimir / Salvar PDF'}
                 disabled={entriesLoading}
               >
@@ -221,7 +230,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
             </div>
 
             {/* Heavy tabs: lazy-mount on first visit, then keep mounted */}
-            {['odonto', 'estetica'].includes(clinic.type) && visited.has('odontograma') && (
+            {recordTabs.includes('odontograma') && visited.has('odontograma') && (
               <div style={{ display: tab === 'odontograma' ? undefined : 'none' }}>
                 <TabOdontograma
                   record={record}
@@ -234,6 +243,16 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
             {visited.has('faceograma') && (
               <div style={{ display: tab === 'faceograma' ? undefined : 'none' }}>
                 <TabFaceograma
+                  record={record}
+                  patient={patient}
+                  clinicId={clinicId}
+                  onSaved={loadRecord}
+                />
+              </div>
+            )}
+            {recordTabs.includes('corpograma') && visited.has('corpograma') && (
+              <div style={{ display: tab === 'corpograma' ? undefined : 'none' }}>
+                <TabCorpograma
                   record={record}
                   patient={patient}
                   clinicId={clinicId}

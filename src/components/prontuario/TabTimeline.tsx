@@ -32,6 +32,22 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
   // Map de path → signed URL para imagens do prontuário
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const fileRef = useRef<HTMLInputElement>(null)
+  // Profissional (agenda) vinculado ao login atual — usado pra marcar
+  // professional_id nas novas evoluções e pro filtro "só as minhas".
+  const [myProfessionalId, setMyProfessionalId] = useState<string | null>(null)
+  const [filterMine, setFilterMine] = useState(false)
+
+  useEffect(() => {
+    if (!user?.clinicUserId) { setMyProfessionalId(null); return }
+    supabase.from('professionals').select('id')
+      .eq('clinic_id', clinicId).eq('clinic_user_id', user.clinicUserId)
+      .maybeSingle()
+      .then(({ data }) => setMyProfessionalId(data?.id ?? null))
+  }, [clinicId, user?.clinicUserId])
+
+  const visibleEntries = filterMine && myProfessionalId
+    ? entries.filter(e => e.professional_id === myProfessionalId)
+    : entries
 
   // notifica o pai sobre texto/fotos pendentes
   useEffect(() => {
@@ -154,6 +170,7 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
         record_id: recordId,
         entry_text: text.trim() || '(imagem anexada)',
         author_name: user?.displayName ?? 'Sistema',
+        professional_id: myProfessionalId,
         entry_type: 'evolucao',
         // Salva os paths relativos; URL assinada é gerada no display
         photo_urls: photoPaths,
@@ -240,10 +257,18 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
         Anotações são permanentes conforme CFM 1.638/2002 — não é possível editar ou excluir após salvar.
       </p>
 
+      {myProfessionalId && (
+        <div className={styles.newEntryActions} style={{ marginBottom: '0.5rem' }}>
+          <button type="button" className={styles.btnAttach} onClick={() => setFilterMine(f => !f)}>
+            <Icon name="eye" size={13} /> {filterMine ? 'Mostrando só as minhas' : 'Mostrando todas as áreas'}
+          </button>
+        </div>
+      )}
+
       <div className={styles.timeline}>
-        {entries.length === 0 ? (
-          <p className={styles.empty}>Nenhuma anotação ainda. Adicione a primeira acima.</p>
-        ) : entries.map((entry) => {
+        {visibleEntries.length === 0 ? (
+          <p className={styles.empty}>{filterMine ? 'Nenhuma anotação sua ainda.' : 'Nenhuma anotação ainda. Adicione a primeira acima.'}</p>
+        ) : visibleEntries.map((entry) => {
           const photoUrls = getEntryPhotoUrls(entry)
           return (
             <div key={entry.id} className={styles.item}>

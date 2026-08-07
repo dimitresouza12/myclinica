@@ -2,7 +2,7 @@
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .title { font-family:'Plus Jakarta Sans',-apple-system,sans-serif; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
 .sub { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem; }
-.btnPrimary { padding: 0.6rem 1.25rem; background: #4DD9C0; color: #0D2421; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; }
+.btnPrimary { padding: 0.6rem 1.25rem; min-height: 44px; background: #4DD9C0; color: #0D2421; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; }
 .btnPrimary:hover { background: #3CCCB4; transform: translateY(-1px); }
 .loading { color: var(--text-secondary); }
 .tableWrap { background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 16px; overflow: hidden; overflow-x: auto; box-shadow: var(--shadow-sm); }
@@ -14,8 +14,8 @@
 .bold { font-weight: 600; }
 .code { font-family: monospace; font-size: 0.78rem; background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; }
 .empty { text-align: center; color: var(--text-secondary); padding: 3rem 1rem !important; }
-.btnDelete { padding: 0.3rem 0.7rem; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #fecaca; background: #fef2f2; color: #EF4444; border-radius: 8px; font-size: 0.78rem; cursor: pointer; transition: background .15s; }
-.btnDelete:hover { background: #fee2e2; }
+.btnDelete { padding: 0.35rem 0.7rem; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: none; background: rgba(239,68,68,0.08); color: #EF4444; border-radius: 999px; font-size: 0.76rem; font-weight: 600; cursor: pointer; transition: background .15s; }
+.btnDelete:hover { background: rgba(239,68,68,0.15); }
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 1rem; overflow: hidden; overscroll-behavior: contain; touch-action: none; }
 .modal { background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 20px; width: 100%; max-width: 460px; max-height: 90vh; max-height: 90dvh; display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-xl); }
 .modalHeader { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); background: var(--bg-primary); }
@@ -40,7 +40,17 @@
 .field label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
 .field input { padding: 0.6rem 0.875rem; min-height: 44px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.875rem; outline: none; transition: border-color .15s, box-shadow .15s; }
 .field input:focus { border-color: #4DD9C0; box-shadow: 0 0 0 3px rgba(77,217,192,0.15); }
+.field select { padding: 0.6rem 0.875rem; min-height: 44px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.875rem; outline: none; }
 .hint { font-size: 0.72rem; color: var(--text-secondary); }
+.fieldError { font-size: 0.8rem; color: #EF4444; background: rgba(239,68,68,0.08); border-radius: 10px; padding: 0.6rem 0.875rem; }
+
+.accessSection { display: flex; flex-direction: column; gap: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed var(--border-color); }
+.checkboxRow { display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); cursor: pointer; }
+.checkboxRow input { width: 18px; height: 18px; accent-color: #4DD9C0; cursor: pointer; }
+
+.badgeAccess { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.6rem; border-radius: 999px; background: rgba(77,217,192,0.12); color: #0D9488; font-size: 0.75rem; font-weight: 600; }
+.badgeNoAccess { display: inline-flex; align-items: center; padding: 0.25rem 0.6rem; border-radius: 999px; background: var(--bg-tertiary); color: var(--text-secondary); font-size: 0.75rem; font-weight: 600; }
+.badgeInactive { font-style: normal; color: #EF4444; }
 
 .suggestionsDropdown {
   position:absolute; top:100%; left:0; right:0; margin-top:.3rem;

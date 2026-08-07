@@ -1,12 +1,16 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { Patient, MedicalRecord, RecordEntry } from '@/types'
+import { useAuthStore } from '@/store/auth'
+import { usePermissions } from '@/hooks/usePermissions'
+import type { Patient, MedicalRecord, RecordEntry, ClinicType } from '@/types'
 import type { AuthClinic } from '@/types'
 import { printProntuario, printContrato } from '@/lib/print'
 import styles from './TabFicha.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { PET_SPECIES, PET_BREEDS, VET_ANAMNESIS_EXTRA_BY_SPECIES, VET_EXAM_EXTRA_BY_SPECIES } from '@/lib/vetSpecies'
+import { MEDICO_ANAMNESIS_EXTRA_BY_SPECIALTY, MEDICO_EXAM_EXTRA_BY_SPECIALTY } from '@/lib/medicoSpecialties'
+import { getSpecialtyConfig, CLINIC_TYPE_LABELS } from '@/lib/specialtyConfig'
 
 interface Props {
   patient: Patient
@@ -43,6 +47,74 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`
 }
 
 export function TabFicha({ patient, record, entries, clinic, clinicId, clinicName, onSaved }: Props) {
+  const { user } = useAuthStore()
+  const clinicSpecialties = clinic.specialties?.length ? clinic.specialties : [clinic.type]
+  // Qual ficha exibir: a área do profissional logado (specialty_type),
+  // ou — pra admin/recepção, que não têm área própria — um seletor.
+  // Clínica de uma área só nunca mostra o seletor: cai direto na única
+  // área, comportamento idêntico ao de antes do Bloco B.
+  const [viewArea, setViewArea] = useState<ClinicType>(user?.specialtyType ?? clinicSpecialties[0])
+  const canPickArea = !user?.specialtyType && clinicSpecialties.length > 1
+
+  // Sub-área do profissional logado (Bloco F) — só usada quando
+  // viewArea === 'medico', pra somar campos extras de anamnese/exame por
+  // cima da ficha base (ex: cardiologista vê ausculta detalhada, pediatra
+  // vê marcos do desenvolvimento). Vem de professionals.specialty (texto
+  // livre), resolvido pelo clinic_user_id do login atual.
+  const [myMedicoSpecialty, setMyMedicoSpecialty] = useState<string | null>(null)
+  useEffect(() => {
+    if (!user?.clinicUserId || viewArea !== 'medico') { setMyMedicoSpecialty(null); return }
+    supabase.from('professionals').select('specialty')
+      .eq('clinic_id', clinicId).eq('clinic_user_id', user.clinicUserId)
+      .maybeSingle()
+      .then(({ data }) => setMyMedicoSpecialty(data?.specialty ?? null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinicId, user?.clinicUserId, viewArea])
+
+  // Bloco G: campos personalizados por área — se o profissional sente
+  // falta de uma pergunta específica da prática dele, ele mesmo adiciona.
+  // Isolado por clínica + área (specialty_type), igual o resto da ficha.
+  const { canEdit: canEditProntuario } = usePermissions('prontuario')
+  interface CustomField { id: string; section: 'anamnesis' | 'clinical_exam'; field_key: string; label: string }
+  const [customFields, setCustomFields] = useState<CustomField[]>([])
+  const [addingField, setAddingField] = useState<'anamnesis' | 'clinical_exam' | null>(null)
+  const [newFieldLabel, setNewFieldLabel] = useState('')
+
+  const loadCustomFields = useCallback(() => {
+    supabase.from('clinic_custom_record_fields')
+      .select('id, section, field_key, label')
+      .eq('clinic_id', clinicId).eq('specialty_type', viewArea)
+      .order('sort_order')
+      .then(({ data }) => setCustomFields((data as CustomField[]) ?? []))
+  }, [clinicId, viewArea])
+
+  useEffect(() => { loadCustomFields() }, [loadCustomFields])
+
+  async function handleAddCustomField(section: 'anamnesis' | 'clinical_exam') {
+    const label = newFieldLabel.trim()
+    if (!label) return
+    const fieldKey = `custom-${Date.now().toString(36)}`
+    await supabase.from('clinic_custom_record_fields').insert([{
+      clinic_id: clinicId, specialty_type: viewArea, section,
+      field_key: fieldKey, label,
+      sort_order: customFields.filter(f => f.section === section).length,
+      created_by: user?.clinicUserId ?? null,
+    }])
+    setNewFieldLabel('')
+    setAddingField(null)
+    loadCustomFields()
+  }
+
+  async function handleRemoveCustomField(id: string) {
+    await supabase.from('clinic_custom_record_fields').delete().eq('id', id)
+    loadCustomFields()
+  }
+
+  // Identificação do paciente (CPF, RG, pet...) não é por área — é do
+  // paciente. Vem sempre de `patients`, não do jsonb namespaced (Bloco B):
+  // antes ficava duplicada dentro de `anamnesis`, o que não faz sentido
+  // quando `anamnesis` passa a ser por área.
+  const [patientInfo, setPatientInfo] = useState<Record<string, string>>({})
   const [anamnesis, setAnamnesis] = useState<Record<string, string>>({})
   const [clinicalExam, setClinicalExam] = useState<Record<string, string>>({})
   const [treatmentPlan, setTreatmentPlan] = useState('')
@@ -58,7 +130,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
   }
 
   useEffect(() => {
-    const patientDefaults: Record<string, string> = {
+    setPatientInfo({
       'p-cpf':        patient.cpf ?? '',
       'p-rg':         patient.rg ?? '',
       'p-nasc':       formatDateBR(patient.birth_date),
@@ -75,19 +147,18 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       'p-pet_idade':    patient.pet_age ?? '',
       'p-pet_peso':     patient.pet_weight != null ? String(patient.pet_weight) : '',
       'p-pet_castrado': patient.pet_neutered != null ? (patient.pet_neutered ? 'Sim' : 'Não') : '',
-    }
-    if (record) {
-      const merged: Record<string, string> = { ...patientDefaults, ...(record.anamnesis ?? {}) }
-      setAnamnesis(merged)
-      setClinicalExam(record.clinical_exam ?? {})
-      setTreatmentPlan(record.treatment_plan ?? '')
-      setContractText(record.contract_text ?? CONTRACT_TEMPLATE(clinicName, patient.name, clinic.type))
-    } else {
-      setAnamnesis(patientDefaults)
-      setContractText(CONTRACT_TEMPLATE(clinicName, patient.name, clinic.type))
-    }
-  }, [record, clinicName, patient.name])
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patient])
 
+  useEffect(() => {
+    setAnamnesis(record?.anamnesis?.[viewArea] ?? {})
+    setClinicalExam(record?.clinical_exam?.[viewArea] ?? {})
+    setTreatmentPlan(record?.treatment_plan ?? '')
+    setContractText(record?.contract_text ?? CONTRACT_TEMPLATE(clinicName, patient.name, viewArea))
+  }, [record, viewArea, clinicName, patient.name])
+
+  function setP(k: string, v: string) { setPatientInfo((p) => ({ ...p, [k]: v })) }
   function setA(k: string, v: string) { setAnamnesis((p) => ({ ...p, [k]: v })) }
   function setE(k: string, v: string) { setClinicalExam((p) => ({ ...p, [k]: v })) }
 
@@ -105,8 +176,8 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       const payload = {
         clinic_id: clinicId,
         patient_id: patient.id,
-        anamnesis,
-        clinical_exam: clinicalExam,
+        anamnesis: { ...(record?.anamnesis ?? {}), [viewArea]: anamnesis },
+        clinical_exam: { ...(record?.clinical_exam ?? {}), [viewArea]: clinicalExam },
         treatment_plan: treatmentPlan,
         contract_text: contractText,
         updated_at: new Date().toISOString(),
@@ -119,15 +190,21 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
       // Sincroniza campos de identificação de volta para a tabela patients
       await supabase.from('patients').update({
-        cpf:               anamnesis['p-cpf'] || null,
-        rg:                anamnesis['p-rg'] || null,
-        birth_date:        parseDateISO(anamnesis['p-nasc'] ?? ''),
-        gender:            anamnesis['p-genero'] || null,
-        occupation:        anamnesis['p-ocupacao'] || null,
-        address:           anamnesis['p-endereco'] || null,
-        referred_by:       anamnesis['p-indicado'] || null,
-        emergency_contact: anamnesis['p-emergencia'] || null,
-        notes:             anamnesis['p-notes'] || null,
+        cpf:               patientInfo['p-cpf'] || null,
+        rg:                patientInfo['p-rg'] || null,
+        birth_date:        parseDateISO(patientInfo['p-nasc'] ?? ''),
+        gender:            patientInfo['p-genero'] || null,
+        occupation:        patientInfo['p-ocupacao'] || null,
+        address:           patientInfo['p-endereco'] || null,
+        referred_by:       patientInfo['p-indicado'] || null,
+        emergency_contact: patientInfo['p-emergencia'] || null,
+        notes:             patientInfo['p-notes'] || null,
+        pet_name:          patientInfo['p-pet_nome'] || null,
+        pet_species:       patientInfo['p-pet_especie'] || null,
+        pet_breed:         patientInfo['p-pet_raca'] || null,
+        pet_age:           patientInfo['p-pet_idade'] || null,
+        pet_weight:        patientInfo['p-pet_peso'] ? Number(patientInfo['p-pet_peso']) : null,
+        pet_neutered:      patientInfo['p-pet_castrado'] ? patientInfo['p-pet_castrado'] === 'Sim' : null,
       }).eq('id', patient.id)
 
       setSaved(true)
@@ -147,242 +224,99 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
   const recordForPrint: MedicalRecord = {
     ...(record ?? {} as MedicalRecord),
-    anamnesis,
-    clinical_exam: clinicalExam,
+    anamnesis: { ...(record?.anamnesis ?? {}), [viewArea]: anamnesis },
+    clinical_exam: { ...(record?.clinical_exam ?? {}), [viewArea]: clinicalExam },
     treatment_plan: treatmentPlan,
     contract_text: contractText,
   }
 
-  const aField = (k: string, label: string) => (
+  const pField = (k: string, label: string) => (
     <div className={styles.field} key={k}>
       <label>{label}</label>
+      <input value={patientInfo[k] ?? ''} onChange={(e) => setP(k, e.target.value)} />
+    </div>
+  )
+  const aField = (k: string, label: string, customId?: string) => (
+    <div className={styles.field} key={k}>
+      <label>
+        {label}
+        {customId && canEditProntuario && (
+          <button type="button" className={styles.btnRemoveCustomField} title="Remover campo" onClick={() => handleRemoveCustomField(customId)}>
+            <Icon name="close" size={11} />
+          </button>
+        )}
+      </label>
       <textarea rows={2} value={anamnesis[k] ?? ''} onChange={(e) => setA(k, e.target.value)} />
     </div>
   )
-  const eField = (k: string, label: string) => (
+  const eField = (k: string, label: string, customId?: string) => (
     <div className={styles.field} key={k}>
-      <label>{label}</label>
+      <label>
+        {label}
+        {customId && canEditProntuario && (
+          <button type="button" className={styles.btnRemoveCustomField} title="Remover campo" onClick={() => handleRemoveCustomField(customId)}>
+            <Icon name="close" size={11} />
+          </button>
+        )}
+      </label>
       <textarea rows={2} value={clinicalExam[k] ?? ''} onChange={(e) => setE(k, e.target.value)} />
     </div>
   )
 
-  const anamnesisFields: Record<string, [string, string][]> = {
-    odonto: [
-      ['a-queixa', 'Queixa principal / Motivo da consulta'],
-      ['a-saude', 'Estado geral de saúde'],
-      ['a-tratamento', 'Em tratamento médico? Qual?'],
-      ['a-medicamentos', 'Medicamentos em uso'],
-      ['a-alergia', 'Alergias (medicamentos, látex, anestésicos)'],
-      ['a-pressao', 'Pressão arterial / Cardiopatias'],
-      ['a-fumante', 'Fumante / Álcool'],
-      ['a-gengiva', 'Sangramento gengival / Dor dentária'],
-      ['a-hist_odonto', 'Histórico odontológico (última consulta, prótese, implante)'],
-      ['a-bruxismo', 'Bruxismo / Ranger de dentes'],
-      ['a-habitos', 'Hábitos bucais (chupar dedo, morder objetos)'],
-    ],
-    medico: [
-      ['a-motivo', 'Queixa principal / Motivo da consulta'],
-      ['a-hist_doenca', 'História da doença atual (início, evolução, intensidade)'],
-      ['a-comorbidades', 'Comorbidades (Diabetes, HAS, Cardiopatia, etc.)'],
-      ['a-hist_familiar', 'Histórico familiar de doenças relevantes'],
-      ['a-cirurgias', 'Cirurgias / Internações anteriores'],
-      ['a-medicamentos', 'Medicamentos em uso'],
-      ['a-alergia', 'Alergias (medicamentos, alimentos, outros)'],
-      ['a-habitos', 'Hábitos de vida (Fumo / Álcool / Atividade física)'],
-      ['a-sono', 'Qualidade do sono'],
-      ['a-sintomas', 'Sintomas associados (febre, dor, náusea, etc.)'],
-    ],
-    estetica: [
-      ['a-queixa', 'Queixa principal / Região de interesse'],
-      ['a-expectativa', 'Expectativas com o tratamento'],
-      ['a-trat_anteriores', 'Tratamentos estéticos anteriores'],
-      ['a-cosmeticos', 'Uso de cosméticos / Ácidos / Retinol'],
-      ['a-isotretinoina', 'Uso de isotretinoína (últimos 6 meses?)'],
-      ['a-anticoagulantes', 'Uso de anticoagulantes / AAS'],
-      ['a-exposicao_solar', 'Exposição solar (usa protetor solar?)'],
-      ['a-alergia', 'Alergias (cosméticos, anestésicos, látex)'],
-      ['a-queloides', 'Histórico de queloides / Cicatrização ruim'],
-      ['a-gestante', 'Gestante / Lactante?'],
-      ['a-doencas', 'Doenças de pele (rosácea, psoríase, dermatite)'],
-    ],
-    vet: [
-      ['a-queixa', 'Motivo da consulta / Queixa principal'],
-      ['a-alimentacao', 'Alimentação / Dieta (tipo, frequência, marca)'],
-      ['a-ambiente', 'Ambiente onde vive (interno / externo)'],
-      ['a-hist_doencas', 'Histórico de doenças / Cirurgias anteriores'],
-      ['a-vacinas', 'Vacinação e vermifugação em dia?'],
-      ['a-reproducao', 'Histórico reprodutivo (fêmeas: gestações, cio)'],
-      ['a-medicamentos', 'Medicamentos em uso'],
-      ['a-alergia', 'Alergias conhecidas'],
-      ['a-contato', 'Contato com outros animais'],
-    ],
-    fisio: [
-      ['a-queixa', 'Queixa principal'],
-      ['a-diagnostico', 'Diagnóstico médico / Encaminhamento'],
-      ['a-regiao', 'Região acometida'],
-      ['a-inicio', 'Início e causa (trauma, postura, esforço, cirurgia)'],
-      ['a-dor', 'Intensidade da dor (0–10) e tipo (queimação, pontada, etc.)'],
-      ['a-fatores', 'Fatores que pioram / melhoram'],
-      ['a-cirurgias', 'Cirurgias ou fraturas anteriores'],
-      ['a-comorbidades', 'Comorbidades (Diabetes, HAS, Osteoporose, etc.)'],
-      ['a-medicamentos', 'Medicamentos em uso'],
-      ['a-exames', 'Exames de imagem disponíveis (RX, RM, USG)'],
-      ['a-sessoes', 'Número de sessões previstas / Frequência'],
-      ['a-alergia', 'Alergias'],
-    ],
-    psico: [
-      ['a-queixa', 'Queixa principal / Motivo da busca'],
-      ['a-hist_pessoal', 'Histórico pessoal relevante (infância, traumas, perdas)'],
-      ['a-dinamica_familiar', 'Dinâmica familiar atual'],
-      ['a-trat_anteriores', 'Tratamentos psicológicos ou psiquiátricos anteriores'],
-      ['a-medicamentos', 'Medicamentos em uso (psiquiátricos ou outros)'],
-      ['a-substancias', 'Uso de álcool, tabaco ou outras substâncias'],
-      ['a-sono', 'Qualidade do sono (insônia, hipersonia, pesadelos)'],
-      ['a-relacionamentos', 'Relacionamentos (familiar, social, afetivo)'],
-      ['a-trabalho', 'Situação profissional / escolar'],
-      ['a-objetivos', 'Objetivos com a terapia'],
-      ['a-risco', 'Triagem de risco (ideação suicida / autolesão)'],
-    ],
-    nutri: [
-      ['a-queixa', 'Objetivo principal / Queixa'],
-      ['a-hist_clinico', 'Histórico clínico (Diabetes, HAS, dislipidemia, tireóide)'],
-      ['a-cirurgias', 'Cirurgias / Internações anteriores'],
-      ['a-medicamentos', 'Medicamentos em uso'],
-      ['a-alergia', 'Alergias ou intolerâncias alimentares'],
-      ['a-habitos', 'Hábitos alimentares (refeições/dia, horários, local)'],
-      ['a-recordatorio', 'Recordatório alimentar 24h (o que comeu ontem)'],
-      ['a-restricoes', 'Restrições alimentares (religiosas, preferências, aversões)'],
-      ['a-hidratacao', 'Ingestão hídrica diária'],
-      ['a-atividade', 'Prática de atividade física (tipo, frequência, duração)'],
-      ['a-intestino', 'Funcionamento intestinal (frequência, consistência)'],
-      ['a-hist_peso', 'Histórico de peso (máximo, mínimo, variações recentes)'],
-    ]
-  }
+  const specialty = getSpecialtyConfig(viewArea)
 
-  const clinicalExamFields: Record<string, [string, string][]> = {
-    odonto: [
-      ['e-higiene', 'Higiene bucal (placa, tártaro)'],
-      ['e-halitose', 'Halitose'],
-      ['e-mucosa', 'Mucosa oral (cor, lesões, úlceras)'],
-      ['e-palato', 'Palato / Língua / Assoalho bucal'],
-      ['e-oclusao', 'Oclusão / Articulação temporomandibular (ATM)'],
-      ['e-mobilidade', 'Mobilidade dentária'],
-      ['e-sondagem', 'Profundidade de sondagem / Sangramento à sondagem'],
-      ['e-dor', 'Dor à percussão / Sensibilidade ao frio/calor'],
-      ['e-hipotese', 'Hipótese diagnóstica / Plano radiográfico'],
-      ['e-obs', 'Observações gerais'],
-    ],
-    medico: [
-      ['e-pressao', 'Pressão Arterial (mmHg)'],
-      ['e-fc', 'Frequência Cardíaca (bpm)'],
-      ['e-fr', 'Frequência Respiratória (irpm)'],
-      ['e-temp', 'Temperatura (°C)'],
-      ['e-spo2', 'Saturação O₂ (%)'],
-      ['e-glicemia', 'Glicemia capilar (mg/dL)'],
-      ['e-antropometria', 'Peso / Altura / IMC'],
-      ['e-ausculta', 'Ausculta Cardíaca / Pulmonar'],
-      ['e-exame_fisico', 'Exame físico específico (região de queixa)'],
-      ['e-hipotese', 'Hipótese diagnóstica (CID)'],
-      ['e-conduta', 'Conduta / Solicitação de exames'],
-      ['e-obs', 'Observações gerais'],
-    ],
-    estetica: [
-      ['e-tipo_pele', 'Tipo de pele (Normal, Seca, Oleosa, Mista)'],
-      ['e-fototipo', 'Fototipo (Fitzpatrick I–VI)'],
-      ['e-hidratacao', 'Grau de hidratação'],
-      ['e-regiao', 'Região de interesse / Área a tratar'],
-      ['e-manchas', 'Manchas / Melasma / Hiperpigmentação'],
-      ['e-flacidez', 'Grau de flacidez / Celulite'],
-      ['e-lesoes', 'Lesões visíveis (acne, rosácea, cicatrizes)'],
-      ['e-procedimento', 'Procedimento proposto / Protocolo'],
-      ['e-contraindicacoes', 'Contraindicações identificadas'],
-      ['e-obs', 'Observações gerais'],
-    ],
-    vet: [
-      ['e-temperatura', 'Temperatura retal (°C)'],
-      ['e-mucosas', 'Mucosas (cor, TPC)'],
-      ['e-hidratacao', 'Grau de desidratação'],
-      ['e-fc', 'Frequência Cardíaca (bpm)'],
-      ['e-fr', 'Frequência Respiratória (mpm)'],
-      ['e-linfonodos', 'Linfonodos (tamanho, consistência)'],
-      ['e-peso', 'Peso (kg) / Escore corporal'],
-      ['e-ausculta', 'Ausculta cardíaca / Pulmonar'],
-      ['e-abd', 'Palpação abdominal'],
-      ['e-hipotese', 'Hipótese diagnóstica / Exames solicitados'],
-      ['e-obs', 'Observações gerais'],
-    ],
-    fisio: [
-      ['e-postura', 'Avaliação postural (anteriorização, escoliose, etc.)'],
-      ['e-adm', 'ADM — Amplitude de Movimento (graus)'],
-      ['e-forca', 'Força muscular (escala 0–5)'],
-      ['e-sensibilidade', 'Sensibilidade / Parestesia / Dormência'],
-      ['e-testes', 'Testes especiais (Lasègue, Phalen, Ortolani, etc.)'],
-      ['e-palpacao', 'Dor à palpação / Pontos-gatilho'],
-      ['e-edema', 'Edema / Inflamação / Temperatura local'],
-      ['e-marcha', 'Avaliação de marcha / Equilíbrio'],
-      ['e-hipotese', 'Diagnóstico fisioterapêutico'],
-      ['e-obs', 'Observações gerais'],
-    ],
-    psico: [
-      ['e-apresentacao', 'Apresentação geral (aparência, higiene, postura, contato visual)'],
-      ['e-humor', 'Humor e afeto (eutímico, deprimido, eufórico, ansioso)'],
-      ['e-pensamento', 'Curso e conteúdo do pensamento (acelerado, lento, ruminações)'],
-      ['e-percepcao', 'Percepção (alucinações auditivas/visuais, ilusões)'],
-      ['e-cognicao', 'Memória, atenção, concentração e orientação'],
-      ['e-critica', 'Crítica e julgamento (insight sobre a condição)'],
-      ['e-escala_phq', 'Escala PHQ-9 / GAD-7 (pontuação se aplicada)'],
-      ['e-hipotese', 'Hipótese diagnóstica (CID-10 / DSM-5)'],
-      ['e-plano', 'Plano terapêutico / Abordagem utilizada'],
-      ['e-obs', 'Observações da sessão'],
-    ],
-    nutri: [
-      ['e-peso', 'Peso atual (kg)'],
-      ['e-altura', 'Altura (cm)'],
-      ['e-imc', 'IMC (kg/m²)'],
-      ['e-cc', 'Circunferência abdominal (cm)'],
-      ['e-cq', 'Relação cintura/quadril'],
-      ['e-gordura', 'Percentual de gordura corporal (%)'],
-      ['e-massa_magra', 'Massa magra (kg)'],
-      ['e-pressao', 'Pressão arterial'],
-      ['e-exames_lab', 'Exames laboratoriais (glicose, HbA1c, colesterol, TG, TSH)'],
-      ['e-meta_calorica', 'Meta calórica / VET prescrito (kcal/dia)'],
-      ['e-plano', 'Plano alimentar / Orientações prescritas'],
-      ['e-obs', 'Observações gerais'],
-    ]
-  }
+  const petSpecies = patientInfo['p-pet_especie'] ?? ''
+  const baseAnamnesisFields = viewArea === 'vet'
+    ? [...specialty.anamnesisFields, ...(VET_ANAMNESIS_EXTRA_BY_SPECIES[petSpecies] ?? [])]
+    : viewArea === 'medico'
+    ? [...specialty.anamnesisFields, ...(MEDICO_ANAMNESIS_EXTRA_BY_SPECIALTY[myMedicoSpecialty ?? ''] ?? [])]
+    : specialty.anamnesisFields
+  const baseClinicalExamFields = viewArea === 'vet'
+    ? [...specialty.clinicalExamFields, ...(VET_EXAM_EXTRA_BY_SPECIES[petSpecies] ?? [])]
+    : viewArea === 'medico'
+    ? [...specialty.clinicalExamFields, ...(MEDICO_EXAM_EXTRA_BY_SPECIALTY[myMedicoSpecialty ?? ''] ?? [])]
+    : specialty.clinicalExamFields
 
-  const petSpecies = anamnesis['p-pet_especie'] ?? ''
-  const currentAnamnesisFields = clinic.type === 'vet'
-    ? [...anamnesisFields.vet, ...(VET_ANAMNESIS_EXTRA_BY_SPECIES[petSpecies] ?? [])]
-    : (anamnesisFields[clinic.type] || anamnesisFields.odonto)
-  const currentClinicalExamFields = clinic.type === 'vet'
-    ? [...clinicalExamFields.vet, ...(VET_EXAM_EXTRA_BY_SPECIES[petSpecies] ?? [])]
-    : (clinicalExamFields[clinic.type] || clinicalExamFields.odonto)
+  // Bloco G: campos personalizados da clínica pra essa área, concatenados
+  // no final de cada seção.
+  const customAnamnesisFields = customFields.filter(f => f.section === 'anamnesis')
+  const customClinicalExamFields = customFields.filter(f => f.section === 'clinical_exam')
+  const currentAnamnesisFields: [string, string][] = [...baseAnamnesisFields, ...customAnamnesisFields.map(f => [f.field_key, f.label] as [string, string])]
+  const currentClinicalExamFields: [string, string][] = [...baseClinicalExamFields, ...customClinicalExamFields.map(f => [f.field_key, f.label] as [string, string])]
 
   return (
     <div className={styles.wrap}>
+      {canPickArea && (
+        <section className={styles.section}>
+          <div className={styles.field}>
+            <label>Ver ficha da área</label>
+            <select value={viewArea} onChange={(e) => setViewArea(e.target.value as ClinicType)}>
+              {clinicSpecialties.map((t) => (
+                <option key={t} value={t}>{CLINIC_TYPE_LABELS[t]}</option>
+              ))}
+            </select>
+          </div>
+        </section>
+      )}
+
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Identificação</h3>
         <div className={styles.grid2}>
-          {[['p-cpf','CPF'], ['p-rg','RG']].map(([k,l]) => (
-            <div className={styles.field} key={k}>
-              <label>{l}</label>
-              <input value={anamnesis[k] ?? ''} onChange={e => setA(k, e.target.value)} />
-            </div>
-          ))}
+          {pField('p-cpf', 'CPF')}
+          {pField('p-rg', 'RG')}
 
           <div className={styles.field}>
             <label>Data de Nascimento</label>
             <input
               placeholder="DD/MM/AAAA"
-              value={anamnesis['p-nasc'] ?? ''}
-              onChange={e => setA('p-nasc', e.target.value)}
+              value={patientInfo['p-nasc'] ?? ''}
+              onChange={e => setP('p-nasc', e.target.value)}
             />
           </div>
 
           <div className={styles.field}>
             <label>Gênero</label>
-            <select value={anamnesis['p-genero'] ?? ''} onChange={e => setA('p-genero', e.target.value)}>
+            <select value={patientInfo['p-genero'] ?? ''} onChange={e => setP('p-genero', e.target.value)}>
               <option value="">Selecionar</option>
               <option value="Masculino">Masculino</option>
               <option value="Feminino">Feminino</option>
@@ -391,21 +325,16 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
             </select>
           </div>
 
-          {['p-ocupacao','Ocupação', 'p-endereco','Endereço', 'p-indicado','Como nos conheceu', 'p-emergencia','Contato de Emergência'].reduce<[string,string][]>((acc, _, i, arr) => {
-            if (i % 2 === 0) acc.push([arr[i] as string, arr[i+1] as string])
-            return acc
-          }, []).map(([k, l]) => (
-            <div className={styles.field} key={k}>
-              <label>{l}</label>
-              <input value={anamnesis[k] ?? ''} onChange={e => setA(k, e.target.value)} />
-            </div>
-          ))}
+          {pField('p-ocupacao', 'Ocupação')}
+          {pField('p-endereco', 'Endereço')}
+          {pField('p-indicado', 'Como nos conheceu')}
+          {pField('p-emergencia', 'Contato de Emergência')}
 
-          {clinic.type === 'vet' && (
+          {viewArea === 'vet' && (
             <>
               <div className={styles.field}>
                 <label>Nome do Pet</label>
-                <input value={anamnesis['p-pet_nome'] ?? ''} onChange={e => setA('p-pet_nome', e.target.value)} />
+                <input value={patientInfo['p-pet_nome'] ?? ''} onChange={e => setP('p-pet_nome', e.target.value)} />
               </div>
 
               <div className={styles.field}>
@@ -414,10 +343,10 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
                   value={petSpecies}
                   onChange={e => {
                     const newSpecies = e.target.value
-                    setA('p-pet_especie', newSpecies)
+                    setP('p-pet_especie', newSpecies)
                     const breedList = PET_BREEDS[newSpecies] ?? []
-                    const currentRaca = anamnesis['p-pet_raca'] ?? ''
-                    if (currentRaca && !breedList.includes(currentRaca)) setA('p-pet_raca', '')
+                    const currentRaca = patientInfo['p-pet_raca'] ?? ''
+                    if (currentRaca && !breedList.includes(currentRaca)) setP('p-pet_raca', '')
                   }}
                 >
                   <option value="">Selecionar</option>
@@ -427,14 +356,14 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
               {(() => {
                 const breedList = PET_BREEDS[petSpecies] ?? []
-                const racaValue = anamnesis['p-pet_raca'] ?? ''
+                const racaValue = patientInfo['p-pet_raca'] ?? ''
                 if (breedList.length === 0) {
                   return (
                     <div className={styles.field}>
                       <label>Raça</label>
                       <input
                         value={racaValue}
-                        onChange={e => setA('p-pet_raca', e.target.value)}
+                        onChange={e => setP('p-pet_raca', e.target.value)}
                         placeholder={petSpecies ? 'Digite a raça' : 'Selecione a espécie primeiro'}
                       />
                     </div>
@@ -448,7 +377,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
                       <label>Raça</label>
                       <select
                         value={selectValue}
-                        onChange={e => setA('p-pet_raca', e.target.value === 'Outra' ? '' : e.target.value)}
+                        onChange={e => setP('p-pet_raca', e.target.value === 'Outra' ? '' : e.target.value)}
                       >
                         <option value="">Selecionar</option>
                         {breedList.map(b => <option key={b} value={b}>{b}</option>)}
@@ -459,7 +388,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
                         <label>Qual raça?</label>
                         <input
                           value={isCustomBreed ? racaValue : ''}
-                          onChange={e => setA('p-pet_raca', e.target.value)}
+                          onChange={e => setP('p-pet_raca', e.target.value)}
                           placeholder="Digite a raça"
                         />
                       </div>
@@ -475,7 +404,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
               ].map(([k,l]) => (
                 <div className={styles.field} key={k}>
                   <label>{l}</label>
-                  <input value={anamnesis[k] ?? ''} onChange={e => setA(k, e.target.value)} />
+                  <input value={patientInfo[k] ?? ''} onChange={e => setP(k, e.target.value)} />
                 </div>
               ))}
             </>
@@ -484,22 +413,60 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
         <div className={styles.field} style={{ marginTop: '0.75rem' }}>
           <label>Observações sobre o paciente</label>
-          <textarea rows={2} value={anamnesis['p-notes'] ?? ''} onChange={e => setA('p-notes', e.target.value)} />
+          <textarea rows={2} value={patientInfo['p-notes'] ?? ''} onChange={e => setP('p-notes', e.target.value)} />
         </div>
       </section>
 
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Anamnese</h3>
         <div className={styles.grid2}>
-          {currentAnamnesisFields.map(([k, label]) => aField(k, label))}
+          {currentAnamnesisFields.map(([k, label]) => aField(k, label, customAnamnesisFields.find(f => f.field_key === k)?.id))}
         </div>
+        {canEditProntuario && (
+          addingField === 'anamnesis' ? (
+            <div className={styles.field} style={{ marginTop: '0.5rem' }}>
+              <input
+                autoFocus
+                placeholder="Nome do novo campo"
+                value={newFieldLabel}
+                onChange={e => setNewFieldLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddCustomField('anamnesis'); if (e.key === 'Escape') { setAddingField(null); setNewFieldLabel('') } }}
+              />
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
+                <button type="button" className={styles.btnSave} onClick={() => handleAddCustomField('anamnesis')}>Adicionar</button>
+                <button type="button" className={styles.btnPrint} onClick={() => { setAddingField(null); setNewFieldLabel('') }}>Cancelar</button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className={styles.btnAddCustomField} onClick={() => setAddingField('anamnesis')}>+ Adicionar campo</button>
+          )
+        )}
       </section>
 
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Exame Clínico</h3>
         <div className={styles.grid2}>
-          {currentClinicalExamFields.map(([k, label]) => eField(k, label))}
+          {currentClinicalExamFields.map(([k, label]) => eField(k, label, customClinicalExamFields.find(f => f.field_key === k)?.id))}
         </div>
+        {canEditProntuario && (
+          addingField === 'clinical_exam' ? (
+            <div className={styles.field} style={{ marginTop: '0.5rem' }}>
+              <input
+                autoFocus
+                placeholder="Nome do novo campo"
+                value={newFieldLabel}
+                onChange={e => setNewFieldLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddCustomField('clinical_exam'); if (e.key === 'Escape') { setAddingField(null); setNewFieldLabel('') } }}
+              />
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
+                <button type="button" className={styles.btnSave} onClick={() => handleAddCustomField('clinical_exam')}>Adicionar</button>
+                <button type="button" className={styles.btnPrint} onClick={() => { setAddingField(null); setNewFieldLabel('') }}>Cancelar</button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className={styles.btnAddCustomField} onClick={() => setAddingField('clinical_exam')}>+ Adicionar campo</button>
+          )
+        )}
       </section>
 
       <section className={styles.section}>
@@ -536,7 +503,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
         {saved && <span className={styles.savedMsg}><Icon name="check" size={12} /> Salvo com sucesso!</span>}
         <button
           className={styles.btnPrint}
-          onClick={() => printProntuario(clinicInfo, patient, recordForPrint, entries)}
+          onClick={() => printProntuario(clinicInfo, patient, recordForPrint, entries, viewArea)}
           type="button"
         >
           Imprimir Prontuário

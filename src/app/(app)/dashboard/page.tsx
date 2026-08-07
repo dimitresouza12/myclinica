@@ -7,13 +7,14 @@ import { formatCurrency, formatCurrencyCompact, formatDate } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsApp } from '@/lib/planGates'
 import { Icon } from '@/components/ui/Icon'
-import { useDashboardData, useProcedures } from '@/hooks/useClinicData'
+import { useDashboardData, useProcedures, useEstoqueData } from '@/hooks/useClinicData'
 import type { DashboardAlertReason, DashboardAlert, RevenueByCategory } from '@/hooks/useClinicData'
 import type { ComponentProps } from 'react'
 import styles from './dashboard.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { OnboardingChecklist } from './OnboardingChecklist'
 import { OnboardingModal } from './OnboardingModal'
+import { WelcomeModal } from './WelcomeModal'
 
 const DashboardChart = dynamic(() => import('./DashboardChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
 const RevenueByCategoryChart = dynamic(() => import('./RevenueByCategoryChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
@@ -35,9 +36,10 @@ interface Stats {
 }
 
 const ALERT_META: Record<DashboardAlertReason, { label: string; icon: IconName; color: string }> = {
-  faltou:      { label: 'Faltou',      icon: 'alert',    color: '#EF4444' },
-  sem_retorno: { label: 'Sem retorno', icon: 'calendar', color: '#F59E0B' },
-  aniversario: { label: 'Aniversário', icon: 'cake',     color: '#8B5CF6' },
+  faltou:        { label: 'Faltou',       icon: 'alert',    color: '#EF4444' },
+  sem_retorno:   { label: 'Sem retorno',  icon: 'calendar', color: '#F59E0B' },
+  aniversario:   { label: 'Aniversário',  icon: 'cake',     color: '#8B5CF6' },
+  estoque_baixo: { label: 'Estoque baixo', icon: 'stock',   color: '#F59E0B' },
 }
 
 function buildWaLink(phone: string, message: string): string {
@@ -159,6 +161,8 @@ function DashboardContent() {
 
   const { data, isLoading: loading } = useDashboardData(clinic?.id)
   const { data: procedures = [] } = useProcedures(clinic?.id)
+  const { data: estoqueData } = useEstoqueData(clinic?.id)
+  const lowStockCount = (estoqueData?.items ?? []).filter(i => i.quantity <= i.min_quantity).length
 
   // Fire-and-forget in background — does not block dashboard queries
   useEffect(() => {
@@ -173,7 +177,17 @@ function DashboardContent() {
   const recentAppts = data?.recentAppts ?? []
   const monthlyData: MonthlyData[] = data?.monthlyData ?? []
   const revenueByCategory = data?.revenueByCategory ?? []
-  const alerts = (data?.alerts ?? []).filter(a => !dismissedAlerts.has(`${a.reason}-${a.patientId}`))
+  const rawAlerts: DashboardAlert[] = [...(data?.alerts ?? [])]
+  if (lowStockCount > 0) {
+    rawAlerts.push({
+      patientId: 'estoque',
+      name: `${lowStockCount} ${lowStockCount === 1 ? 'item' : 'itens'} abaixo do estoque mínimo`,
+      phone: null,
+      date: new Date().toISOString(),
+      reason: 'estoque_baixo',
+    })
+  }
+  const alerts = rawAlerts.filter(a => !dismissedAlerts.has(`${a.reason}-${a.patientId}`))
 
   const revenueTrendPct = (() => {
     if (monthlyData.length < 2) return null
@@ -237,6 +251,7 @@ function DashboardContent() {
         <>
           <OnboardingModal procedures={procedures} patientsCount={stats.totalPatients} />
           <OnboardingChecklist procedures={procedures} patientsCount={stats.totalPatients} />
+          <WelcomeModal />
 
           {alerts.length > 0 && (
             <div className={styles.alertWidget}>
@@ -257,7 +272,8 @@ function DashboardContent() {
               <div className={styles.alertList}>
                 {alerts.slice(0, 6).map((a) => {
                   const meta = ALERT_META[a.reason]
-                  const msg = alertMessage(a.reason, a.name, clinic?.name ?? 'nossa clínica')
+                  const isStock = a.reason === 'estoque_baixo'
+                  const msg = isStock ? '' : alertMessage(a.reason, a.name, clinic?.name ?? 'nossa clínica')
                   const alertKey = `${a.reason}-${a.patientId}`
                   return (
                     <div key={alertKey} className={styles.alertItem}>
@@ -266,10 +282,14 @@ function DashboardContent() {
                       </span>
                       <div className={styles.alertInfo}>
                         <span className={styles.alertName}>{a.name}</span>
-                        <span className={styles.alertDate}>{a.reason === 'aniversario' ? 'Hoje' : formatDate(a.date, true)}</span>
+                        {!isStock && <span className={styles.alertDate}>{a.reason === 'aniversario' ? 'Hoje' : formatDate(a.date, true)}</span>}
                       </div>
                       <div className={styles.alertActions}>
-                        {a.phone && (
+                        {isStock ? (
+                          <Link className={styles.alertBtnWa} href="/estoque" title="Ver estoque">
+                            Ver estoque
+                          </Link>
+                        ) : a.phone && (
                           <a className={styles.alertBtnWa} href={buildWaLink(a.phone, msg)} target="_blank" rel="noopener noreferrer" title="WhatsApp">
                             WhatsApp
                           </a>

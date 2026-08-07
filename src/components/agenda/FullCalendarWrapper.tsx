@@ -93,6 +93,11 @@ const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullC
       datesSet={(arg: DatesSetArg) => onTitleChange?.(arg.view.title)}
       height="auto"
       eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+      dayMaxEvents={2}
+      moreLinkText={n => `+${n} mais`}
+      slotMinTime="06:00:00"
+      slotMaxTime="21:00:00"
+      allDaySlot={false}
     />
   )
 })

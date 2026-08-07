@@ -5,31 +5,22 @@ import { useAuthStore } from '@/store/auth'
 import { formatCurrency } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import type { Procedure } from '@/types'
-import { PROCEDURE_SUGGESTIONS } from '@/lib/procedureSuggestions'
+import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import styles from './procedimentos.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 
-import type { ClinicType } from '@/types'
-
-const CATEGORIAS_BY_TYPE: Record<ClinicType, string[]> = {
-  odonto:   ['Consulta', 'Cirurgia', 'Exame', 'Estética', 'Ortodontia', 'Endodontia', 'Periodontia', 'Prótese', 'Radiologia', 'Outros'],
-  medico:   ['Consulta', 'Exame', 'Cirurgia', 'Procedimento', 'Vacinação', 'Radiologia', 'Outros'],
-  estetica: ['Consulta', 'Limpeza de Pele', 'Peeling', 'Botox', 'Preenchimento', 'Laser', 'Massagem', 'Corporal', 'Outros'],
-  vet:      ['Consulta', 'Cirurgia', 'Vacinação', 'Exame', 'Banho & Tosa', 'Radiologia', 'Outros'],
-  fisio:    ['Consulta', 'Avaliação', 'Eletroterapia', 'Massagem', 'Pilates', 'Hidroterapia', 'Outros'],
-  psico:    ['Consulta', 'Avaliação Psicológica', 'Psicoterapia', 'Outros'],
-  nutri:    ['Consulta', 'Avaliação Nutricional', 'Plano Alimentar', 'Outros'],
-}
-
 interface FormData { name: string; price: string; is_free: boolean; category: string; is_active: boolean }
 const BLANK: FormData = { name: '', price: '', is_free: false, category: '', is_active: true }
 
 function ProcedimentosContent() {
   const { clinic } = useAuthStore()
-  const nameSuggestions = clinic ? (PROCEDURE_SUGGESTIONS[clinic.type] ?? []) : []
+  // Clínica multi-área soma as sugestões de todas as áreas que ela já tem
+  // (clinic.specialties), não só a área principal do cadastro.
+  const clinicSpecialties = clinic?.specialties?.length ? clinic.specialties : (clinic ? [clinic.type] : [])
+  const nameSuggestions = clinicSpecialties.flatMap(t => getSpecialtyConfig(t).procedureSuggestions)
   const [procedures, setProcedures] = useState<Procedure[]>([])
   // Categorias sugeridas da especialidade + as que a clínica já usa de fato
   // (podem ter sido cadastradas fora da lista padrão) — sem isso, editar um
@@ -37,7 +28,7 @@ function ProcedimentosContent() {
   // apagar a categoria real ao salvar sem querer.
   const categorias = clinic
     ? Array.from(new Set([
-        ...(CATEGORIAS_BY_TYPE[clinic.type] ?? CATEGORIAS_BY_TYPE.odonto),
+        ...clinicSpecialties.flatMap(t => getSpecialtyConfig(t).procedureCategories),
         ...procedures.map(p => p.category).filter((c): c is string => !!c),
       ]))
     : []

@@ -537,17 +537,14 @@
 
 /* ── Checklist "Primeiros passos" ── */
 .onboardingCard {
-  background: rgba(77, 217, 192, 0.08);
-  border: 1px solid rgba(77, 217, 192, 0.35);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--brand-primary);
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-}
-[data-theme="dark"] .onboardingCard {
-  background: rgba(77, 217, 192, 0.06);
-  border-color: rgba(77, 217, 192, 0.25);
 }
 
 .onboardingHeader {
@@ -601,7 +598,7 @@
 }
 .onboardingBtnPrimary {
   padding: 0.4rem 0.8rem;
-  min-height: 34px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   background: #4DD9C0;
@@ -616,7 +613,7 @@
 .onboardingBtnPrimary:hover { background: #3CCCB4; }
 .onboardingBtnDone {
   padding: 0.4rem 0.8rem;
-  min-height: 34px;
+  min-height: 44px;
   background: none;
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
@@ -633,7 +630,15 @@
 @media (max-width: 640px) {
   .onboardingItem { flex-direction: column; align-items: flex-start; }
   .onboardingItemActions { width: 100%; }
-  .onboardingBtnPrimary, .onboardingBtnDone { flex: 1; justify-content: center; }
+  .onboardingBtnPrimary, .onboardingBtnDone {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    min-width: 0;
+  }
+  .subMetric { font-size: 0.92rem; }
+  .subGrid > div + div { padding-left: 0.6rem; }
 }
 .alertCollapseBtn:hover { background: rgba(146, 64, 14, 0.1); }
 [data-theme="dark"] .alertCollapseBtn { color: #FBBF24; }
@@ -825,6 +830,16 @@
   display: flex;
   flex-direction: column;
 }
+
+.roleInfoBox {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  margin: 1rem 1.5rem 0;
+}
+.roleInfoTitle { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.3rem; }
+.roleInfoText { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.55; }
 
 .onbModalFooter {
   flex: 0 0 auto;

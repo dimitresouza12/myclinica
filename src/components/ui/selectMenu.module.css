@@ -3,6 +3,7 @@
 .trigger {
   display: flex; align-items: center; gap: .5rem;
   padding: .5rem .875rem;
+  min-height: 44px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   background: var(--bg-primary);
@@ -28,6 +29,7 @@
 .option {
   display: flex; align-items: center; justify-content: space-between; gap: .75rem;
   width: 100%; padding: .55rem .7rem;
+  min-height: 44px;
   border: none; border-radius: 8px; background: none;
   color: var(--text-primary); font-size: .84rem; font-weight: 500;
   text-align: left; cursor: pointer; white-space: nowrap;

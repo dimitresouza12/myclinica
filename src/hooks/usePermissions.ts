@@ -12,7 +12,7 @@ import { useAuthStore } from '@/store/auth'
  */
 export function usePermissions(module?: string) {
   const { user } = useAuthStore()
-  const { permissions, loaded, load } = usePermissionsStore()
+  const { permissions, loaded, load, error } = usePermissionsStore()
 
   useEffect(() => {
     if (user && !loaded) load()
@@ -20,9 +20,9 @@ export function usePermissions(module?: string) {
 
   // Admin e superadmin têm acesso total
   const isAdmin = user?.role === 'admin' || user?.isSuperAdmin
-  if (isAdmin) return { canView: true, canEdit: true, metadata: {}, loaded: true, isAdmin: true }
+  if (isAdmin) return { canView: true, canEdit: true, metadata: {}, loaded: true, isAdmin: true, error: false }
 
-  if (!module) return { canView: true, canEdit: true, metadata: {}, loaded, isAdmin: false }
+  if (!module) return { canView: true, canEdit: true, metadata: {}, loaded, isAdmin: false, error }
 
   const perm = permissions[module]
 
@@ -31,5 +31,5 @@ export function usePermissions(module?: string) {
   const canEdit = perm?.can_edit ?? false
   const metadata = perm?.metadata ?? {}
 
-  return { canView, canEdit, metadata, loaded, isAdmin: false }
+  return { canView, canEdit, metadata, loaded, isAdmin: false, error }
 }

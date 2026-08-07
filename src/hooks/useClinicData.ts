@@ -53,7 +53,7 @@ interface DashboardStats {
   avgTicket: number
 }
 export interface RevenueByCategory { category: string; value: number }
-export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario'
+export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario' | 'estoque_baixo'
 export interface DashboardAlert {
   patientId: string
   name: string
@@ -85,14 +85,14 @@ export function useDashboardData(clinicId: string | undefined) {
         monthApptsRes, proceduresRes, alertApptsRes, birthdayPatientsRes,
       ] = await Promise.all([
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true),
-        supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).gte('scheduled_at', startOfDay).lte('scheduled_at', endOfDay),
+        supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', startOfDay).lte('scheduled_at', endOfDay),
         supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('status', 'agendado'),
         supabase.from('financial_records').select('total_amount, type, created_at, patient_id, procedure_id').eq('clinic_id', clinicId).gte('created_at', sixMonthsAgo),
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true).gte('created_at', startOfMonth),
-        supabase.from('appointments').select('*, patients(name, phone)').eq('clinic_id', clinicId).gte('scheduled_at', now).order('scheduled_at', { ascending: true }).limit(8),
-        supabase.from('appointments').select('status').eq('clinic_id', clinicId).gte('scheduled_at', startOfMonth).lte('scheduled_at', endOfMonth),
+        supabase.from('appointments').select('*, patients(name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', now).order('scheduled_at', { ascending: true }).limit(8),
+        supabase.from('appointments').select('status').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', startOfMonth).lte('scheduled_at', endOfMonth),
         supabase.from('procedures').select('id, category').eq('clinic_id', clinicId),
-        supabase.from('appointments').select('id, patient_id, status, scheduled_at, patients(name, phone)').eq('clinic_id', clinicId).gte('scheduled_at', twoHundredDaysAgo).order('scheduled_at', { ascending: false }),
+        supabase.from('appointments').select('id, patient_id, status, scheduled_at, patients(name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', twoHundredDaysAgo).order('scheduled_at', { ascending: false }),
         supabase.from('patients').select('id, name, phone, birth_date').eq('clinic_id', clinicId).eq('is_active', true).not('birth_date', 'is', null),
       ])
 
@@ -208,14 +208,16 @@ export function useOnboardingCounts(clinicId: string | undefined) {
   return useQuery({
     queryKey: ['onboarding-counts', clinicId],
     queryFn: async () => {
-      if (!clinicId) return { professionalsCount: 0, appointmentsCount: 0 }
-      const [profRes, apptRes] = await Promise.all([
-        supabase.from('professionals').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true),
+      if (!clinicId) return { professionalsCount: 0, appointmentsCount: 0, activeUsersCount: 0 }
+      const [profRes, apptRes, usersRes] = await Promise.all([
+        supabase.from('professionals').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId),
         supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId),
+        supabase.from('clinic_users').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true).eq('is_superadmin', false),
       ])
       return {
         professionalsCount: profRes.count ?? 0,
         appointmentsCount: apptRes.count ?? 0,
+        activeUsersCount: usersRes.count ?? 0,
       }
     },
     enabled: !!clinicId,
@@ -275,7 +277,7 @@ export function useFinanceiroData(clinicId: string | undefined) {
     queryFn: async () => {
       if (!clinicId) return { records: [], patients: [] }
       const [recRes, patRes] = await Promise.all([
-        supabase.from('financial_records').select('*, patients(id, name)').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
+        supabase.from('financial_records').select('*, patients(id, name), appointments(id, scheduled_at, procedure_name)').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
         supabase.from('patients').select('id, name').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
       ])
       return {

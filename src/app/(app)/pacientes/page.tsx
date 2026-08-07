@@ -12,6 +12,7 @@ import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
 import { PetIcon } from '@/components/ui/PetIcon'
+import { Icon } from '@/components/ui/Icon'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './pacientes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -79,14 +80,13 @@ function PacientesContent() {
               <tr>
                 <th>Nome</th>
                 <th>Telefone</th>
-                <th>E-mail</th>
                 <th>Cadastro</th>
                 <th>Ações</th>
               </tr>
             </thead>
             <tbody>
               {filteredPatients.length === 0 ? (
-                <tr><td colSpan={5} className={styles.empty}>Nenhum paciente encontrado.</td></tr>
+                <tr><td colSpan={4} className={styles.empty}>Nenhum paciente encontrado.</td></tr>
               ) : filteredPatients.map((p) => (
                 <tr key={p.id}>
                   <td className={styles.bold}>
@@ -101,15 +101,14 @@ function PacientesContent() {
                     ) : p.name}
                   </td>
                   <td data-label="Telefone">{formatPhone(p.phone)}</td>
-                  <td data-label="E-mail">{p.email ?? '-'}</td>
                   <td data-label="Cadastro">{formatDate(p.created_at, true)}</td>
                   <td data-label="Ações">
                     <div className={styles.actions}>
                       <button className={styles.btnAction} onClick={() => setProntuarioPatient(p)}>
-                        Prontuário
+                        <Icon name="procedures" size={13} /> Prontuário
                       </button>
                       <button className={`${styles.btnAction} ${styles.btnSecondary}`} onClick={() => setEditPatient(p)}>
-                        Editar
+                        <Icon name="edit" size={13} /> Editar
                       </button>
                     </div>
                   </td>

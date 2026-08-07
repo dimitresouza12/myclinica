@@ -70,15 +70,23 @@ function initials(name: string): string {
 
 const STATUS_LABELS: Record<string, string> = {
   agendado: 'Agendado', confirmado: 'Confirmado',
-  concluido: 'Concluído', cancelado: 'Cancelado', faltou: 'Faltou',
+  concluido: 'Concluído', cancelado: 'Cancelado', faltou: 'Faltou', bloqueado: 'Bloqueado',
 }
 const STATUS_DOTS: Record<string, string> = {
-  agendado: '#94A3B8', confirmado: '#4DD9C0', concluido: '#10B981', cancelado: '#EF4444', faltou: '#F59E0B',
+  agendado: '#94A3B8', confirmado: '#4DD9C0', concluido: '#10B981', cancelado: '#EF4444', faltou: '#F59E0B', bloqueado: '#6B7280',
 }
 // Cores mais distintas para o FullCalendar (evita coincidência com profColor teal)
 const STATUS_CAL: Record<string, string> = {
-  agendado: '#3B82F6', confirmado: '#10B981', concluido: '#6B7280', cancelado: '#EF4444', faltou: '#F59E0B',
+  agendado: '#3B82F6', confirmado: '#10B981', concluido: '#6B7280', cancelado: '#EF4444', faltou: '#F59E0B', bloqueado: '#9CA3AF',
 }
+
+interface BlockForm {
+  professional_id: string
+  scheduled_at: string
+  duration_minutes: number
+  notes: string
+}
+const BLANK_BLOCK: BlockForm = { professional_id: '', scheduled_at: '', duration_minutes: 60, notes: '' }
 
 // ── Helper: format time range ──────────────────────────────────
 function fmtTime(iso: string) {
@@ -131,6 +139,11 @@ const SearchIcon = () => (
 const PlusIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+)
+const BanIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
   </svg>
 )
 
@@ -269,6 +282,41 @@ function ApptDetailContent({
   )
 }
 
+// ── Block detail content (bloqueio de horário) ──────────────────
+function BlockDetailContent({ appt, onClose, onDelete }: {
+  appt: Appointment
+  onClose: () => void
+  onDelete: (a: Appointment) => void
+}) {
+  return (
+    <>
+      <div className={styles.detailHeader}>
+        <div className={styles.detailPatientInfo}>
+          <div className={styles.detailAvatar} style={{ background: '#9CA3AF' }}>🚫</div>
+          <div>
+            <div className={styles.detailName}>Horário bloqueado</div>
+            <span className={`${styles.detailStatusBadge} ${styles.badge_bloqueado}`}>Bloqueado</span>
+          </div>
+        </div>
+        <button className={styles.btnClose} onClick={onClose}><Icon name="close" size={18} /></button>
+      </div>
+      <div className={styles.detailBody}>
+        <div className={styles.detailInfoGrid}>
+          <InfoCard label="Data e hora" value={formatDate(appt.scheduled_at)} />
+          <InfoCard label="Duração" value={`${appt.duration_minutes ?? 60} min`} />
+          {appt.professionals?.name && <InfoCard label="Profissional" value={appt.professionals.name} />}
+          {appt.notes && <InfoCard label="Motivo" value={appt.notes} fullWidth />}
+        </div>
+      </div>
+      <div className={styles.detailFooter}>
+        <div className={styles.detailFooterActions}>
+          <button className={styles.btnDetailDelete} onClick={() => onDelete(appt)}>Remover bloqueio</button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────
 function AgendaContent() {
   const { clinic, user, setSession } = useAuthStore()
@@ -279,6 +327,14 @@ function AgendaContent() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const { data: professionals = [] } = useProfessionals(clinic?.id)
+  // Duração pré-preenchida pelo profissional selecionado — não pela área da
+  // clínica (Bloco D): professional.default_duration_minutes se definido,
+  // senão a duração padrão da área dele (specialty_type), senão a da clínica.
+  const resolveProfessionalDuration = useCallback((professionalId: string): number => {
+    const prof = professionals.find(p => p.id === professionalId)
+    if (!prof) return defaultDuration
+    return prof.default_duration_minutes ?? getSpecialtyConfig(prof.specialty_type ?? clinic?.type).defaultDurationMinutes
+  }, [professionals, defaultDuration, clinic?.type])
   const { data: procedures = [] } = useProcedures(clinic?.id)
   const [viewMode, setViewMode] = useState<ViewMode>('dia')
   const calRef = useRef<FullCalendarHandle>(null)
@@ -304,6 +360,10 @@ function AgendaContent() {
   const [savingPatient, setSavingPatient] = useState(false)
   const [patientSearch, setPatientSearch] = useState('')
   const [showPatientDrop, setShowPatientDrop] = useState(false)
+  const [showBlockModal, setShowBlockModal] = useState(false)
+  const [blockForm, setBlockForm] = useState<BlockForm>(BLANK_BLOCK)
+  const [savingBlock, setSavingBlock] = useState(false)
+  const [blockError, setBlockError] = useState('')
 
   // On mobile (<900px), show detail as overlay; on desktop, as side panel
   const [isMobile, setIsMobile] = useState(false)
@@ -393,7 +453,7 @@ function AgendaContent() {
       TIME_SLOTS.forEach(slot => {
         const slotMs = new Date(`${dateStr}T${slot}:00`).getTime()
         if (aStartMs < slotMs + 30 * 60000 && aEndMs > slotMs && !map.has(slot)) {
-          map.set(slot, a.patients?.name?.split(' ')[0] ?? 'Ocupado')
+          map.set(slot, a.status === 'bloqueado' ? 'Bloqueado' : (a.patients?.name?.split(' ')[0] ?? 'Ocupado'))
         }
       })
     })
@@ -429,7 +489,7 @@ function AgendaContent() {
       }
       return {
         id: a.id,
-        title: `${a.patients?.name ?? 'Paciente'} — ${a.procedure_name ?? 'Consulta'}`,
+        title: a.status === 'bloqueado' ? `🚫 ${a.notes || 'Bloqueado'}` : `${a.patients?.name ?? 'Paciente'} — ${a.procedure_name ?? 'Consulta'}`,
         start, end,
         color: STATUS_CAL[a.status ?? 'agendado'] ?? STATUS_CAL.agendado,
         extendedProps: { appt: a },
@@ -708,18 +768,22 @@ function AgendaContent() {
   // nenhum caso o método de pagamento é definido aqui (a conclusão do
   // agendamento não pergunta isso), então o usuário sempre precisa passar no
   // Financeiro pra completar o lançamento.
-  async function ensureRevenueForAppointment(appt: Appointment): Promise<{ status: 'created' | 'existing' | 'no_price'; recordId?: string }> {
+  async function ensureRevenueForAppointment(appt: Appointment): Promise<{ status: 'created' | 'existing' | 'no_price' | 'error'; recordId?: string; errorMessage?: string }> {
     // procedure_id pode ser null aqui: procedimento "Outro (digitar)" não tem
     // cadastro na tabela procedures, mas ainda assim tem um valor cobrado que
     // precisa aparecer no Financeiro (antes disso, "Outro" nunca gerava receita).
     if (!clinic || !appt.procedure_price || appt.procedure_price <= 0) return { status: 'no_price' }
-    const { data: existing } = await supabase
+    const { data: existing, error: selErr } = await supabase
       .from('financial_records')
       .select('id')
       .eq('appointment_id', appt.id)
       .maybeSingle()
+    // Erro na leitura (ex: usuário sem financeiro.can_view após a RLS por
+    // módulo) não pode virar "existing" nem "created" por omissão — precisa
+    // avisar em vez de mentir que a receita foi lançada.
+    if (selErr) return { status: 'error', errorMessage: selErr.message }
     if (existing) return { status: 'existing', recordId: existing.id }
-    const { data: inserted } = await supabase.from('financial_records').insert([{
+    const { data: inserted, error: insErr } = await supabase.from('financial_records').insert([{
       clinic_id: clinic.id,
       patient_id: appt.patient_id ?? null,
       appointment_id: appt.id,
@@ -730,10 +794,11 @@ function AgendaContent() {
       payment_method: null,
       notes: appt.procedure_name,
     }]).select('id').single()
-    return { status: 'created', recordId: inserted?.id }
+    if (insErr || !inserted) return { status: 'error', errorMessage: insErr?.message ?? 'Falha ao criar a receita.' }
+    return { status: 'created', recordId: inserted.id }
   }
 
-  function notifyRevenuePending(result: { status: 'created' | 'existing' | 'no_price'; recordId?: string }, appt: Appointment) {
+  function notifyRevenuePending(result: { status: 'created' | 'existing' | 'no_price' | 'error'; recordId?: string; errorMessage?: string }, appt: Appointment) {
     if (result.status === 'created') {
       showToast('ok', 'Agendamento concluído! Receita lançada — defina a forma de pagamento em Financeiro.', {
         href: result.recordId ? `/financeiro?record=${result.recordId}` : '/financeiro',
@@ -747,11 +812,25 @@ function AgendaContent() {
         href: `/financeiro?${params.toString()}`,
         actionLabel: 'Lançar receita',
       })
+    } else if (result.status === 'error') {
+      showToast('error', 'Agendamento concluído, mas a receita não pôde ser lançada automaticamente. Lance manualmente em Financeiro.', {
+        href: '/financeiro',
+        actionLabel: 'Ir para Financeiro',
+      })
     }
   }
 
   async function removeRevenueForAppointment(apptId: string) {
-    await supabase.from('financial_records').delete().eq('appointment_id', apptId)
+    const { error } = await supabase.from('financial_records').delete().eq('appointment_id', apptId)
+    // Sem checar isso, quem não tem financeiro.can_edit via RLS teria a
+    // exclusão silenciosamente ignorada (0 linhas afetadas) e a receita
+    // ficaria órfã no Financeiro sem ninguém saber.
+    if (error) {
+      showToast('error', 'Não foi possível remover a receita vinculada a este agendamento. Confira em Financeiro.', {
+        href: '/financeiro',
+        actionLabel: 'Ir para Financeiro',
+      })
+    }
   }
 
   function closeModal() {
@@ -787,7 +866,7 @@ function AgendaContent() {
   function openEdit(appt: Appointment) {
     setEditingId(appt.id)
     setForm({
-      patient_id: appt.patient_id,
+      patient_id: appt.patient_id ?? '',
       professional_id: appt.professional_id ?? '',
       procedure_id: appt.procedure_id ?? (appt.procedure_name ? 'outro' : ''),
       procedure_name: appt.procedure_name ?? '',
@@ -820,6 +899,78 @@ function AgendaContent() {
     loadData()
   }
 
+  function openBlockModal() {
+    setBlockForm(BLANK_BLOCK)
+    setBlockError('')
+    setShowBlockModal(true)
+  }
+
+  function closeBlockModal() {
+    setShowBlockModal(false)
+    setBlockForm(BLANK_BLOCK)
+    setBlockError('')
+  }
+
+  async function handleSaveBlock() {
+    if (!clinic || !blockForm.scheduled_at) return
+    const duration = Number(blockForm.duration_minutes)
+    if (!Number.isFinite(duration) || duration < 15) {
+      setBlockError('A duração deve ser de pelo menos 15 minutos.')
+      return
+    }
+    setSavingBlock(true)
+    setBlockError('')
+    const scheduledAtISO = new Date(blockForm.scheduled_at).toISOString()
+    const professionalId = blockForm.professional_id || null
+
+    if (professionalId) {
+      const startMs = new Date(scheduledAtISO).getTime()
+      const endISO = new Date(startMs + duration * 60000).toISOString()
+      const { data: conflicts } = await supabase
+        .from('appointments')
+        .select('id, scheduled_at, duration_minutes')
+        .eq('clinic_id', clinic.id)
+        .eq('professional_id', professionalId)
+        .neq('status', 'cancelado')
+        .lt('scheduled_at', endISO)
+      const overlap = (conflicts ?? []).some(c => {
+        const cStart = new Date(c.scheduled_at).getTime()
+        const cEnd = cStart + (c.duration_minutes ?? 60) * 60000
+        return cStart < startMs + duration * 60000 && startMs < cEnd
+      })
+      if (overlap) {
+        setBlockError('Já existe um agendamento ou bloqueio nesse horário para este profissional.')
+        setSavingBlock(false)
+        return
+      }
+    }
+
+    const { error } = await supabase.from('appointments').insert([{
+      clinic_id: clinic.id,
+      patient_id: null,
+      professional_id: professionalId,
+      procedure_name: null,
+      status: 'bloqueado',
+      scheduled_at: scheduledAtISO,
+      duration_minutes: duration,
+      notes: blockForm.notes || null,
+    }])
+    setSavingBlock(false)
+    if (error) {
+      setBlockError(`Erro ao criar bloqueio: ${error.message}`)
+      return
+    }
+    closeBlockModal()
+    loadData()
+  }
+
+  async function handleDeleteBlock(appt: Appointment) {
+    if (!(await confirmDialog({ message: 'Remover este bloqueio de horário?', confirmText: 'Remover', danger: true }))) return
+    await supabase.from('appointments').delete().eq('id', appt.id).eq('clinic_id', clinic!.id)
+    setSelected(null)
+    loadData()
+  }
+
   function openGCal(appt: Appointment) {
     const start = new Date(appt.scheduled_at)
     const end = new Date(start.getTime() + (appt.duration_minutes ?? 60) * 60000)
@@ -833,103 +984,111 @@ function AgendaContent() {
     <div className={styles.page}>
       {/* ── Topbar ── */}
       <div className={styles.topbar}>
-        <div className={styles.tbLeft}>
-          <button className={styles.navBtn} onClick={handlePrev} title="Anterior"><ChevronLeft /></button>
-          <button className={styles.navBtn} onClick={handleNext} title="Próximo"><ChevronRight /></button>
-          <button className={styles.todayBtn} onClick={handleToday}>Hoje</button>
-          <div className={styles.tbDate}>
-            {isCalendarView ? (
-              <h1>{calendarTitle}</h1>
-            ) : (
-              <>
-                <h1>{fmtTopbarDate(currentDate)}</h1>
-                <span>{fmtTopbarWeekday(currentDate)}</span>
-              </>
-            )}
+        <div className={styles.topbarRow}>
+          <div className={styles.tbLeft}>
+            <button className={styles.navBtn} onClick={handlePrev} title="Anterior"><ChevronLeft /></button>
+            <button className={styles.navBtn} onClick={handleNext} title="Próximo"><ChevronRight /></button>
+            <button className={styles.todayBtn} onClick={handleToday}>Hoje</button>
+            <div className={styles.tbDate}>
+              {isCalendarView ? (
+                <h1>{calendarTitle}</h1>
+              ) : (
+                <>
+                  <h1>{fmtTopbarDate(currentDate)}</h1>
+                  <span>{fmtTopbarWeekday(currentDate)}</span>
+                </>
+              )}
+            </div>
+            <button className={styles.btnSecondaryAction} onClick={openBlockModal} title="Bloquear um horário na agenda">
+              <BanIcon />
+            </button>
+          </div>
+
+          <div className={styles.seg}>
+            <button
+              className={`${styles.segBtn} ${viewMode === 'mes' ? styles.segBtnActive : ''}`}
+              onClick={() => switchView('mes')}
+            >Mês</button>
+            <button
+              className={`${styles.segBtn} ${viewMode === 'semana' ? styles.segBtnActive : ''}`}
+              onClick={() => switchView('semana')}
+            >Semana</button>
+            <button
+              className={`${styles.segBtn} ${viewMode === 'dia' ? styles.segBtnActive : ''}`}
+              onClick={() => switchView('dia')}
+            >Dia</button>
           </div>
         </div>
 
-        <div className={styles.seg}>
-          <button
-            className={`${styles.segBtn} ${viewMode === 'mes' ? styles.segBtnActive : ''}`}
-            onClick={() => switchView('mes')}
-          >Mês</button>
-          <button
-            className={`${styles.segBtn} ${viewMode === 'semana' ? styles.segBtnActive : ''}`}
-            onClick={() => switchView('semana')}
-          >Semana</button>
-          <button
-            className={`${styles.segBtn} ${viewMode === 'dia' ? styles.segBtnActive : ''}`}
-            onClick={() => switchView('dia')}
-          >Dia</button>
-        </div>
-
-        <div className={styles.tbRight}>
-          {viewMode === 'dia' && (
-            <div className={styles.search}>
-              <SearchIcon />
-              <input
-                placeholder="Buscar paciente..."
-                value={searchQ}
-                onChange={e => setSearchQ(e.target.value)}
-              />
-            </div>
-          )}
-
-          {professionals.length > 1 && (
-            <div className={styles.profFilters}>
-              {professionals.map((p, i) => {
-                const color = PROF_COLORS[i % PROF_COLORS.length]
-                const active = !hiddenProfIds.has(p.id)
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className={styles.profFilterBtn}
-                    data-active={active}
-                    title={`${active ? 'Ocultar' : 'Mostrar'} ${p.name}`}
-                    onClick={() => toggleProfFilter(p.id)}
-                  >
-                    <span className={styles.profAvatar} style={{ background: color }}>{initials(p.name)}</span>
-                  </button>
-                )
-              })}
-              <button
-                type="button"
-                className={styles.profFilterBtn}
-                data-active={!hiddenProfIds.has('')}
-                title={`${!hiddenProfIds.has('') ? 'Ocultar' : 'Mostrar'} agendamentos sem profissional`}
-                onClick={() => toggleProfFilter('')}
-              >
-                <span className={`${styles.profAvatar} ${styles.profAvatarNone}`}>—</span>
-              </button>
-            </div>
-          )}
-
-          {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
-            gcalConnected ? (
-              <div className={styles.gcalStatus}>
-                <span className={styles.gcalDot} />
-                <span>Google Calendar</span>
-                <span className={styles.gcalEventsCount}>{gcalEvents.length} evento(s)</span>
+        <div className={styles.topbarRow}>
+          <div className={styles.tbRight}>
+            {viewMode === 'dia' && (
+              <div className={styles.search}>
+                <SearchIcon />
+                <input
+                  placeholder="Buscar paciente..."
+                  value={searchQ}
+                  onChange={e => setSearchQ(e.target.value)}
+                />
               </div>
-            ) : (
-              <button className={styles.btnGcalConnect} onClick={handleConnectGCal}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                Vincular Google Calendar
-              </button>
-            )
-          ) : (
-            <div className={styles.gcalUnlinked}>
-              <span className={styles.gcalDotOff} />
-              <span>Google Calendar</span>
-            </div>
-          )}
+            )}
 
-          <button className={styles.btnPrimary} onClick={() => setShowModal(true)}>
-            <PlusIcon />
-            Novo Agendamento
-          </button>
+            {professionals.length > 1 && (
+              <div className={styles.profFilters}>
+                {professionals.map((p, i) => {
+                  const color = PROF_COLORS[i % PROF_COLORS.length]
+                  const active = !hiddenProfIds.has(p.id)
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={styles.profFilterBtn}
+                      data-active={active}
+                      title={`${active ? 'Ocultar' : 'Mostrar'} ${p.name}`}
+                      onClick={() => toggleProfFilter(p.id)}
+                    >
+                      <span className={styles.profAvatar} style={{ background: color }}>{initials(p.name)}</span>
+                    </button>
+                  )
+                })}
+                <button
+                  type="button"
+                  className={styles.profFilterBtn}
+                  data-active={!hiddenProfIds.has('')}
+                  title={`${!hiddenProfIds.has('') ? 'Ocultar' : 'Mostrar'} agendamentos sem profissional`}
+                  onClick={() => toggleProfFilter('')}
+                >
+                  <span className={`${styles.profAvatar} ${styles.profAvatarNone}`}>—</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className={styles.tbActions}>
+            {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
+              gcalConnected ? (
+                <div className={styles.gcalStatus} title={`${gcalEvents.length} evento(s) sincronizado(s)`}>
+                  <span className={styles.gcalDot} />
+                  <span>Google Calendar</span>
+                </div>
+              ) : (
+                <button className={styles.btnGcalConnect} onClick={handleConnectGCal}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  Vincular Google Calendar
+                </button>
+              )
+            ) : (
+              <div className={styles.gcalUnlinked}>
+                <span className={styles.gcalDotOff} />
+                <span>Google Calendar</span>
+              </div>
+            )}
+
+            <button className={styles.btnPrimary} onClick={() => setShowModal(true)}>
+              <PlusIcon />
+              Novo Agendamento
+            </button>
+          </div>
         </div>
       </div>
 
@@ -956,7 +1115,7 @@ function AgendaContent() {
         </div>
       )}
 
-      {/* ── Filtro de profissionais (mobile): chips com avatar + nome, rolagem horizontal ── */}
+      {/* ── Filtro de profissionais (mobile): só avatares, igual ao desktop ── */}
       {professionals.length > 1 && (
         <div className={styles.profFiltersMobile}>
           {professionals.map((p, i) => {
@@ -966,23 +1125,23 @@ function AgendaContent() {
               <button
                 key={p.id}
                 type="button"
-                className={styles.profChip}
+                className={styles.profFilterBtn}
                 data-active={active}
+                title={`${active ? 'Ocultar' : 'Mostrar'} ${p.name}`}
                 onClick={() => toggleProfFilter(p.id)}
               >
-                <span className={styles.profChipAvatar} style={{ background: color }}>{initials(p.name)}</span>
-                {p.name}
+                <span className={styles.profAvatar} style={{ background: color }}>{initials(p.name)}</span>
               </button>
             )
           })}
           <button
             type="button"
-            className={styles.profChip}
+            className={styles.profFilterBtn}
             data-active={!hiddenProfIds.has('')}
+            title={`${!hiddenProfIds.has('') ? 'Ocultar' : 'Mostrar'} agendamentos sem profissional`}
             onClick={() => toggleProfFilter('')}
           >
-            <span className={`${styles.profChipAvatar} ${styles.profAvatarNone}`}>—</span>
-            Sem profissional
+            <span className={`${styles.profAvatar} ${styles.profAvatarNone}`}>—</span>
           </button>
         </div>
       )}
@@ -1044,7 +1203,39 @@ function AgendaContent() {
                 ) : (
                   <div className={styles.lrList}>
                     {filtered.map(a => {
-                      const color = profColor(a.professional_id, profColorIndex)
+                      const color = a.status === 'bloqueado' ? '#9CA3AF' : profColor(a.professional_id, profColorIndex)
+                      if (a.status === 'bloqueado') {
+                        return (
+                          <div key={a.id} className={styles.lrItem}>
+                            <div className={styles.lrRailWrap}>
+                              <div className={styles.lrRail}>
+                                <span className={styles.lrRailTime}>{fmtTime(a.scheduled_at)}</span>
+                                <span className={styles.lrRailDur}>{a.duration_minutes ?? 60}min</span>
+                              </div>
+                              <div className={styles.lrDotLine} />
+                            </div>
+                            <div
+                              className={`${styles.lrCard} ${styles.lrCardBlocked}`}
+                              style={{ '--lr-accent': color } as React.CSSProperties}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setSelected(a)}
+                              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(a) } }}
+                            >
+                              <strong className={styles.lrCardName}>🚫 Bloqueado</strong>
+                              <span className={styles.lrCardProc}>{a.notes || 'Horário indisponível'}</span>
+                              <div className={styles.lrCardFoot}>
+                                {a.professionals?.name && (
+                                  <>
+                                    <span className={styles.lrProAvatar} style={{ background: color }}>{initials(a.professionals.name)}</span>
+                                    <span className={styles.lrProName}>{a.professionals.name}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }
                       return (
                         <div key={a.id} className={styles.lrItem}>
                           <div className={styles.lrRailWrap}>
@@ -1102,6 +1293,9 @@ function AgendaContent() {
           {!isMobile && selected && (
             <div className={styles.panel}>
               <div className={styles.panelInner}>
+                {selected.status === 'bloqueado' ? (
+                  <BlockDetailContent appt={selected} onClose={() => setSelected(null)} onDelete={handleDeleteBlock} />
+                ) : (
                 <ApptDetailContent
                   appt={selected}
                   profColorIdx={profColorIndex}
@@ -1122,6 +1316,7 @@ function AgendaContent() {
                     )
                   }}
                 />
+                )}
               </div>
             </div>
           )}
@@ -1133,6 +1328,9 @@ function AgendaContent() {
         <Portal>
           <div className={styles.overlay} onClick={() => setSelected(null)}>
             <div className={styles.detailPanel} onClick={e => e.stopPropagation()}>
+              {selected.status === 'bloqueado' ? (
+                <BlockDetailContent appt={selected} onClose={() => setSelected(null)} onDelete={handleDeleteBlock} />
+              ) : (
               <ApptDetailContent
                 appt={selected}
                 profColorIdx={profColorIndex}
@@ -1153,6 +1351,7 @@ function AgendaContent() {
                   )
                 }}
               />
+              )}
             </div>
           </div>
         </Portal>
@@ -1297,7 +1496,13 @@ function AgendaContent() {
                 {/* ── Profissional ── */}
                 <div className={styles.field}>
                   <label>Profissional</label>
-                  <select value={form.professional_id} onChange={e => setForm(p => ({ ...p, professional_id: e.target.value }))}>
+                  <select
+                    value={form.professional_id}
+                    onChange={e => {
+                      const pid = e.target.value
+                      setForm(p => ({ ...p, professional_id: pid, duration_minutes: resolveProfessionalDuration(pid) }))
+                    }}
+                  >
                     <option value="">Sem profissional</option>
                     {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -1431,6 +1636,65 @@ function AgendaContent() {
                 <button className={styles.btnCancel} onClick={closeModal}>Cancelar</button>
                 <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.patient_id || !form.scheduled_at}>
                   {saving ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Salvar Agendamento'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Portal>
+      )}
+
+      {/* ── Block modal (bloqueio de horário) ── */}
+      {showBlockModal && (
+        <Portal>
+          <div className={styles.overlay} onClick={closeBlockModal}>
+            <div className={styles.modal} onClick={e => e.stopPropagation()}>
+              <div className={styles.modalHeader}>
+                <h2>🚫 Bloquear Horário</h2>
+                <button className={styles.btnClose} onClick={closeBlockModal}><Icon name="close" size={18} /></button>
+              </div>
+              <div className={styles.modalBody}>
+                <div className={styles.field}>
+                  <label>Profissional</label>
+                  <select value={blockForm.professional_id} onChange={e => setBlockForm(p => ({ ...p, professional_id: e.target.value }))}>
+                    <option value="">Toda a clínica</option>
+                    {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className={styles.field}>
+                  <label>Data *</label>
+                  <DatePicker
+                    value={blockForm.scheduled_at.slice(0, 10)}
+                    onChange={date => {
+                      const prevTime = blockForm.scheduled_at.slice(11, 16) || '09:00'
+                      setBlockForm(p => ({ ...p, scheduled_at: date ? `${date}T${prevTime}` : '' }))
+                    }}
+                  />
+                </div>
+                <div className={styles.field}>
+                  <label>Horário início *</label>
+                  <select
+                    value={blockForm.scheduled_at.slice(11, 16)}
+                    onChange={e => setBlockForm(p => ({ ...p, scheduled_at: `${p.scheduled_at.slice(0, 10)}T${e.target.value}` }))}
+                    disabled={!blockForm.scheduled_at.slice(0, 10)}
+                  >
+                    <option value="">Selecione...</option>
+                    {TIME_SLOTS.map(slot => <option key={slot} value={slot}>{slot}</option>)}
+                  </select>
+                </div>
+                <div className={styles.field}>
+                  <label>Duração (min)</label>
+                  <input type="number" value={blockForm.duration_minutes} onChange={e => setBlockForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))} min={15} step={15} />
+                </div>
+                <div className={styles.field}>
+                  <label>Motivo</label>
+                  <input value={blockForm.notes} onChange={e => setBlockForm(p => ({ ...p, notes: e.target.value }))} placeholder="Ex: Almoço, Férias, Indisponível..." />
+                </div>
+              </div>
+              {blockError && <div className={styles.saveErrorMsg}>{blockError}</div>}
+              <div className={styles.modalFooter}>
+                <button className={styles.btnCancel} onClick={closeBlockModal}>Cancelar</button>
+                <button className={styles.btnSave} onClick={handleSaveBlock} disabled={savingBlock || !blockForm.scheduled_at}>
+                  {savingBlock ? 'Salvando...' : 'Bloquear Horário'}
                 </button>
               </div>
             </div>

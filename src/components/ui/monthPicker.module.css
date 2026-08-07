@@ -3,6 +3,7 @@
 .trigger {
   display: flex; align-items: center; gap: .5rem;
   padding: .5rem .875rem;
+  min-height: 44px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   background: var(--bg-primary);
@@ -25,11 +26,11 @@
 @keyframes popIn { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
 
 .yearRow { display: flex; align-items: center; justify-content: space-between; margin-bottom: .6rem; padding: 0 .25rem; }
-.yearBtn { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border: none; background: var(--bg-secondary); border-radius: 8px; color: var(--text-secondary); cursor: pointer; transition: background .15s, color .15s; }
+.yearBtn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; background: var(--bg-secondary); border-radius: 8px; color: var(--text-secondary); cursor: pointer; transition: background .15s, color .15s; }
 .yearBtn:hover { background: var(--border-color); color: var(--text-primary); }
 .yearLabel { font-size: .85rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 
 .monthGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
-.monthBtn { padding: .5rem 0; border: 1px solid transparent; border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: .78rem; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.monthBtn { padding: .5rem 0; min-height: 44px; border: 1px solid transparent; border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: .78rem; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
 .monthBtn:hover { background: var(--border-color); }
 .monthBtnActive { background: #4DD9C0; color: #0D2421; border-color: #4DD9C0; }

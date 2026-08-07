@@ -31,6 +31,7 @@
 .btnExport {
   display:flex; align-items:center; gap:.35rem;
   padding:.45rem 1rem;
+  min-height:44px;
   background:var(--bg-primary);
   color:var(--text-primary);
   border:1px solid var(--border-color);
@@ -54,6 +55,7 @@
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
   padding:.65rem 1.25rem;
+  min-height:44px;
   border:none; border-bottom:2px solid transparent;
   background:none;
   font-size:.875rem; font-weight:500;

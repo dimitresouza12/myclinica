@@ -4,7 +4,7 @@
 .header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
 .title { font-family:'Plus Jakarta Sans',-apple-system,sans-serif; font-size:1.6rem; font-weight:800; color:var(--text-primary); letter-spacing:-.3px; }
 .sub { font-size:.8rem; color:var(--text-secondary); margin-top:.2rem; }
-.btnPrimary { display:inline-flex; align-items:center; gap:.375rem; padding:.5rem 1.1rem; background:#4DD9C0; color:#0D2421; border:none; border-radius:10px; font-size:.875rem; font-weight:600; cursor:pointer; transition:background .15s, transform .1s; white-space:nowrap; }
+.btnPrimary { display:inline-flex; align-items:center; gap:.375rem; padding:.5rem 1.1rem; min-height:44px; background:#4DD9C0; color:#0D2421; border:none; border-radius:10px; font-size:.875rem; font-weight:600; cursor:pointer; transition:background .15s, transform .1s; white-space:nowrap; }
 .btnPrimary:hover { background:#3CCCB4; transform:translateY(-1px); }
 
 .warnBanner { display:flex; align-items:center; gap:.6rem; padding:.75rem 1rem; background:#FFFBEB; border:1px solid #FDE68A; border-radius:12px; color:#92400E; font-size:.83rem; }
@@ -36,7 +36,7 @@
 .sectionTitleLg { font-size:1rem; font-weight:700; color:var(--text-primary); }
 .earningsControls { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; padding:0 1.25rem 1rem; }
 .periodTabs { display:flex; border-bottom:1px solid var(--border-subtle); }
-.periodTab { padding:0.6rem 1rem; border:none; border-bottom:2px solid transparent; background:none; font-size:.78rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; white-space:nowrap; }
+.periodTab { padding:0.6rem 1rem; min-height:44px; border:none; border-bottom:2px solid transparent; background:none; font-size:.78rem; font-weight:500; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color .15s,border-bottom-color .15s; white-space:nowrap; }
 .periodTab:hover { color:var(--text-primary); }
 .periodTabActive { color:var(--text-primary); font-weight:700; border-bottom-color:#4DD9C0; }
 .monthInput { padding:.4rem .75rem; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-primary); color:var(--text-primary); font-size:.82rem; outline:none; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
@@ -114,6 +114,7 @@
   .modalHeader { padding:1rem; padding-top: max(1rem, env(safe-area-inset-top)); }
   .modalFooter { padding:1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
   .modalBody { padding:1rem; }
+  .btnClose { width:44px; height:44px; }
   .row2 { grid-template-columns: 1fr; }
   .addRuleRow { flex-direction:column; align-items:stretch; }
   .cardsGrid { grid-template-columns:1fr; }

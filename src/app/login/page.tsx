@@ -1,46 +1,35 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
 import Image from 'next/image'
+import { Newsreader } from 'next/font/google'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { audit } from '@/lib/audit'
-import { PROCEDURE_SUGGESTIONS } from '@/lib/procedureSuggestions'
-import type { Clinic, ClinicUser, AuthClinic, AuthUser, ClinicPlan } from '@/types'
+import { normalizeUsername } from '@/lib/username'
+import { getSpecialtyConfig, CLINIC_TYPE_OPTIONS, CLINIC_TYPE_ICON_OPTIONS } from '@/lib/specialtyConfig'
+import { MEDICO_AREA_OPTIONS } from '@/lib/medicoSpecialties'
+import type { Clinic, ClinicUser, AuthClinic, AuthUser, ClinicPlan, ClinicType } from '@/types'
 import styles from './login.module.css'
 import { Icon } from '@/components/ui/Icon'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+// Serifada só pro título do painel esquerdo (login.module.css usa a CSS var
+// abaixo) — o resto do app continua em Inter, herdado do layout global.
+const newsreader = Newsreader({ subsets: ['latin'], style: ['italic', 'normal'], weight: ['400', '500'], variable: '--font-newsreader' })
+
 type Mode = 'login' | 'register' | 'quiz'
+
+// Primeira pergunta do quiz usa ícone+cor+label de CLINIC_TYPE_ICON_OPTIONS
+// (specialtyConfig.ts) — fonte única, sem lista literal duplicada aqui.
+const QUIZ_SPECIALTY_OPTIONS = CLINIC_TYPE_ICON_OPTIONS
 
 const QUIZ_STEPS = [
   {
     question: 'Qual é a especialidade da sua clínica?',
-    options: [
-      { value: 'odonto',   label: 'Odontologia', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2C8 2 5 5 5 8c0 2 .5 3.5 1 5l1 4c.3 1.2 1 2 2 2s1.5-.8 2-2l1-3 1 3c.5 1.2 1 2 2 2s1.7-.8 2-2l1-4c.5-1.5 1-3 1-5 0-3-3-6-7-6z"/></svg>
-      )},
-      { value: 'medico',   label: 'Medicina', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-      )},
-      { value: 'estetica', label: 'Estética', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a5 5 0 0 1 5 5c0 3-2 5-5 8-3-3-5-5-5-8a5 5 0 0 1 5-5z"/><path d="M12 22v-7"/></svg>
-      )},
-      { value: 'fisio',    label: 'Fisioterapia', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="4" r="2"/><path d="M9 12l-3 8"/><path d="M15 12l3 8"/><path d="M6 8h12l-1 4H7z"/></svg>
-      )},
-      { value: 'psico',    label: 'Psicologia', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 2A6.5 6.5 0 0 1 16 8.5c0 2.5-1.5 4.5-3.5 5.5V17h-2v-3C8.5 13 7 11 7 8.5A6.5 6.5 0 0 1 9.5 2z"/><path d="M10 17h4"/><path d="M10 20h4"/><path d="M12 20v2"/></svg>
-      )},
-      { value: 'nutri',    label: 'Nutrição', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a9 9 0 0 1 9 9c0 5-4 9-9 9S3 16 3 11a9 9 0 0 1 9-9z"/><path d="M12 2c0 0-3 4-3 9"/><path d="M12 2c0 0 3 4 3 9"/></svg>
-      )},
-      { value: 'vet',      label: 'Veterinária', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="17" rx="5" ry="4"/><circle cx="6" cy="9" r="2"/><circle cx="18" cy="9" r="2"/><circle cx="9" cy="5" r="2"/><circle cx="15" cy="5" r="2"/></svg>
-      )},
-    ],
+    options: QUIZ_SPECIALTY_OPTIONS,
   },
   {
     question: 'Como você trabalha?',
@@ -110,17 +99,12 @@ const PLAN_INFO: Record<string, { label: string; price: string; why: string; col
   completo:  { label: 'Completo',  price: 'R$ 129,90/mês', why: 'Feito para clínicas com múltiplas unidades, equipes grandes e gestão completa.',          color: '#7c3aed' },
 }
 
-const CLINIC_TYPES = [
-  { value: 'odonto',   label: 'Odontologia',    emoji: '' },
-  { value: 'medico',   label: 'Medicina',        emoji: '' },
-  { value: 'estetica', label: 'Estética',        emoji: '' },
-  { value: 'vet',      label: 'Veterinária',     emoji: '' },
-  { value: 'fisio',    label: 'Fisioterapia',    emoji: '' },
-  { value: 'psico',    label: 'Psicologia',      emoji: '' },
-  { value: 'nutri',    label: 'Nutrição',        emoji: '' },
-] as const
+// Fonte única do rótulo de cada área — vem de specialtyConfig.ts, não
+// duplicado aqui (era o caso antes; qualquer área nova só precisa ser
+// adicionada lá).
+const CLINIC_TYPES = CLINIC_TYPE_OPTIONS
 
-type ClinicTypeValue = typeof CLINIC_TYPES[number]['value']
+type ClinicTypeValue = ClinicType
 
 const PLANS = [
   { value: 'essencial', label: 'Essencial',  price: 'R$ 99/mês',      desc: 'Agenda, prontuário, financeiro básico e 1 usuário' },
@@ -140,13 +124,6 @@ interface RegisterForm {
   phone: string
   cpf: string
   plan: PlanValue
-}
-
-function normalizeUsername(raw: string) {
-  return raw
-    .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9_.-]/g, '')
 }
 
 function formatCpf(value: string) {
@@ -234,22 +211,99 @@ function LoginContent() {
   const [quizStep, setQuizStep] = useState(0)
   const [quizAnswers, setQuizAnswers] = useState<string[]>([])
   const [quizResult, setQuizResult] = useState<'essencial' | 'avancado' | 'completo' | null>(null)
+  // Fase antes das QUIZ_STEPS indexadas: primeiro pergunta se a clínica tem
+  // mais de uma área (evita a pessoa ficar em dúvida na pergunta de tipo
+  // único, que é pulada de vez quando a resposta é "sim"). isMultiSpecialty
+  // e selectedSpecialties (declarados mais abaixo) são reaproveitados aqui e
+  // seguem populados quando o quiz termina e cai no formulário de cadastro.
+  const [quizPhase, setQuizPhase] = useState<'ask-multi' | 'multi-select' | 'medico-area' | 'questions'>('ask-multi')
 
   function handleQuizAnswer(value: string) {
     const next = [...quizAnswers, value]
+    setQuizAnswers(next)
+    if (quizStep === 0 && value === 'medico') {
+      // Bloco F: próxima pergunta é a sub-área médica, antes de seguir pro resto do quiz.
+      setQuizPhase('medico-area')
+      return
+    }
     if (next.length < QUIZ_STEPS.length) {
-      setQuizAnswers(next)
       setQuizStep(quizStep + 1)
     } else {
-      setQuizAnswers(next)
       setQuizResult(calcPlan(next))
     }
+  }
+
+  function handleQuizMedicoAreaContinue() {
+    if (!medicoArea) return
+    if (medicoArea === 'Outra' && !medicoAreaOther.trim()) return
+    setQuizPhase('questions')
+    setQuizStep(1)
+  }
+
+  function handleQuizMultiAnswer(isMulti: boolean) {
+    setIsMultiSpecialty(isMulti)
+    setQuizPhase(isMulti ? 'multi-select' : 'questions')
+  }
+
+  function toggleQuizSpecialty(value: ClinicType) {
+    setSelectedSpecialties(prev => {
+      const next = prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+      setReg(p => ({ ...p, clinic_type: next[0] ?? '' }))
+      return next
+    })
+  }
+
+  function handleQuizMultiSelectContinue() {
+    if (selectedSpecialties.length === 0) return
+    setQuizAnswers([selectedSpecialties[0]])
+    if (selectedSpecialties.includes('medico')) {
+      setQuizPhase('medico-area')
+    } else {
+      setQuizStep(1)
+      setQuizPhase('questions')
+    }
+  }
+
+  function handleQuizBack() {
+    if (quizPhase === 'medico-area') {
+      setMedicoArea('')
+      setMedicoAreaOther('')
+      if (isMultiSpecialty) {
+        setQuizPhase('multi-select')
+      } else {
+        setQuizPhase('questions')
+        setQuizAnswers([])
+      }
+      return
+    }
+    if (quizPhase === 'multi-select') {
+      setQuizPhase('ask-multi')
+      setIsMultiSpecialty(null)
+      setSelectedSpecialties([])
+      return
+    }
+    if (quizStep === 0) {
+      setQuizPhase('ask-multi')
+      setIsMultiSpecialty(null)
+      return
+    }
+    if (quizStep === 1 && isMultiSpecialty) {
+      setQuizPhase('multi-select')
+      setQuizStep(0)
+      setQuizAnswers([])
+      return
+    }
+    setQuizStep(s => s - 1)
+    setQuizAnswers(a => a.slice(0, -1))
   }
 
   function startQuiz() {
     setQuizStep(0)
     setQuizAnswers([])
     setQuizResult(null)
+    setQuizPhase('ask-multi')
+    setIsMultiSpecialty(null)
+    setSelectedSpecialties([])
     setMode('quiz')
   }
 
@@ -295,6 +349,31 @@ function LoginContent() {
   const [regSuccess, setRegSuccess] = useState(false)
   const [regLoading, setRegLoading] = useState(false)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
+  // Duas perguntas binárias em vez de um "qual seu cargo" de escolha única —
+  // cobre o caso mais comum (profissional sozinho, que é admin e atende ao
+  // mesmo tempo) sem forçar uma escolha excludente entre as duas coisas.
+  const [founderIsProfessional, setFounderIsProfessional] = useState<boolean | null>(null)
+  const [founderHasTeam, setFounderHasTeam] = useState<boolean | null>(null)
+  // Pergunta fica em primeiro lugar no formulário (antes do tipo de clínica)
+  // justamente pra quem tem várias áreas não ficar em dúvida na etapa de tipo
+  // único. null = ainda não respondeu (bloqueia avançar pro resto do form).
+  // A clínica também cresce pra multi-área sozinha depois (specialties[])
+  // quando um usuário de área nova é criado; isso aqui só define o ponto de
+  // partida e liga o seletor de área na hora de criar gente.
+  const [isMultiSpecialty, setIsMultiSpecialty] = useState<boolean | null>(null)
+  const [selectedSpecialties, setSelectedSpecialties] = useState<ClinicType[]>([])
+  // Bloco F: sub-área médica (ex: "Cardiologia") — só perguntada quando
+  // 'medico' é a (ou uma das) área(s) escolhida(s). Grava em
+  // professionals.specialty do fundador em vez do rótulo genérico
+  // "Médico", e é o que faz a ficha do paciente ganhar campos extras
+  // (ver medicoSpecialties.ts) além da base de `medico`.
+  const [medicoArea, setMedicoArea] = useState('')
+  const [medicoAreaOther, setMedicoAreaOther] = useState('')
+  const needsMedicoArea = isMultiSpecialty === false ? reg.clinic_type === 'medico' : selectedSpecialties.includes('medico')
+  // No quiz, a sub-área médica vira uma pergunta extra logo após escolher
+  // "Médico" — soma 1 ao total de perguntas só quando ela vai aparecer.
+  const medicoAskedInQuiz = quizAnswers[0] === 'medico' || (isMultiSpecialty === true && selectedSpecialties.includes('medico'))
+  const QUIZ_TOTAL_DOTS = QUIZ_STEPS.length + 1 + (medicoAskedInQuiz ? 1 : 0)
   const [couponInput, setCouponInput] = useState('')
   const couponUpper = couponInput.trim().toUpperCase()
   const couponValid = couponUpper === 'COPA50'
@@ -399,14 +478,15 @@ function LoginContent() {
       // ── Superadmin: sessão independente, sem vínculo com nenhuma clínica ──
       if (clinicUser.is_superadmin) {
         const user: AuthUser = {
-          id: clinicUser.user_id, role: 'superadmin',
+          id: clinicUser.user_id, clinicUserId: clinicUser.id, role: 'superadmin', specialtyType: null,
           displayName: clinicUser.display_name, isSuperAdmin: true,
         }
         const clinic: AuthClinic = {
           id: '__superadmin__', name: 'Administração',
           type: 'odonto', logo: '', address: '', phone: '',
           color: '#0D9488', slug: '__superadmin__',
-          plan: 'plus', status: 'active',
+          plan: 'plus', maxUsers: null, founderIsProfessional: null, founderHasTeam: null,
+          isMultiSpecialty: false, specialties: ['odonto'], status: 'active',
           trialEndsAt: null, gcalConnected: false,
           billingPaid: true, asaasCustomerId: null, asaasSubscriptionId: null,
           billingOverdueSince: null, nextBillingDate: null, monthlyRevenueGoal: null,
@@ -439,6 +519,11 @@ function LoginContent() {
         address: c.address ?? '', phone: c.phone ?? '',
         color: c.primary_color ?? '#0D9488', slug: c.slug,
         plan: (c.plan as ClinicPlan) ?? 'essencial',
+        maxUsers: c.max_users ?? null,
+        founderIsProfessional: c.founder_is_professional ?? null,
+        founderHasTeam: c.founder_has_team ?? null,
+        isMultiSpecialty: c.is_multi_specialty ?? false,
+        specialties: (c.specialties?.length ? c.specialties : [c.clinic_type]) as ClinicType[],
         status: clinicStatus,
         trialEndsAt: c.trial_ends_at ?? null,
         gcalConnected: c.gcal_connected ?? false,
@@ -452,7 +537,8 @@ function LoginContent() {
         onboardingModalSeen: c.onboarding_modal_seen ?? false,
       }
       const user: AuthUser = {
-        id: clinicUser.user_id, role: clinicUser.role,
+        id: clinicUser.user_id, clinicUserId: clinicUser.id, role: clinicUser.role,
+        specialtyType: (clinicUser as unknown as { specialty_type: ClinicType | null }).specialty_type ?? null,
         displayName: clinicUser.display_name, isSuperAdmin: clinicUser.is_superadmin,
       }
 
@@ -481,7 +567,13 @@ function LoginContent() {
     setRegError('')
 
     if (!reg.plan)           return setRegError('Selecione o plano.')
+    if (isMultiSpecialty === null) return setRegError('Diga se sua clínica atende mais de uma área.')
+    if (isMultiSpecialty && selectedSpecialties.length === 0) return setRegError('Marque pelo menos uma área.')
     if (!reg.clinic_type)   return setRegError('Selecione o tipo de clínica.')
+    if (needsMedicoArea && !medicoArea) return setRegError('Diga em qual área da medicina você atua.')
+    if (needsMedicoArea && medicoArea === 'Outra' && !medicoAreaOther.trim()) return setRegError('Digite a área da medicina.')
+    if (founderIsProfessional === null) return setRegError('Diga se você também atende pacientes pessoalmente.')
+    if (founderHasTeam === null)        return setRegError('Diga se você vai ter mais gente usando o sistema com você.')
     if (!acceptedTerms)     return setRegError('Você precisa aceitar os Termos de Uso para continuar.')
     const cpfDigits = reg.cpf.replace(/\D/g, '')
     if (cpfDigits.length !== 11) return setRegError('CPF inválido. Digite os 11 dígitos.')
@@ -553,7 +645,47 @@ function LoginContent() {
           .select('id')
           .eq('slug', slug)
           .single()
-        const suggestions = PROCEDURE_SUGGESTIONS[reg.clinic_type]
+
+        // Guarda as respostas do fundador — a RPC de cadastro não está
+        // versionada (só existe no banco hospedado), então gravamos com um
+        // update simples logo depois, ainda com a sessão do fundador ativa
+        // (ele já é admin da própria clínica).
+        if (newClinic?.id) {
+          await supabase.from('clinics').update({
+            founder_is_professional: founderIsProfessional,
+            founder_has_team: founderHasTeam,
+            is_multi_specialty: isMultiSpecialty,
+            specialties: isMultiSpecialty && selectedSpecialties.length ? selectedSpecialties : [reg.clinic_type],
+          }).eq('id', newClinic.id)
+
+          // Dentista/profissional sozinho já nasce agendável, sem precisar
+          // se cadastrar de novo em Equipe.
+          if (founderIsProfessional) {
+            const { data: ownClinicUser } = await supabase
+              .from('clinic_users')
+              .select('id')
+              .eq('clinic_id', newClinic.id)
+              .eq('user_id', authData.user.id)
+              .maybeSingle()
+            if (ownClinicUser?.id) {
+              await supabase.from('professionals').insert([{
+                clinic_id: newClinic.id,
+                name: reg.admin_name.trim(),
+                specialty: reg.clinic_type === 'medico' && medicoArea
+                  ? (medicoArea === 'Outra' ? (medicoAreaOther.trim() || null) : medicoArea)
+                  : getSpecialtyConfig(reg.clinic_type || undefined).roles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.label ?? null,
+                specialty_type: reg.clinic_type || null,
+                clinic_user_id: ownClinicUser.id,
+              }])
+              // O admin também é o profissional — mesmo sendo cargo
+              // 'admin' (acesso total), guardar a área dele já deixa o
+              // prontuário abrir na ficha certa sem precisar perguntar.
+              await supabase.from('clinic_users').update({ specialty_type: reg.clinic_type || null }).eq('id', ownClinicUser.id)
+            }
+          }
+        }
+
+        const suggestions = getSpecialtyConfig(reg.clinic_type).procedureSuggestions
         if (newClinic?.id && suggestions?.length) {
           await supabase.from('procedures').insert(
             suggestions.map(s => ({
@@ -590,92 +722,38 @@ function LoginContent() {
     <div className={styles.page}>
 
       {/* ── Coluna esquerda ── */}
-      <div className={styles.left}>
+      <div className={`${styles.left} ${newsreader.variable}`}>
         <a href="https://myclinica.online" className={styles.leftLogo} style={{ textDecoration: 'none' }}>
           <Image src="/logoMyClinica.png" alt="MyClínica" width={36} height={36} className={styles.leftLogoImg} priority />
           <span className={styles.leftLogoName}>My<strong>Clínica</strong></span>
         </a>
 
+        <p className={styles.leftKicker}>
+          Sistema de gestão clínica <span className={styles.leftKickerLine} />
+        </p>
         <h1 className={styles.leftHeadline}>
-          Gestão clínica<br /><span>simples e inteligente</span>
+          O cuidado é seu.<br />A <em>burocracia</em> é nossa.
         </h1>
         <p className={styles.leftSub}>
-          Tudo que sua clínica precisa em um só lugar — agenda, prontuário, financeiro, estoque e muito mais.
+          Agenda, prontuário, financeiro e equipe em um só lugar — para você passar mais tempo com o paciente e menos com a papelada.
         </p>
 
         <div className={styles.features}>
-          <div className={styles.feature}>
-            <div className={styles.featureIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-            </div>
-            <div className={styles.featureText}>
-              <p className={styles.featureTitle}>Agenda inteligente</p>
-              <p className={styles.featureDesc}>Agendamentos, lembretes e integração com Google Calendar</p>
-            </div>
-          </div>
-          <div className={styles.feature}>
-            <div className={styles.featureIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-              </svg>
-            </div>
-            <div className={styles.featureText}>
-              <p className={styles.featureTitle}>Prontuário eletrônico</p>
-              <p className={styles.featureDesc}>Histórico completo, odontograma e documentos em nuvem</p>
-            </div>
-          </div>
-          <div className={styles.feature}>
-            <div className={styles.featureIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-              </svg>
-            </div>
-            <div className={styles.featureText}>
-              <p className={styles.featureTitle}>Financeiro completo</p>
-              <p className={styles.featureDesc}>Receitas, despesas, relatórios e faturamento por procedimento</p>
-            </div>
-          </div>
-          <div className={styles.feature}>
-            <div className={styles.featureIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-            </div>
-            <div className={styles.featureText}>
-              <p className={styles.featureTitle}>Gestão de equipe</p>
-              <p className={styles.featureDesc}>Controle de acesso por módulo para cada profissional</p>
-            </div>
-          </div>
+          <span className={styles.feature}>Agenda</span>
+          <span className={styles.feature}>Prontuário eletrônico</span>
+          <span className={styles.feature}>Financeiro</span>
+          <span className={styles.feature}>Estoque</span>
+          <span className={styles.feature}>Equipe</span>
         </div>
 
-        <div className={styles.trust}>
-          <div className={styles.trustAvatars}>
-            <div className={styles.trustAvatar}>DR</div>
-            <div className={styles.trustAvatar}>AN</div>
-            <div className={styles.trustAvatar}>MF</div>
-          </div>
-          <p className={styles.trustText}><strong>+50 clínicas</strong> já usam o MyClinica</p>
-        </div>
+        <p className={styles.trust}><strong>+50 clínicas</strong> já usam o MyClínica — odontologia, medicina, fisioterapia, nutrição e mais 5 áreas.</p>
+
+        <svg className={styles.leftPulse} viewBox="0 0 600 60" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 38 H150 l14-26 12 46 14-56 11 36 10-12 h24 l12 12 H600" fill="none" stroke="#4DD9C0" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
 
         {/* ── Promoções ── */}
         <div className={styles.promos}>
-
-          {/* Copa */}
-          <div className={styles.promoCopa}>
-            <div className={styles.promoCopaLeft}>
-              <span className={styles.promoCopaEmoji}><Icon name="trophy" size={26} /></span>
-              <div>
-                <p className={styles.promoCopaTag}>Promoção Copa</p>
-                <p className={styles.promoCopaHeadline}><strong>50% off</strong> no 1º mês</p>
-              </div>
-            </div>
-            <div className={styles.promoCopaRight}>
-              <p className={styles.promoCopaCouponLabel}>use o cupom</p>
-              <span className={styles.promoCopaCoupon}>COPA50</span>
-            </div>
-          </div>
 
           {/* Indicação */}
           <div className={styles.promoIndica}>
@@ -707,7 +785,7 @@ function LoginContent() {
       <div className={styles.card}>
         <div className={styles.brand}>
           <div className={styles.brandLogoRow}>
-            <Image src="/logoMyClinica.png" alt="MyClínica" width={28} height={28} className={styles.brandLogoImg} />
+            <Image src="/logoMyClinica.png" alt="MyClínica" width={34} height={34} className={styles.brandLogoImg} />
             <span className={styles.brandName}>My<strong>Clínica</strong></span>
           </div>
           <p className={styles.brandSub}>Gestão clínica inteligente</p>
@@ -802,6 +880,12 @@ function LoginContent() {
             <button type="button" className={styles.btnLink} onClick={() => { setShowReset(true); setResetError(''); setResetSent(false) }}>
               Esqueci minha senha
             </button>
+            <p className={styles.madeby}>
+              feito por{' '}
+              <a href="https://otimizai.net.br" target="_blank" rel="noopener noreferrer" className={styles.madebyLink}>
+                Otimiza AÍ
+              </a>
+            </p>
           </form>
         ) : null}
 
@@ -842,29 +926,142 @@ function LoginContent() {
                   Refazer questionário
                 </button>
               </>
-            ) : (
-              /* ── Perguntas ── */
+            ) : quizPhase === 'ask-multi' ? (
+              /* ── Fase 0: sua clínica atende mais de uma área? ── */
               <>
                 <div className={styles.quizProgress}>
-                  {QUIZ_STEPS.map((_, i) => (
-                    <div key={i} className={`${styles.quizProgressDot} ${i <= quizStep ? styles.quizProgressDotActive : ''}`} />
+                  {Array.from({ length: QUIZ_TOTAL_DOTS }).map((_, i) => (
+                    <div key={i} className={`${styles.quizProgressDot} ${i === 0 ? styles.quizProgressDotActive : ''}`} />
                   ))}
                 </div>
-                <p className={styles.quizStepLabel}>Pergunta {quizStep + 1} de {QUIZ_STEPS.length}</p>
-                <h3 className={styles.quizQuestion}>{QUIZ_STEPS[quizStep].question}</h3>
+                <p className={styles.quizStepLabel}>Pergunta 1 de {QUIZ_TOTAL_DOTS}</p>
+                <h3 className={styles.quizQuestion}>Sua clínica atende mais de uma área (ex: odontologia e estética)?</h3>
                 <div className={styles.quizOptions}>
-                  {QUIZ_STEPS[quizStep].options.map(opt => (
-                    <button key={opt.value} className={styles.quizOption} onClick={() => handleQuizAnswer(opt.value)}>
-                      <span className={styles.quizOptionIcon}>{opt.icon}</span>
-                      <span className={styles.quizOptionLabel}>{opt.label}</span>
+                  <button className={styles.quizOption} onClick={() => handleQuizMultiAnswer(false)}>
+                    <span className={styles.quizOptionLabel}>Não, só uma área</span>
+                  </button>
+                  <button className={styles.quizOption} onClick={() => handleQuizMultiAnswer(true)}>
+                    <span className={styles.quizOptionLabel}>Sim, mais de uma</span>
+                  </button>
+                </div>
+                <button className={styles.btnLink} onClick={() => setMode('login')}>
+                  Cancelar
+                </button>
+              </>
+            ) : quizPhase === 'multi-select' ? (
+              /* ── Fase 0b: quais áreas (só quando respondeu "sim" acima) ── */
+              <>
+                <div className={styles.quizProgress}>
+                  {Array.from({ length: QUIZ_TOTAL_DOTS }).map((_, i) => (
+                    <div key={i} className={`${styles.quizProgressDot} ${i <= 1 ? styles.quizProgressDotActive : ''}`} />
+                  ))}
+                </div>
+                <p className={styles.quizStepLabel}>Pergunta 2 de {QUIZ_TOTAL_DOTS}</p>
+                <h3 className={styles.quizQuestion}>Quais áreas?</h3>
+                <div className={styles.typeGrid}>
+                  {CLINIC_TYPES.map(t => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      className={`${styles.typeCard} ${selectedSpecialties.includes(t.value) ? styles.typeCardActive : ''}`}
+                      onClick={() => toggleQuizSpecialty(t.value)}
+                    >
+                      <span className={styles.typeLabel}>{t.label}</span>
                     </button>
                   ))}
                 </div>
-                {quizStep > 0 && (
-                  <button className={styles.btnLink} onClick={() => { setQuizStep(s => s - 1); setQuizAnswers(a => a.slice(0, -1)) }}>
-                    <Icon name="chevronLeft" size={13} /> Voltar
-                  </button>
+                {selectedSpecialties.length > 0 && (
+                  <span className={styles.slugHint}>Área principal: {getSpecialtyConfig(selectedSpecialties[0]).roles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.label ?? selectedSpecialties[0]} (a primeira marcada).</span>
                 )}
+                <button
+                  className={styles.btn}
+                  style={{ marginTop: '0.75rem' }}
+                  disabled={selectedSpecialties.length === 0}
+                  onClick={handleQuizMultiSelectContinue}
+                >
+                  Continuar <Icon name="chevronRight" size={13} />
+                </button>
+                <button className={styles.btnLink} onClick={handleQuizBack}>
+                  <Icon name="chevronLeft" size={13} /> Voltar
+                </button>
+              </>
+            ) : quizPhase === 'medico-area' ? (
+              /* ── Bloco F: sub-área médica, logo após escolher "Médico" ── */
+              <>
+                <div className={styles.quizProgress}>
+                  {Array.from({ length: QUIZ_TOTAL_DOTS }).map((_, i) => (
+                    <div key={i} className={`${styles.quizProgressDot} ${i <= 2 ? styles.quizProgressDotActive : ''}`} />
+                  ))}
+                </div>
+                <p className={styles.quizStepLabel}>Pergunta 3 de {QUIZ_TOTAL_DOTS}</p>
+                <h3 className={styles.quizQuestion}>Em qual área da medicina você atua?</h3>
+                <div className={styles.typeGrid}>
+                  {MEDICO_AREA_OPTIONS.map(area => (
+                    <button
+                      key={area}
+                      type="button"
+                      className={`${styles.typeCard} ${medicoArea === area ? styles.typeCardActive : ''}`}
+                      onClick={() => setMedicoArea(area)}
+                    >
+                      <span className={styles.typeLabel}>{area}</span>
+                    </button>
+                  ))}
+                </div>
+                {medicoArea === 'Outra' && (
+                  <input
+                    className={styles.fieldInput}
+                    style={{ marginTop: '0.5rem' }}
+                    placeholder="Qual área?"
+                    value={medicoAreaOther}
+                    onChange={e => setMedicoAreaOther(e.target.value)}
+                  />
+                )}
+                <button
+                  className={styles.btn}
+                  style={{ marginTop: '0.75rem' }}
+                  disabled={!medicoArea || (medicoArea === 'Outra' && !medicoAreaOther.trim())}
+                  onClick={handleQuizMedicoAreaContinue}
+                >
+                  Continuar <Icon name="chevronRight" size={13} />
+                </button>
+                <button className={styles.btnLink} onClick={handleQuizBack}>
+                  <Icon name="chevronLeft" size={13} /> Voltar
+                </button>
+              </>
+            ) : (
+              /* ── Perguntas indexadas (QUIZ_STEPS) ── */
+              <>
+                <div className={styles.quizProgress}>
+                  {Array.from({ length: QUIZ_TOTAL_DOTS }).map((_, i) => (
+                    <div key={i} className={`${styles.quizProgressDot} ${i <= quizStep + 1 + (medicoAskedInQuiz && quizStep >= 1 ? 1 : 0) ? styles.quizProgressDotActive : ''}`} />
+                  ))}
+                </div>
+                <p className={styles.quizStepLabel}>Pergunta {quizStep + 2 + (medicoAskedInQuiz && quizStep >= 1 ? 1 : 0)} de {QUIZ_TOTAL_DOTS}</p>
+                <h3 className={styles.quizQuestion}>{QUIZ_STEPS[quizStep].question}</h3>
+                {quizStep === 0 ? (
+                  <div className={styles.specialtyGrid}>
+                    {QUIZ_STEPS[0].options.map(opt => (
+                      <button key={opt.value} type="button" className={styles.specialtyCard} onClick={() => handleQuizAnswer(opt.value)}>
+                        <span className={styles.specialtyIcon} style={{ background: `rgba(${opt.color},0.12)`, color: `rgb(${opt.color})` }}>
+                          {opt.icon}
+                        </span>
+                        <span className={styles.typeLabel}>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className={styles.quizOptions}>
+                    {QUIZ_STEPS[quizStep].options.map(opt => (
+                      <button key={opt.value} className={styles.quizOption} onClick={() => handleQuizAnswer(opt.value)}>
+                        <span className={styles.quizOptionIcon}>{opt.icon}</span>
+                        <span className={styles.quizOptionLabel}>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button className={styles.btnLink} onClick={handleQuizBack}>
+                  <Icon name="chevronLeft" size={13} /> Voltar
+                </button>
                 <button className={styles.btnLink} onClick={() => setMode('login')}>
                   Cancelar
                 </button>
@@ -885,29 +1082,8 @@ function LoginContent() {
         </div>
       )}
 
-      <p className={styles.madeby}>
-        feito por{' '}
-        <a href="https://otimizai.net.br" target="_blank" rel="noopener noreferrer" className={styles.madebyLink}>
-          Otimiza AÍ
-        </a>
-      </p>
-
       {/* ── Promoções mobile ── */}
       <div className={styles.promosMobile}>
-        <div className={styles.promoCopa}>
-          <div className={styles.promoCopaLeft}>
-            <span className={styles.promoCopaEmoji}><Icon name="trophy" size={26} /></span>
-            <div>
-              <p className={styles.promoCopaTag}>Promoção Copa</p>
-              <p className={styles.promoCopaHeadline}><strong>50% off</strong> no 1º mês</p>
-            </div>
-          </div>
-          <div className={styles.promoCopaRight}>
-            <p className={styles.promoCopaCouponLabel}>use o cupom</p>
-            <span className={styles.promoCopaCoupon}>COPA50</span>
-          </div>
-        </div>
-
         <div className={styles.promoIndica}>
           <div className={styles.promoIndicaBody}>
             <p className={styles.promoIndicaTag}>Programa de indicação</p>
@@ -970,6 +1146,10 @@ function LoginContent() {
                 </div>
               ) : (
                 <form onSubmit={handleRegister} className={styles.form}>
+                  <p className={styles.dedupHint}>
+                    Sua clínica já usa o MyClínica? Não crie uma conta nova — peça para quem administra te cadastrar em <strong>Configurações → Equipe</strong>.
+                  </p>
+
                   <div className={styles.field}>
                     <label>Escolha seu plano *</label>
                     <div className={styles.planGrid}>
@@ -990,20 +1170,118 @@ function LoginContent() {
                   </div>
 
                   <div className={styles.field}>
-                    <label>Tipo de clínica *</label>
-                    <div className={styles.typeGrid}>
-                      {CLINIC_TYPES.map(t => (
-                        <button
-                          key={t.value}
-                          type="button"
-                          className={`${styles.typeCard} ${reg.clinic_type === t.value ? styles.typeCardActive : ''}`}
-                          onClick={() => setReg(p => ({ ...p, clinic_type: t.value }))}
-                        >
-                          <span className={styles.typeEmoji}>{t.emoji}</span>
-                          <span className={styles.typeLabel}>{t.label}</span>
-                        </button>
-                      ))}
+                    <label>Sua clínica atende mais de uma área (ex: odontologia e estética)? *</label>
+                    <div className={styles.statusBtnGroup}>
+                      <button
+                        type="button"
+                        className={`${styles.statusChoiceBtn} ${isMultiSpecialty === false ? styles.statusChoiceBtnActive : ''}`}
+                        onClick={() => { setIsMultiSpecialty(false); setSelectedSpecialties([]) }}
+                      >
+                        Não, só uma área
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.statusChoiceBtn} ${isMultiSpecialty === true ? styles.statusChoiceBtnActive : ''}`}
+                        onClick={() => setIsMultiSpecialty(true)}
+                      >
+                        Sim, mais de uma
+                      </button>
                     </div>
+                    <span className={styles.slugHint}>Se sim, marque abaixo todas as áreas que a clínica atende — não precisa ser exato, dá para ajustar depois em Equipe.</span>
+                  </div>
+
+                  {isMultiSpecialty === false && (
+                    <div className={styles.field}>
+                      <label>Tipo de clínica *</label>
+                      <div className={styles.typeGrid}>
+                        {CLINIC_TYPES.map(t => (
+                          <button
+                            key={t.value}
+                            type="button"
+                            className={`${styles.typeCard} ${reg.clinic_type === t.value ? styles.typeCardActive : ''}`}
+                            onClick={() => setReg(p => ({ ...p, clinic_type: t.value }))}
+                          >
+                            <span className={styles.typeLabel}>{t.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {isMultiSpecialty === true && (
+                    <div className={styles.field}>
+                      <label>Quais áreas? *</label>
+                      <div className={styles.typeGrid}>
+                        {CLINIC_TYPES.map(t => {
+                          const active = selectedSpecialties.includes(t.value)
+                          return (
+                            <button
+                              key={t.value}
+                              type="button"
+                              className={`${styles.typeCard} ${active ? styles.typeCardActive : ''}`}
+                              onClick={() => setSelectedSpecialties(prev => {
+                                const next = prev.includes(t.value) ? prev.filter(v => v !== t.value) : [...prev, t.value]
+                                setReg(p => ({ ...p, clinic_type: next[0] ?? '' }))
+                                return next
+                              })}
+                            >
+                              <span className={styles.typeLabel}>{t.label}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {selectedSpecialties.length > 0 && (
+                        <span className={styles.slugHint}>Área principal: {getSpecialtyConfig(selectedSpecialties[0]).roles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.label ?? selectedSpecialties[0]} (a primeira marcada — dá pra trocar desmarcando e marcando na outra ordem).</span>
+                      )}
+                    </div>
+                  )}
+
+                  {needsMedicoArea && (
+                    <div className={styles.field}>
+                      <label>Em qual área da medicina você atua? *</label>
+                      <div className={styles.typeGrid}>
+                        {MEDICO_AREA_OPTIONS.map(area => (
+                          <button
+                            key={area}
+                            type="button"
+                            className={`${styles.typeCard} ${medicoArea === area ? styles.typeCardActive : ''}`}
+                            onClick={() => setMedicoArea(area)}
+                          >
+                            <span className={styles.typeLabel}>{area}</span>
+                          </button>
+                        ))}
+                      </div>
+                      {medicoArea === 'Outra' && (
+                        <input
+                          className={styles.fieldInput}
+                          style={{ marginTop: '0.5rem' }}
+                          placeholder="Qual área?"
+                          value={medicoAreaOther}
+                          onChange={e => setMedicoAreaOther(e.target.value)}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  <div className={styles.field}>
+                    <label>
+                      Você também atende pacientes pessoalmente
+                      {reg.clinic_type && ` (é ${getSpecialtyConfig(reg.clinic_type).roles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.label ?? 'profissional'}`}
+                      {reg.clinic_type && ', além de administrar)'}?
+                    </label>
+                    <div className={styles.statusBtnGroup}>
+                      <button type="button" className={`${styles.statusChoiceBtn} ${founderIsProfessional === true ? styles.statusChoiceBtnActive : ''}`} onClick={() => setFounderIsProfessional(true)}>Sim</button>
+                      <button type="button" className={`${styles.statusChoiceBtn} ${founderIsProfessional === false ? styles.statusChoiceBtnActive : ''}`} onClick={() => setFounderIsProfessional(false)}>Não</button>
+                    </div>
+                  </div>
+
+                  <div className={styles.field}>
+                    <label>Tem outras pessoas que vão usar o sistema com você (ou vai ter em breve)?</label>
+                    <div className={styles.statusBtnGroup}>
+                      <button type="button" className={`${styles.statusChoiceBtn} ${founderHasTeam === false ? styles.statusChoiceBtnActive : ''}`} onClick={() => setFounderHasTeam(false)}>Só eu por enquanto</button>
+                      <button type="button" className={`${styles.statusChoiceBtn} ${founderHasTeam === true ? styles.statusChoiceBtnActive : ''}`} onClick={() => setFounderHasTeam(true)}>Sim, tenho equipe</button>
+                    </div>
+                    <span className={styles.slugHint}>Você será a pessoa responsável por esta conta e por dar acesso aos demais da equipe.</span>
                   </div>
 
                   <div className={styles.field}>

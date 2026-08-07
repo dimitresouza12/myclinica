@@ -28,7 +28,11 @@ interface Props {
 export function DatePicker({ value, onChange, className, placeholder = 'Selecionar data' }: Props) {
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0 })
-  const parsed = value ? value.split('-').map(Number) : null
+  // Valida o formato antes de usar — um valor malformado (ex: datetime
+  // combinado sem a parte da data ainda preenchida) não deve derrubar a
+  // página inteira, só cai no placeholder como se estivesse vazio.
+  const rawParsed = value ? value.split('-').map(Number) : null
+  const parsed = rawParsed && rawParsed.length === 3 && rawParsed.every(n => Number.isFinite(n)) ? rawParsed : null
   const today = new Date()
   const [viewYear, setViewYear] = useState(parsed ? parsed[0] : today.getFullYear())
   const [viewMonth, setViewMonth] = useState(parsed ? parsed[1] - 1 : today.getMonth())

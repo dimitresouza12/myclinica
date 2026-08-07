@@ -36,6 +36,7 @@
 
 .btnPrimary {
   padding: 0.6rem 1.25rem;
+  min-height: 44px;
   background: #4DD9C0;
   color: #0D2421;
   border: none;
@@ -64,6 +65,7 @@
 
 .tab {
   padding: 0.65rem 1.25rem;
+  min-height: 44px;
   border: none;
   border-bottom: 2px solid transparent;
   background: none;
@@ -163,23 +165,25 @@
 }
 
 .btnAction {
-  padding: 0.3rem 0.7rem;
+  padding: 0.35rem 0.7rem;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  gap: 0.32rem;
   justify-content: center;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.78rem;
-  font-weight: 500;
+  border-radius: 999px;
+  border: none;
+  background: rgba(77,217,192,0.1);
+  color: #0B9B85;
+  font-size: 0.76rem;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s;
 }
-.btnAction:hover { background: var(--bg-tertiary); }
-.btnSecondary { color: var(--text-secondary); }
+.btnAction:hover { background: rgba(77,217,192,0.18); }
+.btnSecondary { background: var(--bg-tertiary); color: var(--text-secondary); }
+.btnSecondary:hover { background: var(--border-color); }
 
 .badge {
   display: inline-flex;

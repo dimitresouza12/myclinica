@@ -1,6 +1,6 @@
-export type ClinicType = 'odonto' | 'medico' | 'estetica' | 'vet' | 'fisio' | 'psico' | 'nutri'
-export type UserRole = 'recepcao' | 'dentista' | 'medico' | 'profissional' | 'admin' | 'superadmin'
-export type AppointmentStatus = 'agendado' | 'confirmado' | 'concluido' | 'cancelado' | 'faltou'
+export type ClinicType = 'odonto' | 'medico' | 'estetica' | 'vet' | 'fisio' | 'psico' | 'nutri' | 'fono' | 'to'
+export type UserRole = 'recepcao' | 'auxiliar' | 'dentista' | 'medico' | 'profissional' | 'admin' | 'superadmin'
+export type AppointmentStatus = 'agendado' | 'confirmado' | 'concluido' | 'cancelado' | 'faltou' | 'bloqueado'
 export type PaymentMethod = 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'convenio' | 'outro'
 
 export type ClinicStatus = 'active' | 'inactive' | 'suspended' | 'pending' | 'trial'
@@ -18,6 +18,9 @@ export interface Clinic {
   primary_color: string | null
   plan: string | null
   max_patients: number | null
+  max_users: number | null
+  is_multi_specialty: boolean
+  specialties: ClinicType[]
   is_active: boolean
   status: ClinicStatus
   created_at: string
@@ -48,6 +51,7 @@ export interface ClinicUser {
   clinic_id: string
   user_id: string
   role: UserRole
+  specialty_type: ClinicType | null
   display_name: string
   username: string
   is_active: boolean
@@ -104,7 +108,7 @@ export interface Procedure {
 export interface Appointment {
   id: string
   clinic_id: string
-  patient_id: string
+  patient_id: string | null
   professional_id: string | null
   procedure_name: string | null
   procedure_id: string | null
@@ -125,13 +129,18 @@ export interface MedicalRecord {
   id: string
   clinic_id: string
   patient_id: string
-  anamnesis: Record<string, string>
-  clinical_exam: Record<string, string>
+  // Namespaced por área (Bloco B) — ex: {"odonto": {"a-queixa": "..."}}.
+  // Cada profissional lê/escreve só o namespace da própria área; ver
+  // TabFicha.tsx e a migration 20260806_medical_records_namespace_by_area.
+  // Partial porque só as áreas que já atenderam esse paciente têm namespace.
+  anamnesis: Partial<Record<ClinicType, Record<string, string>>>
+  clinical_exam: Partial<Record<ClinicType, Record<string, string>>>
   treatment_plan: string | null
   contract_text: string | null
   odontogram: Record<string, string | { status: string; surfaces?: Record<string, string> }>
   vaccinations: unknown[]
   aesthetic_protocols: unknown[]
+  body_protocols: unknown[]
   photos: string[]
   created_at: string
   updated_at: string
@@ -143,6 +152,10 @@ export interface RecordEntry {
   patient_id: string
   record_id: string
   author_name: string | null
+  // FK opcional pro profissional que escreveu (Bloco B) — author_name
+  // continua sendo o nome gravado no momento (imutabilidade CFM), este
+  // campo é só pra filtro "minhas evoluções" e não deve alterar o texto.
+  professional_id: string | null
   entry_text: string
   entry_type: string
   photo_url: string | null
@@ -165,6 +178,7 @@ export interface FinancialRecord {
   type: 'receita' | 'despesa'
   category: string | null
   patients?: Pick<Patient, 'id' | 'name'> | null
+  appointments?: Pick<Appointment, 'id' | 'scheduled_at' | 'procedure_name'> | null
 }
 
 export interface Professional {
@@ -172,8 +186,11 @@ export interface Professional {
   clinic_id: string | null
   name: string
   specialty: string | null
+  specialty_type: ClinicType | null
   google_calendar_id: string | null
-  is_active: boolean
+  clinic_user_id: string | null
+  // null = herda a duração padrão da área (specialty_type) — Bloco D.
+  default_duration_minutes: number | null
   created_at: string
 }
 
@@ -306,6 +323,11 @@ export interface AuthClinic {
   color: string
   slug: string
   plan: ClinicPlan
+  maxUsers: number | null
+  founderIsProfessional: boolean | null
+  founderHasTeam: boolean | null
+  isMultiSpecialty: boolean
+  specialties: ClinicType[]
   status: ClinicStatus
   trialEndsAt: string | null
   gcalConnected: boolean
@@ -321,7 +343,12 @@ export interface AuthClinic {
 
 export interface AuthUser {
   id: string
+  // PK de clinic_users (não confundir com `id`, que é o auth.users.id) —
+  // usado pra achar o `professionals` vinculado a este login (Bloco B/F:
+  // resolver a ficha e a sub-área do profissional logado).
+  clinicUserId: string | null
   role: UserRole
+  specialtyType: ClinicType | null
   displayName: string
   isSuperAdmin: boolean
 }
