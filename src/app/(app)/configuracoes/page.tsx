@@ -659,7 +659,7 @@ function ConfiguracoesContent() {
     <div className={styles.page}>
       <h1 className={styles.title}>Configurações</h1>
 
-      <div className={styles.tabs}>
+      <div className={styles.tabs} data-hscroll>
         {tabs.map(t => (
           <button
             key={t.key}

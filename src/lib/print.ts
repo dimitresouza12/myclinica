@@ -235,7 +235,13 @@ export function printDocumento(contentHtml: string, bgImage: string | null) {
 
 function openPrint(html: string) {
   const w = window.open('', '_blank', 'width=900,height=700')
-  if (!w) return
+  if (!w) {
+    // window.open volta null quando o navegador bloqueia o pop-up — sem
+    // isso, o clique não fazia nada visível e parecia que o botão estava
+    // quebrado (era só o bloqueio silencioso do pop-up).
+    window.alert('Não abriu a impressão — seu navegador bloqueou o pop-up. Libere pop-ups para este site e tente de novo.')
+    return
+  }
   w.document.write(html)
   w.document.close()
   w.focus()

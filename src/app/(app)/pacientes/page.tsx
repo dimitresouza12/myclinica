@@ -74,7 +74,7 @@ function PacientesContent() {
       {loading ? (
         <p className={styles.loading}>Carregando...</p>
       ) : (
-        <div className={`${styles.tableWrap} resp-table-wrap`}>
+        <div className={`${styles.tableWrap} resp-table-wrap`} data-hscroll>
           <table className={`${styles.table} resp-table`}>
             <thead>
               <tr>

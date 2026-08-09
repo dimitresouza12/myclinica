@@ -1,6 +1,6 @@
 /* backwards, não both — evita transform residual (matrix, não "none") que
    vira containing block e quebra modais position:fixed no mobile. */
-.page { display:flex; flex-direction:column; gap:1.5rem; animation:fadeUp .3s ease backwards; max-width:1200px; }
+.page { display:flex; flex-direction:column; gap:1.5rem; animation:fadeUp .3s ease backwards; }
 @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
 .header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }

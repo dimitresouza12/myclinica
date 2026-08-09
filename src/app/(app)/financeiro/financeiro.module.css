@@ -2,7 +2,7 @@
    animação (nunca vira o keyword none), o que cria containing block e quebra
    o modal position:fixed (Nova Receita/Despesa) dentro da página no mobile —
    o rodapé com o botão Salvar ficava cortado fora da tela. */
-.page { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) backwards; max-width: 1200px; }
+.page { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) backwards; }
 @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 
 .header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }

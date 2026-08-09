@@ -435,7 +435,7 @@ function DashboardContent() {
               <h2 className={styles.sectionTitle}>Próximos agendamentos</h2>
             </div>
 
-            <div className={styles.apptTableWrap}>
+            <div className={styles.apptTableWrap} data-hscroll>
               <table className={styles.table}>
                 <thead>
                   <tr>

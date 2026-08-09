@@ -4,89 +4,6 @@
   gap: 1.25rem;
 }
 
-/* ── Toolbar ── */
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 0.75rem 1rem;
-}
-.toolbarLeft {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-.toolbarRight { display: flex; align-items: center; gap: 0.5rem; }
-.toolbarLabel {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-secondary);
-  margin-right: 0.2rem;
-}
-
-.paintBtn {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.28rem 0.6rem;
-  border: 1.5px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  cursor: pointer;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  transition: all 0.12s;
-}
-.paintBtn:hover {
-  background: var(--paint-bg, #d1fae5);
-  color: var(--paint-color, #10b981);
-  border-color: var(--paint-color, #10b981);
-}
-.paintBtnActive {
-  background: var(--paint-bg, #d1fae5) !important;
-  color: var(--paint-color, #10b981) !important;
-  border-color: var(--paint-color, #10b981) !important;
-}
-.paintDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.paintLabel { white-space: nowrap; }
-
-/* ── Mode switch ── */
-.modeSwitch {
-  display: flex;
-  border: 1.5px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.modeBtn {
-  padding: 0.3rem 0.75rem;
-  border: none;
-  background: transparent;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-.modeBtn:not(:last-child) { border-right: 1.5px solid var(--border-color); }
-.modeBtnActive {
-  background: var(--brand-primary);
-  color: #fff;
-}
-
 /* ── Arcade ── */
 .arcade {
   display: flex;
@@ -344,8 +261,6 @@
   .toothSvg { width: 26px; height: 42px; }
   .toothNumber { font-size: 0.52rem; }
   .teethRow { gap: 2px; }
-  .toolbar { gap: 0.5rem; }
-  .paintLabel { display: none; }
   .selPanelBody { flex-direction: column; }
 
   /* No mobile a fileira de dentes sempre transborda o container, e ela é

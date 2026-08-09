@@ -29,16 +29,17 @@ const DEFAULT_STATUS = 'higido'
 function isUpper(n: number) { return n >= 11 && n <= 28 }
 
 // ── Anatomy: viewBox 0 0 56 96 ────────────────────────────────
-// Crown ≈ y=2–50; Root ≈ y=50–90. Upper teeth displayed scaleY(-1).
-// Each path set contains: crown, root, incisal (translucency zone),
-// grooves (developmental lines), shadow (inner contour offset inward)
+// Estilo "atlas anatômico": silhueta clínica com mamelões/cúspides,
+// linha cervical (junção coroa-raiz) e canal radicular sutil.
+// Crown ≈ y=2–54; Root ≈ y=44–93. Upper teeth displayed scaleY(-1).
+// Um único conjunto de formas serve upper/lower (espelhado via scaleY).
 
 interface ToothAnatomy {
   crown: string
   root: string
-  incisal?: string    // semi-transparent zone at cusp/incisal tip
-  grooves?: string    // developmental fissure lines
-  shadow?: string     // slightly inset crown path for inner shadow
+  cervix?: string   // linha cervical — junção visível coroa/raiz
+  detail?: string   // mamelões, cúspides, sulco central
+  canal?: string     // canal radicular, traço fino e sutil
 }
 
 type ToothType = 'ci'|'li'|'ca'|'pm1'|'pm2'|'mo1'|'mo2'|'wi'
@@ -55,112 +56,67 @@ function toothType(num: number): ToothType {
   return 'wi'
 }
 
-// Upper anatomy (viewed from labial, scaleY-1 in display → crown faces midline)
-const UA: Record<ToothType, ToothAnatomy> = {
+const TOOTH: Record<ToothType, ToothAnatomy> = {
   ci: {
-    crown:   'M 8,7 C 7,3 11,1 28,1 C 45,1 49,3 48,7 C 48,20 46,38 44,46 C 42,51 36,54 28,54 C 20,54 14,51 12,46 C 10,38 8,20 8,7 Z',
-    shadow:  'M 12,9 C 11,5 14,4 28,4 C 42,4 45,5 44,9 C 44,20 42,38 40,45 C 38,49 33,52 28,52 C 23,52 18,49 16,45 C 12,38 12,20 12,9 Z',
-    root:    'M 15,54 C 12,65 14,76 28,86 C 42,76 44,65 41,54 Z',
-    incisal: 'M 8,7 C 7,3 11,1 28,1 C 45,1 49,3 48,7 L 46,24 C 38,18 18,18 10,24 Z',
-    grooves: 'M 20,14 C 22,10 26,8 28,8 C 30,8 34,10 36,14',
+    crown:  'M 10,9 C 10,4 14,2 28,2 C 42,2 46,4 46,9 C 46,24 44,40 41,49 C 38,53 33,55 28,55 C 23,55 18,53 15,49 C 12,40 10,24 10,9 Z',
+    root:   'M 17,44 C 15,60 18,76 28,91 C 38,76 41,60 39,44 Z',
+    cervix: 'M 13,48 Q 28,54 43,48',
+    detail: 'M 20,5 L 20,16 M 28,4 L 28,18 M 36,5 L 36,16',
+    canal:  'M 28,56 L 28,84',
   },
   li: {
-    crown:   'M 12,8 C 11,3 14,1 28,1 C 42,1 45,3 44,8 C 44,20 42,36 40,45 C 38,50 33,53 28,53 C 23,53 18,50 16,45 C 14,36 12,20 12,8 Z',
-    shadow:  'M 15,10 C 14,6 17,4 28,4 C 39,4 42,6 41,10 C 41,20 39,36 37,44 C 35,48 31,51 28,51 C 25,51 21,48 19,44 C 17,36 15,20 15,10 Z',
-    root:    'M 16,53 C 14,64 15,75 28,84 C 41,75 42,64 40,53 Z',
-    incisal: 'M 12,8 C 11,3 14,1 28,1 C 42,1 45,3 44,8 L 42,22 C 36,17 20,17 14,22 Z',
+    crown:  'M 13,9 C 13,4 16,2 28,2 C 40,2 43,4 43,9 C 43,24 41,39 39,48 C 36,52 32,54 28,54 C 24,54 20,52 17,48 C 15,39 13,24 13,9 Z',
+    root:   'M 19,43 C 17,58 20,73 28,87 C 36,73 39,58 37,43 Z',
+    cervix: 'M 16,47 Q 28,53 40,47',
+    detail: 'M 22,5 L 22,15 M 28,4 L 28,17 M 34,5 L 34,15',
+    canal:  'M 28,55 L 28,81',
   },
   ca: {
-    crown:   'M 10,16 C 9,7 14,1 28,1 C 42,1 47,7 46,16 C 46,26 44,40 42,48 C 40,53 35,56 28,56 C 21,56 16,53 14,48 C 12,40 10,26 10,16 Z',
-    shadow:  'M 14,17 C 13,9 17,4 28,4 C 39,4 43,9 42,17 C 42,26 40,39 38,47 C 36,51 32,54 28,54 C 24,54 20,51 18,47 C 16,39 14,26 14,17 Z',
-    root:    'M 14,56 C 11,67 13,79 28,90 C 43,79 45,67 42,56 Z',
-    incisal: 'M 10,16 C 9,7 14,1 28,1 C 42,1 47,7 46,16 L 44,26 C 38,19 18,19 12,26 Z',
-    grooves: 'M 28,4 L 28,48',
+    crown:  'M 11,21 C 11,13 14,8 19,5 L 28,1 L 37,5 C 42,8 45,13 45,21 C 45,32 43,45 40,51 C 37,55 33,57 28,57 C 23,57 19,55 16,51 C 13,45 11,32 11,21 Z',
+    root:   'M 18,46 C 15,62 19,79 28,93 C 37,79 41,62 38,46 Z',
+    cervix: 'M 14,50 Q 28,56 42,50',
+    detail: 'M 28,2 L 28,48 M 13,24 L 26,5 M 43,24 L 30,5',
+    canal:  'M 28,58 L 28,86',
   },
   pm1: {
-    crown:   'M 10,8 L 17,1 L 28,5 L 39,1 L 46,8 L 45,38 C 44,46 37,50 28,50 C 19,50 12,46 11,38 Z',
-    shadow:  'M 14,10 L 19,4 L 28,8 L 37,4 L 42,10 L 41,37 C 40,44 34,47 28,47 C 22,47 16,44 15,37 Z',
-    root:    'M 12,50 C 9,57 8,66 13,74 Q 18,80 21,74 Q 23,66 28,63 Q 33,66 35,74 Q 38,80 43,74 C 48,66 47,57 44,50 Z',
-    grooves: 'M 28,8 L 28,44',
+    crown:  'M 11,17 C 11,11 14,7 18,7 C 22,7 24,11 25,15 L 28,16 L 31,15 C 32,11 34,7 38,7 C 42,7 45,11 45,17 C 45,30 43,42 41,48 C 38,52 33,54 28,54 C 23,54 18,52 15,48 C 13,42 11,30 11,17 Z',
+    root:   'M 17,45 C 14,57 13,70 16,82 Q 18,87 21,80 Q 23,69 26,64 L 28,63 L 30,64 Q 33,69 35,80 Q 38,87 40,82 C 43,70 42,57 39,45 Z',
+    cervix: 'M 14,47 Q 28,53 42,47',
+    detail: 'M 25,15 Q 28,20 31,15 M 28,18 L 28,46',
+    canal:  'M 22,56 L 20,76 M 34,56 L 36,76',
   },
   pm2: {
-    crown:   'M 11,8 L 17,1 L 28,5 L 39,1 L 45,8 L 44,38 C 43,46 37,50 28,50 C 19,50 13,46 12,38 Z',
-    shadow:  'M 15,10 L 19,4 L 28,8 L 37,4 L 41,10 L 40,37 C 39,44 34,47 28,47 C 22,47 17,44 16,37 Z',
-    root:    'M 14,50 C 11,61 12,73 28,83 C 44,73 45,61 42,50 Z',
-    grooves: 'M 28,8 L 28,44',
+    crown:  'M 11,17 C 11,11 14,7 18,7 C 22,7 24,11 25,15 L 28,16 L 31,15 C 32,11 34,7 38,7 C 42,7 45,11 45,17 C 45,30 43,42 41,48 C 38,52 33,54 28,54 C 23,54 18,52 15,48 C 13,42 11,30 11,17 Z',
+    root:   'M 18,45 C 16,60 19,76 28,89 C 37,76 40,60 38,45 Z',
+    cervix: 'M 14,47 Q 28,53 42,47',
+    detail: 'M 25,15 Q 28,20 31,15 M 28,18 L 28,46',
+    canal:  'M 28,56 L 28,83',
   },
   mo1: {
-    crown:   'M 4,9 L 13,1 L 21,5 L 28,3 L 35,5 L 43,1 L 52,9 L 51,37 C 50,46 40,50 28,50 C 16,50 6,46 5,37 Z',
-    shadow:  'M 8,11 L 15,4 L 22,8 L 28,6 L 34,8 L 41,4 L 48,11 L 47,36 C 46,44 38,47 28,47 C 18,47 10,44 9,36 Z',
-    root:    'M 6,50 C 4,58 3,68 8,76 Q 13,82 17,75 Q 21,67 26,65 Q 28,67 30,65 Q 35,67 39,75 Q 43,82 48,76 C 53,68 52,58 50,50 Z',
-    grooves: 'M 28,5 L 28,44 M 17,10 Q 20,7 23,10 M 33,10 Q 36,7 39,10',
+    crown:  'M 6,17 C 6,11 9,7 13,7 C 17,7 19,11 20,15 L 24,16 L 28,13 L 32,16 L 36,15 C 37,11 39,7 43,7 C 47,7 50,11 50,17 C 50,31 48,42 45,48 C 41,52 35,54 28,54 C 21,54 15,52 11,48 C 8,42 6,31 6,17 Z',
+    root:   'M 10,45 C 7,57 6,71 10,83 Q 13,88 16,80 Q 18,68 22,63 L 25,62 Q 26,73 28,78 Q 30,73 31,62 L 34,63 Q 38,68 40,80 Q 43,88 46,83 C 50,71 49,57 46,45 Z',
+    cervix: 'M 9,47 Q 28,54 47,47',
+    detail: 'M 20,15 Q 28,21 36,15 M 28,15 L 28,47 M 9,28 Q 28,34 47,28',
+    canal:  'M 15,57 L 13,76 M 28,57 L 28,73 M 41,57 L 43,76',
   },
   mo2: {
-    crown:   'M 6,9 L 14,1 L 22,5 L 28,3 L 34,5 L 42,1 L 50,9 L 49,37 C 48,45 39,50 28,50 C 17,50 8,45 7,37 Z',
-    shadow:  'M 10,11 L 16,4 L 23,8 L 28,6 L 33,8 L 40,4 L 46,11 L 45,36 C 44,43 37,47 28,47 C 19,47 12,43 11,36 Z',
-    root:    'M 8,50 C 6,58 5,67 10,75 Q 15,81 19,74 Q 22,66 28,64 Q 34,66 37,74 Q 41,81 46,75 C 51,67 50,58 48,50 Z',
-    grooves: 'M 28,5 L 28,44',
+    crown:  'M 8,17 C 8,11 11,7 15,7 C 18,7 20,11 21,15 L 24,16 L 28,13 L 32,16 L 35,15 C 36,11 38,7 41,7 C 45,7 48,11 48,17 C 48,30 46,42 43,48 C 39,52 34,54 28,54 C 22,54 17,52 13,48 C 10,42 8,30 8,17 Z',
+    root:   'M 12,45 C 9,57 8,70 12,81 Q 15,86 17,79 Q 19,68 23,63 L 25,62 Q 26,72 28,77 Q 30,72 31,62 L 33,63 Q 37,68 39,79 Q 41,86 44,81 C 48,70 47,57 44,45 Z',
+    cervix: 'M 11,47 Q 28,54 45,47',
+    detail: 'M 21,15 Q 28,21 35,15 M 28,15 L 28,47 M 11,28 Q 28,34 45,28',
+    canal:  'M 17,57 L 15,74 M 28,57 L 28,71 M 39,57 L 41,74',
   },
   wi: {
-    crown:   'M 11,10 C 11,3 16,0 28,0 C 40,0 45,3 45,10 L 44,34 C 43,44 37,48 28,48 C 19,48 13,44 12,34 Z',
-    shadow:  'M 15,12 C 15,6 19,3 28,3 C 37,3 41,6 41,12 L 40,33 C 39,42 34,45 28,45 C 22,45 17,42 16,33 Z',
-    root:    'M 13,48 C 10,59 12,71 28,82 C 44,71 46,59 43,48 Z',
-  },
-}
-
-// Lower anatomy
-const LA: Record<ToothType, ToothAnatomy> = {
-  ci: {
-    crown:   'M 13,7 C 12,3 15,1 28,1 C 41,1 44,3 43,7 C 43,20 41,35 39,43 C 37,49 33,52 28,52 C 23,52 19,49 17,43 C 15,35 13,20 13,7 Z',
-    shadow:  'M 16,9 C 15,5 18,3 28,3 C 38,3 41,5 40,9 C 40,20 38,34 36,42 C 34,47 31,50 28,50 C 25,50 22,47 20,42 C 18,34 16,20 16,9 Z',
-    root:    'M 18,52 C 15,63 17,74 28,83 C 39,74 41,63 38,52 Z',
-    incisal: 'M 13,7 C 12,3 15,1 28,1 C 41,1 44,3 43,7 L 41,22 C 35,17 21,17 15,22 Z',
-  },
-  li: {
-    crown:   'M 12,8 C 11,3 14,1 28,1 C 42,1 45,3 44,8 C 44,20 42,35 40,43 C 38,49 34,52 28,52 C 22,52 18,49 16,43 C 14,35 12,20 12,8 Z',
-    shadow:  'M 15,10 C 14,6 17,4 28,4 C 39,4 42,6 41,10 C 41,20 39,34 37,42 C 35,47 32,50 28,50 C 24,50 21,47 19,42 C 17,34 15,20 15,10 Z',
-    root:    'M 17,52 C 14,63 15,74 28,83 C 41,74 42,63 39,52 Z',
-    incisal: 'M 12,8 C 11,3 14,1 28,1 C 42,1 45,3 44,8 L 42,22 C 36,17 20,17 14,22 Z',
-  },
-  ca: {
-    crown:   'M 11,14 C 10,6 14,1 28,1 C 42,1 46,6 45,14 C 45,25 43,38 41,47 C 39,52 34,55 28,55 C 22,55 17,52 15,47 C 13,38 11,25 11,14 Z',
-    shadow:  'M 15,15 C 14,8 17,4 28,4 C 39,4 42,8 41,15 C 41,25 39,37 37,45 C 35,50 32,53 28,53 C 24,53 21,50 19,45 C 17,37 15,25 15,15 Z',
-    root:    'M 15,55 C 12,66 13,78 28,88 C 43,78 44,66 41,55 Z',
-    incisal: 'M 11,14 C 10,6 14,1 28,1 C 42,1 46,6 45,14 L 43,24 C 37,18 19,18 13,24 Z',
-  },
-  pm1: {
-    crown:   'M 11,9 L 18,1 L 28,5 L 38,1 L 45,9 L 44,37 C 43,45 37,49 28,49 C 19,49 13,45 12,37 Z',
-    shadow:  'M 15,11 L 20,4 L 28,8 L 36,4 L 41,11 L 40,36 C 39,43 34,46 28,46 C 22,46 17,43 16,36 Z',
-    root:    'M 14,49 C 11,60 12,72 28,81 C 44,72 45,60 42,49 Z',
-  },
-  pm2: {
-    crown:   'M 11,9 L 17,1 L 28,5 L 39,1 L 45,9 L 44,37 C 43,45 37,49 28,49 C 19,49 13,45 12,37 Z',
-    shadow:  'M 15,11 L 19,4 L 28,8 L 37,4 L 41,11 L 40,36 C 39,43 34,46 28,46 C 22,46 17,43 16,36 Z',
-    root:    'M 14,49 C 11,60 12,72 28,81 C 44,72 45,60 42,49 Z',
-    grooves: 'M 28,8 L 28,43',
-  },
-  mo1: {
-    crown:   'M 5,9 L 13,1 L 21,5 L 28,2 L 35,5 L 43,1 L 51,9 L 50,36 C 49,45 40,49 28,49 C 16,49 7,45 6,36 Z',
-    shadow:  'M 9,11 L 15,4 L 22,8 L 28,5 L 34,8 L 41,4 L 47,11 L 46,35 C 45,43 38,46 28,46 C 18,46 11,43 10,35 Z',
-    root:    'M 7,49 C 5,57 4,67 9,75 Q 14,81 18,74 Q 22,66 28,64 Q 34,66 38,74 Q 42,81 47,75 C 52,67 51,57 49,49 Z',
-    grooves: 'M 15,8 L 15,40 M 28,3 L 28,42 M 41,8 L 41,40',
-  },
-  mo2: {
-    crown:   'M 7,9 L 14,1 L 22,5 L 28,3 L 34,5 L 42,1 L 49,9 L 48,36 C 47,44 39,49 28,49 C 17,49 9,44 8,36 Z',
-    shadow:  'M 11,11 L 16,4 L 23,8 L 28,6 L 33,8 L 40,4 L 45,11 L 44,35 C 43,43 37,46 28,46 C 19,46 13,43 12,35 Z',
-    root:    'M 9,49 C 7,57 6,67 11,74 Q 15,80 19,73 Q 23,65 28,63 Q 33,65 37,73 Q 41,80 45,74 C 50,67 49,57 47,49 Z',
-    grooves: 'M 28,5 L 28,43',
-  },
-  wi: {
-    crown:   'M 10,10 C 10,3 15,0 28,0 C 41,0 46,3 46,10 L 45,33 C 44,43 38,47 28,47 C 18,47 12,43 11,33 Z',
-    shadow:  'M 14,12 C 14,6 18,3 28,3 C 38,3 42,6 42,12 L 41,32 C 40,41 35,44 28,44 C 21,44 16,41 15,32 Z',
-    root:    'M 12,47 C 9,58 11,70 28,81 C 45,70 47,58 44,47 Z',
+    crown:  'M 8,17 C 8,11 11,7 15,7 C 18,7 20,11 21,15 L 24,16 L 28,13 L 32,16 L 35,15 C 36,11 38,7 41,7 C 45,7 48,11 48,17 C 48,30 46,42 43,48 C 39,52 34,54 28,54 C 22,54 17,52 13,48 C 10,42 8,30 8,17 Z',
+    root:   'M 13,45 C 10,58 12,72 28,86 C 44,72 46,58 43,45 Z',
+    cervix: 'M 11,47 Q 28,54 45,47',
+    detail: 'M 21,15 Q 28,21 35,15 M 28,15 L 28,47',
+    canal:  'M 28,56 L 28,80',
   },
 }
 
 function getAnatomy(num: number): ToothAnatomy {
-  const t = toothType(num)
-  return (isUpper(num) ? UA : LA)[t]
+  return TOOTH[toothType(num)]
 }
 
 // ── Surface data ─────────────────────────────────────────────────
@@ -178,14 +134,19 @@ function emptyTooth(): ToothData {
   return { status: DEFAULT_STATUS, surfaces: {v:'higido',l:'higido',m:'higido',d:'higido',o:'higido'}, note: '' }
 }
 
-// ── Photorealistic ToothSVG ───────────────────────────────────────
+// ── Atlas anatômico ToothSVG ────────────────────────────────────────
+// Estilo atlas clínico: marfim quase branco quando hígido, contorno e
+// tinta leve na cor do estado quando não, linha cervical + mamelões +
+// canal radicular sutis — legível a 30px na arcada inteira.
 function ToothSVG({ num, data, selected, onClick }: {
   num: number; data: ToothData; selected: boolean; onClick: () => void
 }) {
   const upper  = isUpper(num)
-  const { crown, shadow, root, incisal, grooves } = getAnatomy(num)
+  const { crown, root, cervix, detail, canal } = getAnatomy(num)
   const status = data.status
   const absent = status === 'ausente'
+  const higido = status === 'higido'
+  const ink    = higido ? '#8A8272' : statusColor(status)
   const g      = `t${num}`
 
   return (
@@ -197,123 +158,40 @@ function ToothSVG({ num, data, selected, onClick }: {
       <svg viewBox="0 0 56 96" className={styles.toothSvg}
         style={{ transform: upper ? 'scaleY(-1)' : 'none' }}>
         <defs>
-          {/* Dentin core: warm amber-orange glow (subsurface scattering) */}
-          <radialGradient id={`dt${g}`} cx="42%" cy="38%" r="62%" fx="42%" fy="30%">
-            <stop offset="0%"   stopColor="#D4935A"/>
-            <stop offset="28%"  stopColor="#C07A38"/>
-            <stop offset="60%"  stopColor="#A05E20"/>
-            <stop offset="100%" stopColor="#7A4010"/>
-          </radialGradient>
-          {/* Enamel body: semi-transparent warm ivory — dentin shows through */}
-          <linearGradient id={`en${g}`} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%"   stopColor="#8C7E66" stopOpacity="0.96"/>
-            <stop offset="10%"  stopColor="#C4B898" stopOpacity="0.91"/>
-            <stop offset="35%"  stopColor="#F5F0E6" stopOpacity="0.86"/>
-            <stop offset="60%"  stopColor="#EDE4CC" stopOpacity="0.89"/>
-            <stop offset="88%"  stopColor="#C0B090" stopOpacity="0.93"/>
-            <stop offset="100%" stopColor="#8C7E66" stopOpacity="0.96"/>
+          {/* Corpo do esmalte: marfim quase branco */}
+          <linearGradient id={`bo${g}`} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stopColor="#EDE7D8"/>
+            <stop offset="34%"  stopColor="#FEFDFA"/>
+            <stop offset="72%"  stopColor="#F8F4E9"/>
+            <stop offset="100%" stopColor="#E7E0CF"/>
           </linearGradient>
-          {/* Root cementum: darker warm brown */}
-          <linearGradient id={`ro${g}`} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%"   stopColor="#5A3818"/>
-            <stop offset="22%"  stopColor="#8A5A28"/>
-            <stop offset="50%"  stopColor="#A06830"/>
-            <stop offset="78%"  stopColor="#7A4C20"/>
-            <stop offset="100%" stopColor="#5A3818"/>
+          {/* Raiz: cemento levemente mais amarelado */}
+          <linearGradient id={`rr${g}`} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stopColor="#E6DECB"/>
+            <stop offset="40%"  stopColor="#F7F2E5"/>
+            <stop offset="100%" stopColor="#E0D7C2"/>
           </linearGradient>
-          {/* Incisal/occlusal translucency: strong blue-gray at cusp/edge */}
-          <linearGradient id={`ic${g}`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%"   stopColor="#6898B8" stopOpacity="0.60"/>
-            <stop offset="35%"  stopColor="#88B0CC" stopOpacity="0.22"/>
-            <stop offset="75%"  stopColor="#AACCE0" stopOpacity="0.05"/>
-            <stop offset="100%" stopColor="#FFFFFF"  stopOpacity="0"/>
-          </linearGradient>
-          {/* Cervical stain: warm amber at gum margin */}
-          <linearGradient id={`cv${g}`} x1="0%" y1="100%" x2="0%" y2="0%">
-            <stop offset="0%"   stopColor="#9A6020" stopOpacity="0.40"/>
-            <stop offset="22%"  stopColor="#B87838" stopOpacity="0.15"/>
-            <stop offset="55%"  stopColor="#D09050" stopOpacity="0.03"/>
-            <stop offset="100%" stopColor="#FFFFFF"  stopOpacity="0"/>
-          </linearGradient>
-          {/* Mesial/distal contact shadows */}
-          <linearGradient id={`ms${g}`} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%"   stopColor="rgba(30,18,8,0.22)"/>
-            <stop offset="16%"  stopColor="rgba(30,18,8,0)"/>
-            <stop offset="84%"  stopColor="rgba(30,18,8,0)"/>
-            <stop offset="100%" stopColor="rgba(30,18,8,0.18)"/>
-          </linearGradient>
-          {/* Lingual/inner shadow (top-to-bottom dark band at upper portion) */}
-          <linearGradient id={`ls${g}`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%"   stopColor="rgba(20,12,4,0.14)"/>
-            <stop offset="30%"  stopColor="rgba(20,12,4,0)"/>
-            <stop offset="100%" stopColor="rgba(20,12,4,0)"/>
-          </linearGradient>
-          {/* Primary specular: bright elongated highlight */}
-          <radialGradient id={`sp${g}`} cx="43%" cy="23%" r="26%" fx="43%" fy="16%">
-            <stop offset="0%"   stopColor="rgba(255,255,255,0.95)"/>
-            <stop offset="28%"  stopColor="rgba(255,255,255,0.60)"/>
-            <stop offset="65%"  stopColor="rgba(255,255,255,0.15)"/>
-            <stop offset="100%" stopColor="rgba(255,255,255,0)"/>
-          </radialGradient>
-          {/* Secondary fill light: cool blue-white from above-left */}
-          <radialGradient id={`fl${g}`} cx="18%" cy="12%" r="52%">
-            <stop offset="0%"   stopColor="rgba(220,238,255,0.35)"/>
-            <stop offset="55%"  stopColor="rgba(220,238,255,0.08)"/>
-            <stop offset="100%" stopColor="rgba(220,238,255,0)"/>
-          </radialGradient>
-          {/* Status tint overlay */}
-          {!absent && status !== 'higido' && (
-            <radialGradient id={`st${g}`} cx="50%" cy="45%" r="58%">
-              <stop offset="0%"   stopColor={statusColor(status)} stopOpacity="0.55"/>
-              <stop offset="60%"  stopColor={statusColor(status)} stopOpacity="0.32"/>
-              <stop offset="100%" stopColor={statusColor(status)} stopOpacity="0.18"/>
-            </radialGradient>
-          )}
         </defs>
 
-        {/* ROOT */}
-        {absent ? (
-          <path d={root} fill="#C0BAA8" stroke="#988C7C" strokeWidth="0.7" strokeDasharray="3,2"/>
-        ) : (
-          <path d={root} fill={`url(#ro${g})`} stroke="#4E2E0C" strokeWidth="0.9"/>
-        )}
-
-        {/* CROWN */}
         {absent ? (
           <>
-            <path d={crown} fill="#DDDBD2" stroke="#B8B0A8" strokeWidth="1.2" strokeDasharray="3,2" opacity="0.7"/>
-            <line x1="15" y1="8" x2="41" y2="44" stroke="#A8A098" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
-            <line x1="41" y1="8" x2="15" y2="44" stroke="#A8A098" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
+            <path d={root} fill="none" stroke="#B3AC9A" strokeWidth="0.9" strokeDasharray="3,2.5"/>
+            <path d={crown} fill="none" stroke="#B3AC9A" strokeWidth="1.1" strokeDasharray="3,2.5"/>
+            <path d="M 16,14 L 40,42 M 40,14 L 16,42" stroke="#B3AC9A" strokeWidth="2.2" strokeLinecap="round"/>
           </>
         ) : (
           <>
-            {/* 1. Dentin core — warm amber subsurface (shows through translucent enamel) */}
-            {shadow
-              ? <path d={shadow} fill={`url(#dt${g})`}/>
-              : <path d={crown} fill={`url(#dt${g})`} opacity="0.92"/>
-            }
-            {/* 2. Enamel body — semi-transparent ivory, reveals dentin warmth */}
-            <path d={crown} fill={`url(#en${g})`} stroke="#A09070" strokeWidth="1.2" strokeLinejoin="round"/>
-            {/* 3. Incisal / occlusal translucency — blue-gray at cutting edge */}
-            {incisal && <path d={incisal} fill={`url(#ic${g})`}/>}
-            {/* 4. Cervical stain — amber tint at gum line */}
-            <path d={crown} fill={`url(#cv${g})`}/>
-            {/* 5. Mesial/distal contact shadows — darkens the tooth sides */}
-            <path d={crown} fill={`url(#ms${g})`}/>
-            {/* 6. Lingual shadow band — slight darkness at upper crown */}
-            <path d={crown} fill={`url(#ls${g})`}/>
-            {/* 7. Status color overlay */}
-            {status !== 'higido' && (
-              <path d={crown} fill={`url(#st${g})`}/>
-            )}
-            {/* 8. Anatomical grooves — fissures in enamel */}
-            {grooves && (
-              <path d={grooves} fill="none" stroke="#6A5840" strokeWidth="0.9" strokeLinecap="round" opacity="0.50"/>
-            )}
-            {/* 9. Secondary fill light — cool reflection from above-left */}
-            <path d={crown} fill={`url(#fl${g})`}/>
-            {/* 10. Primary specular highlight — bright gloss on labial convexity */}
-            <path d={crown} fill={`url(#sp${g})`}/>
+            {/* Raiz */}
+            <path d={root} fill={`url(#rr${g})`} stroke={ink} strokeWidth="0.9" strokeLinejoin="round"/>
+            {canal && <path d={canal} fill="none" stroke={ink} strokeWidth="0.55" strokeLinecap="round" opacity="0.4"/>}
+            {/* Coroa */}
+            <path d={crown} fill={`url(#bo${g})`} stroke={ink} strokeWidth="1.1" strokeLinejoin="round"/>
+            {/* Tinta do estado clínico */}
+            {!higido && <path d={crown} fill={statusColor(status)} opacity="0.17"/>}
+            {/* Mamelões / cúspides / sulco central */}
+            {detail && <path d={detail} fill="none" stroke={ink} strokeWidth="0.6" strokeLinecap="round" opacity="0.4"/>}
+            {/* Linha cervical — junção coroa/raiz */}
+            {cervix && <path d={cervix} fill="none" stroke={ink} strokeWidth="0.8" strokeLinecap="round" opacity="0.55"/>}
           </>
         )}
 
@@ -359,8 +237,6 @@ export function TabOdontograma({ record, patient, clinicId, onSaved }: Props) {
   const [teeth, setTeeth]             = useState<Record<number,ToothData>>({})
   const [selectedTooth, setSelected]  = useState<number|null>(null)
   const [activeSurface, setActiveSurf]= useState<SurfaceKey|null>(null)
-  const [paintStatus, setPaint]       = useState<string>('cariado')
-  const [mode, setMode]               = useState<'dente'|'face'>('dente')
   const [saving, setSaving]           = useState(false)
   const [saved, setSaved]             = useState(false)
 
@@ -378,21 +254,25 @@ export function TabOdontograma({ record, patient, clinicId, onSaved }: Props) {
 
   function handleToothClick(num: number) {
     if (selectedTooth===num) {
-      setTeeth(p=>({...p,[num]:{...p[num],status:paintStatus}}))
-      setSelected(null); return
+      setSelected(null); setActiveSurf(null); return
     }
     setSelected(num); setActiveSurf(null)
   }
   function handleSurfaceClick(s: SurfaceKey) {
     if (selectedTooth===null) return
-    setActiveSurf(s)
-    setTeeth(p=>({...p,[selectedTooth]:{...p[selectedTooth],surfaces:{...p[selectedTooth].surfaces,[s]:paintStatus}}}))
+    setActiveSurf(prev => prev===s ? null : s)
   }
+  // Aplicar status nunca fecha o painel — dá pra escrever a observação ou
+  // pintar outra face em seguida sem reabrir. Só fecha ao clicar de novo
+  // no mesmo dente, em outro dente, ou no X.
   function applyStatus(status: string) {
     if (selectedTooth===null) return
-    if (mode==='dente') setTeeth(p=>({...p,[selectedTooth]:{...p[selectedTooth],status}}))
-    else if (activeSurface) setTeeth(p=>({...p,[selectedTooth]:{...p[selectedTooth],surfaces:{...p[selectedTooth].surfaces,[activeSurface]:status}}}))
-    setSelected(null); setActiveSurf(null)
+    if (activeSurface) {
+      setTeeth(p=>({...p,[selectedTooth]:{...p[selectedTooth],surfaces:{...p[selectedTooth].surfaces,[activeSurface]:status}}}))
+      setActiveSurf(null)
+    } else {
+      setTeeth(p=>({...p,[selectedTooth]:{...p[selectedTooth],status}}))
+    }
   }
   async function handleSave() {
     setSaving(true)
@@ -409,28 +289,8 @@ export function TabOdontograma({ record, patient, clinicId, onSaved }: Props) {
 
   return (
     <div className={styles.wrap}>
-      {/* Toolbar */}
-      <div className={styles.toolbar}>
-        <div className={styles.toolbarLeft}>
-          <span className={styles.toolbarLabel}>Pintar:</span>
-          {TOOTH_STATUS.map(s=>(
-            <button key={s.key} type="button"
-              className={`${styles.paintBtn} ${paintStatus===s.key?styles.paintBtnActive:''}`}
-              style={{'--paint-color':s.color,'--paint-bg':s.bg} as React.CSSProperties}
-              onClick={()=>setPaint(s.key)} title={s.label}>
-              <span className={styles.paintDot} style={{background:s.color}}/>
-              <span className={styles.paintLabel}>{s.label}</span>
-            </button>
-          ))}
-        </div>
-        <div className={styles.modeSwitch}>
-          <button type="button" className={`${styles.modeBtn} ${mode==='dente'?styles.modeBtnActive:''}`} onClick={()=>setMode('dente')}>Dente</button>
-          <button type="button" className={`${styles.modeBtn} ${mode==='face'?styles.modeBtnActive:''}`}  onClick={()=>setMode('face')}>Face</button>
-        </div>
-      </div>
-
       {/* Arcade */}
-      <div className={styles.arcade}>
+      <div className={styles.arcade} data-hscroll>
         <div className={styles.arcadeLabel}>Superior</div>
         <div className={styles.teethRow}>
           {UPPER.map(n=><ToothSVG key={n} num={n} data={teeth[n]??emptyTooth()} selected={selectedTooth===n} onClick={()=>handleToothClick(n)}/>)}
@@ -453,13 +313,13 @@ export function TabOdontograma({ record, patient, clinicId, onSaved }: Props) {
             <div className={styles.selPanelLeft}>
               <p className={styles.selPanelSub}>Faces</p>
               <SurfaceDiagram data={selData} activeSurface={activeSurface} onSurfaceClick={handleSurfaceClick}/>
-              <p className={styles.selPanelHint}>{activeSurface?`Face: ${SURFACES.find(s=>s.key===activeSurface)?.label}`:'Clique em uma face'}</p>
+              <p className={styles.selPanelHint}>{activeSurface?`Face: ${SURFACES.find(s=>s.key===activeSurface)?.label} — clique de novo pra desmarcar`:'Clique numa face pra pintar só ela'}</p>
             </div>
             <div className={styles.selPanelRight}>
-              <p className={styles.selPanelSub}>{mode==='dente'?'Status do dente':'Status da face selecionada'}</p>
+              <p className={styles.selPanelSub}>{activeSurface?`Status da face ${SURFACES.find(s=>s.key===activeSurface)?.label}`:'Status do dente inteiro'}</p>
               <div className={styles.statusGrid}>
                 {TOOTH_STATUS.map(s=>{
-                  const isCurr=mode==='dente'?selData.status===s.key:!!(activeSurface&&selData.surfaces[activeSurface]===s.key)
+                  const isCurr=activeSurface?selData.surfaces[activeSurface]===s.key:selData.status===s.key
                   return (
                     <button key={s.key} type="button"
                       className={`${styles.statusBtn} ${isCurr?styles.statusBtnActive:''}`}
@@ -470,7 +330,7 @@ export function TabOdontograma({ record, patient, clinicId, onSaved }: Props) {
                   )
                 })}
               </div>
-              {mode==='dente' && (
+              {!activeSurface && (
                 <div className={styles.noteField}>
                   <p className={styles.selPanelSub}>Observação do dente</p>
                   <textarea

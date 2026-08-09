@@ -199,7 +199,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
           </div>
         </div>
 
-        <div className={styles.tabs}>
+        <div className={styles.tabs} data-hscroll>
           {tabs.map((t) => (
             <button
               key={t.key}

@@ -1096,7 +1096,7 @@ function AgendaContent() {
 
       {/* ── Date strip: date-picker horizontal deslizante (mobile, visões Dia/Lista) ── */}
       {!isCalendarView && (
-        <div className={styles.dateStrip}>
+        <div className={styles.dateStrip} data-hscroll>
           {dateStripDays.map(d => {
             const isToday = localDateStr(d) === localDateStr(new Date())
             const isSel = localDateStr(d) === localDateStr(currentDate)
@@ -1117,7 +1117,7 @@ function AgendaContent() {
 
       {/* ── Filtro de profissionais (mobile): só avatares, igual ao desktop ── */}
       {professionals.length > 1 && (
-        <div className={styles.profFiltersMobile}>
+        <div className={styles.profFiltersMobile} data-hscroll>
           {professionals.map((p, i) => {
             const color = PROF_COLORS[i % PROF_COLORS.length]
             const active = !hiddenProfIds.has(p.id)

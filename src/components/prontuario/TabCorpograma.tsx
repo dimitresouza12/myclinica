@@ -139,7 +139,7 @@ export function TabCorpograma({ record, patient, clinicId, onSaved }: Props) {
         <div className={styles.bodyCol}>
 
           {/* Tool selector */}
-          <div className={styles.toolbar}>
+          <div className={styles.toolbar} data-hscroll>
             <span className={styles.toolbarLabel}>Marcar:</span>
             {TOOLS.map(t => (
               <button key={t.key} type="button"
