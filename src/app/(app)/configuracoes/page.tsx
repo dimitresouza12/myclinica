@@ -78,6 +78,15 @@ interface UserForm {
   specialty_type: ClinicType | ''
 }
 const BLANK_USER: UserForm = { display_name: '', username: '', email: '', password: '', role: 'recepcao', specialty_type: '' }
+// Cargo clínico (dentista/médico/profissional) sem vínculo na agenda é quase
+// sempre engano do admin, não intenção — por isso o checkbox "Também
+// cadastrar na agenda" abaixo passa a nascer marcado nesses cargos, em vez
+// de opt-in silencioso (era a causa raiz de um profissional criado sem
+// conseguir ser selecionado em nenhum agendamento nem resolver a área da
+// própria ficha).
+function isClinicalRole(role: UserRole) {
+  return !['recepcao', 'auxiliar', 'admin'].includes(role)
+}
 
 function ConfiguracoesContent() {
   const { clinic, user, setSession, setClinicLogo, addClinicSpecialty } = useAuthStore()
@@ -1259,7 +1268,7 @@ function ConfiguracoesContent() {
                       const role = isArea ? roleForSpecialty(v as ClinicType) : (v as UserRole)
                       const specialty_type = isArea ? (v as ClinicType) : ''
                       setUserForm(p => ({ ...p, role, specialty_type }))
-                      if (!editingUser) setPermissionsForm(presetPermissions(role))
+                      if (!editingUser) { setPermissionsForm(presetPermissions(role)); setCreateProfessional(isClinicalRole(role)) }
                     }}
                   >
                     <option value="recepcao">Recepção</option>
@@ -1278,7 +1287,7 @@ function ConfiguracoesContent() {
                       // Preset de permissões só é reaplicado ao criar um usuário
                       // novo — em edição, trocar o cargo não deve descartar
                       // permissões já salvas e customizadas pelo admin.
-                      if (!editingUser) setPermissionsForm(presetPermissions(role))
+                      if (!editingUser) { setPermissionsForm(presetPermissions(role)); setCreateProfessional(isClinicalRole(role)) }
                     }}
                   >
                     {specialty.roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}

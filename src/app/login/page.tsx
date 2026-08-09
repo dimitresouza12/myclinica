@@ -16,6 +16,30 @@ import { Icon } from '@/components/ui/Icon'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+// Busca clinic_users direto no PostgREST com o access_token que o
+// signInWithPassword já devolveu, em vez de deixar o supabase-js pedir a
+// sessão de novo (o que passa pelo navigator.locks e pode ficar preso
+// disputando o lock entre abas). Timeout próprio + 1 retry: sem isso, uma
+// rede instável trava a tela em "Carregando dados..." para sempre, sem
+// mensagem e sem saída (era exatamente o sintoma relatado por uma cliente).
+async function fetchClinicUserOnce(accessToken: string, userId: string): Promise<(ClinicUser & { clinics: Clinic }) | null> {
+  const url = `${SUPABASE_URL}/rest/v1/clinic_users?select=*,clinics(*)&user_id=eq.${userId}&is_active=eq.true`
+  const res = await fetch(url, {
+    headers: { apikey: SUPABASE_KEY!, Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(12_000),
+  })
+  if (!res.ok) throw new Error(`clinic_users_http_${res.status}`)
+  const rows = (await res.json()) as (ClinicUser & { clinics: Clinic })[]
+  return rows[0] ?? null
+}
+async function fetchClinicUserWithRetry(accessToken: string, userId: string) {
+  try {
+    return await fetchClinicUserOnce(accessToken, userId)
+  } catch {
+    return await fetchClinicUserOnce(accessToken, userId)
+  }
+}
+
 // Serifada só pro título do painel esquerdo (login.module.css usa a CSS var
 // abaixo) — o resto do app continua em Inter, herdado do layout global.
 const newsreader = Newsreader({ subsets: ['latin'], style: ['italic', 'normal'], weight: ['400', '500'], variable: '--font-newsreader' })
@@ -335,6 +359,11 @@ function LoginContent() {
   const [error, setError] = useState('')
   const [step, setStep] = useState('')
   const [loading, setLoading] = useState(false)
+  // true quando o carregamento pós-login estourou o timeout mesmo após o
+  // retry — mostra "Tentar novamente" / "Sair e limpar sessão" em vez de só
+  // repetir o botão Entrar (o usuário já digitou a senha certa, o problema é
+  // a rede, não a credencial).
+  const [loginStalled, setLoginStalled] = useState(false)
 
   // Register state
   const BLANK_REG: RegisterForm = { clinic_type: '', clinic_name: '', admin_name: '', username: '', email: '', password: '', phone: '', cpf: '', plan: 'essencial' }
@@ -420,10 +449,15 @@ function LoginContent() {
     )
   }
 
-  async function handleLogin(e: React.FormEvent) {
+  function handleLogin(e: React.FormEvent) {
     e.preventDefault()
+    doLogin()
+  }
+
+  async function doLogin() {
     setError('')
     setStep('')
+    setLoginStalled(false)
 
     const cred = credential.trim()
     const secsLocked = isRateLimited(cred)
@@ -468,11 +502,21 @@ function LoginContent() {
       }
 
       setStep('Carregando dados...')
-      const { data: clinicUser, error: cuErr } = await supabase
-        .from('clinic_users').select('*, clinics(*)')
-        .eq('user_id', authData.user.id).eq('is_active', true)
-        .maybeSingle<ClinicUser & { clinics: Clinic }>()
-      if (cuErr) { console.error('clinic_users error:', cuErr); throw new Error('Erro ao carregar dados da clínica.') }
+      let clinicUser: (ClinicUser & { clinics: Clinic }) | null
+      try {
+        clinicUser = await fetchClinicUserWithRetry(authData.session.access_token, authData.user.id)
+      } catch (fetchErr) {
+        console.error('clinic_users fetch error:', fetchErr)
+        setLoginStalled(true)
+        audit({
+          action: 'auth.login_stalled',
+          user_id: authData.user.id,
+          clinic_id: '00000000-0000-0000-0000-000000000000',
+          module: 'auth',
+          details: { credential_type: cred.includes('@') ? 'email' : 'username' },
+        }).catch(() => {})
+        throw new Error('Não conseguimos carregar os dados da clínica. Verifique sua conexão e tente novamente.')
+      }
       if (!clinicUser) throw new Error('Usuário sem clínica associada. Contate o suporte.')
 
       // ── Superadmin: sessão independente, sem vínculo com nenhuma clínica ──
@@ -560,6 +604,29 @@ function LoginContent() {
       setStep('')
       setLoading(false)
     }
+  }
+
+  // Saída de emergência de uma sessão travada em "Carregando dados..." —
+  // limpa o token local (que pode estar preso num lock entre abas) e devolve
+  // o usuário para um login limpo, sem precisar fechar o navegador.
+  async function handleClearStalledSession() {
+    setLoading(true)
+    try {
+      // Corrida contra um timeout curto: signOut() passa pelo mesmo cliente
+      // que travou — não pode ser o único caminho de saída também.
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('signout_timeout')), 5_000)),
+      ])
+    } catch {
+      // mesmo se o signOut falhar/travar (ex: rede), limpar a sessão local
+      // abaixo já resolve — não deixar essa etapa travar a saída
+    }
+    clearSession()
+    setLoginStalled(false)
+    setError('')
+    setStep('')
+    setLoading(false)
   }
 
   async function handleRegister(e: React.FormEvent) {
@@ -874,9 +941,20 @@ function LoginContent() {
             </div>
             {error && <p className={styles.error}>{error}</p>}
             {step && <p className={styles.step}>{step}</p>}
-            <button type="submit" className={styles.btn} disabled={loading}>
-              {loading ? (step || 'Autenticando...') : 'Entrar'}
-            </button>
+            {loginStalled ? (
+              <div className={styles.stalledActions}>
+                <button type="submit" className={styles.btn} disabled={loading}>
+                  {loading ? (step || 'Tentando...') : 'Tentar novamente'}
+                </button>
+                <button type="button" className={styles.btnSecondary} disabled={loading} onClick={handleClearStalledSession}>
+                  Sair e limpar sessão
+                </button>
+              </div>
+            ) : (
+              <button type="submit" className={styles.btn} disabled={loading}>
+                {loading ? (step || 'Autenticando...') : 'Entrar'}
+              </button>
+            )}
             <button type="button" className={styles.btnLink} onClick={() => { setShowReset(true); setResetError(''); setResetSent(false) }}>
               Esqueci minha senha
             </button>

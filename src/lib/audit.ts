@@ -4,6 +4,7 @@ export type AuditAction =
   | 'auth.login'
   | 'auth.logout'
   | 'auth.login_failed'
+  | 'auth.login_stalled'
   | 'auth.mfa_enrolled'
   | 'auth.mfa_verified'
   | 'auth.session_expired'

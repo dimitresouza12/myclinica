@@ -150,11 +150,22 @@
   filter: drop-shadow(0 0 6px rgba(77,217,192,0.75)) drop-shadow(0 2px 4px rgba(0,0,0,0.24));
 }
 .toothNumber {
+  position: relative;
   font-size: 0.58rem;
   font-weight: 700;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   line-height: 1;
+}
+.noteMarker {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #0891b2;
+  border: 1px solid var(--bg-primary);
 }
 
 /* ── Selection panel ── */
@@ -262,6 +273,22 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+.noteField { margin-top: 0.75rem; }
+.noteTextarea {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+.noteTextarea:focus { border-color: #4DD9C0; }
 
 /* ── Legend ── */
 .legend {

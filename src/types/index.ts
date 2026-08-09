@@ -125,6 +125,12 @@ export interface Appointment {
   procedures?: Pick<Procedure, 'id' | 'name' | 'price'>
 }
 
+export interface TreatmentPlanItem {
+  id: string
+  description: string
+  value: number | null
+}
+
 export interface MedicalRecord {
   id: string
   clinic_id: string
@@ -136,6 +142,9 @@ export interface MedicalRecord {
   anamnesis: Partial<Record<ClinicType, Record<string, string>>>
   clinical_exam: Partial<Record<ClinicType, Record<string, string>>>
   treatment_plan: string | null
+  // Itens do orçamento (serviço + valor) — o texto livre de treatment_plan
+  // continua existindo como observação geral, ver TabFicha.tsx.
+  treatment_plan_items: TreatmentPlanItem[]
   contract_text: string | null
   odontogram: Record<string, string | { status: string; surfaces?: Record<string, string> }>
   vaccinations: unknown[]

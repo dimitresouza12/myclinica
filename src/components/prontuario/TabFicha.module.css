@@ -127,6 +127,78 @@
   transition: all 0.15s;
 }
 .btnPrint:hover { background: var(--bg-secondary); border-color: var(--brand-primary); color: var(--brand-primary); }
+.btnPrint:disabled { opacity: 0.5; cursor: not-allowed; }
+.btnPrint:disabled:hover { background: none; border-color: var(--border-color); color: var(--text-secondary); }
+
+/* Bloco 4: itens do plano de tratamento / orçamento */
+.treatmentItems { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.75rem; }
+.treatmentItemRow { display: flex; gap: 0.5rem; align-items: center; }
+.treatmentItemDesc {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  min-height: 44px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  outline: none;
+}
+.treatmentItemDesc:focus { border-color: var(--brand-primary); }
+.treatmentItemValue {
+  width: 110px;
+  flex-shrink: 0;
+  padding: 0.55rem 0.7rem;
+  min-height: 44px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.treatmentItemValue:focus { border-color: var(--brand-primary); }
+.treatmentItemRemove {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.treatmentItemRemove:hover { color: #dc2626; background: var(--bg-secondary); }
+.treatmentItemsFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+.treatmentTotal {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.treatmentNoteLabel {
+  display: block;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
 
 /* Bloco G: campo personalizado */
 .btnAddCustomField {

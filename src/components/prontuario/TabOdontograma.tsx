@@ -16,6 +16,8 @@ export const TOOTH_STATUS = [
   { key: 'tratamento', label: 'Em Tratamento', color: '#ec4899', bg: '#fce7f3' },
   { key: 'fraturado',  label: 'Fraturado',     color: '#ea580c', bg: '#ffedd5' },
   { key: 'selante',    label: 'Selante',       color: '#7c3aed', bg: '#ede9fe' },
+  { key: 'extracao',   label: 'Extração Indicada', color: '#b91c1c', bg: '#fecaca' },
+  { key: 'protese',    label: 'Prótese',       color: '#0891b2', bg: '#cffafe' },
 ]
 function statusColor(k: string) { return TOOTH_STATUS.find(s => s.key === k)?.color ?? '#10b981' }
 function statusBg(k: string)    { return TOOTH_STATUS.find(s => s.key === k)?.bg    ?? '#d1fae5' }
@@ -171,9 +173,9 @@ const SURFACES: {key:SurfaceKey;label:string;x:number;y:number;w:number;h:number
   {key:'o',label:'O',x:13,y:13,w:14,h:14},
 ]
 
-interface ToothData { status: string; surfaces: Record<SurfaceKey,string> }
+interface ToothData { status: string; surfaces: Record<SurfaceKey,string>; note?: string }
 function emptyTooth(): ToothData {
-  return { status: DEFAULT_STATUS, surfaces: {v:'higido',l:'higido',m:'higido',d:'higido',o:'higido'} }
+  return { status: DEFAULT_STATUS, surfaces: {v:'higido',l:'higido',m:'higido',d:'higido',o:'higido'}, note: '' }
 }
 
 // ── Photorealistic ToothSVG ───────────────────────────────────────
@@ -320,7 +322,10 @@ function ToothSVG({ num, data, selected, onClick }: {
           <path d={crown} fill="none" stroke="#4DD9C0" strokeWidth="3" strokeLinejoin="round" opacity="0.88"/>
         )}
       </svg>
-      <span className={styles.toothNumber}>{num}</span>
+      <span className={styles.toothNumber}>
+        {num}
+        {data.note?.trim() && <span className={styles.noteMarker} title="Tem observação" />}
+      </span>
     </button>
   )
 }
@@ -465,6 +470,18 @@ export function TabOdontograma({ record, patient, clinicId, onSaved }: Props) {
                   )
                 })}
               </div>
+              {mode==='dente' && (
+                <div className={styles.noteField}>
+                  <p className={styles.selPanelSub}>Observação do dente</p>
+                  <textarea
+                    className={styles.noteTextarea}
+                    rows={2}
+                    value={selData.note ?? ''}
+                    placeholder="Ex: extrair e colocar implante"
+                    onChange={e => setTeeth(p => ({ ...p, [selectedTooth]: { ...p[selectedTooth], note: e.target.value } }))}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

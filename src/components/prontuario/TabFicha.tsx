@@ -3,9 +3,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { usePermissions } from '@/hooks/usePermissions'
-import type { Patient, MedicalRecord, RecordEntry, ClinicType } from '@/types'
+import type { Patient, MedicalRecord, RecordEntry, ClinicType, TreatmentPlanItem } from '@/types'
 import type { AuthClinic } from '@/types'
-import { printProntuario, printContrato } from '@/lib/print'
+import { printProntuario, printContrato, printOrcamento } from '@/lib/print'
 import styles from './TabFicha.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { PET_SPECIES, PET_BREEDS, VET_ANAMNESIS_EXTRA_BY_SPECIES, VET_EXAM_EXTRA_BY_SPECIES } from '@/lib/vetSpecies'
@@ -118,6 +118,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
   const [anamnesis, setAnamnesis] = useState<Record<string, string>>({})
   const [clinicalExam, setClinicalExam] = useState<Record<string, string>>({})
   const [treatmentPlan, setTreatmentPlan] = useState('')
+  const [treatmentPlanItems, setTreatmentPlanItems] = useState<TreatmentPlanItem[]>([])
   const [contractText, setContractText] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -155,12 +156,24 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
     setAnamnesis(record?.anamnesis?.[viewArea] ?? {})
     setClinicalExam(record?.clinical_exam?.[viewArea] ?? {})
     setTreatmentPlan(record?.treatment_plan ?? '')
+    setTreatmentPlanItems(record?.treatment_plan_items ?? [])
     setContractText(record?.contract_text ?? CONTRACT_TEMPLATE(clinicName, patient.name, viewArea))
   }, [record, viewArea, clinicName, patient.name])
 
   function setP(k: string, v: string) { setPatientInfo((p) => ({ ...p, [k]: v })) }
   function setA(k: string, v: string) { setAnamnesis((p) => ({ ...p, [k]: v })) }
   function setE(k: string, v: string) { setClinicalExam((p) => ({ ...p, [k]: v })) }
+
+  function addTreatmentItem() {
+    setTreatmentPlanItems((items) => [...items, { id: crypto.randomUUID(), description: '', value: null }])
+  }
+  function updateTreatmentItem(id: string, patch: Partial<TreatmentPlanItem>) {
+    setTreatmentPlanItems((items) => items.map((it) => (it.id === id ? { ...it, ...patch } : it)))
+  }
+  function removeTreatmentItem(id: string) {
+    setTreatmentPlanItems((items) => items.filter((it) => it.id !== id))
+  }
+  const treatmentPlanTotal = treatmentPlanItems.reduce((sum, it) => sum + (it.value ?? 0), 0)
 
   function parseDateISO(br: string): string | null {
     if (!br) return null
@@ -179,6 +192,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
         anamnesis: { ...(record?.anamnesis ?? {}), [viewArea]: anamnesis },
         clinical_exam: { ...(record?.clinical_exam ?? {}), [viewArea]: clinicalExam },
         treatment_plan: treatmentPlan,
+        treatment_plan_items: treatmentPlanItems,
         contract_text: contractText,
         updated_at: new Date().toISOString(),
       }
@@ -227,6 +241,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
     anamnesis: { ...(record?.anamnesis ?? {}), [viewArea]: anamnesis },
     clinical_exam: { ...(record?.clinical_exam ?? {}), [viewArea]: clinicalExam },
     treatment_plan: treatmentPlan,
+    treatment_plan_items: treatmentPlanItems,
     contract_text: contractText,
   }
 
@@ -470,13 +485,59 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Plano de Tratamento</h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h3 className={styles.sectionTitle} style={{ border: 'none', marginBottom: 0 }}>Plano de Tratamento / Orçamento</h3>
+          <button
+            className={styles.btnPrint}
+            type="button"
+            onClick={() => printOrcamento(clinicInfo, patient, treatmentPlanItems, treatmentPlan)}
+            disabled={treatmentPlanItems.length === 0}
+          >
+            Imprimir Orçamento
+          </button>
+        </div>
+
+        <div className={styles.treatmentItems}>
+          {treatmentPlanItems.map((item) => (
+            <div className={styles.treatmentItemRow} key={item.id}>
+              <input
+                type="text"
+                className={styles.treatmentItemDesc}
+                value={item.description}
+                placeholder="Ex: Exo 15 + dente, Faceta 11..."
+                onChange={(e) => updateTreatmentItem(item.id, { description: e.target.value })}
+              />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className={styles.treatmentItemValue}
+                value={item.value ?? ''}
+                placeholder="R$"
+                onChange={(e) => updateTreatmentItem(item.id, { value: e.target.value === '' ? null : Number(e.target.value) })}
+              />
+              <button type="button" className={styles.treatmentItemRemove} onClick={() => removeTreatmentItem(item.id)} aria-label="Remover item">
+                <Icon name="close" size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className={styles.treatmentItemsFooter}>
+          <button type="button" className={styles.btnAddCustomField} onClick={addTreatmentItem}>+ Adicionar item</button>
+          {treatmentPlanItems.length > 0 && (
+            <span className={styles.treatmentTotal}>
+              Total: {treatmentPlanTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </span>
+          )}
+        </div>
+
+        <label className={styles.treatmentNoteLabel}>Observação geral</label>
         <textarea
           className={styles.bigArea}
-          rows={5}
+          rows={3}
           value={treatmentPlan}
           onChange={(e) => setTreatmentPlan(e.target.value)}
-          placeholder="Descreva o plano de tratamento..."
+          placeholder="Observações gerais sobre o plano de tratamento..."
         />
       </section>
 

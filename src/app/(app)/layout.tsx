@@ -20,26 +20,45 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { load: loadPermissions, reset: resetPermissions } = usePermissionsStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
+  // true quando a checagem de sessão ao montar nunca resolve (rede instável,
+  // lock de sessão preso entre abas) — sem isso o app fica em branco pra
+  // sempre, sem spinner nem mensagem (return null enquanto !authChecked).
+  const [authTimedOut, setAuthTimedOut] = useState(false)
 
   // Verifica/renova sessão Supabase ao montar — evita redirect desnecessário para /login
   useEffect(() => {
+    let timedOut = false
+    const timeoutId = setTimeout(() => { timedOut = true; setAuthTimedOut(true) }, 12_000)
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         // Tenta refresh antes de deslogar (silencia "Refresh Token Not Found" — esperado quando não há sessão)
         supabase.auth.refreshSession().then(({ data }) => {
+          clearTimeout(timeoutId)
+          if (timedOut) return
           if (!data.session) {
             clearSession()
             router.replace('/login')
           }
           setAuthChecked(true)
         }).catch(() => {
+          clearTimeout(timeoutId)
+          if (timedOut) return
           clearSession()
           router.replace('/login')
           setAuthChecked(true)
         })
       } else {
+        clearTimeout(timeoutId)
+        if (timedOut) return
         setAuthChecked(true)
       }
+    }).catch(() => {
+      clearTimeout(timeoutId)
+      if (timedOut) return
+      clearSession()
+      router.replace('/login')
+      setAuthChecked(true)
     })
 
     // Mantém sessão atualizada enquanto o app está aberto
@@ -50,7 +69,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         router.replace('/login')
       }
     })
-    return () => subscription.unsubscribe()
+    return () => { clearTimeout(timeoutId); subscription.unsubscribe() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -110,7 +129,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_hydrated])
 
-  if (!_hydrated || !authChecked) return null
+  if (!_hydrated) return null
+  if (!authChecked) {
+    if (authTimedOut) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', gap: '0.75rem', padding: '1.5rem', textAlign: 'center' }}>
+          <p style={{ fontSize: '0.9rem', color: '#475569' }}>Não conseguimos confirmar sua sessão. Verifique sua conexão.</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{ minHeight: 44, padding: '0.6rem 1.25rem', background: '#0D9488', color: '#fff', border: 'none', borderRadius: 9, fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Recarregar
+          </button>
+        </div>
+      )
+    }
+    return null
+  }
   if (!clinic || !user) return null
 
   return (

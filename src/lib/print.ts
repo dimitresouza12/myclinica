@@ -1,4 +1,4 @@
-import type { Patient, MedicalRecord, RecordEntry, FinancialRecord, ClinicType } from '@/types'
+import type { Patient, MedicalRecord, RecordEntry, FinancialRecord, ClinicType, TreatmentPlanItem } from '@/types'
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 
 interface ClinicInfo {
@@ -93,6 +93,49 @@ export function printProntuario(clinic: ClinicInfo, patient: Patient, record: Me
         </div>
       `).join('')}
     ` : ''}
+    <div class="footer">
+      <span>${clinic.name}</span>
+      <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
+    </div>
+  </body></html>`
+
+  openPrint(html)
+}
+
+export function printOrcamento(clinic: ClinicInfo, patient: Patient, items: TreatmentPlanItem[], generalNote?: string | null) {
+  const total = items.reduce((sum, it) => sum + (it.value ?? 0), 0)
+  const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Orçamento – ${patient.name}</title>${baseStyles()}</head><body>
+    ${clinicHeader(clinic)}
+    <h2>Orçamento / Plano de Tratamento</h2>
+    <div class="grid" style="margin-bottom:16px">
+      ${field('Paciente', patient.name)}
+      ${field('Data', new Date().toLocaleDateString('pt-BR'))}
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-top:8px">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:6px 4px;border-bottom:2px solid #333;font-size:11px;text-transform:uppercase;color:#555">Serviço</th>
+          <th style="text-align:right;padding:6px 4px;border-bottom:2px solid #333;font-size:11px;text-transform:uppercase;color:#555">Valor</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map((it) => `
+          <tr>
+            <td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px">${it.description || '—'}</td>
+            <td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px;text-align:right;white-space:nowrap">${it.value != null ? money(it.value) : '—'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td style="padding:10px 4px;font-size:14px;font-weight:700;text-align:right">TOTAL</td>
+          <td style="padding:10px 4px;font-size:14px;font-weight:700;text-align:right;white-space:nowrap">${money(total)}</td>
+        </tr>
+      </tfoot>
+    </table>
+    ${generalNote ? `<h3>Observações</h3><div class="field-value">${generalNote.replace(/\n/g, '<br>')}</div>` : ''}
     <div class="footer">
       <span>${clinic.name}</span>
       <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
