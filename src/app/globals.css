@@ -21,19 +21,33 @@ a {
   text-decoration: none;
 }
 
-/* ─── Faixa rolável na horizontal (abas, chips, tabelas) ────────────
-   Regra permanente: todo container com overflow-x:auto/scroll precisa
-   do atributo data-hscroll. Sem overscroll-behavior-x:contain, o
-   "estica-e-volta" (rubber-band) do iOS ao chegar na ponta da faixa
-   vaza pro scroll vertical da página — a faixa parece "flutuar" e se
-   mover sozinha ao arrastar. touch-action:pan-x avisa o navegador que
-   o gesto é só horizontal, evitando competir com o scroll da página.
-   Reportado várias vezes em Configurações → abas (mobile); a partir
-   daqui é atributo obrigatório em qualquer faixa nova, não CSS por
-   componente — assim a regra vale sempre, sem precisar lembrar. */
+/* ─── Faixa rolável na horizontal (abas, chips) ──────────────────────
+   Regra permanente: todo container com overflow-x:auto/scroll E QUE
+   REALMENTE role na horizontal no mobile precisa do atributo
+   data-hscroll. Sem overscroll-behavior-x:contain, o "estica-e-volta"
+   (rubber-band) do iOS ao chegar na ponta da faixa vaza pro scroll
+   vertical da página — a faixa parece "flutuar" e se mover sozinha ao
+   arrastar. Reportado em Configurações → abas (mobile).
+
+   NUNCA adicionar touch-action:pan-x aqui de novo — já tentamos e
+   quebrou o app inteiro em produção por um dia (09/08→10/08/2026):
+   pan-x faz o navegador DESCARTAR qualquer arrasto vertical que
+   comece em cima do elemento, em vez de deixar a página rolar. Como
+   várias faixas (.tableWrap de Pacientes/Equipe, .tabs do Prontuário,
+   .arcade do Odontograma) ocupam a largura quase toda da tela no
+   mobile, isso derrubava o scroll vertical da página inteira — só
+   sobravam ~16-20px nas bordas onde o dedo ainda "pegava". overscroll-
+   behavior-x:contain sozinho já resolve o rubber-band; não é preciso
+   nada além disso.
+
+   Também NUNCA colar data-hscroll em containers que não rolam de
+   verdade no mobile — ex.: .tableWrap com a classe global
+   "resp-table-wrap" (ver regra @media abaixo) vira lista de cards
+   empilhados no mobile, sem overflow-x nenhum. Antes de adicionar o
+   atributo em algo novo, confirme com getBoundingClientRect() que
+   scrollWidth > clientWidth naquele breakpoint. */
 [data-hscroll] {
   overscroll-behavior-x: contain;
-  touch-action: pan-x;
 }
 
 /* ─── Status badges ──────────────────────────────── */
