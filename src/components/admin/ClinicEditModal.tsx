@@ -3,18 +3,26 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Clinic } from '@/types'
 import { computeClinicStatus } from '@/lib/clinicStatus'
-import { userLimitFor } from '@/lib/planGates'
+import { PLAN_CATALOG, professionalLimitFor, type SellablePlan } from '@/lib/planCatalog'
 import { Portal } from '@/components/ui/Portal'
 import { StatusBadge } from './StatusBadge'
 import styles from './admin.module.css'
 import { Icon } from '@/components/ui/Icon'
 
-const PLANS: { value: string; label: string; hint: string }[] = [
-  { value: 'essencial',     label: 'Essencial',  hint: 'R$99/mês — até 100 pacientes, 1 usuário' },
-  { value: 'avancado',      label: 'Avançado',   hint: 'R$119,90/mês — ilimitados, até 3 usuários' },
-  { value: 'completo',      label: 'Completo',   hint: 'R$129,90/mês — ilimitados + multi-clínica' },
-  { value: 'completo_plus', label: 'Completo+',  hint: 'R$199/mês — Completo + IA e WhatsApp' },
-]
+function planHint(value: SellablePlan): string {
+  const entry = PLAN_CATALOG[value]
+  const limit = entry.professionalLimit
+  return `${entry.price} — ${limit === null ? 'profissionais ilimitados' : `até ${limit} profissional${limit === 1 ? '' : 'is'}`}`
+}
+
+const SELLABLE_PLAN_OPTIONS = (Object.keys(PLAN_CATALOG) as SellablePlan[]).map(value => ({
+  value, label: PLAN_CATALOG[value].label, hint: planHint(value),
+}))
+// 'avancado' foi aposentado — não aparece pra clínica nova, mas segue
+// selecionável aqui se a clínica editada ainda estiver nesse plano (não
+// deve mais acontecer em produção após a migration, mas sem essa opção o
+// superadmin ficaria sem conseguir nem visualizar o valor atual dela).
+const LEGACY_PLAN_OPTION = { value: 'avancado', label: 'Avançado (legado)', hint: 'R$119,90/mês — até 3 usuários (plano aposentado, só existe em clínicas antigas)' }
 
 function toDateInputValue(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -31,6 +39,13 @@ function buildWhatsAppUrl(phone: string, clinicName: string, dueDay: number | nu
   return `https://wa.me/${number}?text=${msg}`
 }
 
+function buildPaymentLinkWhatsAppUrl(phone: string, link: string): string {
+  const clean = phone.replace(/\D/g, '')
+  const number = clean.startsWith('55') ? clean : `55${clean}`
+  const msg = encodeURIComponent(`Olá! Segue o link para pagamento da sua mensalidade do MyClinica: ${link}`)
+  return `https://wa.me/${number}?text=${msg}`
+}
+
 interface Props {
   clinic: Clinic
   onClose: () => void
@@ -38,6 +53,7 @@ interface Props {
 }
 
 export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
+  const PLANS = clinic.plan === 'avancado' ? [...SELLABLE_PLAN_OPTIONS, LEGACY_PLAN_OPTION] : SELLABLE_PLAN_OPTIONS
   const [plan, setPlan] = useState(clinic.plan ?? 'basico')
   const [maxPatients, setMaxPatients] = useState(clinic.max_patients ?? 200)
   const [maxUsers, setMaxUsers] = useState<number | ''>(clinic.max_users ?? '')
@@ -54,6 +70,43 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
     clinic.billing_due_day ? String(clinic.billing_due_day) : ''
   )
   const [billingPaid, setBillingPaid] = useState(clinic.billing_paid ?? false)
+
+  // Link de cobrança — gerado pela mesma rota que o autoatendimento usa, então
+  // qualquer pagamento feito por ele já chega marcado como "pago" sozinho via
+  // webhook (ver src/app/api/asaas/webhook/route.ts). Evita o caminho antigo
+  // de criar o link direto no painel da Asaas, que não tem como a Asaas
+  // avisar de volta qual clínica pagou — daí a caixinha "Mensalidade paga"
+  // nunca atualizava sozinha pra esses clientes.
+  const [generatingLink, setGeneratingLink] = useState(false)
+  const [generatedLink,  setGeneratedLink]  = useState('')
+  const [linkError,      setLinkError]      = useState('')
+  const [linkCopied,     setLinkCopied]     = useState(false)
+
+  async function handleGenerateLink() {
+    setGeneratingLink(true)
+    setLinkError('')
+    setLinkCopied(false)
+    try {
+      const res = await fetch('/api/asaas/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clinicId: clinic.id, clinicName: clinic.name }),
+      })
+      const data = await res.json()
+      if (data.url) setGeneratedLink(data.url)
+      else setLinkError(data.error ?? 'Erro ao gerar link.')
+    } catch {
+      setLinkError('Erro de conexão.')
+    } finally {
+      setGeneratingLink(false)
+    }
+  }
+
+  async function handleCopyLink() {
+    await navigator.clipboard.writeText(generatedLink)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
 
   // Exclusão
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -186,20 +239,20 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
             />
           </div>
 
-          {/* — Limite de usuários — */}
+          {/* — Limite de profissionais — */}
           <div className={styles.field}>
-            <label>Limite de usuários</label>
+            <label>Limite de profissionais</label>
             <input
               type="number"
               min={1}
               step={1}
-              placeholder={`Padrão do plano (${userLimitFor(plan, null) ?? 'ilimitado'})`}
+              placeholder={`Padrão do plano (${professionalLimitFor(plan, null) ?? 'ilimitado'})`}
               value={maxUsers}
               onChange={(e) => setMaxUsers(e.target.value === '' ? '' : Number(e.target.value))}
               className={styles.fieldInput}
             />
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Vazio = usa o padrão do plano. Preencha para dar uma exceção a essa clínica sem trocar o plano.
+              Vazio = usa o padrão do plano. Preencha para dar uma exceção a essa clínica sem trocar o plano. Conta profissionais cadastrados (com ou sem login) — recepção/auxiliar não entram.
             </p>
           </div>
 
@@ -298,6 +351,45 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
                   <Icon name="phone" size={13} /> Cobrar via WhatsApp
                 </a>
               )}
+            </div>
+
+            {/* — Link de cobrança — */}
+            <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-color, #e5e7eb)' }}>
+              {!generatedLink ? (
+                <button
+                  type="button"
+                  onClick={handleGenerateLink}
+                  disabled={generatingLink}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'none', border: '1px solid var(--teal, #0D9488)', color: 'var(--teal, #0D9488)', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600, cursor: generatingLink ? 'not-allowed' : 'pointer', opacity: generatingLink ? 0.6 : 1 }}
+                >
+                  {generatingLink ? 'Gerando...' : 'Gerar link de cobrança'}
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary, #94a3b8)', margin: 0 }}>
+                    Pagamentos feitos por este link marcam a mensalidade como paga automaticamente.
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <code style={{ flex: 1, minWidth: '180px', padding: '0.4rem 0.6rem', background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '6px', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {generatedLink}
+                    </code>
+                    <button type="button" onClick={handleCopyLink} className={styles.btnCancel} style={{ padding: '0.4rem 0.7rem', fontSize: '0.78rem' }}>
+                      {linkCopied ? 'Copiado!' : 'Copiar'}
+                    </button>
+                    {canCharge && (
+                      <a
+                        href={buildPaymentLinkWhatsAppUrl(billingPhone, generatedLink)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.btnWhatsApp}
+                      >
+                        <Icon name="phone" size={13} /> Enviar no WhatsApp
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+              {linkError && <p className={styles.fieldError} style={{ marginTop: '0.4rem' }}>{linkError}</p>}
             </div>
           </div>
 

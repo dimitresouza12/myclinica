@@ -12,6 +12,7 @@ import { audit } from '@/lib/audit'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useFinanceiroData, useProcedures } from '@/hooks/useClinicData'
 import { mergeSpecialtyConfigs } from '@/lib/specialtyConfig'
+import { COMMON_CONVENIOS } from '@/lib/convenios'
 import { myScopedProfessionalId } from '@/lib/professionalScope'
 import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
@@ -32,10 +33,11 @@ interface NewRecord {
   procedure_id: string
   total_amount: string
   payment_method: string
+  convenio: string
   category: string
   notes: string
 }
-const BLANK: NewRecord = { type: 'receita', patient_id: '', procedure_id: '', total_amount: '', payment_method: 'pix', category: '', notes: '' }
+const BLANK: NewRecord = { type: 'receita', patient_id: '', procedure_id: '', total_amount: '', payment_method: 'pix', convenio: '', category: '', notes: '' }
 
 function FinanceiroContent() {
   const { clinic, user } = useAuthStore()
@@ -59,6 +61,10 @@ function FinanceiroContent() {
 
   useScrollLock(showModal)
   const [form, setForm] = useState<NewRecord>(BLANK)
+  const [showConvenioSuggestions, setShowConvenioSuggestions] = useState(false)
+  const filteredConvenioSuggestions = COMMON_CONVENIOS.filter(c =>
+    c.toLowerCase().includes(form.convenio.trim().toLowerCase())
+  )
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<'todos' | 'receita' | 'despesa'>('todos')
@@ -136,6 +142,17 @@ function FinanceiroContent() {
     const map: Record<string, number> = {}
     periodRecords.filter(r => r.type === 'receita').forEach(r => {
       const k = r.category ?? 'Outros'
+      map[k] = (map[k] ?? 0) + (r.total_amount ?? 0)
+    })
+    return Object.entries(map).map(([name, value]) => ({ name, value }))
+  }, [periodRecords])
+
+  // Receita por convênio no período — só registro informativo (não gera
+  // guia TISS), mostra pra clínica quanto vem de particular vs. cada operadora.
+  const convenioData = useMemo(() => {
+    const map: Record<string, number> = {}
+    periodRecords.filter(r => r.type === 'receita' && r.payment_method === 'convenio').forEach(r => {
+      const k = r.convenio?.trim() || 'Não especificado'
       map[k] = (map[k] ?? 0) + (r.total_amount ?? 0)
     })
     return Object.entries(map).map(([name, value]) => ({ name, value }))
@@ -232,6 +249,7 @@ function FinanceiroContent() {
       procedure_id: record.procedure_id ?? '',
       total_amount: String(record.total_amount ?? ''),
       payment_method: record.payment_method ?? 'pix',
+      convenio: record.convenio ?? '',
       category: record.category ?? '',
       notes: record.notes ?? '',
     })
@@ -255,6 +273,9 @@ function FinanceiroContent() {
       procedure_id: form.type === 'receita' ? (form.procedure_id || null) : null,
       total_amount: parseFloat(form.total_amount) || 0,
       payment_method: form.payment_method,
+      // Só grava convênio se a forma de pagamento realmente for convênio —
+      // evita ficar com convênio "fantasma" numa receita que virou PIX depois.
+      convenio: form.payment_method === 'convenio' ? (form.convenio.trim() || null) : null,
       category: form.category,
       notes: form.notes,
       type: form.type,
@@ -346,7 +367,7 @@ function FinanceiroContent() {
     const periodName = presetLabel[exportPreset] ?? exportPreset
 
     const data = [
-      ['Tipo', 'Data', 'Paciente', 'Categoria', 'Descrição', 'Método de Pagamento', 'Valor (R$)'],
+      ['Tipo', 'Data', 'Paciente', 'Categoria', 'Descrição', 'Método de Pagamento', 'Convênio', 'Valor (R$)'],
       ...recordsToExport.map(r => [
         r.type === 'receita' ? 'Receita' : 'Despesa',
         new Date(r.created_at).toLocaleDateString('pt-BR'),
@@ -354,12 +375,13 @@ function FinanceiroContent() {
         r.category ?? '',
         r.notes ?? '',
         r.payment_method ?? '',
+        r.convenio ?? '',
         r.total_amount ?? 0,
       ]),
     ]
 
     const ws = utils.aoa_to_sheet(data)
-    ws['!cols'] = [10, 12, 24, 16, 30, 20, 14].map(wch => ({ wch }))
+    ws['!cols'] = [10, 12, 24, 16, 30, 20, 16, 14].map(wch => ({ wch }))
     const wb = utils.book_new()
     utils.book_append_sheet(wb, ws, 'Financeiro')
     writeFile(wb, `financeiro-${periodName}.xlsx`)
@@ -467,7 +489,7 @@ function FinanceiroContent() {
       )}
 
       {/* Charts — controlado pela permissão "Ver totais" */}
-      {!loading && showTotals && <Charts monthlyData={monthlyData} categoryData={categoryData} />}
+      {!loading && showTotals && <Charts monthlyData={monthlyData} categoryData={categoryData} convenioData={convenioData} />}
 
       {/* Filters + Table */}
       <div className={styles.section}>
@@ -559,7 +581,9 @@ function FinanceiroContent() {
                     <td data-label="Paciente">{r.patients?.name ?? '—'}</td>
                     <td data-label="Categoria">{r.category ?? '—'}</td>
                     <td data-label="Descrição">{r.notes ?? '—'}</td>
-                    <td data-label="Método" className={styles.method}>{r.payment_method ?? '—'}</td>
+                    <td data-label="Método" className={styles.method}>
+                      {r.payment_method === 'convenio' && r.convenio ? `Convênio — ${r.convenio}` : (r.payment_method ?? '—')}
+                    </td>
                     <td data-label="Valor" className={r.type === 'receita' ? styles.valuePos : styles.valueNeg}>
                       {r.type === 'despesa' ? '−' : '+'}{formatCurrency(r.total_amount ?? 0)}
                     </td>
@@ -674,7 +698,19 @@ function FinanceiroContent() {
               {form.type === 'receita' && (
                 <div className={styles.field}>
                   <label>Paciente</label>
-                  <select value={form.patient_id} onChange={e => setForm(p => ({ ...p, patient_id: e.target.value }))}>
+                  <select
+                    value={form.patient_id}
+                    onChange={e => {
+                      const selected = patients.find(pt => pt.id === e.target.value)
+                      setForm(p => ({
+                        ...p,
+                        patient_id: e.target.value,
+                        // Pré-preenche com o convênio salvo no cadastro do
+                        // paciente, só se o campo ainda estiver vazio.
+                        convenio: !p.convenio && selected?.convenio ? selected.convenio : p.convenio,
+                      }))
+                    }}
+                  >
                     <option value="">Sem paciente</option>
                     {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -704,7 +740,20 @@ function FinanceiroContent() {
               )}
               <div className={styles.field}>
                 <label>Método de Pagamento</label>
-                <select value={form.payment_method} onChange={e => setForm(p => ({ ...p, payment_method: e.target.value }))}>
+                <select
+                  value={form.payment_method}
+                  onChange={e => {
+                    const method = e.target.value
+                    const selectedPatient = patients.find(pt => pt.id === form.patient_id)
+                    setForm(p => ({
+                      ...p,
+                      payment_method: method,
+                      convenio: method === 'convenio' && !p.convenio && selectedPatient?.convenio
+                        ? selectedPatient.convenio
+                        : p.convenio,
+                    }))
+                  }}
+                >
                   <option value="pix">PIX</option>
                   <option value="dinheiro">Dinheiro</option>
                   <option value="cartao_credito">Cartão de Crédito</option>
@@ -713,6 +762,34 @@ function FinanceiroContent() {
                   <option value="outro">Outro</option>
                 </select>
               </div>
+              {form.payment_method === 'convenio' && (
+                <div className={styles.field} style={{ position: 'relative' }}>
+                  <label>Qual convênio?</label>
+                  <input
+                    value={form.convenio}
+                    onChange={e => { setForm(p => ({ ...p, convenio: e.target.value })); setShowConvenioSuggestions(true) }}
+                    onFocus={() => setShowConvenioSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowConvenioSuggestions(false), 150)}
+                    placeholder="Ex: Unimed"
+                    autoComplete="off"
+                  />
+                  {showConvenioSuggestions && filteredConvenioSuggestions.length > 0 && (
+                    <div className={styles.patientSuggestions}>
+                      {filteredConvenioSuggestions.map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          className={styles.patientSuggestion}
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => { setForm(p => ({ ...p, convenio: c })); setShowConvenioSuggestions(false) }}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className={styles.field}>
                 <label>Descrição</label>
                 <input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Detalhe o lançamento..." />

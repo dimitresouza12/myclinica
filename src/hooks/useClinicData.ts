@@ -287,7 +287,9 @@ export function useFinanceiroData(clinicId: string | undefined, scopeProfessiona
       if (scopeProfessionalId) recQuery = recQuery.eq('professional_id', scopeProfessionalId)
       const [recRes, patRes] = await Promise.all([
         recQuery,
-        supabase.from('patients').select('id, name').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
+        // convenio: usado pra pré-preencher o campo "Qual convênio?" ao
+        // selecionar o paciente/trocar forma de pagamento pra convênio.
+        supabase.from('patients').select('id, name, convenio').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
       ])
       return {
         records: (recRes.data ?? []) as FinancialRecord[],

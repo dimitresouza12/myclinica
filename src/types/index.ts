@@ -4,7 +4,10 @@ export type AppointmentStatus = 'agendado' | 'confirmado' | 'concluido' | 'cance
 export type PaymentMethod = 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'convenio' | 'outro'
 
 export type ClinicStatus = 'active' | 'inactive' | 'suspended' | 'pending' | 'trial'
-export type ClinicPlan = 'essencial' | 'avancado' | 'completo' | 'completo_plus' | 'basico' | 'plus'
+// 'avancado' | 'basico' | 'plus' são planos legados — nenhuma clínica nova
+// nasce com esses valores (ver src/lib/planCatalog.ts), mas ficam no union
+// pra não quebrar leitura de registros antigos.
+export type ClinicPlan = 'essencial' | 'completo' | 'ilimitado' | 'completo_plus' | 'avancado' | 'basico' | 'plus'
 
 export interface Clinic {
   id: string
@@ -19,6 +22,10 @@ export interface Clinic {
   plan: string | null
   max_patients: number | null
   max_users: number | null
+  // Preço mensal congelado pra essa clínica específica (ex: cliente antigo
+  // que mudou de plano mas não de preço) — sobrepõe PLAN_CATALOG[plan].priceValue
+  // só na geração de cobrança; não muda limite nem recursos do plano.
+  custom_monthly_price: number | null
   is_multi_specialty: boolean
   specialties: ClinicType[]
   is_active: boolean
@@ -78,6 +85,10 @@ export interface Patient {
   referred_by: string | null
   registration_status: 'pending' | 'approved' | 'rejected' | null
   self_registered: boolean | null
+  // Convênio/plano de saúde — só registro informativo (não gera guia TISS).
+  // Serve de valor padrão ao lançar receita com forma de pagamento = convênio.
+  convenio: string | null
+  convenio_carteirinha: string | null
   // vet fields
   pet_name: string | null
   pet_species: string | null
@@ -183,6 +194,8 @@ export interface FinancialRecord {
   total_amount: number | null
   discount_percent: number | null
   payment_method: string | null
+  // Nome do convênio faturado — só relevante quando payment_method = 'convenio'.
+  convenio: string | null
   installments: unknown[] | null
   notes: string | null
   created_at: string

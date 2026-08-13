@@ -3,16 +3,20 @@ import { useState } from 'react'
 import { useAuthStore } from '@/store/auth'
 import styles from './PaymentLateBanner.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { PLAN_CATALOG, type SellablePlan } from '@/lib/planCatalog'
 
 const WHATSAPP = 'https://wa.me/5588920020570?text=Olá!%20Quero%20mais%20tempo%20para%20testar%20o%20MyClinica.'
 
-const PLANS = [
-  { value: 'essencial', label: 'Essencial',  price: 'R$99/mês',      desc: 'Agenda, prontuário e financeiro básico' },
-  { value: 'avancado',  label: 'Avançado',   price: 'R$119,90/mês',  desc: 'Equipe, relatórios e pacientes ilimitados' },
-  { value: 'completo',  label: 'Completo',   price: 'R$129,90/mês',  desc: 'Multi-clínica e usuários ilimitados' },
-] as const
+// Completo+ fica de fora do seletor de autoatendimento — é sob consulta
+// (mesmo padrão do cadastro em login/page.tsx).
+const PLANS = (['essencial', 'completo', 'ilimitado'] as const).map(value => ({
+  value,
+  label: PLAN_CATALOG[value].label,
+  price: PLAN_CATALOG[value].price,
+  desc: PLAN_CATALOG[value].description,
+}))
 
-type PlanValue = typeof PLANS[number]['value']
+type PlanValue = SellablePlan
 
 export function PaymentLateBanner() {
   const { clinic, user } = useAuthStore()
@@ -20,12 +24,6 @@ export function PaymentLateBanner() {
   const [portalError,   setPortalError]   = useState('')
   const [dismissedDue, setDismissedDue]   = useState(false)
   const [selectedPlan, setSelectedPlan]   = useState<PlanValue | null>(null)
-  const [coupon, setCoupon]               = useState(() =>
-    typeof window !== 'undefined' ? (localStorage.getItem('promoCoupon') ?? '') : ''
-  )
-  const couponUpper   = coupon.trim().toUpperCase()
-  const couponValid   = couponUpper === 'COPA50'
-  const couponInvalid = couponUpper.length > 0 && !couponValid
 
   if (!clinic || user?.isSuperAdmin) return null
 
@@ -46,15 +44,13 @@ export function PaymentLateBanner() {
     setLoadingPortal(true)
     setPortalError('')
     try {
-      const appliedCoupon = couponValid ? couponUpper : undefined
       const res  = await fetch('/api/asaas/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clinicId: clinic.id, clinicName: clinic.name, plan: planOverride, couponCode: appliedCoupon }),
+        body: JSON.stringify({ clinicId: clinic.id, clinicName: clinic.name, plan: planOverride }),
       })
       const data = await res.json()
       if (data.url) {
-        if (appliedCoupon) localStorage.removeItem('promoCoupon')
         window.open(data.url, '_blank', 'noopener,noreferrer')
       } else {
         setPortalError(data.error ?? 'Não foi possível gerar o link de pagamento.')
@@ -94,19 +90,6 @@ export function PaymentLateBanner() {
             ))}
           </div>
 
-          <div className={styles.couponField}>
-            <input
-              type="text"
-              className={`${styles.couponInput} ${couponValid ? styles.couponInputValid : couponInvalid ? styles.couponInputInvalid : ''}`}
-              placeholder="Código promocional (ex: COPA50)"
-              value={coupon}
-              onChange={e => setCoupon(e.target.value)}
-              maxLength={20}
-            />
-            {couponValid   && <span className={styles.couponOk}><Icon name="check" size={12} /> 50% de desconto na 1ª mensalidade</span>}
-            {couponInvalid && <span className={styles.couponErr}>Código inválido</span>}
-          </div>
-
           {portalError && <p className={styles.errMsg}>{portalError}</p>}
 
           <div className={styles.modalActions}>
@@ -115,11 +98,7 @@ export function PaymentLateBanner() {
               onClick={() => void handlePortal(activePlan)}
               disabled={loadingPortal}
             >
-              {loadingPortal
-                ? 'Aguarde...'
-                : couponValid
-                  ? `Assinar plano ${planInfo.label} com 50% off`
-                  : `Assinar plano ${planInfo.label} — ${planInfo.price}`}
+              {loadingPortal ? 'Aguarde...' : `Assinar plano ${planInfo.label} — ${planInfo.price}`}
             </button>
             <a
               href={WHATSAPP}
@@ -139,12 +118,9 @@ export function PaymentLateBanner() {
   if (isOverdue) {
     return (
       <div className={styles.overdueBanner}>
-        <span className={styles.overdueIcon}><Icon name="alert" size={15} /></span>
+        <span className={styles.overdueIcon}><Icon name="alert" size={13} /></span>
         <span className={styles.overdueMsg}>
-          {daysOverdue > 1
-            ? `Pagamento em atraso há ${daysOverdue} dias.`
-            : 'Seu pagamento está em atraso.'}{' '}
-          Regularize para garantir a continuidade do acesso.
+          {daysOverdue > 1 ? `Pagamento em atraso há ${daysOverdue} dias.` : 'Pagamento em atraso.'}
         </span>
         <button className={styles.overdueBtn} onClick={() => void handlePortal()} disabled={loadingPortal}>
           {loadingPortal ? 'Aguarde...' : 'Pagar agora'}
@@ -158,14 +134,14 @@ export function PaymentLateBanner() {
     const label = daysUntilDue === 0 ? 'hoje' : 'amanhã'
     return (
       <div className={styles.dueBanner}>
-        <span className={styles.dueIcon}><Icon name="bell" size={15} /></span>
+        <span className={styles.dueIcon}><Icon name="bell" size={13} /></span>
         <span className={styles.dueMsg}>
-          Seu próximo pagamento vence <strong>{label}</strong>. Certifique-se de que o método de pagamento está ativo.
+          Pagamento vence <strong>{label}</strong>.
         </span>
         <button className={styles.dueBtn} onClick={() => void handlePortal()} disabled={loadingPortal}>
           {loadingPortal ? 'Aguarde...' : 'Pagar agora'}
         </button>
-        <button className={styles.dueDismiss} onClick={() => setDismissedDue(true)} aria-label="Fechar"><Icon name="close" size={14} /></button>
+        <button className={styles.dueDismiss} onClick={() => setDismissedDue(true)} aria-label="Fechar"><Icon name="close" size={12} /></button>
       </div>
     )
   }

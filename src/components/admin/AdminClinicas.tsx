@@ -11,6 +11,7 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './admin.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
+import { PLAN_CATALOG } from '@/lib/planCatalog'
 
 function waLink(phone: string, clinicName: string): string {
   const clean = phone.replace(/\D/g, '')
@@ -51,10 +52,14 @@ export function AdminClinicas({ clinics, onReload }: Props) {
   }
 
   const PLAN_COLORS: Record<string, string> = {
-    essencial:     '#0D9488',
+    essencial:     PLAN_CATALOG.essencial.color,
+    completo:      PLAN_CATALOG.completo.color,
+    ilimitado:     PLAN_CATALOG.ilimitado.color,
+    completo_plus: PLAN_CATALOG.completo_plus.color,
+    // Legados — não vendidos mais, só pra clínica antiga que ainda não migrou.
     avancado:      '#3B82F6',
-    completo:      '#8B5CF6',
-    completo_plus: '#F59E0B',
+    basico:        '#64748B',
+    plus:          '#64748B',
   }
   return (
     <>

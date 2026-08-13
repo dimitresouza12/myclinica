@@ -7,7 +7,7 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import { getSpecialtyConfig, mergeSpecialtyConfigs, specialtyRoleLabel, roleForSpecialty, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { presetPermissions } from '@/lib/permissionPresets'
 import { normalizeUsername } from '@/lib/username'
-import { userLimitFor } from '@/lib/planGates'
+import { professionalLimitFor } from '@/lib/planCatalog'
 import type { Professional, UserRole, ClinicType } from '@/types'
 import styles from './equipe.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -63,8 +63,20 @@ function EquipeContent() {
   const [deleteTarget, setDeleteTarget] = useState<ProfessionalRow | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
-  const userLimit = userLimitFor(clinic?.plan, clinic?.maxUsers)
+  // Limite é por PROFISSIONAL cadastrado (com ou sem login) — recepção e
+  // auxiliar não contam mais pro teto do plano (reestruturação de planos:
+  // Completo passou a limitar profissionais, não logins). Mas TODO salvamento
+  // nesta tela sem login (form.hasAccess=false) sempre cria um profissional
+  // — "só agenda" só faz sentido pra gente clínica — daí `isClinicalRole`
+  // só entrar em jogo quando tem login (aí sim pode ser recepção/auxiliar).
+  const professionalLimit = professionalLimitFor(clinic?.plan, clinic?.maxUsers)
+  const professionalLimitReached = professionalLimit !== null && professionals.length >= professionalLimit
   const clinicalRole = specialtyRoles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.value as UserRole | undefined
+  function isClinicalRole(role: UserRole) {
+    return !['recepcao', 'auxiliar', 'admin'].includes(role)
+  }
+  const willCreateProfessional = !form.hasAccess || isClinicalRole(form.role)
+  const blockedByProfessionalLimit = professionalLimitReached && willCreateProfessional
 
   const filteredSpecialtySuggestions = specialtySuggestions.filter(s =>
     s.toLowerCase().includes(form.specialty.trim().toLowerCase())
@@ -122,6 +134,14 @@ function EquipeContent() {
   async function handleSave() {
     if (!clinic || !form.name.trim()) return
     setErrorMsg(null)
+    // Só bloqueia quando este salvamento específico vai criar um profissional
+    // de verdade (sem login = sempre; com login = só cargo clínico) — recepção
+    // e auxiliar com login não esbarram nesse teto. Checagem no cliente só
+    // pra mensagem amigável; quem garante o limite de verdade é o trigger
+    // no banco (enforce_clinic_professional_limit).
+    if (blockedByProfessionalLimit) {
+      return setErrorMsg(`Seu plano permite até ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'}. Fale com o suporte para migrar de plano ou liberar uma exceção.`)
+    }
     setSaving(true)
 
     if (!form.hasAccess) {
@@ -141,15 +161,12 @@ function EquipeContent() {
       return
     }
 
-    // Criando também o login — mesma validação e mesmo limite de plano
-    // usados em Configurações → Equipe.
+    // Criando também o login — mesma validação usada em Configurações →
+    // Equipe. Login em si não tem limite de plano (só profissional tem,
+    // checado acima antes dos dois caminhos).
     if (!form.username.trim()) { setSaving(false); return setErrorMsg('Nome de usuário é obrigatório.') }
     if (!form.email.trim())    { setSaving(false); return setErrorMsg('E-mail é obrigatório.') }
     if (form.password.length < 6) { setSaving(false); return setErrorMsg('Senha deve ter pelo menos 6 caracteres.') }
-    if (userLimit !== null && activeUserCount >= userLimit) {
-      setSaving(false)
-      return setErrorMsg(`Seu plano permite até ${userLimit} usuário${userLimit > 1 ? 's' : ''}. Fale com o suporte para migrar de plano ou liberar uma exceção.`)
-    }
 
     const { data: newCuId, error } = await supabase.rpc('create_clinic_member', {
       p_email:        form.email.trim().toLowerCase(),
@@ -176,14 +193,18 @@ function EquipeContent() {
       p_member_id: newCuId, p_permissions: permPayload,
     })
 
-    const { error: profErr } = await supabase.from('professionals').insert([{
-      clinic_id: clinic.id,
-      name: form.name.trim(),
-      specialty: form.specialty || null,
-      specialty_type: form.specialty_type || null,
-      default_duration_minutes: form.defaultDuration ? Number(form.defaultDuration) : null,
-      clinic_user_id: newCuId,
-    }])
+    // Recepção/auxiliar com login não precisa de linha em `professionals`
+    // (não atende paciente, não conta pro limite de profissionais do plano).
+    const profErr = isClinicalRole(form.role)
+      ? (await supabase.from('professionals').insert([{
+          clinic_id: clinic.id,
+          name: form.name.trim(),
+          specialty: form.specialty || null,
+          specialty_type: form.specialty_type || null,
+          default_duration_minutes: form.defaultDuration ? Number(form.defaultDuration) : null,
+          clinic_user_id: newCuId,
+        }])).error
+      : null
     if (form.specialty_type) addClinicSpecialty(form.specialty_type)
 
     setSaving(false)
@@ -244,10 +265,10 @@ function EquipeContent() {
         <div>
           <h1 className={styles.title}>Equipe</h1>
           <p className={styles.sub}>
-            {professionals.length} {professionals.length === 1 ? 'profissional' : 'profissionais'}
-            {isAdmin && (userLimit === null
-              ? ` · ${activeUserCount} usuário${activeUserCount !== 1 ? 's' : ''} com login (plano sem limite)`
-              : ` · ${activeUserCount} de ${userLimit} usuário${userLimit > 1 ? 's' : ''} com login`)}
+            {professionalLimit === null
+              ? `${professionals.length} ${professionals.length === 1 ? 'profissional' : 'profissionais'} (plano sem limite)`
+              : `${professionals.length} de ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'} do plano`}
+            {isAdmin && ` · ${activeUserCount} login${activeUserCount !== 1 ? 's' : ''} ativo${activeUserCount !== 1 ? 's' : ''} (sem limite)`}
           </p>
         </div>
         <button className={styles.btnPrimary} onClick={openNewModal}>+ Novo Profissional</button>
@@ -302,6 +323,12 @@ function EquipeContent() {
               <button className={styles.btnClose} onClick={() => setShowModal(false)}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
+              {blockedByProfessionalLimit && (
+                <p className={styles.hint}>
+                  Limite de profissionais do plano atingido ({professionals.length}/{professionalLimit}). Fale com o suporte para migrar de plano ou liberar uma exceção
+                  {!form.hasAccess ? '' : ' — recepção e auxiliar continuam sem limite, mude o cargo acima'}.
+                </p>
+              )}
               <div className={styles.field}>
                 <label>Nome *</label>
                 <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
@@ -352,13 +379,9 @@ function EquipeContent() {
                       type="checkbox"
                       checked={form.hasAccess}
                       onChange={(e) => setForm(p => ({ ...p, hasAccess: e.target.checked }))}
-                      disabled={userLimit !== null && activeUserCount >= userLimit && !form.hasAccess}
                     />
                     <span>Este profissional vai acessar o sistema?</span>
                   </label>
-                  {userLimit !== null && activeUserCount >= userLimit && !form.hasAccess && (
-                    <p className={styles.hint}>Limite de usuários do plano atingido ({activeUserCount}/{userLimit}). Só dá pra cadastrar sem login agora.</p>
-                  )}
 
                   {form.hasAccess && (
                     <>
@@ -427,7 +450,7 @@ function EquipeContent() {
             </div>
             <div className={styles.modalFooter}>
               <button className={styles.btnCancel} onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.name.trim()}>
+              <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.name.trim() || blockedByProfessionalLimit}>
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>
             </div>

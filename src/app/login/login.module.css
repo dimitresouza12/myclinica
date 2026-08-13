@@ -1094,27 +1094,3 @@
   }
 }
 
-/* ── Cupom promocional ── */
-.couponRow {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-.couponRow input { width: 100%; }
-
-.inputValid  { border-color: #0D9488 !important; }
-.inputInvalid { border-color: #ef4444 !important; }
-
-.couponBadge {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #0D9488;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.couponError {
-  font-size: 0.75rem;
-  color: #ef4444;
-}

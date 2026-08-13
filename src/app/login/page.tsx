@@ -9,6 +9,7 @@ import { audit } from '@/lib/audit'
 import { normalizeUsername } from '@/lib/username'
 import { getSpecialtyConfig, CLINIC_TYPE_OPTIONS, CLINIC_TYPE_ICON_OPTIONS } from '@/lib/specialtyConfig'
 import { MEDICO_AREA_OPTIONS } from '@/lib/medicoSpecialties'
+import { PLAN_CATALOG } from '@/lib/planCatalog'
 import type { Clinic, ClinicUser, AuthClinic, AuthUser, ClinicPlan, ClinicType } from '@/types'
 import styles from './login.module.css'
 import { Icon } from '@/components/ui/Icon'
@@ -110,17 +111,23 @@ const QUIZ_STEPS = [
   },
 ] as const
 
-function calcPlan(answers: string[]): 'essencial' | 'avancado' | 'completo' {
+// Mesmos sinais de sempre (tamanho de equipe, volume de pacientes, feature
+// desejada, multi-unidade) — só remapeados pros 3 degraus atuais: o antigo
+// bucket "completo" virou "ilimitado", e "avancado" virou "completo" (ver
+// planCatalog.ts pra por que o Avançado foi aposentado).
+function calcPlan(answers: string[]): typeof QUIZ_PLANS[number] {
   const [, team, patients, features, units] = answers
-  if (units === 'multi' || team === 'large' || patients === 'many' || features === 'relatorios') return 'completo'
-  if (team === 'small' || patients === 'medium' || features === 'financeiro') return 'avancado'
+  if (units === 'multi' || team === 'large' || patients === 'many' || features === 'relatorios') return 'ilimitado'
+  if (team === 'small' || patients === 'medium' || features === 'financeiro') return 'completo'
   return 'essencial'
 }
 
-const PLAN_INFO: Record<string, { label: string; price: string; why: string; color: string }> = {
-  essencial: { label: 'Essencial', price: 'R$ 99/mês',     why: 'Perfeito para profissionais autônomos que precisam organizar agenda e prontuários.',     color: '#0D9488' },
-  avancado:  { label: 'Avançado',  price: 'R$ 119,90/mês', why: 'Ideal para equipes em crescimento com controle financeiro e relatórios avançados.',      color: '#0891b2' },
-  completo:  { label: 'Completo',  price: 'R$ 129,90/mês', why: 'Feito para clínicas com múltiplas unidades, equipes grandes e gestão completa.',          color: '#7c3aed' },
+// Completo+ fica fora do quiz/cadastro de autoatendimento — é sob consulta.
+const QUIZ_PLANS = ['essencial', 'completo', 'ilimitado'] as const
+const PLAN_INFO: Record<typeof QUIZ_PLANS[number], { label: string; price: string; why: string; color: string }> = {
+  essencial: { label: PLAN_CATALOG.essencial.label, price: PLAN_CATALOG.essencial.price, why: 'Perfeito para profissionais autônomos que precisam organizar agenda e prontuários.', color: PLAN_CATALOG.essencial.color },
+  completo:  { label: PLAN_CATALOG.completo.label,  price: PLAN_CATALOG.completo.price,  why: 'Ideal para equipes em crescimento com controle financeiro e relatórios avançados.',  color: PLAN_CATALOG.completo.color },
+  ilimitado: { label: PLAN_CATALOG.ilimitado.label, price: PLAN_CATALOG.ilimitado.price, why: 'Feito para clínicas com múltiplas unidades, equipes grandes e gestão completa.',     color: PLAN_CATALOG.ilimitado.color },
 }
 
 // Fonte única do rótulo de cada área — vem de specialtyConfig.ts, não
@@ -130,11 +137,12 @@ const CLINIC_TYPES = CLINIC_TYPE_OPTIONS
 
 type ClinicTypeValue = ClinicType
 
-const PLANS = [
-  { value: 'essencial', label: 'Essencial',  price: 'R$ 99/mês',      desc: 'Agenda, prontuário, financeiro básico e 1 usuário' },
-  { value: 'avancado',  label: 'Avançado',   price: 'R$ 119,90/mês',  desc: 'Tudo do Essencial + equipe, relatórios e pacientes ilimitados' },
-  { value: 'completo',  label: 'Completo',   price: 'R$ 129,90/mês',  desc: 'Tudo do Avançado + multi-clínica e usuários ilimitados' },
-] as const
+const PLANS = QUIZ_PLANS.map(value => ({
+  value,
+  label: PLAN_CATALOG[value].label,
+  price: PLAN_CATALOG[value].price,
+  desc: PLAN_CATALOG[value].description,
+}))
 
 type PlanValue = typeof PLANS[number]['value']
 
@@ -221,7 +229,7 @@ function LoginContent() {
   const [mode, setMode] = useState<Mode>(() => {
     if (searchParams.get('quiz') === 'true') return 'quiz'
     const planParam = searchParams.get('plan')
-    if (planParam === 'essencial' || planParam === 'avancado' || planParam === 'completo') return 'register'
+    if (planParam === 'essencial' || planParam === 'completo' || planParam === 'ilimitado') return 'register'
     if (searchParams.get('mode') === 'register') return 'register'
     return 'login'
   })
@@ -234,7 +242,7 @@ function LoginContent() {
   // Quiz state
   const [quizStep, setQuizStep] = useState(0)
   const [quizAnswers, setQuizAnswers] = useState<string[]>([])
-  const [quizResult, setQuizResult] = useState<'essencial' | 'avancado' | 'completo' | null>(null)
+  const [quizResult, setQuizResult] = useState<PlanValue | null>(null)
   // Fase antes das QUIZ_STEPS indexadas: primeiro pergunta se a clínica tem
   // mais de uma área (evita a pessoa ficar em dúvida na pergunta de tipo
   // único, que é pulada de vez quando a resposta é "sim"). isMultiSpecialty
@@ -331,7 +339,7 @@ function LoginContent() {
     setMode('quiz')
   }
 
-  function goToRegisterFromQuiz(plan: 'essencial' | 'avancado' | 'completo') {
+  function goToRegisterFromQuiz(plan: PlanValue) {
     const clinicType = quizAnswers[0] as ClinicTypeValue | undefined
     setReg(prev => ({ ...prev, plan, ...(clinicType ? { clinic_type: clinicType } : {}) }))
     setQuizStep(0)
@@ -369,7 +377,7 @@ function LoginContent() {
   const BLANK_REG: RegisterForm = { clinic_type: '', clinic_name: '', admin_name: '', username: '', email: '', password: '', phone: '', cpf: '', plan: 'essencial' }
   const [reg, setReg] = useState<RegisterForm>(() => {
     const planParam = searchParams.get('plan')
-    if (planParam === 'essencial' || planParam === 'avancado' || planParam === 'completo') {
+    if (planParam === 'essencial' || planParam === 'completo' || planParam === 'ilimitado') {
       return { ...BLANK_REG, plan: planParam }
     }
     return BLANK_REG
@@ -403,10 +411,6 @@ function LoginContent() {
   // "Médico" — soma 1 ao total de perguntas só quando ela vai aparecer.
   const medicoAskedInQuiz = quizAnswers[0] === 'medico' || (isMultiSpecialty === true && selectedSpecialties.includes('medico'))
   const QUIZ_TOTAL_DOTS = QUIZ_STEPS.length + 1 + (medicoAskedInQuiz ? 1 : 0)
-  const [couponInput, setCouponInput] = useState('')
-  const couponUpper = couponInput.trim().toUpperCase()
-  const couponValid = couponUpper === 'COPA50'
-  const couponInvalid = couponUpper.length > 0 && !couponValid
   const [showTerms, setShowTerms] = useState(false)
 
   // Rate limiting: 5 attempts → 60s lockout (persisted in localStorage)
@@ -771,7 +775,6 @@ function LoginContent() {
       }
 
       await supabase.auth.signOut()
-      if (couponValid) localStorage.setItem('promoCoupon', couponUpper)
       setRegSuccess(true)
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : String(err)
@@ -992,7 +995,7 @@ function LoginContent() {
                 </div>
                 <p className={styles.quizAlt}>Prefere outro plano?</p>
                 <div className={styles.quizAltPlans}>
-                  {(Object.keys(PLAN_INFO) as Array<'essencial'|'avancado'|'completo'>)
+                  {(Object.keys(PLAN_INFO) as Array<typeof QUIZ_PLANS[number]>)
                     .filter(p => p !== quizResult)
                     .map(p => (
                       <button key={p} className={styles.quizAltBtn} onClick={() => goToRegisterFromQuiz(p)}>
@@ -1447,22 +1450,6 @@ function LoginContent() {
                       required
                     />
                     <span className={styles.slugHint}>Você poderá usar o CPF para fazer login</span>
-                  </div>
-
-                  <div className={styles.field}>
-                    <label>Código promocional</label>
-                    <div className={styles.couponRow}>
-                      <input
-                        type="text"
-                        value={couponInput}
-                        onChange={e => setCouponInput(e.target.value)}
-                        placeholder="Ex: COPA50"
-                        maxLength={20}
-                        className={couponValid ? styles.inputValid : couponInvalid ? styles.inputInvalid : ''}
-                      />
-                      {couponValid && <span className={styles.couponBadge}><Icon name="check" size={11} /> 50% na 1ª mensalidade</span>}
-                      {couponInvalid && <span className={styles.couponError}>Código inválido</span>}
-                    </div>
                   </div>
 
                   <label className={styles.termsCheck}>

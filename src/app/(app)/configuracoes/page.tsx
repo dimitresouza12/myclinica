@@ -6,7 +6,8 @@ import { useAuthStore } from '@/store/auth'
 import { connectGoogleCalendar, disconnectGoogleCalendar, isGCalConnected } from '@/lib/googleCalendar'
 import type { AuthClinic, ClinicDocumentTemplate, DocumentTemplateType, ClinicUser, UserRole, AuditLog, ClinicType } from '@/types'
 import { mergeSpecialtyConfigs, specialtyRoleLabel, roleForSpecialty, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
-import { hasWhatsApp, userLimitFor } from '@/lib/planGates'
+import { hasWhatsApp } from '@/lib/planGates'
+import { professionalLimitFor, getPlanEntry, PLAN_CATALOG } from '@/lib/planCatalog'
 import { MODULES, MODULE_EXTRAS, presetPermissions, blankPermissions, type PermissionsForm } from '@/lib/permissionPresets'
 import { normalizeUsername } from '@/lib/username'
 import { audit } from '@/lib/audit'
@@ -59,14 +60,11 @@ function processLogoImage(file: File): Promise<Blob> {
 }
 
 function planLabel(plan: string | undefined): string {
-  switch (plan) {
-    case 'essencial':    return 'Essencial — R$99/mês'
-    case 'avancado':     return 'Avançado — R$119,90/mês'
-    case 'completo':     return 'Completo — R$129,90/mês'
-    case 'completo_plus':return 'Completo+'
-    case 'plus':         return 'Plus'
-    default:             return 'Essencial — R$99/mês'
-  }
+  // 'avancado' é legado (aposentado) — só sobrevive aqui pra não quebrar a
+  // exibição de uma clínica antiga que porventura ainda não tenha migrado.
+  if (plan === 'avancado') return 'Avançado — R$119,90/mês (legado)'
+  const entry = getPlanEntry(plan)
+  return `${entry.label} — ${entry.price}`
 }
 
 interface UserForm {
@@ -119,13 +117,16 @@ function ConfiguracoesContent() {
   const [dueDayMsg,      setDueDayMsg]       = useState<{ ok: boolean; text: string } | null>(null)
   const [showUpgrade,    setShowUpgrade]     = useState(false)
 
-  const PLAN_PRICES: Record<string, { label: string; price: string; value: number }> = {
-    essencial:     { label: 'Essencial',   price: 'R$99,00/mês',      value: 99      },
-    avancado:      { label: 'Avançado',    price: 'R$119,90/mês',     value: 119.90  },
-    completo:      { label: 'Completo',    price: 'R$129,90/mês',     value: 129.90  },
-    completo_plus: { label: 'Completo+',   price: 'R$199,00/mês',     value: 199     },
-  }
-  const planInfo = PLAN_PRICES[clinic?.plan ?? ''] ?? PLAN_PRICES.essencial
+  // 'avancado' some da grade de upgrade — só reaparece se a própria clínica
+  // ainda estiver nele (registro antigo não migrado), pro botão "plano
+  // atual" continuar reconhecendo onde ela está.
+  const PLAN_PRICES: Record<string, { label: string; price: string }> =
+    clinic?.plan === 'avancado'
+      ? { avancado: { label: 'Avançado', price: 'R$119,90/mês' }, ...PLAN_CATALOG }
+      : PLAN_CATALOG
+  const planInfo = clinic?.plan === 'avancado'
+    ? { label: 'Avançado', price: 'R$119,90/mês' }
+    : { label: getPlanEntry(clinic?.plan).label, price: getPlanEntry(clinic?.plan).price }
 
   async function handleSubscribe() {
     if (!clinic) return
@@ -242,7 +243,11 @@ function ConfiguracoesContent() {
   ]
   const [clinicUsers, setClinicUsers] = useState<ClinicUser[]>([])
   const activeUserCount = clinicUsers.filter(u => u.is_active && !u.is_superadmin).length
-  const userLimit = userLimitFor(clinic?.plan, clinic?.maxUsers)
+  // Login (clinic_users) não tem mais limite de plano — só profissional
+  // (professionals) tem, checado separadamente abaixo.
+  const [professionalCount, setProfessionalCount] = useState(0)
+  const professionalLimit = professionalLimitFor(clinic?.plan, clinic?.maxUsers)
+  const professionalLimitReached = professionalLimit !== null && professionalCount >= professionalLimit
   const [usersLoading, setUsersLoading] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
   const [editingUser, setEditingUser] = useState<ClinicUser | null>(null)
@@ -272,8 +277,18 @@ function ConfiguracoesContent() {
   useEffect(() => {
     if (!clinic?.id || !isAdmin) return
     loadUsers()
+    loadProfessionalCount()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinic?.id, isAdmin])
+
+  async function loadProfessionalCount() {
+    if (!clinic?.id) return
+    const { count } = await supabase
+      .from('professionals')
+      .select('id', { count: 'exact', head: true })
+      .eq('clinic_id', clinic.id)
+    setProfessionalCount(count ?? 0)
+  }
 
   // Carrega auditoria só na primeira vez que a aba é aberta (evita puxar o
   // histórico inteiro sem o admin ter pedido).
@@ -467,11 +482,13 @@ function ConfiguracoesContent() {
       // Criar novo membro
       if (!userForm.email.trim())      { setUserSaving(false); return setUserMsg({ type: 'error', text: 'E-mail é obrigatório.' }) }
       if (userForm.password.length < 6) { setUserSaving(false); return setUserMsg({ type: 'error', text: 'Senha deve ter pelo menos 6 caracteres.' }) }
-      // Checagem no cliente só pra dar a mensagem certa — quem garante o
-      // limite de verdade é o trigger no banco (enforce_clinic_user_limit).
-      if (userLimit !== null && activeUserCount >= userLimit) {
+      // Login em si não tem limite de plano. Só quem marca "também cadastrar
+      // na agenda" vira profissional de verdade — checagem no cliente só pra
+      // dar a mensagem certa, quem garante o limite é o trigger no banco
+      // (enforce_clinic_professional_limit).
+      if (createProfessional && professionalLimitReached) {
         setUserSaving(false)
-        return setUserMsg({ type: 'error', text: `Seu plano permite até ${userLimit} usuário${userLimit > 1 ? 's' : ''}. Fale com o suporte para migrar de plano ou liberar uma exceção.` })
+        return setUserMsg({ type: 'error', text: `Seu plano permite até ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'}. Fale com o suporte para migrar de plano ou liberar uma exceção.` })
       }
 
       const { data: newCuId, error } = await supabase.rpc('create_clinic_member', {
@@ -486,7 +503,6 @@ function ConfiguracoesContent() {
         const msg = error.message.includes('email_taken')    ? 'Este e-mail já está em uso.'
           : error.message.includes('username_taken')         ? 'Este nome de usuário já está em uso.'
           : error.message.includes('username_invalid')       ? 'Nome de usuário inválido (3-30 chars: letras, números, _ . -).'
-          : error.message.includes('user_limit_reached')     ? 'Limite de usuários do plano atingido. Fale com o suporte para migrar de plano.'
           : 'Erro ao criar usuário: ' + error.message
         setUserMsg({ type: 'error', text: msg })
       } else {
@@ -504,7 +520,10 @@ function ConfiguracoesContent() {
             specialty_type: userForm.specialty_type || null,
             clinic_user_id: newCuId,
           }])
-          if (profErr) showToast('error', 'Usuário criado, mas houve erro ao vincular na agenda: ' + profErr.message)
+          if (profErr) showToast('error', profErr.message.includes('professional_limit_reached')
+            ? 'Usuário criado, mas o limite de profissionais do plano foi atingido — não deu pra vincular na agenda.'
+            : 'Usuário criado, mas houve erro ao vincular na agenda: ' + profErr.message)
+          else loadProfessionalCount()
         }
         // Guarda os dados ANTES de fechar o modal (que limpa userForm) —
         // sem essa tela o admin não tinha como confirmar se anotou certo.
@@ -935,10 +954,14 @@ function ConfiguracoesContent() {
             <div>
               <h2 className={styles.usersTitle}>Usuários da Clínica</h2>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
-                {userLimit === null ? `${activeUserCount} usuário${activeUserCount !== 1 ? 's' : ''} · plano sem limite` : `${activeUserCount} de ${userLimit} usuário${userLimit > 1 ? 's' : ''} do plano`}
+                {activeUserCount} login{activeUserCount !== 1 ? 's' : ''} ativo{activeUserCount !== 1 ? 's' : ''} (sem limite)
+                {' · '}
+                {professionalLimit === null
+                  ? `${professionalCount} ${professionalCount === 1 ? 'profissional' : 'profissionais'} (plano sem limite)`
+                  : `${professionalCount} de ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'} do plano`}
               </p>
             </div>
-            <button className={styles.btnAddUser} onClick={openNewUser} disabled={userLimit !== null && activeUserCount >= userLimit} title={userLimit !== null && activeUserCount >= userLimit ? 'Limite de usuários do plano atingido' : undefined}>
+            <button className={styles.btnAddUser} onClick={openNewUser}>
               + Novo Usuário
             </button>
           </div>
@@ -1300,10 +1323,19 @@ function ConfiguracoesContent() {
 
               {!editingUser && !['recepcao', 'auxiliar', 'admin'].includes(userForm.role) && (
                 <div className={styles.field}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={createProfessional} onChange={e => setCreateProfessional(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#4DD9C0' }} />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, cursor: !professionalLimitReached || createProfessional ? 'pointer' : 'not-allowed' }}>
+                    <input
+                      type="checkbox"
+                      checked={createProfessional}
+                      onChange={e => setCreateProfessional(e.target.checked)}
+                      disabled={professionalLimitReached && !createProfessional}
+                      style={{ width: 18, height: 18, accentColor: '#4DD9C0' }}
+                    />
                     Também cadastrar na agenda (deixa esse cargo agendável)
                   </label>
+                  {professionalLimitReached && !createProfessional && (
+                    <span className={styles.hint}>Limite de profissionais do plano atingido ({professionalCount}/{professionalLimit}). Só dá pra cadastrar sem vincular na agenda agora.</span>
+                  )}
                   {createProfessional && (
                     <input
                       value={professionalSpecialty}

@@ -1,23 +1,17 @@
 'use client'
 import { useState } from 'react'
 import { useAuthStore } from '@/store/auth'
+import { getPlanEntry } from '@/lib/planCatalog'
 import styles from './trial-expirado.module.css'
-
-const PLAN_PRICES: Record<string, { label: string; value: number }> = {
-  essencial:    { label: 'Essencial',  value: 99      },
-  avancado:     { label: 'Avançado',   value: 119.90  },
-  completo:     { label: 'Completo',   value: 129.90  },
-  completo_plus:{ label: 'Completo+',  value: 199     },
-}
 
 export default function TrialExpiradoPage() {
   const { clinic, user } = useAuthStore()
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
 
-  const planInfo = PLAN_PRICES[clinic?.plan ?? ''] ?? PLAN_PRICES.essencial
-  const priceInt = Math.floor(planInfo.value)
-  const priceCents = planInfo.value % 1 > 0 ? `,${String(Math.round((planInfo.value % 1) * 100)).padStart(2,'0')}` : ''
+  const planInfo = getPlanEntry(clinic?.plan)
+  const priceInt = Math.floor(planInfo.priceValue)
+  const priceCents = planInfo.priceValue % 1 > 0 ? `,${String(Math.round((planInfo.priceValue % 1) * 100)).padStart(2,'0')}` : ''
 
   async function handleSubscribe() {
     if (!clinic) return

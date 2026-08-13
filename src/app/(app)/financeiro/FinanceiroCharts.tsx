@@ -71,12 +71,77 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   )
 }
 
+/* ─── Donut genérico (categoria/convênio) — mesmo visual, dado diferente ─── */
+function DonutBreakdown({ title, data, gradientPrefix }: { title: string; data: CategoryData[]; gradientPrefix: string }) {
+  return (
+    <div className={styles.chartCard}>
+      <h3 className={styles.chartTitle}>{title}</h3>
+      {data.length === 0 ? (
+        <div className={styles.chartEmpty}>Sem dados para o período</div>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={180}>
+            <PieChart>
+              <defs>
+                {TEAL_PALETTE.map((c, i) => (
+                  <linearGradient key={i} id={`${gradientPrefix}${i}`} x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%"   stopColor={c} />
+                    <stop offset="100%" stopColor={c} stopOpacity={0.72} />
+                  </linearGradient>
+                ))}
+              </defs>
+              <Pie
+                data={data}
+                cx="50%" cy="50%"
+                innerRadius={52}
+                outerRadius={78}
+                paddingAngle={3}
+                dataKey="value"
+                animationBegin={100}
+                animationDuration={900}
+                animationEasing="ease-out"
+              >
+                {data.map((_, i) => (
+                  <Cell key={i} fill={`url(#${gradientPrefix}${i % TEAL_PALETTE.length})`} stroke="none" />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(v: any) => [fmt(Number(v) || 0), '']}
+                contentStyle={{
+                  fontSize: 12,
+                  borderRadius: 12,
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-primary)',
+                  boxShadow: 'var(--shadow-md)',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
+            {data.map((d, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: TEAL_PALETTE[i % TEAL_PALETTE.length], flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-primary)' }}>{fmt(d.value)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function FinanceiroCharts({
   monthlyData,
   categoryData,
+  convenioData,
 }: {
   monthlyData: MonthlyData[]
   categoryData: CategoryData[]
+  convenioData: CategoryData[]
 }) {
   return (
     <div className={styles.charts}>
@@ -144,64 +209,13 @@ export default function FinanceiroCharts({
         </div>
       </div>
 
-      {/* ── Category Donut ── */}
-      <div className={styles.chartCard}>
-        <h3 className={styles.chartTitle}>Receitas por categoria</h3>
-        {categoryData.length === 0 ? (
-          <div className={styles.chartEmpty}>Sem dados para o período</div>
-        ) : (
-          <>
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <defs>
-                  {TEAL_PALETTE.map((c, i) => (
-                    <linearGradient key={i} id={`catGrad${i}`} x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%"   stopColor={c} />
-                      <stop offset="100%" stopColor={c} stopOpacity={0.72} />
-                    </linearGradient>
-                  ))}
-                </defs>
-                <Pie
-                  data={categoryData}
-                  cx="50%" cy="50%"
-                  innerRadius={52}
-                  outerRadius={78}
-                  paddingAngle={3}
-                  dataKey="value"
-                  animationBegin={100}
-                  animationDuration={900}
-                  animationEasing="ease-out"
-                >
-                  {categoryData.map((_, i) => (
-                    <Cell key={i} fill={`url(#catGrad${i % TEAL_PALETTE.length})`} stroke="none" />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(v: any) => [fmt(Number(v) || 0), '']}
-                  contentStyle={{
-                    fontSize: 12,
-                    borderRadius: 12,
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)',
-                    boxShadow: 'var(--shadow-md)',
-                    fontFamily: 'inherit',
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+      <DonutBreakdown title="Receitas por categoria" data={categoryData} gradientPrefix="catGrad" />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
-              {categoryData.map((d, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: TEAL_PALETTE[i % TEAL_PALETTE.length], flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-primary)' }}>{fmt(d.value)}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+      {/* Receita por convênio — só aparece se a clínica de fato lançou
+          alguma receita com forma de pagamento = convênio no período. */}
+      {convenioData.length > 0 && (
+        <DonutBreakdown title="Receita por convênio" data={convenioData} gradientPrefix="convGrad" />
+      )}
     </div>
   )
 }

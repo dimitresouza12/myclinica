@@ -1,15 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabaseAdmin'
 import { asaasPost, asaasGet, daysUntilNextOccurrence } from '@/lib/asaas'
+import { getPlanEntry } from '@/lib/planCatalog'
 
 interface AsaasPaymentLink { id: string; url?: string; deleted?: boolean; active?: boolean }
-
-const PLAN_PRICES: Record<string, number> = {
-  essencial: 99, avancado: 119.90, completo: 129.90, completo_plus: 199,
-}
-const PLAN_LABELS: Record<string, string> = {
-  essencial: 'Essencial', avancado: 'Avançado', completo: 'Completo', completo_plus: 'Completo+',
-}
 
 function buildLinkUrl(id: string) {
   return `https://www.asaas.com/c/${id}`
@@ -17,12 +11,12 @@ function buildLinkUrl(id: string) {
 
 export async function POST(req: Request) {
   try {
-    const { clinicId, clinicName, plan: planOverride, couponCode } = await req.json()
+    const { clinicId, clinicName, plan: planOverride } = await req.json()
     if (!clinicId) return NextResponse.json({ error: 'clinicId required' }, { status: 400 })
 
     const { data: clinic } = await getAdminClient()
       .from('clinics')
-      .select('asaas_customer_id, name, plan, billing_due_day')
+      .select('asaas_customer_id, name, plan, billing_due_day, custom_monthly_price')
       .eq('id', clinicId)
       .single()
 
@@ -34,11 +28,8 @@ export async function POST(req: Request) {
 
     const linkId = clinic?.asaas_customer_id as string | undefined
 
-    const VALID_COUPONS: Record<string, number> = { 'COPA50': 50 }
-    const discountPct = couponCode ? (VALID_COUPONS[String(couponCode).toUpperCase()] ?? 0) : 0
-
     // Reutiliza link existente se ainda ativo no Asaas
-    if (linkId && !planOverride && !discountPct) {
+    if (linkId && !planOverride) {
       try {
         const existing = await asaasGet<AsaasPaymentLink>(`/paymentLinks/${linkId}`)
         if (existing && !existing.deleted) {
@@ -51,16 +42,15 @@ export async function POST(req: Request) {
     }
 
     const effectivePlan = planOverride ?? clinic?.plan ?? 'essencial'
-    const planValue     = PLAN_PRICES[effectivePlan] ?? 99
-    const planLabel     = PLAN_LABELS[effectivePlan] ?? 'Essencial'
-
-    const finalValue = discountPct > 0
-      ? Math.round(planValue * (1 - discountPct / 100) * 100) / 100
-      : planValue
-
-    const promoNote = discountPct > 0
-      ? ` [PROMO ${couponCode}: ${discountPct}% off 1ª mensalidade — valor normal: R$${planValue}/mês]`
-      : ''
+    const planEntry      = getPlanEntry(effectivePlan)
+    // custom_monthly_price (preço congelado por clínica, ex: cliente antigo
+    // que mudou de plano mas não de preço) só vale pro preço do plano ATUAL
+    // dela — se alguém pede explicitamente pra cobrar um plano diferente
+    // (planOverride), usa o preço de tabela desse plano, não o congelado.
+    const planValue = (!planOverride && clinic?.custom_monthly_price != null)
+      ? Number(clinic.custom_monthly_price)
+      : planEntry.priceValue
+    const planLabel = planEntry.label
 
     let asaasError = ''
     let link: AsaasPaymentLink | null = null
@@ -71,10 +61,10 @@ export async function POST(req: Request) {
         name: `MyClinica — Plano ${planLabel} (${clinicName ?? clinic?.name ?? 'Clínica'})`,
         billingType: 'UNDEFINED',
         chargeType: 'RECURRENT',
-        value: finalValue,
+        value: planValue,
         subscriptionCycle: 'MONTHLY',
         dueDateLimitDays,
-        description: `Acesso completo ao MyClinica — Plano ${planLabel} — R$${finalValue}/mês${promoNote}`,
+        description: `Acesso completo ao MyClinica — Plano ${planLabel} — R$${planValue}/mês`,
         externalReference: clinicId,
       })
     } catch (e) {
@@ -88,10 +78,10 @@ export async function POST(req: Request) {
         link = await asaasPost<AsaasPaymentLink>('/paymentLinks', {
           name: `MyClinica — Plano ${planLabel} (${clinicName ?? clinic?.name ?? 'Clínica'})`,
           chargeType: 'RECURRENT',
-          value: finalValue,
+          value: planValue,
           subscriptionCycle: 'MONTHLY',
           dueDateLimitDays,
-          description: `Acesso completo ao MyClinica — Plano ${planLabel} — R$${finalValue}/mês${promoNote}`,
+          description: `Acesso completo ao MyClinica — Plano ${planLabel} — R$${planValue}/mês`,
           externalReference: clinicId,
         })
       } catch (e2) {
@@ -101,7 +91,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!discountPct && link.id) {
+    if (link.id) {
       await getAdminClient()
         .from('clinics')
         .update({ asaas_customer_id: link.id })

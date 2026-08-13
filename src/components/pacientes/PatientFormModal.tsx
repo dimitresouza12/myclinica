@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { audit } from '@/lib/audit'
 import { sanitizeString, sanitizeEmail, sanitizeDigits } from '@/lib/sanitize'
+import { COMMON_CONVENIOS } from '@/lib/convenios'
 import type { Patient } from '@/types'
 import { Portal } from '@/components/ui/Portal'
 import styles from './PatientFormModal.module.css'
@@ -23,12 +24,18 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
     name: '', phone: '', email: '', cpf: '', rg: '',
     birth_date: '', gender: '', address: '', occupation: '',
     emergency_contact: '', referred_by: '', notes: '',
+    convenio: '', convenio_carteirinha: '',
   })
+  const [showConvenioSuggestions, setShowConvenioSuggestions] = useState(false)
   const [lgpdConsent, setLgpdConsent] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  const filteredConvenioSuggestions = COMMON_CONVENIOS.filter(c =>
+    c.toLowerCase().includes(form.convenio.trim().toLowerCase())
+  )
 
   useEffect(() => {
     if (patient) {
@@ -45,6 +52,8 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
         emergency_contact: patient.emergency_contact ?? '',
         referred_by: patient.referred_by ?? '',
         notes: patient.notes ?? '',
+        convenio: patient.convenio ?? '',
+        convenio_carteirinha: patient.convenio_carteirinha ?? '',
       })
     }
   }, [patient])
@@ -153,6 +162,37 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
           <Field label="Endereço" value={form.address} onChange={(v) => set('address', v)} />
           <Field label="Contato de Emergência" value={form.emergency_contact} onChange={(v) => set('emergency_contact', v)} />
           <Field label="Indicado por" value={form.referred_by} onChange={(v) => set('referred_by', v)} />
+          <div className={styles.grid2}>
+            <div className={styles.fieldGroup} style={!form.convenio.trim() ? { gridColumn: '1 / -1' } : undefined}>
+              <label>Convênio</label>
+              <input
+                value={form.convenio}
+                onChange={(e) => { set('convenio', e.target.value); setShowConvenioSuggestions(true) }}
+                onFocus={() => setShowConvenioSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowConvenioSuggestions(false), 150)}
+                placeholder="Ex: Unimed, Particular..."
+                autoComplete="off"
+              />
+              {showConvenioSuggestions && filteredConvenioSuggestions.length > 0 && (
+                <div className={styles.suggestionsDropdown}>
+                  {filteredConvenioSuggestions.map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={styles.suggestionItem}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { set('convenio', c); setShowConvenioSuggestions(false) }}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {form.convenio.trim() && (
+              <Field label="Nº da Carteirinha" value={form.convenio_carteirinha} onChange={(v) => set('convenio_carteirinha', v)} />
+            )}
+          </div>
           <div className={styles.fieldGroup}>
             <label>Observações</label>
             <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} />
