@@ -22,14 +22,14 @@ const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 // disputando o lock entre abas). Timeout próprio + 1 retry: sem isso, uma
 // rede instável trava a tela em "Carregando dados..." para sempre, sem
 // mensagem e sem saída (era exatamente o sintoma relatado por uma cliente).
-async function fetchClinicUserOnce(accessToken: string, userId: string): Promise<(ClinicUser & { clinics: Clinic }) | null> {
-  const url = `${SUPABASE_URL}/rest/v1/clinic_users?select=*,clinics(*)&user_id=eq.${userId}&is_active=eq.true`
+async function fetchClinicUserOnce(accessToken: string, userId: string): Promise<(ClinicUser & { clinics: Clinic; professionals: { id: string }[] }) | null> {
+  const url = `${SUPABASE_URL}/rest/v1/clinic_users?select=*,clinics(*),professionals(id)&user_id=eq.${userId}&is_active=eq.true`
   const res = await fetch(url, {
     headers: { apikey: SUPABASE_KEY!, Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(12_000),
   })
   if (!res.ok) throw new Error(`clinic_users_http_${res.status}`)
-  const rows = (await res.json()) as (ClinicUser & { clinics: Clinic })[]
+  const rows = (await res.json()) as (ClinicUser & { clinics: Clinic; professionals: { id: string }[] })[]
   return rows[0] ?? null
 }
 async function fetchClinicUserWithRetry(accessToken: string, userId: string) {
@@ -502,7 +502,7 @@ function LoginContent() {
       }
 
       setStep('Carregando dados...')
-      let clinicUser: (ClinicUser & { clinics: Clinic }) | null
+      let clinicUser: (ClinicUser & { clinics: Clinic; professionals: { id: string }[] }) | null
       try {
         clinicUser = await fetchClinicUserWithRetry(authData.session.access_token, authData.user.id)
       } catch (fetchErr) {
@@ -523,7 +523,7 @@ function LoginContent() {
       if (clinicUser.is_superadmin) {
         const user: AuthUser = {
           id: clinicUser.user_id, clinicUserId: clinicUser.id, role: 'superadmin', specialtyType: null,
-          displayName: clinicUser.display_name, isSuperAdmin: true,
+          displayName: clinicUser.display_name, isSuperAdmin: true, professionalId: null,
         }
         const clinic: AuthClinic = {
           id: '__superadmin__', name: 'Administração',
@@ -584,6 +584,7 @@ function LoginContent() {
         id: clinicUser.user_id, clinicUserId: clinicUser.id, role: clinicUser.role,
         specialtyType: (clinicUser as unknown as { specialty_type: ClinicType | null }).specialty_type ?? null,
         displayName: clinicUser.display_name, isSuperAdmin: clinicUser.is_superadmin,
+        professionalId: clinicUser.professionals?.[0]?.id ?? null,
       }
 
       clearRateLimit(cred)

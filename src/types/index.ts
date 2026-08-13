@@ -178,6 +178,8 @@ export interface FinancialRecord {
   patient_id: string | null
   appointment_id: string | null
   procedure_id: string | null
+  // Bloco C do plano de acesso por profissional — quem gerou a receita.
+  professional_id: string | null
   total_amount: number | null
   discount_percent: number | null
   payment_method: string | null
@@ -310,7 +312,7 @@ export interface StockMovement {
   stock_items?: Pick<StockItem, 'id' | 'name' | 'unit'>
 }
 
-export type DocumentTemplateType = 'receita_comum' | 'receita_especial' | 'declaracao_comparecimento' | 'atestado'
+export type DocumentTemplateType = 'receita_comum' | 'receita_especial' | 'declaracao_comparecimento' | 'atestado' | 'laudo'
 
 export interface ClinicDocumentTemplate {
   id: string
@@ -360,4 +362,10 @@ export interface AuthUser {
   specialtyType: ClinicType | null
   displayName: string
   isSuperAdmin: boolean
+  // PK de `professionals` vinculado a este login (professionals.clinic_user_id
+  // = clinicUserId) — null se este login não tem profissional vinculado
+  // (recepção/admin puro). Usado pelo modelo de acesso por profissional:
+  // agenda/financeiro/pacientes ficam restritos a esta identidade quando a
+  // clínica tem professional_scoped_access = true.
+  professionalId: string | null
 }

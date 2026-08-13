@@ -12,6 +12,7 @@ import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsApp } from '@/lib/planGates'
 import { useProfessionals, useProcedures, useAgendaData } from '@/hooks/useClinicData'
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
+import { isAdminOrRecepcao, myScopedProfessionalId } from '@/lib/professionalScope'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Appointment, Patient, Professional, Procedure } from '@/types'
 import { type CalendarEvent, type FullCalendarHandle } from '@/components/agenda/FullCalendarWrapper'
@@ -321,12 +322,22 @@ function BlockDetailContent({ appt, onClose, onDelete }: {
 function AgendaContent() {
   const { clinic, user, setSession } = useAuthStore()
   const defaultDuration = getSpecialtyConfig(clinic?.type).defaultDurationMinutes
-  const blankAppt = useCallback((): NewAppt => ({ ...BLANK, duration_minutes: defaultDuration }), [defaultDuration])
+  // Modelo de acesso por profissional: admin/recepção continuam vendo a
+  // agenda inteira; qualquer outro profissional com login vinculado só vê
+  // (e só pode criar/editar) os próprios agendamentos.
+  const canSeeAllProfessionals = isAdminOrRecepcao(user)
+  const scopeProfessionalId = myScopedProfessionalId(user)
+  const blankAppt = useCallback((): NewAppt => ({ ...BLANK, duration_minutes: defaultDuration, professional_id: scopeProfessionalId ?? '' }), [defaultDuration, scopeProfessionalId])
   const queryClient = useQueryClient()
-  const { data: agendaData, isLoading: loading } = useAgendaData(clinic?.id)
+  const { data: agendaData, isLoading: loading } = useAgendaData(clinic?.id, scopeProfessionalId)
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
-  const { data: professionals = [] } = useProfessionals(clinic?.id)
+  const { data: allProfessionals = [] } = useProfessionals(clinic?.id)
+  // Profissional restrito só vê/agenda a si mesmo nos seletores — a lista
+  // completa (allProfessionals) continua existindo pra admin/recepção.
+  const professionals = canSeeAllProfessionals
+    ? allProfessionals
+    : allProfessionals.filter(p => p.id === scopeProfessionalId)
   // Duração pré-preenchida pelo profissional selecionado — não pela área da
   // clínica (Bloco D): professional.default_duration_minutes se definido,
   // senão a duração padrão da área dele (specialty_type), senão a da clínica.
@@ -788,6 +799,9 @@ function AgendaContent() {
       patient_id: appt.patient_id ?? null,
       appointment_id: appt.id,
       procedure_id: appt.procedure_id ?? null,
+      // Copia o profissional do agendamento pra receita — é o que permite o
+      // financeiro individual (Bloco C do plano de acesso por profissional).
+      professional_id: appt.professional_id ?? null,
       total_amount: appt.procedure_price,
       category: 'Procedimento',
       type: 'receita',
@@ -900,7 +914,7 @@ function AgendaContent() {
   }
 
   function openBlockModal() {
-    setBlockForm(BLANK_BLOCK)
+    setBlockForm({ ...BLANK_BLOCK, professional_id: scopeProfessionalId ?? '' })
     setBlockError('')
     setShowBlockModal(true)
   }
@@ -1503,7 +1517,7 @@ function AgendaContent() {
                       setForm(p => ({ ...p, professional_id: pid, duration_minutes: resolveProfessionalDuration(pid) }))
                     }}
                   >
-                    <option value="">Sem profissional</option>
+                    {canSeeAllProfessionals && <option value="">Sem profissional</option>}
                     {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
@@ -1656,7 +1670,7 @@ function AgendaContent() {
                 <div className={styles.field}>
                   <label>Profissional</label>
                   <select value={blockForm.professional_id} onChange={e => setBlockForm(p => ({ ...p, professional_id: e.target.value }))}>
-                    <option value="">Toda a clínica</option>
+                    {canSeeAllProfessionals && <option value="">Toda a clínica</option>}
                     {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>

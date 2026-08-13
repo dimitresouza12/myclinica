@@ -12,6 +12,7 @@ import { audit } from '@/lib/audit'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useFinanceiroData, useProcedures } from '@/hooks/useClinicData'
 import { mergeSpecialtyConfigs } from '@/lib/specialtyConfig'
+import { myScopedProfessionalId } from '@/lib/professionalScope'
 import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -44,7 +45,10 @@ function FinanceiroContent() {
   const { isAdmin, canEdit, metadata } = usePermissions('financeiro')
   // Admin sempre vê totais; outros usuários dependem da permissão configurada (padrão: true)
   const showTotals = isAdmin || (metadata.show_totals !== false)
-  const { data: finData, isLoading: loading } = useFinanceiroData(clinic?.id)
+  // Modelo de acesso por profissional (Bloco C): não-admin/recepção só vê
+  // (e os totais/gráficos abaixo só somam) as próprias receitas/despesas.
+  const scopeProfessionalId = myScopedProfessionalId(user)
+  const { data: finData, isLoading: loading } = useFinanceiroData(clinic?.id, scopeProfessionalId)
   const { data: procedures = [] } = useProcedures(clinic?.id)
   const records = finData?.records ?? []
   const patients = finData?.patients ?? []
@@ -254,6 +258,9 @@ function FinanceiroContent() {
       category: form.category,
       notes: form.notes,
       type: form.type,
+      // Lançamento manual feito por um profissional restrito já nasce
+      // atribuído a ele — senão a RLS do Bloco C rejeitaria o insert.
+      ...(scopeProfessionalId ? { professional_id: scopeProfessionalId } : {}),
     }
     if (editingId) {
       await supabase.from('financial_records').update(payload).eq('id', editingId)

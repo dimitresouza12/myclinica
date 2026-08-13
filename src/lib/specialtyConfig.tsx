@@ -52,13 +52,18 @@ const BASE_ROLES: RoleOption[] = [
 ]
 const ADMIN_ROLE: RoleOption = { value: 'admin', label: 'Admin (acesso total)' }
 
-// Os 4 tipos de documento existem como slot fixo no banco (clinic_document_templates.type
-// tem CHECK constraint pros 4 valores). Cada especialidade escolhe só os que fazem sentido
-// pro seu conselho profissional emitir, com rótulo e título de impressão corretos —
-// evita, por ex., um psicólogo (que não pode prescrever medicamento) ver "RECEITA MÉDICA".
+// Os tipos de documento existem como slot fixo no banco (clinic_document_templates.type
+// tem CHECK constraint pros valores possíveis — hoje 5, ver Especialidades Bloco A).
+// Cada especialidade escolhe só os que fazem sentido pro seu conselho profissional
+// emitir, com rótulo e título de impressão corretos — evita, por ex., um psicólogo
+// (que não pode prescrever medicamento) ver "RECEITA MÉDICA".
 const DOC_RECEITA_COMUM_MEDICO: DocTypeOption = { type: 'receita_comum', label: 'Receita Comum', title: 'RECEITA MÉDICA' }
 const DOC_RECEITA_ESPECIAL_MEDICO: DocTypeOption = { type: 'receita_especial', label: 'Receita Especial', title: 'RECEITA DE CONTROLE ESPECIAL' }
 const DOC_DECLARACAO: DocTypeOption = { type: 'declaracao_comparecimento', label: 'Declaração de Comparecimento', title: 'DECLARAÇÃO DE COMPARECIMENTO' }
+// Laudo: pensado pro ultrassonografista e qualquer área que emita laudo de
+// exame (não é receita nem atestado) — segue o mesmo modelo de upload/edição
+// dos outros tipos, sem geração automática a partir da ficha.
+const DOC_LAUDO: DocTypeOption = { type: 'laudo', label: 'Laudo', title: 'LAUDO' }
 
 export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
   odonto: {
@@ -96,6 +101,9 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       { name: 'Prótese Dentária',            category: 'Prótese' },
       { name: 'Raspagem (Periodontia)',      category: 'Periodontia' },
       { name: 'Radiografia',                 category: 'Radiologia' },
+      { name: 'Facetas',                     category: 'Estética' },
+      { name: 'Bichectomia',                 category: 'Cirurgia' },
+      { name: 'Gengivoplastia e Gengivectomia', category: 'Periodontia' },
     ],
     anamnesisFields: [
       ['a-queixa', 'Queixa principal / Motivo da consulta'],
@@ -130,7 +138,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
   },
   medico: {
     roles: [...BASE_ROLES, { value: 'medico', label: 'Médico' }, ADMIN_ROLE],
-    documents: [DOC_RECEITA_COMUM_MEDICO, DOC_RECEITA_ESPECIAL_MEDICO, DOC_DECLARACAO, { type: 'atestado', label: 'Atestado', title: 'ATESTADO MÉDICO' }],
+    documents: [DOC_RECEITA_COMUM_MEDICO, DOC_RECEITA_ESPECIAL_MEDICO, DOC_DECLARACAO, { type: 'atestado', label: 'Atestado', title: 'ATESTADO MÉDICO' }, DOC_LAUDO],
     stockCategories: ['material', 'medicamento', 'descartavel', 'equipamento', 'outro'],
     financeCategoriasReceita: ['Consulta', 'Procedimento', 'Exame', 'Plano', 'Outros'],
     financeCategoriasDespesa: ['Material', 'Salário', 'Aluguel', 'Equipamento', 'Marketing', 'Outros'],
@@ -139,6 +147,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       'Clínico Geral', 'Cardiologia', 'Dermatologia', 'Ginecologia', 'Pediatria', 'Ortopedia', 'Psiquiatria', 'Endocrinologia',
       'Oftalmologia', 'Otorrinolaringologia', 'Neurologia', 'Urologia', 'Gastroenterologia', 'Pneumologia', 'Reumatologia',
       'Geriatria', 'Nefrologia', 'Infectologia', 'Angiologia', 'Mastologia', 'Nutrologia', 'Medicina do Trabalho', 'Medicina Esportiva',
+      'Radiologia / Ultrassonografia',
     ],
     procedureCategories: ['Consulta', 'Exame', 'Cirurgia', 'Procedimento', 'Vacinação', 'Radiologia', 'Outros'],
     procedureSuggestions: [
@@ -150,7 +159,28 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       { name: 'Sutura',                      category: 'Procedimento' },
       { name: 'Aplicação de Vacina',         category: 'Vacinação' },
       { name: 'Curativo',                    category: 'Procedimento' },
-      { name: 'Ultrassonografia',            category: 'Radiologia' },
+      { name: 'Ultrassonografia Abdominal Total',    category: 'Radiologia' },
+      { name: 'Ultrassonografia Abdominal Superior', category: 'Radiologia' },
+      { name: 'Ultrassonografia de Rins e Vias Urinárias', category: 'Radiologia' },
+      { name: 'Ultrassonografia Transvaginal',       category: 'Radiologia' },
+      { name: 'Ultrassonografia de Próstata (via Abdominal)', category: 'Radiologia' },
+      { name: 'Ultrassonografia de Próstata (via Transretal)', category: 'Radiologia' },
+      { name: 'Ultrassonografia de Tireoide',        category: 'Radiologia' },
+      { name: 'Ultrassonografia de Mamas',           category: 'Radiologia' },
+      { name: 'Ultrassonografia Obstétrica',         category: 'Radiologia' },
+      { name: 'Ultrassonografia Morfológica',        category: 'Radiologia' },
+      { name: 'Ultrassonografia de Translucência Nucal', category: 'Radiologia' },
+      { name: 'Ultrassonografia de Articulações',    category: 'Radiologia' },
+      { name: 'Ultrassonografia de Parede Abdominal', category: 'Radiologia' },
+      { name: 'Ultrassonografia de Região Inguinal (Unilateral)', category: 'Radiologia' },
+      { name: 'Ultrassonografia de Região Inguinal (Bilateral)', category: 'Radiologia' },
+      { name: 'Vídeo Colposcopia',           category: 'Exame' },
+      { name: 'Biópsia de Colo do Útero',    category: 'Procedimento' },
+      { name: 'CAF (Cirurgia de Alta Frequência)', category: 'Cirurgia' },
+      { name: 'Cirurgia Ginecológica',       category: 'Cirurgia' },
+      { name: 'Consulta de Pré-Natal',       category: 'Consulta' },
+      { name: 'Parto Normal',                category: 'Procedimento' },
+      { name: 'Parto Cesária',               category: 'Cirurgia' },
     ],
     anamnesisFields: [
       ['a-motivo', 'Queixa principal / Motivo da consulta'],
@@ -191,12 +221,13 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       DOC_RECEITA_ESPECIAL_MEDICO,
       DOC_DECLARACAO,
       { type: 'atestado', label: 'Atestado', title: 'ATESTADO' },
+      DOC_LAUDO,
     ],
     stockCategories: ['cosmetico', 'injetavel', 'descartavel', 'equipamento', 'outro'],
     financeCategoriasReceita: ['Consulta', 'Procedimento Estético', 'Pacote', 'Plano', 'Outros'],
     financeCategoriasDespesa: ['Material', 'Salário', 'Aluguel', 'Equipamento', 'Marketing', 'Outros'],
     defaultDurationMinutes: 60,
-    professionalSpecialties: ['Esteticista', 'Biomedicina Estética', 'Dermatologia', 'Cosmetologia', 'Estética Corporal', 'Massoterapia'],
+    professionalSpecialties: ['Esteticista', 'Biomedicina Estética', 'Dermatologia', 'Cosmetologia', 'Estética Corporal', 'Massoterapia', 'Fisioterapia Dermato Funcional'],
     procedureCategories: ['Consulta', 'Limpeza de Pele', 'Peeling', 'Botox', 'Preenchimento', 'Laser', 'Massagem', 'Corporal', 'Outros'],
     procedureSuggestions: [
       { name: 'Avaliação Estética',          category: 'Consulta' },
@@ -212,6 +243,10 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       { name: 'Massagem Redutora',           category: 'Corporal' },
       { name: 'Carboxiterapia',              category: 'Corporal' },
       { name: 'Microagulhamento',            category: 'Outros' },
+      { name: 'Lipo Enzimática',             category: 'Corporal' },
+      { name: 'Retirada de Sinais',          category: 'Outros' },
+      { name: 'Rejuvenescimento Facial',     category: 'Outros' },
+      { name: 'Protocolo de Emagrecimento',  category: 'Corporal' },
     ],
     anamnesisFields: [
       ['a-queixa', 'Queixa principal / Região de interesse'],
@@ -470,13 +505,15 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
     financeCategoriasDespesa: ['Material', 'Salário', 'Aluguel', 'Equipamento', 'Marketing', 'Outros'],
     defaultDurationMinutes: 40,
     professionalSpecialties: ['Linguagem', 'Motricidade Orofacial', 'Audiologia', 'Voz', 'Disfagia', 'Fluência (gagueira)', 'Fonoaudiologia Educacional'],
-    procedureCategories: ['Consulta', 'Avaliação', 'Terapia de Linguagem', 'Motricidade Orofacial', 'Audiometria', 'Outros'],
+    procedureCategories: ['Consulta', 'Avaliação', 'Triagem Neonatal', 'Terapia de Linguagem', 'Motricidade Orofacial', 'Audiometria', 'Outros'],
     procedureSuggestions: [
       { name: 'Avaliação Fonoaudiológica',   category: 'Avaliação' },
       { name: 'Sessão de Terapia de Linguagem', category: 'Terapia de Linguagem' },
       { name: 'Terapia de Motricidade Orofacial', category: 'Motricidade Orofacial' },
       { name: 'Audiometria',                 category: 'Audiometria' },
       { name: 'Terapia de Fluência',         category: 'Outros' },
+      { name: 'Teste da Orelhinha (Emissões Otoacústicas)', category: 'Triagem Neonatal' },
+      { name: 'Teste da Linguinha (Avaliação do Frênulo Lingual)', category: 'Triagem Neonatal' },
     ],
     anamnesisFields: [
       ['a-queixa', 'Queixa principal / Motivo da busca'],
@@ -497,7 +534,8 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-fluencia', 'Fluência'],
       ['e-motricidade', 'Motricidade orofacial (lábios/língua/palato)'],
       ['e-degluticao', 'Deglutição'],
-      ['e-triagem_auditiva', 'Triagem auditiva'],
+      ['e-triagem_auditiva', 'Triagem auditiva (Teste da Orelhinha) — resultado (passou/falhou, orelha)'],
+      ['e-freio_lingual', 'Avaliação do frênulo lingual (Teste da Linguinha) — classificação'],
       ['e-obs', 'Observações gerais'],
     ],
     recordTabs: [],

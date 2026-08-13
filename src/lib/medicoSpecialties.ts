@@ -32,6 +32,9 @@ export const MEDICO_ANAMNESIS_EXTRA_BY_SPECIALTY: Record<string, [string, string
     ['a-hist_obstetrico', 'Histórico obstétrico (gestações, partos, abortos)'],
     ['a-metodo_contraceptivo', 'Método contraceptivo em uso'],
     ['a-ultimo_preventivo', 'Último exame preventivo (Papanicolau)'],
+    ['a-semanas_gestacao', 'Semanas de gestação / DPP (se gestante em acompanhamento)'],
+    ['a-calendario_pre_natal', 'Calendário do pré-natal (consultas e exames realizados)'],
+    ['a-tipo_parto_planejado', 'Tipo de parto planejado / indicação'],
   ],
   Ortopedia: [
     ['a-mecanismo_trauma', 'Mecanismo de trauma (se houver)'],
@@ -66,6 +69,14 @@ export const MEDICO_ANAMNESIS_EXTRA_BY_SPECIALTY: Record<string, [string, string
     ['a-sintomas_urinarios', 'Sintomas urinários (frequência, urgência, jato)'],
     ['a-hist_calculo_renal', 'Histórico de cálculo renal'],
   ],
+  // Ultrassonografista / exames de imagem em geral — campos no formato de
+  // um laudo (indicação → técnica → achados → conclusão), não de consulta,
+  // pra servir qualquer um dos tipos de exame (abdominal, transvaginal,
+  // obstétrico, articular etc.) sem precisar de um campo por exame.
+  'Radiologia / Ultrassonografia': [
+    ['a-indicacao_exame', 'Indicação clínica do exame'],
+    ['a-hist_relevante', 'Histórico relevante para o exame (cirurgias prévias, exames anteriores)'],
+  ],
 }
 
 /** Opções mostradas na pergunta "em qual área da medicina você atua?"
@@ -95,6 +106,8 @@ export const MEDICO_EXAM_EXTRA_BY_SPECIALTY: Record<string, [string, string][]> 
   Ginecologia: [
     ['e-exame_ginecologico', 'Exame ginecológico'],
     ['e-mamas', 'Exame das mamas'],
+    ['e-achados_colposcopia', 'Achados de colposcopia / biópsia de colo'],
+    ['e-evolucao_parto', 'Evolução do parto (quando aplicável)'],
   ],
   Ortopedia: [
     ['e-adm', 'ADM — Amplitude de Movimento'],
@@ -132,5 +145,10 @@ export const MEDICO_EXAM_EXTRA_BY_SPECIALTY: Record<string, [string, string][]> 
     ['e-toque_retal', 'Toque retal (quando aplicável)'],
     ['e-exame_urologico', 'Exame urológico'],
     ['e-psa', 'PSA (se houver)'],
+  ],
+  'Radiologia / Ultrassonografia': [
+    ['e-tecnica', 'Técnica utilizada'],
+    ['e-achados', 'Achados'],
+    ['e-conclusao', 'Impressão diagnóstica / Conclusão'],
   ],
 }

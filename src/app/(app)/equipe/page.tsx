@@ -105,7 +105,16 @@ function EquipeContent() {
   }
 
   function openNewModal() {
-    setForm({ ...BLANK, role: clinicalRole ?? 'recepcao' })
+    // Clínica multi-área: NÃO pré-selecionar um cargo clínico aqui. `role`
+    // e `specialty_type` são ClinicType/UserRole com valores em comum (ex:
+    // 'medico' é os dois) — se role já nascesse 'medico', o <select> de
+    // "Cargo / Área de atuação" (value={specialty_type || role}) mostraria
+    // "Medicina" pré-marcado sem specialty_type ter sido de fato escolhido,
+    // e o profissional seria salvo com specialty_type null (ficha por área
+    // e agenda/pacientes por área nunca resolvem a área dele). Força
+    // "Recepção" como ponto de partida — sem ambiguidade — só clínica de
+    // uma área só (sem esse seletor) mantém o atalho de já vir preenchido.
+    setForm({ ...BLANK, role: clinic?.isMultiSpecialty ? 'recepcao' : (clinicalRole ?? 'recepcao') })
     setErrorMsg(null)
     setShowModal(true)
   }

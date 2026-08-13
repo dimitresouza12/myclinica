@@ -248,15 +248,20 @@ export function usePacientesData(clinicId: string | undefined) {
 
 // ── Agenda ────────────────────────────────────────────────────────────────────
 
-export function useAgendaData(clinicId: string | undefined) {
+// scopeProfessionalId: quando não-nulo, filtra a agenda pra só os agendamentos
+// deste profissional (modelo de acesso por profissional — RLS já garante isso
+// no banco, aqui é só pra query vir menor e mais rápida).
+export function useAgendaData(clinicId: string | undefined, scopeProfessionalId: string | null = null) {
   return useQuery({
-    queryKey: ['agenda', clinicId],
+    queryKey: ['agenda', clinicId, scopeProfessionalId],
     queryFn: async () => {
       if (!clinicId) return { appointments: [], patients: [] }
       const threeMonthsAgo = new Date()
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+      let apptQuery = supabase.from('appointments').select('*, patients(id, name, phone), professionals(id, name)').eq('clinic_id', clinicId).gte('scheduled_at', threeMonthsAgo.toISOString()).order('scheduled_at', { ascending: true })
+      if (scopeProfessionalId) apptQuery = apptQuery.eq('professional_id', scopeProfessionalId)
       const [apptRes, patRes] = await Promise.all([
-        supabase.from('appointments').select('*, patients(id, name, phone), professionals(id, name)').eq('clinic_id', clinicId).gte('scheduled_at', threeMonthsAgo.toISOString()).order('scheduled_at', { ascending: true }),
+        apptQuery,
         supabase.from('patients').select('id, name, phone').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
       ])
       return {
@@ -271,13 +276,17 @@ export function useAgendaData(clinicId: string | undefined) {
 
 // ── Financeiro ────────────────────────────────────────────────────────────────
 
-export function useFinanceiroData(clinicId: string | undefined) {
+// scopeProfessionalId: quando não-nulo, filtra o financeiro pra só os
+// lançamentos deste profissional (modelo de acesso por profissional).
+export function useFinanceiroData(clinicId: string | undefined, scopeProfessionalId: string | null = null) {
   return useQuery({
-    queryKey: ['financeiro', clinicId],
+    queryKey: ['financeiro', clinicId, scopeProfessionalId],
     queryFn: async () => {
       if (!clinicId) return { records: [], patients: [] }
+      let recQuery = supabase.from('financial_records').select('*, patients(id, name), appointments(id, scheduled_at, procedure_name)').eq('clinic_id', clinicId).order('created_at', { ascending: false })
+      if (scopeProfessionalId) recQuery = recQuery.eq('professional_id', scopeProfessionalId)
       const [recRes, patRes] = await Promise.all([
-        supabase.from('financial_records').select('*, patients(id, name), appointments(id, scheduled_at, procedure_name)').eq('clinic_id', clinicId).order('created_at', { ascending: false }),
+        recQuery,
         supabase.from('patients').select('id, name').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
       ])
       return {
