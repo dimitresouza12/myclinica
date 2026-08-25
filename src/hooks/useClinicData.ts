@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { Professional, Procedure, Appointment, Patient, StockItem, StockMovement, FinancialRecord } from '@/types'
+import type { Professional, Procedure, Appointment, Patient, StockItem, StockMovement, FinancialRecord, PatientCredit } from '@/types'
 
 // Busca TODOS (ativos + inativos) para que dados históricos sejam resolvidos.
 // Filtrar ativos deve ser feito no ponto de uso (dropdown, listas de equipe).
@@ -61,6 +61,12 @@ export interface DashboardAlert {
   date: string
   reason: DashboardAlertReason
 }
+export interface TodayCash {
+  recebido: number
+  aReceber: number
+  aReceberRecords: { id: string; total_amount: number }[]
+  previsto: number
+}
 
 const OPEN_STATUSES = ['agendado', 'confirmado', 'em_atendimento']
 const NO_SHOW_WINDOW_MS = 30 * 24 * 60 * 60 * 1000   // faltas dos últimos 30 dias
@@ -72,7 +78,6 @@ export function useDashboardData(clinicId: string | undefined) {
     queryFn: async () => {
       if (!clinicId) return null
       const today = new Date()
-      const now = new Date().toISOString()
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0).toISOString()
       const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString()
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
@@ -81,20 +86,30 @@ export function useDashboardData(clinicId: string | undefined) {
       const twoHundredDaysAgo = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString()
 
       const [
-        patientsRes, todayApptRes, pendingRes, allFinRes, newPatientsRes, recentRes,
+        patientsRes, todayApptRowsRes, pendingRes, allFinRes, newPatientsRes, todayFinRes,
         monthApptsRes, proceduresRes, alertApptsRes, birthdayPatientsRes,
       ] = await Promise.all([
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true),
-        supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', startOfDay).lte('scheduled_at', endOfDay),
+        supabase.from('appointments').select('id, patient_id, professional_id, procedure_name, procedure_id, procedure_price, status, scheduled_at, duration_minutes, patients(id, name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', startOfDay).lte('scheduled_at', endOfDay).order('scheduled_at', { ascending: true }),
         supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('status', 'agendado'),
         supabase.from('financial_records').select('total_amount, type, created_at, patient_id, procedure_id').eq('clinic_id', clinicId).gte('created_at', sixMonthsAgo),
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true).gte('created_at', startOfMonth),
-        supabase.from('appointments').select('*, patients(name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', now).order('scheduled_at', { ascending: true }).limit(8),
+        supabase.from('financial_records').select('id, total_amount, payment_method, appointment_id, patient_id').eq('clinic_id', clinicId).eq('type', 'receita').gte('created_at', startOfDay).lte('created_at', endOfDay),
         supabase.from('appointments').select('status').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', startOfMonth).lte('scheduled_at', endOfMonth),
         supabase.from('procedures').select('id, category').eq('clinic_id', clinicId),
         supabase.from('appointments').select('id, patient_id, status, scheduled_at, patients(name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', twoHundredDaysAgo).order('scheduled_at', { ascending: false }),
         supabase.from('patients').select('id, name, phone, birth_date').eq('clinic_id', clinicId).eq('is_active', true).not('birth_date', 'is', null),
       ])
+
+      const todayApptRows = (todayApptRowsRes.data ?? []) as unknown as Appointment[]
+      const previsto = todayApptRows
+        .filter(a => a.status === 'agendado' || a.status === 'confirmado')
+        .reduce((s, a) => s + (a.procedure_price ?? 0), 0)
+
+      const todayFin = (todayFinRes.data ?? []) as Pick<FinancialRecord, 'id' | 'total_amount' | 'payment_method' | 'appointment_id' | 'patient_id'>[]
+      const recebido = todayFin.filter(r => r.payment_method != null).reduce((s, r) => s + (r.total_amount ?? 0), 0)
+      const aReceberRecords = todayFin.filter(r => r.payment_method == null)
+      const aReceber = aReceberRecords.reduce((s, r) => s + (r.total_amount ?? 0), 0)
 
       const allFin = (allFinRes.data ?? []) as Pick<FinancialRecord, 'total_amount' | 'type' | 'created_at' | 'patient_id' | 'procedure_id'>[]
 
@@ -117,14 +132,17 @@ export function useDashboardData(clinicId: string | undefined) {
       const monthRevenue = monthRevenueRecords.reduce((s, r) => s + (r.total_amount ?? 0), 0)
       const monthExpense = currentMonthFin.filter(r => r.type === 'despesa').reduce((s, r) => s + (r.total_amount ?? 0), 0)
 
-      // Ticket médio do mês = receita do mês / pacientes distintos que pagaram no mês
-      const distinctPayingPatients = new Set(monthRevenueRecords.map(r => r.patient_id).filter(Boolean)).size
-      const avgTicket = distinctPayingPatients > 0 ? monthRevenue / distinctPayingPatients : 0
-
       // Tratamentos concluídos vs. em aberto (agendamentos do mês corrente)
       const monthAppts = (monthApptsRes.data ?? []) as { status: string }[]
       const treatmentsCompleted = monthAppts.filter(a => a.status === 'concluido').length
       const treatmentsOpen = monthAppts.filter(a => OPEN_STATUSES.includes(a.status)).length
+
+      // Ticket médio do mês = receita do mês / atendimentos concluídos no mês.
+      // Mesma fórmula usada em Relatórios (receita ÷ consultas concluídas) —
+      // antes o Dashboard dividia por pacientes distintos que pagaram, o que
+      // dava um número diferente do de Relatórios para o mesmo período e
+      // confundia quem comparava as duas telas.
+      const avgTicket = treatmentsCompleted > 0 ? monthRevenue / treatmentsCompleted : 0
 
       // Receita por categoria de procedimento (mês corrente)
       const categoryById: Record<string, string> = {}
@@ -181,7 +199,7 @@ export function useDashboardData(clinicId: string | undefined) {
       return {
         stats: {
           totalPatients: patientsRes.count ?? 0,
-          appointmentsToday: todayApptRes.count ?? 0,
+          appointmentsToday: todayApptRows.length,
           pendingAppointments: pendingRes.count ?? 0,
           newPatientsMonth: newPatientsRes.count ?? 0,
           monthRevenue,
@@ -190,7 +208,8 @@ export function useDashboardData(clinicId: string | undefined) {
           treatmentsOpen,
           avgTicket,
         } as DashboardStats,
-        recentAppts: (recentRes.data ?? []) as Appointment[],
+        todayAppts: todayApptRows,
+        todayCash: { recebido, aReceber, aReceberRecords: aReceberRecords.map(r => ({ id: r.id, total_amount: r.total_amount ?? 0 })), previsto } as TodayCash,
         monthlyData: Object.values(monthMap),
         revenueByCategory,
         alerts,
@@ -301,6 +320,21 @@ export function useFinanceiroData(clinicId: string | undefined, scopeProfessiona
   })
 }
 
+// Saldo de pacote (crédito pré-pago) por paciente — busca o ledger cru, soma
+// por patient_id é feita no componente (mesmo padrão de `stats` no Financeiro).
+export function usePatientCreditsData(clinicId: string | undefined) {
+  return useQuery({
+    queryKey: ['patient-credits', clinicId],
+    queryFn: async () => {
+      if (!clinicId) return { credits: [] }
+      const { data } = await supabase.from('patient_credits').select('*').eq('clinic_id', clinicId)
+      return { credits: (data ?? []) as PatientCredit[] }
+    },
+    enabled: !!clinicId,
+    staleTime: 3 * 60 * 1000,
+  })
+}
+
 // ── Estoque ───────────────────────────────────────────────────────────────────
 
 export function useEstoqueData(clinicId: string | undefined) {
@@ -334,7 +368,7 @@ export function useRelatoriosRawData(clinicId: string | undefined, period: strin
       const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1).toISOString()
       const [finRes, apptRes, patRes] = await Promise.all([
         supabase.from('financial_records').select('total_amount,type,created_at,procedure_id').eq('clinic_id', clinicId).gte('created_at', startDate),
-        supabase.from('appointments').select('status,procedure_name,professional_id,scheduled_at,patients(name)').eq('clinic_id', clinicId).gte('scheduled_at', startDate),
+        supabase.from('appointments').select('status,procedure_name,professional_id,patient_id,scheduled_at,patients(name)').eq('clinic_id', clinicId).gte('scheduled_at', startDate),
         supabase.from('patients').select('id,created_at,lgpd_consent').eq('clinic_id', clinicId).eq('is_active', true),
       ])
       return {

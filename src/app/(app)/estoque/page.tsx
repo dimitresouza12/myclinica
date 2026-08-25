@@ -13,6 +13,7 @@ import { mergeSpecialtyConfigs, stockCategoryLabel } from '@/lib/specialtyConfig
 import { audit } from '@/lib/audit'
 import styles from './estoque.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { PageTitle } from '@/components/layout/PageTitle'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 import { SelectMenu } from '@/components/ui/SelectMenu'
@@ -194,10 +195,7 @@ function EstoqueContent() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Estoque de Produtos</h1>
-          <p className={styles.sub}>{filteredItems.length} produto{filteredItems.length !== 1 ? 's' : ''}</p>
-        </div>
+        <PageTitle title="Estoque de Produtos" subtitle={`${filteredItems.length} produto${filteredItems.length !== 1 ? 's' : ''}`} />
         <button className={styles.btnPrimary} onClick={openNewItem}>+ Novo Produto</button>
       </div>
 

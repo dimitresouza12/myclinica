@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/utils'
 import { Icon } from '@/components/ui/Icon'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { useDashboardData } from '@/hooks/useClinicData'
+import { PageTitle } from '@/components/layout/PageTitle'
 import styles from './metas.module.css'
 
 const MetasHistoryChart = dynamic(() => import('./MetasHistoryChart'), {
@@ -50,10 +51,7 @@ function MetasContent() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Metas</h1>
-          <p className={styles.subtitle}>Acompanhe e defina a meta de faturamento mensal da clínica</p>
-        </div>
+        <PageTitle title="Metas" subtitle="Acompanhe e defina a meta de faturamento mensal da clínica" />
       </div>
 
       {loading ? (

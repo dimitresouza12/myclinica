@@ -19,6 +19,7 @@ import { CredentialsConfirmModal } from '@/components/ui/CredentialsConfirmModal
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 import { SelectMenu } from '@/components/ui/SelectMenu'
+import { PageTitle } from '@/components/layout/PageTitle'
 
 const ROLE_LABELS: Record<UserRole, string> = {
   recepcao:     'Recepção',
@@ -676,7 +677,7 @@ function ConfiguracoesContent() {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Configurações</h1>
+      <PageTitle title="Configurações" />
 
       <div className={styles.tabs} data-hscroll>
         {tabs.map(t => (

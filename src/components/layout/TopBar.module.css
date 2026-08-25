@@ -25,6 +25,12 @@
 }
 .menuBtn:hover { background: var(--bg-tertiary); }
 
+.titleSlot {
+  display: none;
+  min-width: 0;
+  margin-left: 0.75rem;
+}
+
 .right {
   display: flex;
   align-items: center;
@@ -47,6 +53,13 @@
 
   .menuBtn {
     display: flex;
+  }
+
+  .titleSlot {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1 1 auto;
   }
 
   .logo {

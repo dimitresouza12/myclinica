@@ -6,37 +6,40 @@
 @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 
 .header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
-.title { font-family:'Plus Jakarta Sans',-apple-system,sans-serif; font-size:1.6rem; font-weight:800; color:var(--text-primary); letter-spacing:-0.3px; }
-.sub { font-size:0.8rem; color:var(--text-secondary); margin-top:0.2rem; }
 .headerActions { display:flex; gap:0.625rem; }
 
-.btnReceita { display:inline-flex; align-items:center; gap:.375rem; padding:.45rem .875rem; min-height:44px; background:rgba(5,150,105,.1); color:#059669; border:none; border-radius:999px; font-size:.84rem; font-weight:600; cursor:pointer; transition:background .15s; white-space:nowrap; }
-.btnDespesa { display:inline-flex; align-items:center; gap:.375rem; padding:.45rem .875rem; min-height:44px; background:rgba(220,38,38,.08); color:#DC2626; border:none; border-radius:999px; font-size:.84rem; font-weight:600; cursor:pointer; transition:background .15s; white-space:nowrap; }
-.btnReceita:hover { background:rgba(5,150,105,.18); }
-.btnDespesa:hover { background:rgba(220,38,38,.15); }
-.btnExport { display:inline-flex; align-items:center; gap:.4rem; padding:0.6rem 1.1rem; min-height:44px; background:var(--bg-tertiary); color:var(--text-secondary); border:none; border-radius:999px; font-size:0.875rem; font-weight:600; cursor:pointer; transition:all .15s; }
+/* Receita/Despesa são a ação primária da página (equivalente ao "+ Novo X"
+   sólido usado em Pacientes/Procedimentos) — preenchimento sólido em vez do
+   mesmo chip pastel usado pra ações secundárias de linha (Editar/Desativar
+   em tabelas), senão ficam com o mesmo peso visual de uma ação menor. */
+.btnReceita { display:inline-flex; align-items:center; gap:.375rem; padding:.5rem 1.1rem; min-height:44px; background:#0B9B85; color:#fff; border:none; border-radius:10px; font-size:.84rem; font-weight:600; cursor:pointer; transition:background .15s, transform .1s; white-space:nowrap; }
+.btnDespesa { display:inline-flex; align-items:center; gap:.375rem; padding:.5rem 1.1rem; min-height:44px; background:#EF4444; color:#fff; border:none; border-radius:10px; font-size:.84rem; font-weight:600; cursor:pointer; transition:background .15s, transform .1s; white-space:nowrap; }
+.btnReceita:hover { background:#098770; transform:translateY(-1px); }
+.btnDespesa:hover { background:#DC2626; transform:translateY(-1px); }
+
+/* Exportar é utilitário, não a ação principal da tela — ícone sozinho pra
+   não competir visualmente com Receita/Despesa. */
+.btnExport { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; background:var(--bg-tertiary); color:var(--text-secondary); border:none; border-radius:50%; cursor:pointer; transition:all .15s; flex-shrink:0; }
 .btnExport:hover:not(:disabled) { color:#0B9B85; background:rgba(77,217,192,0.14); }
 .btnExport:disabled { opacity:0.4; cursor:not-allowed; }
 
 .periodBar { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:14px; padding:.4rem .75rem; box-shadow:var(--shadow-sm); }
 .periodBar .periodTabs { border-bottom:none; }
 
-/* Metric cards */
-.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; }
-.card { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; padding:1.5rem; display:flex; align-items:center; gap:1rem; transition:box-shadow .2s, transform .2s; box-shadow:var(--shadow-sm); min-width:0; }
-.card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
-.cardBody { display:flex; flex-direction:column; gap:0.2rem; min-width:0; flex:1 1 auto; }
-.cardValue { font-size:1.35rem; font-weight:800; color:var(--text-primary); line-height:1.05; letter-spacing:-0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; font-variant-numeric:tabular-nums; }
-.valueDesktop { display:inline; }
-.valueMobile  { display:none; }
-.cardLabel { font-size:0.78rem; font-weight:600; color:var(--text-secondary); }
+/* Metric cards — tira arredondada + sombra flutuante + barrinha de progresso
+   decorativa (chegou a existir uma cujo preenchimento era `count * 5`, sem
+   significado real) por uma faixa única com divisórias finas, tipo extrato:
+   mais denso, menos "widget de SaaS genérico". */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1px; background:var(--border-subtle); border:1px solid var(--border-subtle); border-radius:14px; overflow:hidden; }
+.card { background:var(--bg-primary); border-left:3px solid var(--card-accent, transparent); padding:1rem 1.15rem; display:flex; flex-direction:column; gap:0.3rem; min-width:0; transition:background .15s; }
+.card:hover { background:var(--bg-tertiary); }
+.cardValue { font-size:1.5rem; font-weight:800; color:var(--text-primary); line-height:1.15; letter-spacing:-0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; font-variant-numeric:tabular-nums; }
+.cardLabel { font-size:0.68rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-secondary); }
 
 /* Charts */
 .charts { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
 @media (max-width: 768px) {
   .charts { grid-template-columns:1fr; }
-  .valueDesktop { display:none; }
-  .valueMobile  { display:inline; }
 }
 .chartCard { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; padding:1.5rem; box-shadow:var(--shadow-sm); }
 .chartTitle { font-size:0.85rem; font-weight:650; color:var(--text-primary); margin-bottom:1rem; }
@@ -79,7 +82,7 @@
 .table tr:hover td { background:var(--bg-secondary); }
 .tagReceita { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; background:#ECFDF5; color:#065F46; border-radius:999px; font-size:0.72rem; font-weight:600; white-space:nowrap; }
 .tagDespesa { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; background:#FEF2F2; color:#B91C1C; border-radius:999px; font-size:0.72rem; font-weight:600; white-space:nowrap; }
-.method { color:var(--text-secondary); font-size:0.82rem; text-transform:capitalize; }
+.method { color:var(--text-secondary); font-size:0.82rem; }
 .valuePos { font-weight:700; color:#059669; }
 .valueNeg { font-weight:700; color:#C0392B; }
 .empty { text-align:center; color:var(--text-secondary); padding:3rem 1rem !important; font-size:.875rem; }
@@ -103,7 +106,7 @@
   .modalHeader { padding:1rem; padding-top: max(1rem, env(safe-area-inset-top)); }
   .modalFooter { padding:1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
   .modalBody { padding:1rem; }
-  .cards { grid-template-columns: repeat(2, 1fr); }
+  .cards { grid-template-columns: 1fr; }
   .btnClose { width:44px; height:44px; }
 }
 .field { display:flex; flex-direction:column; gap:.3rem; }
@@ -111,6 +114,8 @@
 .field input, .field select { padding:.6rem .875rem; min-height:44px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-primary); color:var(--text-primary); font-size:.875rem; outline:none; transition:border-color .15s, box-shadow .15s; font-family:inherit; }
 .field input:focus, .field select:focus { border-color:#4DD9C0; box-shadow:0 0 0 3px rgba(77,217,192,0.15); }
 .hint { font-size:.72rem; color:var(--text-secondary); }
+.checkboxField { display:flex; align-items:center; gap:.5rem; font-size:.82rem; font-weight:600; color:var(--text-secondary); cursor:pointer; }
+.checkboxField input { width:16px; height:16px; accent-color:#4DD9C0; cursor:pointer; }
 .btnCancel { padding:.55rem 1rem; min-height:44px; border:1px solid var(--border-color); background:none; border-radius:10px; font-size:.875rem; color:var(--text-secondary); cursor:pointer; transition:background .15s; }
 .btnCancel:hover { background:var(--bg-secondary); }
 .btnSaveReceita { padding:.55rem 1.25rem; min-height:44px; background:#059669; color:#fff; border:none; border-radius:10px; font-size:.875rem; font-weight:600; cursor:pointer; transition:opacity .15s; }

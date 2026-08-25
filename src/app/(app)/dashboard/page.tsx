@@ -2,19 +2,31 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
+import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatCurrencyCompact, formatDate } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsApp } from '@/lib/planGates'
 import { Icon } from '@/components/ui/Icon'
 import { useDashboardData, useProcedures, useEstoqueData } from '@/hooks/useClinicData'
 import type { DashboardAlertReason, DashboardAlert, RevenueByCategory } from '@/hooks/useClinicData'
+import { usePermissions } from '@/hooks/usePermissions'
+import { showToast } from '@/components/ui/Toast'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { STATUS_LABELS } from '@/lib/appointmentStatus'
+import { ensureRevenueForAppointment, notifyRevenuePending, promptCreditUsage } from '@/lib/appointmentRevenue'
+import type { Appointment } from '@/types'
 import type { ComponentProps } from 'react'
 import styles from './dashboard.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { OnboardingChecklist } from './OnboardingChecklist'
 import { OnboardingModal } from './OnboardingModal'
 import { WelcomeModal } from './WelcomeModal'
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
 
 const DashboardChart = dynamic(() => import('./DashboardChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
 const RevenueByCategoryChart = dynamic(() => import('./RevenueByCategoryChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
@@ -109,14 +121,21 @@ function buildInsights(params: {
     }
   }
 
-  // Tendência de receita vs. mês anterior
+  // Tendência de receita vs. mês anterior — projeta o mês corrente pelo ritmo
+  // (receita até hoje ÷ dias já passados × dias no mês) antes de comparar.
+  // Comparar totais crus faria isso disparar "caiu 90%" todo dia 1º, já que
+  // o mês corrente sempre está parcial frente a um mês anterior fechado.
   if (monthlyData.length >= 2) {
     const prev = monthlyData[monthlyData.length - 2].receita
     const cur = monthlyData[monthlyData.length - 1].receita
+    const today = new Date()
+    const dayOfMonth = today.getDate()
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+    const projected = dayOfMonth > 0 ? (cur / dayOfMonth) * daysInMonth : cur
     if (prev > 0) {
-      const pct = Math.round(((cur - prev) / prev) * 100)
-      if (pct <= -15) out.push({ icon: 'finance', color: '#EF4444', text: `Receita caiu ${Math.abs(pct)}% em relação ao mês anterior. Vale revisar a agenda e reengajar pacientes sem retorno.` })
-      else if (pct >= 15) out.push({ icon: 'finance', color: '#10B981', text: `Receita cresceu ${pct}% em relação ao mês anterior — bom ritmo!` })
+      const pct = Math.round(((projected - prev) / prev) * 100)
+      if (pct <= -15) out.push({ icon: 'finance', color: '#EF4444', text: `No ritmo atual, a receita do mês deve fechar ${Math.abs(pct)}% abaixo do mês anterior. Vale revisar a agenda e reengajar pacientes sem retorno.` })
+      else if (pct >= 15) out.push({ icon: 'finance', color: '#10B981', text: `No ritmo atual, a receita do mês deve fechar ${pct}% acima do mês anterior — bom ritmo!` })
     }
   }
 
@@ -158,6 +177,10 @@ function DashboardContent() {
   const [hideValues, setHideValues] = useState(false)
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
   const [alertsCollapsed, setAlertsCollapsed] = useState(false)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+
+  const queryClient = useQueryClient()
+  const { canEdit: canEditAgenda } = usePermissions('agenda')
 
   const { data, isLoading: loading } = useDashboardData(clinic?.id)
   const { data: procedures = [] } = useProcedures(clinic?.id)
@@ -174,7 +197,10 @@ function DashboardContent() {
     totalPatients: 0, appointmentsToday: 0, monthRevenue: 0, monthExpense: 0,
     pendingAppointments: 0, newPatientsMonth: 0, treatmentsCompleted: 0, treatmentsOpen: 0, avgTicket: 0,
   }
-  const recentAppts = data?.recentAppts ?? []
+  const todayAppts: Appointment[] = data?.todayAppts ?? []
+  const needsConfirm = todayAppts.filter(a => a.status === 'agendado')
+  const restOfDay = todayAppts.filter(a => a.status !== 'agendado')
+  const todayCash = data?.todayCash ?? { recebido: 0, aReceber: 0, aReceberRecords: [], previsto: 0 }
   const monthlyData: MonthlyData[] = data?.monthlyData ?? []
   const revenueByCategory = data?.revenueByCategory ?? []
   const rawAlerts: DashboardAlert[] = [...(data?.alerts ?? [])]
@@ -214,6 +240,72 @@ function DashboardContent() {
 
   function mask(value: string | number): string | number {
     return hideValues ? '••••' : value
+  }
+
+  async function handleConfirm(apptId: string) {
+    if (!canEditAgenda || confirmingId || !clinic) return
+    setConfirmingId(apptId)
+    try {
+      const { data: updated, error } = await supabase
+        .from('appointments')
+        .update({ status: 'confirmado' })
+        .eq('id', apptId)
+        .eq('clinic_id', clinic.id)
+        .select('id')
+      if (error || !updated?.length) throw error ?? new Error('no_rows')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['dashboard', clinic.id] }),
+        queryClient.invalidateQueries({ queryKey: ['agenda', clinic.id] }),
+      ])
+    } catch {
+      showToast('error', 'Não foi possível confirmar o agendamento. Tente novamente.', {
+        href: '/agenda', actionLabel: 'Ir para Agenda',
+      })
+    } finally {
+      setConfirmingId(null)
+    }
+  }
+
+  async function handleConclude(apptId: string) {
+    if (!canEditAgenda || confirmingId || !clinic) return
+    const appt = todayAppts.find(a => a.id === apptId)
+    if (!appt) return
+
+    const linkedProc = procedures.find(p => p.id === appt.procedure_id)
+    const priceIsPending = !(appt.procedure_price && appt.procedure_price > 0) && !linkedProc?.is_free
+    if (priceIsPending) {
+      const confirmed = await confirmDialog({
+        message: 'Este procedimento está sem preço definido — nenhuma receita será lançada no Financeiro ao concluir. Deseja continuar mesmo assim?',
+        confirmText: 'Concluir mesmo assim',
+      })
+      if (!confirmed) return
+    }
+
+    setConfirmingId(apptId)
+    try {
+      const { data: updated, error } = await supabase
+        .from('appointments')
+        .update({ status: 'concluido' })
+        .eq('id', apptId)
+        .eq('clinic_id', clinic.id)
+        .select('id')
+      if (error || !updated?.length) throw error ?? new Error('no_rows')
+      const concludedAppt = { ...appt, status: 'concluido' as const }
+      const creditUsage = await promptCreditUsage(clinic.id, concludedAppt.patient_id)
+      const result = await ensureRevenueForAppointment(clinic.id, concludedAppt, creditUsage)
+      notifyRevenuePending(result, concludedAppt)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['dashboard', clinic.id] }),
+        queryClient.invalidateQueries({ queryKey: ['agenda', clinic.id] }),
+        ...(creditUsage.useCredit ? [queryClient.invalidateQueries({ queryKey: ['patient-credits', clinic.id] })] : []),
+      ])
+    } catch {
+      showToast('error', 'Não foi possível concluir o agendamento. Tente novamente.', {
+        href: '/agenda', actionLabel: 'Ir para Agenda',
+      })
+    } finally {
+      setConfirmingId(null)
+    }
   }
 
   return (
@@ -309,6 +401,107 @@ function DashboardContent() {
               )}
             </div>
           )}
+
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>Agenda de hoje</h2>
+            </div>
+
+            {todayAppts.length === 0 ? (
+              <p className={styles.todayApptEmpty}>Nenhum agendamento para hoje.</p>
+            ) : (
+              <div className={styles.todayApptBody}>
+                <div className={styles.todayApptGroup}>
+                  <h3 className={styles.todayApptGroupTitle}>Precisam confirmar</h3>
+                  {needsConfirm.length === 0 ? (
+                    <p className={styles.todayApptAllDone}>Tudo confirmado</p>
+                  ) : (
+                    <div className={styles.todayApptCards}>
+                      {needsConfirm.map((a) => (
+                        <div key={a.id} className={styles.apptCard}>
+                          <div className={styles.apptCardTop}>
+                            <strong className={styles.apptCardName}>{a.patients?.name ?? '-'}</strong>
+                            <div className={styles.apptCardActions}>
+                              <span className={`status-badge status-${a.status}`}>{STATUS_LABELS[a.status]}</span>
+                              {canEditAgenda && (
+                                <button
+                                  className={styles.confirmBtn}
+                                  disabled={confirmingId === a.id}
+                                  onClick={() => handleConfirm(a.id)}
+                                >
+                                  {confirmingId === a.id ? 'Confirmando...' : 'Confirmar'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <span className={styles.apptCardProc}>{a.procedure_name ?? '-'}</span>
+                          <span className={styles.apptCardDate}>{fmtTime(a.scheduled_at)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {restOfDay.length > 0 && (
+                  <div className={styles.todayApptGroup}>
+                    <h3 className={styles.todayApptGroupTitle}>Restante do dia</h3>
+                    <div className={styles.todayApptCards}>
+                      {restOfDay.map((a) => (
+                        <div key={a.id} className={styles.apptCard}>
+                          <div className={styles.apptCardTop}>
+                            <strong className={styles.apptCardName}>{a.patients?.name ?? '-'}</strong>
+                            <div className={styles.apptCardActions}>
+                              <span className={`status-badge status-${a.status}`}>{STATUS_LABELS[a.status]}</span>
+                              {a.status === 'confirmado' && canEditAgenda && (
+                                <button
+                                  className={styles.confirmBtn}
+                                  disabled={confirmingId === a.id}
+                                  onClick={() => handleConclude(a.id)}
+                                >
+                                  {confirmingId === a.id ? 'Concluindo...' : 'Concluir'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <span className={styles.apptCardProc}>{a.procedure_name ?? '-'}</span>
+                          <span className={styles.apptCardDate}>{fmtTime(a.scheduled_at)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>Caixa de hoje</h2>
+            </div>
+            <div className={styles.cashStrip}>
+              <div className={styles.opsCell}>
+                <span className={styles.cellVal}><Money value={todayCash.recebido} hide={hideValues} /></span>
+                <span className={styles.cellLabel}>Recebido</span>
+              </div>
+              <div className={styles.opsCell}>
+                <span className={styles.cellVal}><Money value={todayCash.aReceber} hide={hideValues} /></span>
+                <span className={styles.cellLabel}>A receber</span>
+                {todayCash.aReceberRecords.length > 0 && (
+                  <div className={styles.cashPendingList}>
+                    {todayCash.aReceberRecords.map((r) => (
+                      <Link key={r.id} href={`/financeiro?record=${r.id}`} className={styles.cashPendingChip}>
+                        <Money value={r.total_amount} hide={hideValues} />
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className={styles.opsCell}>
+                <span className={styles.cellVal}><Money value={todayCash.previsto} hide={hideValues} /></span>
+                <span className={styles.cellLabel}>Previsto</span>
+              </div>
+            </div>
+          </div>
 
           <div className={styles.bento}>
             <article className={styles.heroCard}>
@@ -428,55 +621,6 @@ function DashboardContent() {
               </span>
               <span className={styles.cellLabel}>Concluídos / em aberto</span>
             </div>
-          </div>
-
-          <div className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>Próximos agendamentos</h2>
-            </div>
-
-            <div className={styles.apptTableWrap} data-hscroll>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Paciente</th>
-                    <th>Procedimento</th>
-                    <th>Data</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentAppts.length === 0 ? (
-                    <tr><td colSpan={4} className={styles.empty}>Nenhum agendamento encontrado.</td></tr>
-                  ) : recentAppts.map((a) => (
-                    <tr key={a.id}>
-                      <td>{a.patients?.name ?? '-'}</td>
-                      <td>{a.procedure_name ?? '-'}</td>
-                      <td>{formatDate(a.scheduled_at)}</td>
-                      <td><span className={`status-badge status-${a.status}`}>{a.status}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Cards no mobile — mesma linguagem visual dos cards da Agenda */}
-            {recentAppts.length === 0 ? (
-              <p className={styles.apptCardsEmpty}>Nenhum agendamento encontrado.</p>
-            ) : (
-              <div className={styles.apptCards}>
-                {recentAppts.map((a) => (
-                  <div key={a.id} className={styles.apptCard}>
-                    <div className={styles.apptCardTop}>
-                      <strong className={styles.apptCardName}>{a.patients?.name ?? '-'}</strong>
-                      <span className={`status-badge status-${a.status}`}>{a.status}</span>
-                    </div>
-                    <span className={styles.apptCardProc}>{a.procedure_name ?? '-'}</span>
-                    <span className={styles.apptCardDate}>{formatDate(a.scheduled_at)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className={styles.chartsGrid}>

@@ -8,6 +8,7 @@ import { formatCurrency, formatMonthLabel } from '@/lib/utils'
 import type { CommissionRecipient, CommissionRule } from '@/types'
 import styles from './comissoes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { PageTitle } from '@/components/layout/PageTitle'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
@@ -233,10 +234,7 @@ function ComissoesContent() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Comissões</h1>
-          <p className={styles.sub}>{recipients.length} beneficiários · calculado automaticamente a cada procedimento concluído</p>
-        </div>
+        <PageTitle title="Comissões" subtitle={`${recipients.length} beneficiários · calculado automaticamente a cada procedimento concluído`} />
         <button className={styles.btnPrimary} onClick={openNew}>+ Novo Beneficiário</button>
       </div>
 

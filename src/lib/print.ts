@@ -167,7 +167,7 @@ export function printContrato(clinic: ClinicInfo, patient: Patient, contractText
   openPrint(html)
 }
 
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   dinheiro: 'Dinheiro',
   pix: 'PIX',
   cartao_credito: 'Cartão de Crédito',

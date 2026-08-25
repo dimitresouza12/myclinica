@@ -9,6 +9,7 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { useProfessionals, useProcedures, useRelatoriosRawData, useCommissionsData } from '@/hooks/useClinicData'
 import styles from './relatorios.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { PageTitle } from '@/components/layout/PageTitle'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 
 const { FinanceiroBarChart, PacientesBarChart } = {
@@ -103,7 +104,19 @@ function RelatoriosContent() {
 
     const total = appts.length
     const canceled = appts.filter((a: { status: string }) => a.status === 'cancelado' || a.status === 'faltou').length
-    const returnPatients = new Set(appts.filter((a: { status: string }) => a.status === 'concluido').map((a: { patients?: unknown }) => a.patients)).size
+    // "Taxa de retorno" = % de pacientes com 2+ consultas concluídas. Antes
+    // agrupava por `a.patients` (o objeto do join) — um Set de referências de
+    // objeto distintas sempre tem o mesmo tamanho da lista filtrada, então
+    // sempre contava como se cada consulta fosse de um paciente diferente
+    // (podendo passar de 100%, já que concluídas podem superar o total de
+    // pacientes ativos). Contar por patient_id dá o número real de consultas
+    // por pessoa.
+    const concludedPerPatient: Record<string, number> = {}
+    for (const a of appts as { status: string; patient_id?: string }[]) {
+      if (a.status !== 'concluido' || !a.patient_id) continue
+      concludedPerPatient[a.patient_id] = (concludedPerPatient[a.patient_id] ?? 0) + 1
+    }
+    const returnPatients = Object.values(concludedPerPatient).filter(count => count >= 2).length
     const clinicStats = {
       totalAppts: total,
       cancelRate: total > 0 ? Math.round((canceled / total) * 100) : 0,
@@ -326,10 +339,7 @@ function RelatoriosContent() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Relatórios</h1>
-          <p className={styles.sub}>Análise completa de desempenho da clínica</p>
-        </div>
+        <PageTitle title="Relatórios" subtitle="Análise completa de desempenho da clínica" />
         <div className={styles.headerActions}>
           <SelectMenu
             value={period}

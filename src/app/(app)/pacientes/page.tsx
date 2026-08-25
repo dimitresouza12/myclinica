@@ -1,12 +1,12 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
-import { formatDate, formatPhone } from '@/lib/utils'
+import { formatDate, formatPhone, formatCurrency } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsApp } from '@/lib/planGates'
-import { usePacientesData } from '@/hooks/useClinicData'
+import { usePacientesData, usePatientCreditsData } from '@/hooks/useClinicData'
 import type { Patient } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
@@ -14,6 +14,7 @@ import { GlobalSearch } from '@/components/layout/GlobalSearch'
 import { PetIcon } from '@/components/ui/PetIcon'
 import { Icon } from '@/components/ui/Icon'
 import { useScrollLock } from '@/hooks/useScrollLock'
+import { PageTitle } from '@/components/layout/PageTitle'
 import styles from './pacientes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 
@@ -23,6 +24,18 @@ function PacientesContent() {
   const queryClient = useQueryClient()
   const { data: pacientesData, isLoading: loading } = usePacientesData(clinic?.id)
   const patients = pacientesData?.patients ?? []
+  const { data: creditsData } = usePatientCreditsData(clinic?.id)
+  // Saldo de pacote por paciente — soma do ledger, só entra no mapa quando ≠ 0
+  // (a maioria dos pacientes não usa pacote, então não faz sentido guardar
+  // zero pra todo mundo).
+  const creditBalances = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const c of creditsData?.credits ?? []) {
+      map.set(c.patient_id, (map.get(c.patient_id) ?? 0) + Number(c.amount))
+    }
+    for (const [id, balance] of map) if (balance === 0) map.delete(id)
+    return map
+  }, [creditsData])
 
   const [prontuarioPatient, setProntuarioPatient] = useState<Patient | null>(null)
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
@@ -59,10 +72,7 @@ function PacientesContent() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Pacientes</h1>
-          <p className={styles.sub}>{filteredPatients.length} pacientes</p>
-        </div>
+        <PageTitle title="Pacientes" subtitle={`${filteredPatients.length} pacientes`} />
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <GlobalSearch />
           <button className={styles.btnPrimary} onClick={() => setShowNewPatient(true)}>
@@ -96,9 +106,15 @@ function PacientesContent() {
                         <div>
                           <div>{p.name}</div>
                           {p.pet_name && <div className={styles.petName}>{p.pet_name}</div>}
+                          {creditBalances.has(p.id) && <div className={styles.creditBadge}>Saldo: {formatCurrency(creditBalances.get(p.id))}</div>}
                         </div>
                       </div>
-                    ) : p.name}
+                    ) : (
+                      <div>
+                        <div>{p.name}</div>
+                        {creditBalances.has(p.id) && <div className={styles.creditBadge}>Saldo: {formatCurrency(creditBalances.get(p.id))}</div>}
+                      </div>
+                    )}
                   </td>
                   <td data-label="Telefone">{formatPhone(p.phone)}</td>
                   <td data-label="Cadastro">{formatDate(p.created_at, true)}</td>

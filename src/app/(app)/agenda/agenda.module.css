@@ -60,22 +60,6 @@
 }
 .navBtn:hover { background: var(--bg-secondary); color: var(--text-primary); }
 
-.todayBtn {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 10px;
-  border: 1px solid var(--border-color);
-  background: none;
-  cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  font-family: inherit;
-  transition: background 0.14s, color 0.14s;
-  white-space: nowrap;
-}
-.todayBtn:hover { background: var(--bg-secondary); color: var(--text-primary); }
-
 .tbDate {
   display: flex;
   align-items: baseline;
@@ -274,6 +258,7 @@
   position: absolute;
   inset: 0;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 10px;
 }
 /* ─── Filtro de profissionais (chips de avatar na TopBar) ────── */
@@ -376,22 +361,23 @@
   margin: 4px 5px 0;
 }
 
+/* Sem borda/sombra flutuante nem cantos arredondados — só o traço de cor à
+   esquerda (identifica o profissional/bloqueio) e uma divisória fina embaixo
+   pra separar da próxima. Mesmo espírito da faixa do Financeiro/Relatórios:
+   lista densa em vez de cards soltos, ganha espaço sobretudo no mobile. */
 .lrCard {
   position: relative;
   min-width: 0;
   background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
   border-left: 3px solid var(--lr-accent, var(--brand-primary));
-  border-radius: 11px;
+  border-bottom: 1px solid var(--border-subtle);
   padding: 10px 34px 10px 12px;
-  margin-bottom: 12px;
-  box-shadow: var(--shadow-sm);
+  margin-bottom: 0;
   cursor: pointer;
-  transition: border-color 0.14s, box-shadow 0.14s, transform 0.14s;
+  transition: background 0.14s;
 }
 .lrCard:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  background: var(--bg-tertiary);
 }
 .lrCard:focus-visible {
   outline: 2px solid var(--brand-primary);
@@ -1088,6 +1074,15 @@
   .search { display: none; }
 }
 @media (max-width: 600px) {
+  /* No mobile a página inteira (topbar + grade) vinha dentro de um cartão
+     com borda/sombra/cantos arredondados — nenhuma outra página do app tem
+     essa moldura, e nesse tamanho de tela ela só pesa visualmente sem
+     ganho. Desktop mantém o cartão. */
+  .page {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
   .topbar {
     padding: 0 14px;
     height: auto;
@@ -1155,6 +1150,8 @@
     border-radius: 10px;
   }
   .segBtn { flex: 1; min-width: 0; text-align: center; padding: 6px 12px; font-size: 12.5px; }
+  /* 7 colunas de dia não cabem legíveis em ~390px — Semana só em tablet/desktop */
+  .segBtnWeek { display: none; }
   .tbRight { gap: 6px; }
   .btnPrimary { display: none; }
 
@@ -1200,7 +1197,6 @@
 
   /* Touch targets mínimos 44px no mobile */
   .navBtn   { width: 44px; height: 44px; }
-  .todayBtn { height: 44px; padding: 0 16px; }
   .filterInput { height: 44px; }
   .btnClear { height: 44px; }
   .btnClose { width: 44px; height: 44px; font-size: 16px; }

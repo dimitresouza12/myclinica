@@ -23,6 +23,7 @@ export type AuditAction =
   | 'financial.create'
   | 'financial.update'
   | 'financial.delete'
+  | 'financial.grant_credit'
   | 'admin.role_change'
   | 'admin.clinic_create'
   | 'admin.clinic_suspend'

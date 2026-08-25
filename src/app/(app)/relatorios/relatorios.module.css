@@ -70,24 +70,28 @@
 .tabActive { color:var(--text-primary); font-weight:700; border-bottom-color:#4DD9C0; }
 
 /* KPI strip */
-.kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:1rem; }
+/* Mesmo tratamento do Financeiro: faixa única com divisórias finas em vez de
+   cards soltos com sombra flutuante — ver financeiro.module.css .cards. O
+   accent da borda esquerda reaproveita a cor que a métrica já tinha (via
+   :has), sem precisar tocar no JSX de cada aba. */
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1px; background:var(--border-subtle); border:1px solid var(--border-subtle); border-radius:14px; overflow:hidden; }
 .kpi {
   background:var(--bg-primary);
-  border:1px solid var(--border-subtle);
-  border-radius:16px;
-  padding:1.25rem 1.5rem;
-  display:flex; flex-direction:column; gap:.4rem;
-  transition:box-shadow .2s, transform .2s;
-  box-shadow:var(--shadow-sm);
+  border-left:3px solid transparent;
+  padding:1rem 1.15rem;
+  display:flex; flex-direction:column; gap:.3rem;
   min-width: 0;
-  overflow: hidden;
+  transition:background .15s;
 }
-.kpi:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
-.kpiLabel { font-size:.78rem; font-weight:600; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kpi:hover { background:var(--bg-tertiary); }
+.kpi:has(.kpiGreen) { border-left-color:#0B9B85; }
+.kpi:has(.kpiRed)   { border-left-color:#EF4444; }
+.kpi:has(.kpiBlue)  { border-left-color:#0B9B85; }
+.kpiLabel { font-size:.68rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .kpiValue {
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   font-weight:800; color:var(--text-primary);
-  letter-spacing:-.4px; line-height:1.2;
+  letter-spacing:-.5px; line-height:1.15;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -193,8 +197,8 @@
     font-size: .8rem;
     padding: .4rem .75rem;
   }
-  .kpis { grid-template-columns: repeat(2, 1fr); gap: .75rem; }
-  .kpiValue { font-size: 1.1rem; }
+  .kpis { grid-template-columns: 1fr; }
+  .kpiValue { font-size: 1.3rem; }
   .card { padding: 1.1rem; }
   .donutWrap { flex-direction: column; align-items: flex-start; gap: 1rem; }
   .table th, .table td { padding: .5rem .75rem; font-size: .8rem; }

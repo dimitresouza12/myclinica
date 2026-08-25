@@ -11,6 +11,7 @@ import styles from './crm.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { hasWhatsApp } from '@/lib/planGates'
 import { Icon } from '@/components/ui/Icon'
+import { PageTitle } from '@/components/layout/PageTitle'
 
 interface PatientRow { id: string; phone: string }
 
@@ -110,7 +111,7 @@ function CRMContent() {
     return (
       <div className={styles.page}>
         <div className={styles.header}>
-          <h1 className={styles.title}>CRM</h1>
+          <PageTitle title="CRM" />
         </div>
         <p className={styles.loading}>Redirecionando…</p>
       </div>
@@ -255,10 +256,7 @@ function CRMContent() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>CRM — Leads WhatsApp</h1>
-          <p className={styles.sub}>Contatos captados pelo bot de IA</p>
-        </div>
+        <PageTitle title="CRM — Leads WhatsApp" subtitle="Contatos captados pelo bot de IA" />
         <button className={styles.btnRefresh} onClick={loadLeads}><Icon name="refresh" size={14} /> Atualizar</button>
       </div>
 

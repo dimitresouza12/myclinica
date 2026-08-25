@@ -21,6 +21,7 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
+import { ensureRevenueForAppointment, notifyRevenuePending, removeRevenueForAppointment, promptCreditUsage } from '@/lib/appointmentRevenue'
 
 const FullCalendarWrapper = dynamic(
   () => import('@/components/agenda/FullCalendarWrapper'),
@@ -386,6 +387,17 @@ function AgendaContent() {
     return () => mq.removeEventListener('change', handler)
   }, [])
 
+  // Abaixo de 600px, 7 colunas de dia não cabem legíveis — a visão Semana
+  // fica escondida (ver .segBtnWeek) e cai automaticamente pra Dia.
+  const [isNarrow, setIsNarrow] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width:600px)')
+    setIsNarrow(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsNarrow(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   useScrollLock(showModal || !!selectedGcal || (isMobile && !!selected))
 
   // Sync hook cache → local state (enables optimistic mutations while keeping cache benefit)
@@ -539,7 +551,6 @@ function AgendaContent() {
   // Date nav
   function prevDay() { setCurrentDate(d => { const nd = new Date(d); nd.setDate(nd.getDate() - 1); return nd }) }
   function nextDay() { setCurrentDate(d => { const nd = new Date(d); nd.setDate(nd.getDate() + 1); return nd }) }
-  function goToday() { setCurrentDate(new Date()) }
 
   const isCalendarView = viewMode === 'mes' || viewMode === 'semana'
 
@@ -563,10 +574,17 @@ function AgendaContent() {
     else if (viewMode === 'semana') calRef.current?.changeView('timeGridWeek')
   }, [viewMode])
 
+  // O botão "Semana" some abaixo de 600px (.segBtnWeek) — se a tela encolher
+  // (ou girar) enquanto o usuário está nela, cai pra Dia em vez de deixar a
+  // view presa sem um jeito de sair dela.
+  useEffect(() => {
+    if (isNarrow && viewMode === 'semana') switchView('dia')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNarrow])
+
   // Navegação unificada da TopBar — dirige o FullCalendar (Mês/Semana) ou currentDate (Dia/Lista)
   function handlePrev() { isCalendarView ? calRef.current?.prev() : prevDay() }
   function handleNext() { isCalendarView ? calRef.current?.next() : nextDay() }
-  function handleToday() { isCalendarView ? calRef.current?.today() : goToday() }
 
   // Faixa de 7 dias (3 antes / 3 depois do dia atual) para o date-picker deslizante do mobile
   const dateStripDays = useMemo(() => {
@@ -684,10 +702,13 @@ function AgendaContent() {
         }
         if (form.status === 'concluido') {
           const concludedAppt = { ...(existingAppt ?? {} as Appointment), ...payload, status: form.status as Appointment['status'], id: editingId }
-          const result = await ensureRevenueForAppointment(concludedAppt)
+          const creditUsage = await promptCreditUsage(clinic!.id, concludedAppt.patient_id)
+          const result = await ensureRevenueForAppointment(clinic!.id, concludedAppt, creditUsage)
           notifyRevenuePending(result, concludedAppt)
+          if (creditUsage.useCredit) queryClient.invalidateQueries({ queryKey: ['patient-credits', clinic?.id] })
         } else if (existingAppt?.status === 'concluido' && form.status !== 'concluido') {
           await removeRevenueForAppointment(editingId)
+          queryClient.invalidateQueries({ queryKey: ['patient-credits', clinic?.id] })
         }
       } else {
         const { data: inserted, error: insertErr } = await supabase
@@ -752,10 +773,13 @@ function AgendaContent() {
     await supabase.from('appointments').update({ status }).eq('id', id).eq('clinic_id', clinic!.id)
     if (status === 'concluido' && appt) {
       const concludedAppt = { ...appt, status: 'concluido' as const }
-      const result = await ensureRevenueForAppointment(concludedAppt)
+      const creditUsage = await promptCreditUsage(clinic!.id, concludedAppt.patient_id)
+      const result = await ensureRevenueForAppointment(clinic!.id, concludedAppt, creditUsage)
       notifyRevenuePending(result, concludedAppt)
+      if (creditUsage.useCredit) queryClient.invalidateQueries({ queryKey: ['patient-credits', clinic?.id] })
     } else if (appt?.status === 'concluido' && status !== 'concluido') {
       await removeRevenueForAppointment(id)
+      queryClient.invalidateQueries({ queryKey: ['patient-credits', clinic?.id] })
     }
     if (appt?.gcal_event_id && gcalConnected) {
       const token = getGCalToken()
@@ -772,79 +796,6 @@ function AgendaContent() {
     }
     loadData()
     setSelected(null)
-  }
-
-  // Retorna se uma receita nova foi lançada (+ o id dela) — usado pra decidir
-  // o texto do toast de aviso e o link direto pro Financeiro, já que em
-  // nenhum caso o método de pagamento é definido aqui (a conclusão do
-  // agendamento não pergunta isso), então o usuário sempre precisa passar no
-  // Financeiro pra completar o lançamento.
-  async function ensureRevenueForAppointment(appt: Appointment): Promise<{ status: 'created' | 'existing' | 'no_price' | 'error'; recordId?: string; errorMessage?: string }> {
-    // procedure_id pode ser null aqui: procedimento "Outro (digitar)" não tem
-    // cadastro na tabela procedures, mas ainda assim tem um valor cobrado que
-    // precisa aparecer no Financeiro (antes disso, "Outro" nunca gerava receita).
-    if (!clinic || !appt.procedure_price || appt.procedure_price <= 0) return { status: 'no_price' }
-    const { data: existing, error: selErr } = await supabase
-      .from('financial_records')
-      .select('id')
-      .eq('appointment_id', appt.id)
-      .maybeSingle()
-    // Erro na leitura (ex: usuário sem financeiro.can_view após a RLS por
-    // módulo) não pode virar "existing" nem "created" por omissão — precisa
-    // avisar em vez de mentir que a receita foi lançada.
-    if (selErr) return { status: 'error', errorMessage: selErr.message }
-    if (existing) return { status: 'existing', recordId: existing.id }
-    const { data: inserted, error: insErr } = await supabase.from('financial_records').insert([{
-      clinic_id: clinic.id,
-      patient_id: appt.patient_id ?? null,
-      appointment_id: appt.id,
-      procedure_id: appt.procedure_id ?? null,
-      // Copia o profissional do agendamento pra receita — é o que permite o
-      // financeiro individual (Bloco C do plano de acesso por profissional).
-      professional_id: appt.professional_id ?? null,
-      total_amount: appt.procedure_price,
-      category: 'Procedimento',
-      type: 'receita',
-      payment_method: null,
-      notes: appt.procedure_name,
-    }]).select('id').single()
-    if (insErr || !inserted) return { status: 'error', errorMessage: insErr?.message ?? 'Falha ao criar a receita.' }
-    return { status: 'created', recordId: inserted.id }
-  }
-
-  function notifyRevenuePending(result: { status: 'created' | 'existing' | 'no_price' | 'error'; recordId?: string; errorMessage?: string }, appt: Appointment) {
-    if (result.status === 'created') {
-      showToast('ok', 'Agendamento concluído! Receita lançada — defina a forma de pagamento em Financeiro.', {
-        href: result.recordId ? `/financeiro?record=${result.recordId}` : '/financeiro',
-        actionLabel: 'Definir pagamento',
-      })
-    } else if (result.status === 'no_price') {
-      const params = new URLSearchParams({ new: 'receita' })
-      if (appt.patient_id) params.set('patient', appt.patient_id)
-      if (appt.procedure_name) params.set('notes', appt.procedure_name)
-      showToast('ok', 'Agendamento concluído! Lembre-se de lançar a receita manualmente em Financeiro.', {
-        href: `/financeiro?${params.toString()}`,
-        actionLabel: 'Lançar receita',
-      })
-    } else if (result.status === 'error') {
-      showToast('error', 'Agendamento concluído, mas a receita não pôde ser lançada automaticamente. Lance manualmente em Financeiro.', {
-        href: '/financeiro',
-        actionLabel: 'Ir para Financeiro',
-      })
-    }
-  }
-
-  async function removeRevenueForAppointment(apptId: string) {
-    const { error } = await supabase.from('financial_records').delete().eq('appointment_id', apptId)
-    // Sem checar isso, quem não tem financeiro.can_edit via RLS teria a
-    // exclusão silenciosamente ignorada (0 linhas afetadas) e a receita
-    // ficaria órfã no Financeiro sem ninguém saber.
-    if (error) {
-      showToast('error', 'Não foi possível remover a receita vinculada a este agendamento. Confira em Financeiro.', {
-        href: '/financeiro',
-        actionLabel: 'Ir para Financeiro',
-      })
-    }
   }
 
   function closeModal() {
@@ -1002,7 +953,6 @@ function AgendaContent() {
           <div className={styles.tbLeft}>
             <button className={styles.navBtn} onClick={handlePrev} title="Anterior"><ChevronLeft /></button>
             <button className={styles.navBtn} onClick={handleNext} title="Próximo"><ChevronRight /></button>
-            <button className={styles.todayBtn} onClick={handleToday}>Hoje</button>
             <div className={styles.tbDate}>
               {isCalendarView ? (
                 <h1>{calendarTitle}</h1>
@@ -1024,7 +974,7 @@ function AgendaContent() {
               onClick={() => switchView('mes')}
             >Mês</button>
             <button
-              className={`${styles.segBtn} ${viewMode === 'semana' ? styles.segBtnActive : ''}`}
+              className={`${styles.segBtn} ${styles.segBtnWeek} ${viewMode === 'semana' ? styles.segBtnActive : ''}`}
               onClick={() => switchView('semana')}
             >Semana</button>
             <button

@@ -7,6 +7,7 @@ import { formatDate } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import styles from './campanhas.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { PageTitle } from '@/components/layout/PageTitle'
 
 interface Patient { id: string; name: string; phone: string | null; created_at: string }
 
@@ -202,10 +203,7 @@ function CampanhasContent() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Campanhas</h1>
-          <p className={styles.sub}>Envie mensagens segmentadas pelo WhatsApp para seus pacientes</p>
-        </div>
+        <PageTitle title="Campanhas" subtitle="Envie mensagens segmentadas pelo WhatsApp para seus pacientes" />
         {!creating && (
           <button className={styles.btnNew} onClick={() => { setCreating(true); setError(''); setSuccess('') }}>
             + Nova campanha

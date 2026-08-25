@@ -6,8 +6,9 @@ import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
-import { formatDate, formatCurrency, formatCurrencyCompact, formatMonthLabel } from '@/lib/utils'
-import { printRecibo } from '@/lib/print'
+import { formatDate, formatCurrency, formatMonthLabel } from '@/lib/utils'
+import { printRecibo, PAYMENT_METHOD_LABELS } from '@/lib/print'
+import { PageTitle } from '@/components/layout/PageTitle'
 import { audit } from '@/lib/audit'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useFinanceiroData, useProcedures } from '@/hooks/useClinicData'
@@ -65,13 +66,16 @@ function FinanceiroContent() {
   const filteredConvenioSuggestions = COMMON_CONVENIOS.filter(c =>
     c.toLowerCase().includes(form.convenio.trim().toLowerCase())
   )
+  // Marca essa receita como venda de pacote — gera saldo pro paciente
+  // consumir depois na Agenda, em vez de cobrar cada sessão de novo.
+  const [grantCredit, setGrantCredit] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<'todos' | 'receita' | 'despesa'>('todos')
   const [filterPatient, setFilterPatient] = useState('')
   const [patientSearch, setPatientSearch] = useState('')
   const [showPatientSuggestions, setShowPatientSuggestions] = useState(false)
-  const [filterPeriod, setFilterPeriod] = useState<'diario' | 'semanal' | 'mensal' | 'geral'>('mensal')
+  const [filterPeriod, setFilterPeriod] = useState<'diario' | 'semanal' | 'mensal' | 'geral'>('diario')
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [showExportModal, setShowExportModal] = useState(false)
   const [exportPreset, setExportPreset] = useState<'this_month'|'last_month'|'3m'|'6m'|'all'|'custom'>('this_month')
@@ -107,16 +111,7 @@ function FinanceiroContent() {
     const receitas = periodRecords.filter(r => r.type === 'receita').reduce((s, r) => s + (r.total_amount ?? 0), 0)
     const despesas = periodRecords.filter(r => r.type === 'despesa').reduce((s, r) => s + (r.total_amount ?? 0), 0)
     const saldo = receitas - despesas
-    const total = receitas + despesas
-    return {
-      receitas,
-      despesas,
-      saldo,
-      count: periodRecords.length,
-      receitasPct: total > 0 ? Math.round(receitas / total * 100) : 0,
-      despesasPct: total > 0 ? Math.round(despesas / total * 100) : 0,
-      saldoPct:   receitas > 0 ? Math.min(Math.round(Math.abs(saldo) / receitas * 100), 100) : 0,
-    }
+    return { receitas, despesas, saldo, count: periodRecords.length }
   }, [periodRecords])
 
   // Build monthly data for last 6 months
@@ -237,6 +232,7 @@ function FinanceiroContent() {
     setModalType(type)
     setEditingId(null)
     setForm({ ...BLANK, type, category: type === 'receita' ? 'Consulta' : 'Material' })
+    setGrantCredit(false)
     setShowModal(true)
   }
 
@@ -253,12 +249,14 @@ function FinanceiroContent() {
       category: record.category ?? '',
       notes: record.notes ?? '',
     })
+    setGrantCredit(false)
     setShowModal(true)
   }
 
   function closeModal() {
     setShowModal(false)
     setEditingId(null)
+    setGrantCredit(false)
     setForm(BLANK)
   }
 
@@ -288,6 +286,21 @@ function FinanceiroContent() {
     } else {
       const { data: inserted } = await supabase.from('financial_records').insert([payload]).select('id').single()
       if (user) audit({ action: 'financial.create', user_id: user.id, clinic_id: clinic.id, module: 'financeiro', resource_id: inserted?.id, details: { type: form.type, amount: payload.total_amount } })
+      // Venda de pacote: gera o saldo do paciente pra ele consumir depois na
+      // Agenda em vez de cobrar cada sessão de novo.
+      if (grantCredit && inserted && form.patient_id) {
+        await supabase.from('patient_credits').insert([{
+          clinic_id: clinic.id,
+          patient_id: form.patient_id,
+          amount: payload.total_amount,
+          type: 'credito',
+          financial_record_id: inserted.id,
+          notes: form.notes || null,
+          created_by: user?.id ?? null,
+        }])
+        if (user) audit({ action: 'financial.grant_credit', user_id: user.id, clinic_id: clinic.id, module: 'financeiro', resource_id: inserted.id, details: { patient_id: form.patient_id, amount: payload.total_amount } })
+        queryClient.invalidateQueries({ queryKey: ['patient-credits', clinic.id] })
+      }
     }
     setSaving(false)
     closeModal()
@@ -374,7 +387,7 @@ function FinanceiroContent() {
         r.patients?.name ?? '',
         r.category ?? '',
         r.notes ?? '',
-        r.payment_method ?? '',
+        r.payment_method ? (PAYMENT_METHOD_LABELS[r.payment_method] ?? r.payment_method) : '',
         r.convenio ?? '',
         r.total_amount ?? 0,
       ]),
@@ -388,21 +401,18 @@ function FinanceiroContent() {
     setShowExportModal(false)
   }
 
+  const periodLabelText = filterPeriod === 'diario' ? 'hoje' :
+    filterPeriod === 'semanal' ? 'esta semana' :
+    filterPeriod === 'mensal' ? formatMonthLabel(filterMonth) :
+    'todos os períodos'
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Financeiro</h1>
-          <p className={styles.sub}>{filtered.length} lançamentos — {
-            filterPeriod === 'diario' ? 'hoje' :
-            filterPeriod === 'semanal' ? 'esta semana' :
-            filterPeriod === 'mensal' ? formatMonthLabel(filterMonth) :
-            'todos os períodos'
-          }</p>
-        </div>
+        <PageTitle title="Financeiro" subtitle={`${filtered.length} lançamentos — ${periodLabelText}`} />
         <div className={styles.headerActions}>
-          <button className={styles.btnExport} onClick={() => setShowExportModal(true)} disabled={records.length === 0} title="Exportar planilha Excel">
-            <Icon name="download" size={14} /> Exportar
+          <button className={styles.btnExport} onClick={() => setShowExportModal(true)} disabled={records.length === 0} title="Exportar planilha Excel" aria-label="Exportar planilha Excel">
+            <Icon name="download" size={16} />
           </button>
           {canEdit && <button className={styles.btnDespesa} onClick={() => openModal('despesa')}>− Despesa</button>}
           {canEdit && <button className={styles.btnReceita} onClick={() => openModal('receita')}>+ Receita</button>}
@@ -430,59 +440,38 @@ function FinanceiroContent() {
           {([
             {
               value: formatCurrency(stats.receitas),
-              valueMobile: formatCurrencyCompact(stats.receitas),
               label: `Receitas ${periodLabel}`,
-              pct: stats.receitasPct,
-              bar: 'linear-gradient(to right, #4DD9C0, #0B9B85)',
+              accent: '#0B9B85',
             },
             {
               value: formatCurrency(stats.despesas),
-              valueMobile: formatCurrencyCompact(stats.despesas),
               label: `Despesas ${periodLabel}`,
-              pct: stats.despesasPct,
-              bar: 'linear-gradient(to right, #FCA5A5, #EF4444)',
+              accent: '#EF4444',
             },
             {
               value: formatCurrency(stats.saldo),
-              valueMobile: formatCurrencyCompact(stats.saldo),
               label: `Saldo ${periodLabel}`,
-              pct: stats.saldoPct,
-              bar: stats.saldo >= 0
-                ? 'linear-gradient(to right, #4DD9C0, #0B9B85)'
-                : 'linear-gradient(to right, #FCD34D, #F59E0B)',
+              accent: stats.saldo >= 0 ? '#0B9B85' : '#F59E0B',
               valueColor: stats.saldo >= 0 ? '#059669' : '#DC2626',
             },
             {
               value: String(stats.count),
-              valueMobile: undefined,
               label: 'Lançamentos',
-              pct: Math.min(stats.count * 5, 100),
-              bar: 'linear-gradient(to right, #60A5FA, #2563EB)',
+              accent: '#2563EB',
             },
           ] as const).map((m, i) => (
             <motion.div
               key={i}
               className={styles.card}
-              initial={{ opacity: 0, y: 16 }}
+              style={{ '--card-accent': m.accent } as React.CSSProperties}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ type: 'spring', stiffness: 90, damping: 18, delay: i * 0.08 }}
-              whileHover={{ y: -4, transition: { type: 'spring', stiffness: 300, damping: 22 } }}
+              transition={{ duration: 0.3, delay: i * 0.05 }}
             >
-              <div className={styles.cardBody}>
-                <span className={styles.cardValue} style={'valueColor' in m ? { color: m.valueColor } : undefined}>
-                  <span className={styles.valueDesktop}>{m.value}</span>
-                  <span className={styles.valueMobile}>{m.valueMobile ?? m.value}</span>
-                </span>
-                <span className={styles.cardLabel}>{m.label}</span>
-                <div style={{ marginTop: 8, height: 3, background: 'var(--border-subtle)', borderRadius: 99, overflow: 'hidden' }}>
-                  <motion.div
-                    style={{ height: '100%', borderRadius: 99, background: m.bar }}
-                    initial={{ width: '0%' }}
-                    animate={{ width: `${m.pct}%` }}
-                    transition={{ delay: 0.4 + i * 0.1, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-                  />
-                </div>
-              </div>
+              <span className={styles.cardLabel}>{m.label}</span>
+              <span className={styles.cardValue} style={'valueColor' in m ? { color: m.valueColor } : undefined}>
+                {m.value}
+              </span>
             </motion.div>
           ))}
         </div>
@@ -582,7 +571,7 @@ function FinanceiroContent() {
                     <td data-label="Categoria">{r.category ?? '—'}</td>
                     <td data-label="Descrição">{r.notes ?? '—'}</td>
                     <td data-label="Método" className={styles.method}>
-                      {r.payment_method === 'convenio' && r.convenio ? `Convênio — ${r.convenio}` : (r.payment_method ?? '—')}
+                      {r.payment_method === 'convenio' && r.convenio ? `Convênio — ${r.convenio}` : (PAYMENT_METHOD_LABELS[r.payment_method ?? ''] ?? r.payment_method ?? '—')}
                     </td>
                     <td data-label="Valor" className={r.type === 'receita' ? styles.valuePos : styles.valueNeg}>
                       {r.type === 'despesa' ? '−' : '+'}{formatCurrency(r.total_amount ?? 0)}
@@ -794,6 +783,12 @@ function FinanceiroContent() {
                 <label>Descrição</label>
                 <input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Detalhe o lançamento..." />
               </div>
+              {!editingId && form.type === 'receita' && form.patient_id && (
+                <label className={styles.checkboxField}>
+                  <input type="checkbox" checked={grantCredit} onChange={e => setGrantCredit(e.target.checked)} />
+                  Gerar saldo de pacote para o paciente
+                </label>
+              )}
             </div>
             <div className={styles.modalFooter}>
               <button className={styles.btnCancel} onClick={closeModal}>Cancelar</button>

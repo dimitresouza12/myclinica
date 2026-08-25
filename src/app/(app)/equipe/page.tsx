@@ -11,6 +11,7 @@ import { professionalLimitFor } from '@/lib/planCatalog'
 import type { Professional, UserRole, ClinicType } from '@/types'
 import styles from './equipe.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { PageTitle } from '@/components/layout/PageTitle'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { CredentialsConfirmModal } from '@/components/ui/CredentialsConfirmModal'
@@ -262,15 +263,14 @@ function EquipeContent() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Equipe</h1>
-          <p className={styles.sub}>
+        <PageTitle title="Equipe" subtitle={
+          <>
             {professionalLimit === null
               ? `${professionals.length} ${professionals.length === 1 ? 'profissional' : 'profissionais'} (plano sem limite)`
               : `${professionals.length} de ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'} do plano`}
             {isAdmin && ` · ${activeUserCount} login${activeUserCount !== 1 ? 's' : ''} ativo${activeUserCount !== 1 ? 's' : ''} (sem limite)`}
-          </p>
-        </div>
+          </>
+        } />
         <button className={styles.btnPrimary} onClick={openNewModal}>+ Novo Profissional</button>
       </div>
 

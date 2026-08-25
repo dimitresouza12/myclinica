@@ -10,6 +10,7 @@ import { AdminLogs } from '@/components/admin/AdminLogs'
 import { AdminUsuarios } from '@/components/admin/AdminUsuarios'
 import styles from '@/components/admin/admin.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { PageTitle } from '@/components/layout/PageTitle'
 
 type AdminTab = 'overview' | 'clinicas' | 'alertas' | 'logs' | 'usuarios'
 
@@ -71,10 +72,7 @@ export default function AdminPage() {
   return (
     <div className={styles.adminPage}>
       <div className={styles.adminHeader}>
-        <div>
-          <h1 className={styles.adminTitle}>Painel de Comando</h1>
-          <p className={styles.adminSub}>Superadmin — MyClinica SaaS</p>
-        </div>
+        <PageTitle title="Painel de Comando" subtitle="Superadmin — MyClinica SaaS" />
       </div>
 
       <nav className={styles.tabNav}>

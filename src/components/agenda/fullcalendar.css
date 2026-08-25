@@ -86,7 +86,24 @@
 .fc-theme-standard td,
 .fc-theme-standard th { border-color: var(--border-subtle); }
 
+/* Visão Mês: só a linha horizontal entre semanas — sem as verticais entre
+   dias, que junto com as horizontais formavam uma malha bem carregada.
+   A coluna já fica implícita pelo espaçamento e pelo cabeçalho (dom/seg/…). */
+.fc-daygrid .fc-theme-standard td { border-left: none; border-right: none; }
+
 .fc .fc-scrollgrid-section-header th { background: var(--bg-secondary); }
+
+/* Sticky puro-CSS: .calendarWrap (externo) é quem rola de fato, não o
+   FullCalendar (height:auto). Ancorar aqui em vez de usar o
+   stickyHeaderDates do FullCalendar evita o vazamento de evento por trás
+   do header que tínhamos antes — aquele vazamento vinha da tentativa do
+   FullCalendar de sincronizar via JS um scroll que não é dele. Cobre Mês
+   e Semana igualmente, .fc-scrollgrid-section-header é comum às duas views. */
+.fc .fc-scrollgrid-section-header > th {
+  position: sticky;
+  top: -10px; /* compensa o padding:10px do .calendarWrap */
+  z-index: 5;
+}
 
 /* ── Column headers (dom, seg…) ── */
 .fc .fc-col-header-cell-cushion {

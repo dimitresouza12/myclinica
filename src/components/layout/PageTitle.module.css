@@ -1,0 +1,11 @@
+.titleGroup { min-width: 0; }
+.title { font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; font-size: 1.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.3px; }
+.sub { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem; }
+
+.mobileTitleWrap { display: none; min-width: 0; }
+.mobileTitle { font-size: 1.25rem; font-weight: 800; color: var(--text-primary); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 768px) {
+  .titleGroup { display: none; }
+  .mobileTitleWrap { display: flex; align-items: center; }
+}

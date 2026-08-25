@@ -92,8 +92,28 @@ const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullC
       }}
       datesSet={(arg: DatesSetArg) => onTitleChange?.(arg.view.title)}
       height="auto"
+      // Quem rola é o .calendarWrap (div externo), não o FullCalendar. O
+      // sticky é feito por CSS puro ancorado no .calendarWrap (ver
+      // .fc-scrollgrid-section-header em fullcalendar.css) — só isso já
+      // resolve. stickyHeaderDates precisa continuar false explicitamente:
+      // com height="auto" o próprio FullCalendar reativa seu mecanismo
+      // interno de sticky mesmo se a prop for só omitida (ele trata
+      // 'auto' como true quando height é "auto"), e esse mecanismo tem
+      // CSS (.fc-scrollgrid-section-sticky, top:0) com especificidade
+      // maior que a nossa, além de ser exatamente o que causava o
+      // vazamento de evento por trás do cabeçalho antes.
+      stickyHeaderDates={false}
       eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-      dayMaxEvents={2}
+      // Blocos estreitos (agendamentos que colidem, dividem a largura) não
+      // têm espaço pro intervalo completo "09:00 - 10:00" — só a hora de
+      // início já basta, a duração aparece pela altura do bloco.
+      displayEventEnd={false}
+      // Padrão do FullCalendar (slotEventOverlap:true) empilha agendamentos
+      // conflitantes: o primeiro fica em largura cheia e o segundo por cima
+      // dele, menor — texto ilegível quando dois profissionais têm horário
+      // colidindo. Com false, divide a largura entre os dois lado a lado.
+      slotEventOverlap={false}
+      dayMaxEvents={7}
       moreLinkText={n => `+${n} mais`}
       slotMinTime="06:00:00"
       slotMaxTime="21:00:00"

@@ -8,6 +8,7 @@ import type { Procedure } from '@/types'
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import styles from './procedimentos.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { PageTitle } from '@/components/layout/PageTitle'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
@@ -135,13 +136,12 @@ function ProcedimentosContent() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Procedimentos</h1>
-          <p className={styles.sub}>
+        <PageTitle title="Procedimentos" subtitle={
+          <>
             {procedures.length} procedimentos · {active} ativos
             {pendingPrice > 0 && <> · <span className={styles.warnText}>{pendingPrice} sem preço definido</span></>}
-          </p>
-        </div>
+          </>
+        } />
         <div className={styles.headerActions}>
           <button className={styles.btnPrimary} onClick={openNew}>+ Novo Procedimento</button>
         </div>

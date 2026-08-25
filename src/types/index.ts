@@ -205,6 +205,22 @@ export interface FinancialRecord {
   appointments?: Pick<Appointment, 'id' | 'scheduled_at' | 'procedure_name'> | null
 }
 
+// Ledger de crédito pré-pago do paciente (pacote fechado). Soma de `amount`
+// pra um patient_id = saldo disponível. 'credito' = pagamento adiantado
+// (amount positivo), 'consumo' = atendimento descontado do saldo (amount
+// negativo), 'estorno' = ajuste manual (qualquer sinal).
+export interface PatientCredit {
+  id: string
+  clinic_id: string
+  patient_id: string
+  amount: number
+  type: 'credito' | 'consumo' | 'estorno'
+  financial_record_id: string | null
+  appointment_id: string | null
+  notes: string | null
+  created_at: string
+}
+
 export interface Professional {
   id: string
   clinic_id: string | null
