@@ -37,8 +37,10 @@ interface NewRecord {
   convenio: string
   category: string
   notes: string
+  record_date: string
 }
-const BLANK: NewRecord = { type: 'receita', patient_id: '', procedure_id: '', total_amount: '', payment_method: 'pix', convenio: '', category: '', notes: '' }
+const todayStr = () => new Date().toISOString().slice(0, 10)
+const BLANK: NewRecord = { type: 'receita', patient_id: '', procedure_id: '', total_amount: '', payment_method: 'pix', convenio: '', category: '', notes: '', record_date: todayStr() }
 
 function FinanceiroContent() {
   const { clinic, user } = useAuthStore()
@@ -231,7 +233,7 @@ function FinanceiroContent() {
   function openModal(type: 'receita' | 'despesa') {
     setModalType(type)
     setEditingId(null)
-    setForm({ ...BLANK, type, category: type === 'receita' ? 'Consulta' : 'Material' })
+    setForm({ ...BLANK, type, category: type === 'receita' ? 'Consulta' : 'Material', record_date: todayStr() })
     setGrantCredit(false)
     setShowModal(true)
   }
@@ -248,6 +250,7 @@ function FinanceiroContent() {
       convenio: record.convenio ?? '',
       category: record.category ?? '',
       notes: record.notes ?? '',
+      record_date: record.created_at ? record.created_at.slice(0, 10) : todayStr(),
     })
     setGrantCredit(false)
     setShowModal(true)
@@ -277,6 +280,10 @@ function FinanceiroContent() {
       category: form.category,
       notes: form.notes,
       type: form.type,
+      // Meio-dia local evita que a data escolhida "role" um dia pra trás ao
+      // ser convertida pra UTC perto da virada (ex: 00:00 em UTC-3 vira o
+      // dia anterior em UTC).
+      created_at: new Date(`${form.record_date}T12:00:00`).toISOString(),
       // Lançamento manual feito por um profissional restrito já nasce
       // atribuído a ele — senão a RLS do Bloco C rejeitaria o insert.
       ...(scopeProfessionalId ? { professional_id: scopeProfessionalId } : {}),
@@ -677,6 +684,11 @@ function FinanceiroContent() {
                 <label>Valor (R$) *</label>
                 <input type="number" step="0.01" min="0" value={form.total_amount}
                   onChange={e => setForm(p => ({ ...p, total_amount: e.target.value }))} placeholder="0,00" />
+              </div>
+              <div className={styles.field}>
+                <label>Data</label>
+                <input type="date" value={form.record_date} max={todayStr()}
+                  onChange={e => setForm(p => ({ ...p, record_date: e.target.value }))} />
               </div>
               <div className={styles.field}>
                 <label>Categoria</label>
