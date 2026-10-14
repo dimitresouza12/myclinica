@@ -1,6 +1,6 @@
 /* Tela Mensagens: lista | conversa | ficha. Adapta-se à largura do próprio painel (container query),
    então funciona igual com a barra lateral aberta ou recolhida e no celular. */
-.root { container-type: inline-size; container-name: inbox; height: calc(100dvh - 3.2rem); min-height: 460px; border: 1px solid var(--border-subtle); border-radius: 16px; overflow: hidden; background: var(--bg-primary); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; }
+.root { container-type: inline-size; container-name: inbox; flex: 1; min-height: 460px; /* ocupa toda a área da página: a moldura da página (margens de 2,25rem nas laterais e 2rem embaixo) é cancelada */ margin: -0.5rem -2.25rem -2rem; border-top: 1px solid var(--border-subtle); overflow: hidden; background: var(--bg-primary); display: flex; flex-direction: column; }
 .banner { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; align-items: center; padding: 0.7rem 1rem; background: #FEF2F2; color: #7F1D1D; border-bottom: 1px solid #FECACA; font-size: 0.84rem; line-height: 1.45; }
 .bannerLink { margin-left: auto; min-height: 44px; display: inline-flex; align-items: center; padding: 0 1rem; border-radius: 10px; background: #DC2626; color: #fff; font-weight: 600; text-decoration: none; }
 .bannerLink:focus-visible { outline: 2px solid #7F1D1D; outline-offset: 2px; }
@@ -109,7 +109,7 @@
   .b { max-width: 86%; }
   .msgs { padding: 12px; }
 }
-@media (max-width: 768px) { .root { height: calc(100dvh - 5.5rem); border-radius: 12px; } }
+@media (max-width: 768px) { .root { margin: -0.5rem -1rem -1.5rem; } }
 
 /* ── arquivos nas conversas ── */
 .mediaBox { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
