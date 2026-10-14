@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from '@/components/ui/Icon'
 import { formatDuration, waveBars } from '@/lib/whatsapp/media'
 import styles from './Inbox.module.css'
@@ -21,12 +21,33 @@ interface Props {
 /** Player de mensagem de voz no estilo do WhatsApp: botão de tocar, barrinhas que vão se preenchendo, tempo e velocidade. */
 export function VoicePlayer({ url, seed, wave, seconds, outgoing }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null)
+  const barsRef = useRef<HTMLDivElement>(null)
+  const rafRef = useRef(0)
   const [playing, setPlaying] = useState(false)
+  const [buffering, setBuffering] = useState(false)
   const [current, setCurrent] = useState(0)
   const [duration, setDuration] = useState(seconds ?? 0)
   const [speed, setSpeed] = useState(1)
   const bars = waveBars(wave, seed, BAR_COUNT)
-  const progress = duration > 0 ? Math.min(1, current / duration) : 0
+
+  /** Fração tocada (0 a 1). Áudio gravado no navegador (WebM) não informa a duração: vale a da mensagem. */
+  function fraction(a: HTMLAudioElement): number {
+    const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : (seconds ?? 0)
+    return d > 0 ? Math.min(1, a.currentTime / d) : 0
+  }
+
+  // O preenchimento da onda e a bolinha acompanham o áudio quadro a quadro, direto no estilo (sem renderizar o React 60 vezes por segundo).
+  function paint() {
+    const a = audioRef.current
+    if (a && barsRef.current) barsRef.current.style.setProperty('--p', String(fraction(a)))
+  }
+  function startLoop() {
+    cancelAnimationFrame(rafRef.current)
+    const tick = () => { paint(); rafRef.current = requestAnimationFrame(tick) }
+    rafRef.current = requestAnimationFrame(tick)
+  }
+  function stopLoop() { cancelAnimationFrame(rafRef.current); paint() }
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
 
   function toggle() {
     const a = audioRef.current
@@ -34,15 +55,19 @@ export function VoicePlayer({ url, seed, wave, seconds, outgoing }: Props) {
     if (a.paused) {
       // só um áudio toca por vez
       document.querySelectorAll('audio').forEach(o => { if (o !== a) o.pause() })
+      // o botão responde na hora; se o navegador recusar, volta
+      setPlaying(true)
       void a.play().catch(() => setPlaying(false))
     } else a.pause()
   }
 
-  function seekTo(fraction: number) {
+  function seekTo(frac: number) {
     const a = audioRef.current
-    if (!a || duration <= 0) return
-    a.currentTime = Math.max(0, Math.min(duration, fraction * duration))
+    const d = Number.isFinite(a?.duration) && (a?.duration ?? 0) > 0 ? a!.duration : (seconds ?? duration)
+    if (!a || d <= 0) return
+    a.currentTime = Math.max(0, Math.min(d, frac * d))
     setCurrent(a.currentTime)
+    paint()
   }
 
   function onBarsClick(e: React.MouseEvent<HTMLDivElement>) {
@@ -51,8 +76,11 @@ export function VoicePlayer({ url, seed, wave, seconds, outgoing }: Props) {
   }
 
   function onBarsKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(progress + 5 / Math.max(duration, 1)) }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(progress - 5 / Math.max(duration, 1)) }
+    const a = audioRef.current
+    const frac = a ? fraction(a) : 0
+    const d = Math.max(duration, 1)
+    if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(frac + 5 / d) }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(frac - 5 / d) }
     else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle() }
   }
 
@@ -69,18 +97,22 @@ export function VoicePlayer({ url, seed, wave, seconds, outgoing }: Props) {
       <audio
         ref={audioRef}
         src={url}
-        preload="metadata"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => { setPlaying(false); setCurrent(0) }}
+        preload="auto"
+        onPlay={() => { setPlaying(true); startLoop() }}
+        onPause={() => { setPlaying(false); setBuffering(false); stopLoop() }}
+        onEnded={() => { setPlaying(false); setCurrent(0); stopLoop() }}
         onTimeUpdate={e => setCurrent(e.currentTarget.currentTime)}
+        onWaiting={() => setBuffering(true)}
+        onPlaying={() => setBuffering(false)}
+        onCanPlay={() => setBuffering(false)}
         onLoadedMetadata={e => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setDuration(d) }}
       />
-      <button type="button" className={styles.vpPlay} onClick={toggle} aria-label={playing ? 'Pausar áudio' : 'Tocar áudio'}>
+      <button type="button" className={`${styles.vpPlay} ${buffering ? styles.vpBuffering : ''}`} onClick={toggle} aria-label={playing ? 'Pausar áudio' : 'Tocar áudio'}>
         <Icon name={playing ? 'pause' : 'play'} size={18} />
       </button>
       <div className={styles.vpMain}>
         <div
+          ref={barsRef}
           className={styles.vpBars}
           role="slider"
           tabIndex={0}
@@ -92,10 +124,13 @@ export function VoicePlayer({ url, seed, wave, seconds, outgoing }: Props) {
           onClick={onBarsClick}
           onKeyDown={onBarsKey}
         >
-          {bars.map((h, i) => (
-            <span key={i} className={`${styles.vpBar} ${(i + 0.5) / BAR_COUNT <= progress ? styles.vpBarOn : ''}`} style={{ height: `${Math.round(h * 100)}%` }} />
-          ))}
-          <span className={styles.vpDot} style={{ left: `${progress * 100}%` }} aria-hidden="true" />
+          <span className={styles.vpLayer} aria-hidden="true">
+            {bars.map((h, i) => <span key={i} className={styles.vpBar} style={{ height: `${Math.round(h * 100)}%` }} />)}
+          </span>
+          <span className={`${styles.vpLayer} ${styles.vpLayerOn}`} aria-hidden="true">
+            {bars.map((h, i) => <span key={i} className={styles.vpBar} style={{ height: `${Math.round(h * 100)}%` }} />)}
+          </span>
+          <span className={styles.vpDot} aria-hidden="true" />
         </div>
         <span className={styles.vpTime}>{formatDuration(shown) || '0:00'}</span>
       </div>
