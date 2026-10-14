@@ -8,7 +8,7 @@ import { PageTitle } from '@/components/layout/PageTitle'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useWhatsAppState } from '@/hooks/useClinicData'
-import { useConversations, useMessages, useMediaUrls, useQuickReplies } from '@/hooks/useWhatsAppInbox'
+import { useConversations, useMessages, useMediaUrls, useQuickReplies, type OutboxItem } from '@/hooks/useWhatsAppInbox'
 import { whatsappApi } from '@/components/configuracoes/whatsappApi'
 import { ConversationList, type InboxFilter } from '@/components/mensagens/ConversationList'
 import { ChatPane } from '@/components/mensagens/ChatPane'
@@ -33,6 +33,7 @@ function Inbox() {
   const [mobileView, setMobileView] = useState<'list' | 'chat'>(initialConversation ? 'chat' : 'list')
   const [infoOpen, setInfoOpen] = useState(false)
   const [sending, setSending] = useState(false)
+  const [outbox, setOutbox] = useState<OutboxItem[]>([])
   const [sendError, setSendError] = useState('')
   // "agora" para rótulos de data: muda a cada minuto, sem chamar Date.now() no render
   const [now, setNow] = useState(() => new Date())
@@ -80,45 +81,61 @@ function Inbox() {
     }
   }
 
+  /**
+   * Envia arquivo ou áudio SEM travar a tela: a mensagem aparece na hora na conversa como "Enviando…",
+   * a caixa de mensagem já fica livre, e quando o servidor confirma ela é trocada pela mensagem de verdade.
+   * Se falhar, continua na conversa com o motivo e os botões "Tentar de novo" e "Descartar".
+   */
+  function startOutbox(base: Pick<OutboxItem, 'convId' | 'kind' | 'name' | 'caption' | 'seconds' | 'size' | 'previewUrl'>, form: FormData) {
+    const id = crypto.randomUUID()
+    const dispose = () => { if (base.previewUrl) URL.revokeObjectURL(base.previewUrl) }
+    const attempt = async () => {
+      setOutbox(o => o.map(x => x.id === id ? { ...x, status: 'sending', error: '' } : x))
+      try {
+        await whatsappApi('/api/whatsapp/conversations/send-media', { method: 'POST', body: form })
+        // espera a mensagem de verdade chegar à conversa antes de tirar a provisória (sem piscar)
+        await qc.invalidateQueries({ queryKey: ['wa-msgs', base.convId] })
+        qc.invalidateQueries({ queryKey: ['wa-convs', clinicId] })
+        dispose()
+        setOutbox(o => o.filter(x => x.id !== id))
+      } catch (e) {
+        const error = e instanceof Error ? e.message : 'Não foi possível enviar. Tente de novo.'
+        setOutbox(o => o.map(x => x.id === id ? { ...x, status: 'failed', error } : x))
+      }
+    }
+    setOutbox(o => [...o, { ...base, id, status: 'sending', error: '', retry: attempt, dispose }])
+    void attempt()
+  }
+
+  function discardOutbox(id: string) {
+    setOutbox(o => {
+      o.find(x => x.id === id)?.dispose()
+      return o.filter(x => x.id !== id)
+    })
+  }
+
   async function handleSendFile(file: File, caption: string): Promise<boolean> {
     if (!selectedId) return false
-    setSending(true); setSendError('')
-    try {
-      const form = new FormData()
-      form.append('conversationId', selectedId)
-      form.append('file', file)
-      form.append('caption', caption)
-      await whatsappApi('/api/whatsapp/conversations/send-media', { method: 'POST', body: form })
-      qc.invalidateQueries({ queryKey: ['wa-msgs', selectedId] })
-      qc.invalidateQueries({ queryKey: ['wa-convs', clinicId] })
-      return true
-    } catch (e) {
-      setSendError(e instanceof Error ? e.message : 'Não foi possível enviar o arquivo. Tente de novo.')
-      return false
-    } finally {
-      setSending(false)
-    }
+    const form = new FormData()
+    form.append('conversationId', selectedId)
+    form.append('file', file)
+    form.append('caption', caption)
+    startOutbox({
+      convId: selectedId, kind: file.type.startsWith('image/') ? 'image' : 'document', name: file.name, caption,
+      seconds: null, size: file.size, previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+    }, form)
+    return true
   }
 
   async function handleSendVoice(blob: Blob, seconds: number): Promise<boolean> {
     if (!selectedId) return false
-    setSending(true); setSendError('')
-    try {
-      const form = new FormData()
-      form.append('conversationId', selectedId)
-      form.append('file', new File([blob], 'audio', { type: blob.type }))
-      form.append('voice', '1')
-      form.append('seconds', String(seconds))
-      await whatsappApi('/api/whatsapp/conversations/send-media', { method: 'POST', body: form })
-      qc.invalidateQueries({ queryKey: ['wa-msgs', selectedId] })
-      qc.invalidateQueries({ queryKey: ['wa-convs', clinicId] })
-      return true
-    } catch (e) {
-      setSendError(e instanceof Error ? e.message : 'Não foi possível enviar o áudio. Tente de novo.')
-      return false
-    } finally {
-      setSending(false)
-    }
+    const form = new FormData()
+    form.append('conversationId', selectedId)
+    form.append('file', new File([blob], 'audio', { type: blob.type }))
+    form.append('voice', '1')
+    form.append('seconds', String(seconds))
+    startOutbox({ convId: selectedId, kind: 'audio', name: 'Áudio', caption: '', seconds, size: blob.size, previewUrl: null }, form)
+    return true
   }
 
   async function handleEditMessage(messageId: string, text: string): Promise<string | null> {
@@ -215,6 +232,9 @@ function Inbox() {
             onSend={handleSend}
             onSendFile={handleSendFile}
             onSendVoice={handleSendVoice}
+            outbox={outbox.filter(o => o.convId === selectedId)}
+            onRetryOutbox={id => void outbox.find(o => o.id === id)?.retry()}
+            onDiscardOutbox={discardOutbox}
             onEditMessage={handleEditMessage}
             onDeleteMessage={handleDeleteMessage}
             clinicId={clinicId ?? ''}

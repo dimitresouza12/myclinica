@@ -178,3 +178,20 @@ export async function deleteQuickReply(clinicId: string, id: string): Promise<st
   const { error } = await supabase.from('whatsapp_quick_replies').delete().eq('id', id).eq('clinic_id', clinicId)
   return error ? 'Não foi possível excluir. Tente de novo.' : null
 }
+
+/** Arquivo ou áudio que ainda está sendo enviado (ou que falhou): aparece na conversa na hora, antes de o servidor confirmar. */
+export interface OutboxItem {
+  id: string
+  convId: string
+  kind: 'image' | 'document' | 'audio'
+  name: string
+  caption: string
+  seconds: number | null
+  size: number
+  /** miniatura local da imagem enviada */
+  previewUrl: string | null
+  status: 'sending' | 'failed'
+  error: string
+  retry: () => Promise<void>
+  dispose: () => void
+}

@@ -200,3 +200,10 @@
 .editBox { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
 .editBox textarea { font: inherit; font-size: 16px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); resize: vertical; }
 .editActions { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* ── mensagem em envio ── */
+.outSending { opacity: 0.8; }
+.outFailed { border: 1px solid #DC2626; }
+.sendingDots::after { content: ''; display: inline-block; width: 1.2em; text-align: left; animation: dots 1.2s steps(4, end) infinite; }
+@keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+@media (prefers-reduced-motion: reduce) { .sendingDots::after { animation: none; content: '...'; } }

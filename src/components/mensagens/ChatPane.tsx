@@ -10,7 +10,7 @@ import { QuickReplyManager, QuickReplyMenu } from './QuickReplies'
 import { STATUS_LABEL, canDeleteForEveryone, canEditMessage } from '@/lib/whatsapp/message-events'
 import { fillQuickReply, filterQuickReplies, slashQuery } from '@/lib/whatsapp/quick-replies'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
-import type { QuickReplyRow } from '@/hooks/useWhatsAppInbox'
+import type { QuickReplyRow, OutboxItem } from '@/hooks/useWhatsAppInbox'
 import { useVoiceRecorder } from './useVoiceRecorder'
 import { UPLOAD_ACCEPT, checkUpload, formatBytes, formatDuration } from '@/lib/whatsapp/media'
 import styles from './Inbox.module.css'
@@ -118,6 +118,36 @@ function Bubble({ m, timezone, now, media, canAct, onEdit, onDelete }: {
   )
 }
 
+/** Mensagem com arquivo ou áudio que ainda está sendo enviada (ou que falhou): aparece na hora, antes de o servidor confirmar. */
+function OutboxBubble({ item, onRetry, onDiscard }: { item: OutboxItem; onRetry: () => void; onDiscard: () => void }) {
+  const failed = item.status === 'failed'
+  return (
+    <div className={`${styles.b} ${styles.out} ${failed ? styles.outFailed : styles.outSending}`} aria-live="polite">
+      {item.kind === 'image' && item.previewUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className={styles.img} src={item.previewUrl} alt="Imagem sendo enviada" />
+      )}
+      {item.kind === 'document' && (
+        <span className={styles.docCard}>
+          <span className={styles.docIcon} aria-hidden="true"><Icon name="paperclip" size={20} /></span>
+          <span className={styles.docInfo}><b>{item.name}</b><span>{formatBytes(item.size)}</span></span>
+        </span>
+      )}
+      {item.kind === 'audio' && <span className={styles.mediaTitle}>Áudio{item.seconds ? ` (${formatDuration(item.seconds)})` : ''}</span>}
+      {item.caption}
+      {failed && <span className={styles.mediaError} role="alert">{item.error}</span>}
+      {failed ? (
+        <span className={styles.editActions}>
+          <button type="button" className={styles.mediaBtn} onClick={onDiscard}>Descartar</button>
+          <button type="button" className={styles.mediaBtn} onClick={onRetry}>Tentar de novo</button>
+        </span>
+      ) : (
+        <span className={styles.time}><span className={styles.sendingDots}>Enviando</span></span>
+      )}
+    </div>
+  )
+}
+
 interface Props {
   conversation: WaConversation | null
   messages: WaMessage[]
@@ -134,6 +164,10 @@ interface Props {
   onSendFile: (file: File, caption: string) => Promise<boolean>
   /** envia mensagem de voz gravada */
   onSendVoice: (blob: Blob, seconds: number) => Promise<boolean>
+  /** arquivos e áudios em envio (ou que falharam) nesta conversa */
+  outbox: OutboxItem[]
+  onRetryOutbox: (id: string) => void
+  onDiscardOutbox: (id: string) => void
   /** links temporários dos arquivos já disponíveis, por id de mensagem */
   mediaUrls: Record<string, string>
   onRetryMedia: (messageId: string) => Promise<string | null>
@@ -170,7 +204,7 @@ export function ChatPane(p: Props) {
   useLayoutEffect(() => {
     const el = msgsRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [convId, p.messages.length])
+  }, [convId, p.messages.length, p.outbox.length])
 
   const items = useMemo(() => withDaySeparators(p.messages, p.now, p.timezone), [p.messages, p.now, p.timezone])
 
@@ -255,6 +289,7 @@ export function ChatPane(p: Props) {
         {items.map(i => i.type === 'day'
           ? <div key={`d-${i.key}`} className={styles.day}>{i.label}</div>
           : <Bubble key={i.msg.id} m={i.msg} timezone={p.timezone} now={p.now} canAct={p.canSend} onEdit={p.onEditMessage} onDelete={p.onDeleteMessage} media={{ urls: p.mediaUrls, onOpenImage: (url, name) => setLightbox({ url, name }), onRetry: p.onRetryMedia, onDownload: p.onDownloadMedia }} />)}
+        {p.outbox.map(o => <OutboxBubble key={o.id} item={o} onRetry={() => p.onRetryOutbox(o.id)} onDiscard={() => p.onDiscardOutbox(o.id)} />)}
       </div>
 
       {lightbox && (
