@@ -231,6 +231,10 @@ export interface Professional {
   clinic_user_id: string | null
   // null = herda a duração padrão da área (specialty_type) — Bloco D.
   default_duration_minutes: number | null
+  // Registro profissional (CRO, CRM, CRMV, CRP...) — texto livre, formato
+  // varia por conselho. Preenche automaticamente documentos como a Receita
+  // de Controle Especial (ver TabDocumentos.tsx).
+  registration_number: string | null
   created_at: string
 }
 
@@ -343,11 +347,42 @@ export interface StockMovement {
 
 export type DocumentTemplateType = 'receita_comum' | 'receita_especial' | 'declaracao_comparecimento' | 'atestado' | 'laudo'
 
+// Posição calibrada de um campo sobre o papel timbrado do próprio cliente —
+// coordenadas em % da imagem (não px), pra continuar batendo com o campo
+// depois de subir/descer de tamanho de tela (mesmo princípio de Annotation.x/y
+// no Corpograma/Faceograma). kind 'body' é a área de texto livre (multi-linha,
+// onde o profissional digita o conteúdo); 'text' é um valor curto de uma linha.
+export interface FieldPosition {
+  key: string
+  label: string
+  kind: 'text' | 'body'
+  xPct: number
+  yPct: number
+  widthPct: number
+  // Só usado em kind:'body' — altura mínima em % da imagem, pra dar noção
+  // de espaço disponível no calibrador (o campo cresce além disso sozinho
+  // se o texto digitado for maior, ver TemplateFieldCanvas.tsx).
+  heightPct?: number
+  // Tamanho de fonte em PONTOS (pt), não px — pt é a única unidade que não
+  // muda de significado entre tela (jpeg 692px, PDF 1600px, celular 360px)
+  // e página impressa (A4 sempre 595.28pt de largura). Ver ptToPx() em
+  // templateCanvasSize.ts, que escala pt→px a partir da largura RENDERIZADA
+  // da imagem — assim posição e fonte crescem/encolhem juntas, sempre na
+  // mesma proporção do papel do cliente, na tela e no PDF/impressão.
+  fontPt: number
+  // Legado: campos salvos antes da migração pt guardavam px direto. Só
+  // lido como fallback (fontPt ?? converte fontSize) — nunca mais escrito.
+  fontSize?: number
+  align: 'left' | 'center' | 'right'
+  bold: boolean
+}
+
 export interface ClinicDocumentTemplate {
   id: string
   clinic_id: string
   type: DocumentTemplateType
   pdf_url: string
+  field_positions: FieldPosition[]
   created_at: string
   updated_at: string
 }

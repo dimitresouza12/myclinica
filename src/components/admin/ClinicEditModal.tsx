@@ -5,9 +5,12 @@ import type { Clinic } from '@/types'
 import { computeClinicStatus } from '@/lib/clinicStatus'
 import { PLAN_CATALOG, professionalLimitFor, type SellablePlan } from '@/lib/planCatalog'
 import { Portal } from '@/components/ui/Portal'
+import { PhoneInput } from '@/components/ui/PhoneInput'
+import { isCompleteBrPhone, phoneInputError, toInputValue, waMeNumber } from '@/lib/phoneFormat'
 import { StatusBadge } from './StatusBadge'
 import styles from './admin.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { IntegerInput } from '@/components/ui/NumericInput'
 
 function planHint(value: SellablePlan): string {
   const entry = PLAN_CATALOG[value]
@@ -30,8 +33,7 @@ function toDateInputValue(iso: string | null | undefined): string {
 }
 
 function buildWhatsAppUrl(phone: string, clinicName: string, dueDay: number | null): string {
-  const clean = phone.replace(/\D/g, '')
-  const number = clean.startsWith('55') ? clean : `55${clean}`
+  const number = waMeNumber(phone)
   const dia = dueDay ? `dia ${dueDay}` : 'este mês'
   const msg = encodeURIComponent(
     `Olá! Passando para lembrar que a mensalidade do MyClinica referente ao ${dia} está em aberto. Qualquer dúvida estou à disposição! 😊`
@@ -40,8 +42,7 @@ function buildWhatsAppUrl(phone: string, clinicName: string, dueDay: number | nu
 }
 
 function buildPaymentLinkWhatsAppUrl(phone: string, link: string): string {
-  const clean = phone.replace(/\D/g, '')
-  const number = clean.startsWith('55') ? clean : `55${clean}`
+  const number = waMeNumber(phone)
   const msg = encodeURIComponent(`Olá! Segue o link para pagamento da sua mensalidade do MyClinica: ${link}`)
   return `https://wa.me/${number}?text=${msg}`
 }
@@ -65,7 +66,8 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   const [error, setError] = useState('')
 
   // Cobrança
-  const [billingPhone, setBillingPhone] = useState(clinic.billing_phone ?? clinic.phone ?? '')
+  const originalBillingPhone = clinic.billing_phone ?? clinic.phone ?? ''
+  const [billingPhone, setBillingPhone] = useState(() => toInputValue(originalBillingPhone))
   const [billingDueDay, setBillingDueDay] = useState<string>(
     clinic.billing_due_day ? String(clinic.billing_due_day) : ''
   )
@@ -161,6 +163,11 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
       }
     }
 
+    const billingPhoneError = phoneInputError(billingPhone)
+    if (billingPhoneError) { setError(billingPhoneError); setSaving(false); return }
+    // número antigo que o campo não mostra (ex.: sem DDD) e que não foi digitado de novo: mantém, não apaga
+    const keepOldBillingPhone = !billingPhone && !!originalBillingPhone.trim() && toInputValue(originalBillingPhone) === ''
+
     const trial_ends_at = trialMode === 'permanente'
       ? null
       : trialDate ? new Date(trialDate + 'T23:59:59').toISOString() : null
@@ -176,7 +183,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
         status,
         is_active: status !== 'suspended',
         trial_ends_at,
-        billing_phone: billingPhone.trim() || null,
+        billing_phone: billingPhone || (keepOldBillingPhone ? originalBillingPhone : null),
         billing_paid: billingPaid,
         billing_overdue_since,
       })
@@ -186,7 +193,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
     onClose()
   }
 
-  const canCharge = billingPhone.trim().length >= 10
+  const canCharge = isCompleteBrPhone(billingPhone)
 
   const previewTrialEndsAt = trialMode === 'permanente'
     ? null
@@ -229,12 +236,11 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
           {/* — Limite de pacientes — */}
           <div className={styles.field}>
             <label>Limite de pacientes</label>
-            <input
-              type="number"
+            <IntegerInput
               min={10}
-              step={50}
+              max={1000000}
               value={maxPatients}
-              onChange={(e) => setMaxPatients(Number(e.target.value))}
+              onChange={(v) => setMaxPatients(v === '' ? 0 : Number(v))}
               className={styles.fieldInput}
             />
           </div>
@@ -242,13 +248,12 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
           {/* — Limite de profissionais — */}
           <div className={styles.field}>
             <label>Limite de profissionais</label>
-            <input
-              type="number"
+            <IntegerInput
               min={1}
-              step={1}
+              max={1000}
               placeholder={`Padrão do plano (${professionalLimitFor(plan, null) ?? 'ilimitado'})`}
               value={maxUsers}
-              onChange={(e) => setMaxUsers(e.target.value === '' ? '' : Number(e.target.value))}
+              onChange={(v) => setMaxUsers(v === '' ? '' : Number(v))}
               className={styles.fieldInput}
             />
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
@@ -305,24 +310,21 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
             <div className={styles.billingRow}>
               <div className={styles.field} style={{ flex: 1 }}>
                 <label>WhatsApp do responsável</label>
-                <input
-                  type="tel"
+                <PhoneInput
                   className={styles.fieldInput}
-                  placeholder="11 99999-9999"
                   value={billingPhone}
-                  onChange={(e) => setBillingPhone(e.target.value)}
+                  onChange={setBillingPhone}
                 />
               </div>
               <div className={styles.field} style={{ width: '110px' }}>
                 <label>Dia de vencimento</label>
-                <input
-                  type="number"
+                <IntegerInput
                   min={1}
                   max={28}
                   className={styles.fieldInput}
                   placeholder="Ex: 10"
                   value={billingDueDay}
-                  onChange={(e) => setBillingDueDay(e.target.value)}
+                  onChange={setBillingDueDay}
                 />
               </div>
             </div>

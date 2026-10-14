@@ -28,8 +28,13 @@ export async function middleware(request: NextRequest) {
   const { pathname, method } = { pathname: request.nextUrl.pathname, method: request.method }
   const ip = getClientIp(request)
 
+  // Chamadas servidor→servidor com token próprio (Evolution e agendador): todas as clínicas
+  // chegam pelo mesmo IP, então o limite por IP derrubaria o webhook em horário de pico.
+  const isServerToServer =
+    pathname === '/api/whatsapp/webhook' || pathname === '/api/whatsapp/run-confirmations' || pathname === '/api/whatsapp/cleanup-media' || pathname === '/api/crm/automate'
+
   // Rate limit global em rotas de API
-  if (pathname.startsWith('/api/')) {
+  if (pathname.startsWith('/api/') && !isServerToServer) {
     const isAuthRoute = pathname.startsWith('/api/auth')
     const limit = isAuthRoute
       ? rateLimit(`auth:${ip}`, { limit: 5,  windowMs: 10 * 60_000 })
@@ -82,7 +87,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/financial-demo') ||
     // Chamada server-to-server do Asaas — sem cookie de sessão. Autenticada
     // por token próprio (ver isValidAsaasToken em api/asaas/webhook/route.ts).
-    pathname.startsWith('/api/asaas/webhook')
+    pathname.startsWith('/api/asaas/webhook') ||
+    // Evolution (webhook) e agendador (rotina de confirmação) — sem cookie de sessão.
+    // Autenticados por token próprio (ver api/whatsapp/_token.ts).
+    isServerToServer
 
   if (isPublicPath) return addSecurityHeaders(supabaseResponse)
 

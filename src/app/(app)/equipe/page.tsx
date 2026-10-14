@@ -17,6 +17,7 @@ import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { CredentialsConfirmModal } from '@/components/ui/CredentialsConfirmModal'
 import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
+import { IntegerInput } from '@/components/ui/NumericInput'
 
 interface ProfessionalRow extends Professional {
   clinic_users: { role: UserRole; is_active: boolean; specialty_type: ClinicType | null } | null
@@ -30,13 +31,17 @@ interface NewProf {
   // texto vazio = herda da área (Bloco D). Guardado como string pra
   // aceitar campo em branco sem virar 0.
   defaultDuration: string
+  // CRO/CRM/CRMV/CRP... — texto livre, formato varia por conselho. Usado
+  // pra preencher automaticamente documentos como a Receita de Controle
+  // Especial (ver TabDocumentos.tsx).
+  registrationNumber: string
   hasAccess: boolean
   role: UserRole
   username: string
   email: string
   password: string
 }
-const BLANK: NewProf = { name: '', specialty: '', specialty_type: '', defaultDuration: '', hasAccess: false, role: 'recepcao', username: '', email: '', password: '' }
+const BLANK: NewProf = { name: '', specialty: '', specialty_type: '', defaultDuration: '', registrationNumber: '', hasAccess: false, role: 'recepcao', username: '', email: '', password: '' }
 
 const ROLE_LABELS_FALLBACK: Record<string, string> = {
   recepcao: 'Recepção', auxiliar: 'Auxiliar', dentista: 'Dentista', medico: 'Médico',
@@ -63,6 +68,11 @@ function EquipeContent() {
   const [createdCredentials, setCreatedCredentials] = useState<{ displayName: string; username: string; email: string; password: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProfessionalRow | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  // Profissional em edição — quando setado, handleSave faz UPDATE em vez de
+  // criar um novo. Só edita os campos da própria tabela `professionals`
+  // (nome, especialidade, duração, registro); login/cargo/senha continuam
+  // sendo função exclusiva de Configurações → Equipe.
+  const [editingProf, setEditingProf] = useState<ProfessionalRow | null>(null)
 
   // Limite é por PROFISSIONAL cadastrado (com ou sem login) — recepção e
   // auxiliar não contam mais pro teto do plano (reestruturação de planos:
@@ -128,6 +138,21 @@ function EquipeContent() {
     // "Recepção" como ponto de partida — sem ambiguidade — só clínica de
     // uma área só (sem esse seletor) mantém o atalho de já vir preenchido.
     setForm({ ...BLANK, role: clinic?.isMultiSpecialty ? 'recepcao' : (clinicalRole ?? 'recepcao') })
+    setEditingProf(null)
+    setErrorMsg(null)
+    setShowModal(true)
+  }
+
+  function openEditModal(p: ProfessionalRow) {
+    setForm({
+      ...BLANK,
+      name: p.name,
+      specialty: p.specialty ?? '',
+      specialty_type: (p.specialty_type ?? '') as ClinicType | '',
+      defaultDuration: p.default_duration_minutes != null ? String(p.default_duration_minutes) : '',
+      registrationNumber: p.registration_number ?? '',
+    })
+    setEditingProf(p)
     setErrorMsg(null)
     setShowModal(true)
   }
@@ -135,6 +160,35 @@ function EquipeContent() {
   async function handleSave() {
     if (!clinic || !form.name.trim()) return
     setErrorMsg(null)
+
+    if (editingProf) {
+      setSaving(true)
+      const { error } = await supabase.from('professionals').update({
+        name: form.name.trim(),
+        specialty: form.specialty || null,
+        specialty_type: form.specialty_type || null,
+        default_duration_minutes: form.defaultDuration ? Number(form.defaultDuration) : null,
+        registration_number: form.registrationNumber.trim() || null,
+      }).eq('id', editingProf.id).eq('clinic_id', clinic.id)
+      if (error) { setSaving(false); setErrorMsg('Erro ao salvar profissional: ' + error.message); return }
+      // Profissional com login vinculado — resincroniza o nome de exibição
+      // também no login, senão diverge do que aparece em Configurações → Equipe.
+      if (editingProf.clinic_user_id && editingProf.clinic_users) {
+        await supabase.rpc('update_clinic_member', {
+          p_member_id: editingProf.clinic_user_id,
+          p_role: editingProf.clinic_users.role,
+          p_is_active: editingProf.clinic_users.is_active,
+          p_display_name: form.name.trim(),
+        })
+      }
+      setSaving(false)
+      setShowModal(false)
+      setForm(BLANK)
+      setEditingProf(null)
+      loadData()
+      return
+    }
+
     // Só bloqueia quando este salvamento específico vai criar um profissional
     // de verdade (sem login = sempre; com login = só cargo clínico) — recepção
     // e auxiliar com login não esbarram nesse teto. Checagem no cliente só
@@ -152,6 +206,7 @@ function EquipeContent() {
         specialty: form.specialty || null,
         specialty_type: form.specialty_type || null,
         default_duration_minutes: form.defaultDuration ? Number(form.defaultDuration) : null,
+        registration_number: form.registrationNumber.trim() || null,
       }])
       setSaving(false)
       if (error) { setErrorMsg('Erro ao salvar profissional: ' + error.message); return }
@@ -203,6 +258,7 @@ function EquipeContent() {
           specialty: form.specialty || null,
           specialty_type: form.specialty_type || null,
           default_duration_minutes: form.defaultDuration ? Number(form.defaultDuration) : null,
+          registration_number: form.registrationNumber.trim() || null,
           clinic_user_id: newCuId,
         }])).error
       : null
@@ -305,7 +361,10 @@ function EquipeContent() {
                   </td>
                   <td data-label="Cadastrado em">{formatDate(p.created_at, true)}</td>
                   <td data-label="Ações">
-                    <button className={styles.btnDelete} onClick={() => handleDelete(p)}>Remover</button>
+                    <div className={styles.rowActions}>
+                      <button className={styles.btnEdit} onClick={() => openEditModal(p)}>Editar</button>
+                      <button className={styles.btnDelete} onClick={() => handleDelete(p)}>Remover</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -319,11 +378,11 @@ function EquipeContent() {
         <div className={styles.overlay} onClick={() => setShowModal(false)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h2>Novo Profissional</h2>
+              <h2>{editingProf ? 'Editar Profissional' : 'Novo Profissional'}</h2>
               <button className={styles.btnClose} onClick={() => setShowModal(false)}><Icon name="close" size={18} /></button>
             </div>
             <div className={styles.modalBody}>
-              {blockedByProfessionalLimit && (
+              {!editingProf && blockedByProfessionalLimit && (
                 <p className={styles.hint}>
                   Limite de profissionais do plano atingido ({professionals.length}/{professionalLimit}). Fale com o suporte para migrar de plano ou liberar uma exceção
                   {!form.hasAccess ? '' : ' — recepção e auxiliar continuam sem limite, mude o cargo acima'}.
@@ -362,17 +421,26 @@ function EquipeContent() {
 
               <div className={styles.field}>
                 <label>Duração padrão do atendimento (min)</label>
-                <input
-                  type="number"
+                <IntegerInput
                   min={5}
-                  step={5}
+                  max={720}
                   value={form.defaultDuration}
-                  onChange={(e) => setForm((p) => ({ ...p, defaultDuration: e.target.value }))}
+                  onChange={(v) => setForm((p) => ({ ...p, defaultDuration: v }))}
                   placeholder={`Padrão da área (${getSpecialtyConfig(form.specialty_type || clinic?.type).defaultDurationMinutes} min)`}
                 />
               </div>
 
-              {isAdmin && (
+              <div className={styles.field}>
+                <label>Registro profissional (CRO/CRM/CRMV...)</label>
+                <input
+                  value={form.registrationNumber}
+                  onChange={(e) => setForm((p) => ({ ...p, registrationNumber: e.target.value }))}
+                  placeholder="Ex: CRO-SP 12345"
+                />
+                <p className={styles.hint}>Preenche automaticamente documentos como a Receita de Controle Especial.</p>
+              </div>
+
+              {!editingProf && isAdmin && (
                 <div className={styles.accessSection}>
                   <label className={styles.checkboxRow}>
                     <input
@@ -450,7 +518,7 @@ function EquipeContent() {
             </div>
             <div className={styles.modalFooter}>
               <button className={styles.btnCancel} onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.name.trim() || blockedByProfessionalLimit}>
+              <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.name.trim() || (!editingProf && blockedByProfessionalLimit)}>
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>
             </div>

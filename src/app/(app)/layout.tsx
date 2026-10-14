@@ -166,7 +166,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <ImpersonationBanner />
         <PaymentLateBanner />
         <SystemAlertBanner />
-        <TopBar clinic={clinic} onMenuToggle={() => setSidebarOpen((v) => !v)} />
+        <TopBar onMenuToggle={() => setSidebarOpen((v) => !v)} />
         {/* key={clinic.id} força remount completo das páginas quando a clínica muda,
             descartando qualquer estado (lista de pacientes, agenda, etc.) da clínica anterior */}
         <main key={clinic.id} className={styles.main}>{children}</main>

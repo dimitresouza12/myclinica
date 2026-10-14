@@ -10,12 +10,14 @@ import { Portal } from '@/components/ui/Portal'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './admin.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { PhoneInput } from '@/components/ui/PhoneInput'
+import { formatBrPhone, phoneInputError, waMeNumber } from '@/lib/phoneFormat'
+import { showToast } from '@/components/ui/Toast'
 import { CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { PLAN_CATALOG } from '@/lib/planCatalog'
 
 function waLink(phone: string, clinicName: string): string {
-  const clean = phone.replace(/\D/g, '')
-  const number = clean.startsWith('55') ? clean : `55${clean}`
+  const number = waMeNumber(phone)
   const msg = encodeURIComponent(`Olá! Aqui é do MyClinica, sobre o cadastro da clínica ${clinicName}. 😊`)
   return `https://wa.me/${number}?text=${msg}`
 }
@@ -43,6 +45,8 @@ export function AdminClinicas({ clinics, onReload }: Props) {
 
   async function handleCreateClinic() {
     if (!newForm.name || !newForm.slug) return
+    const phoneError = phoneInputError(newForm.phone)
+    if (phoneError) { showToast('error', phoneError); return }
     setSaving(true)
     await supabase.from('clinics').insert([newForm])
     setSaving(false)
@@ -149,7 +153,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                 <td data-label="Contato">
                   {c.phone ? (
                     <div className={styles.contactCell}>
-                      <span className={styles.contactPhone}>{c.phone}</span>
+                      <span className={styles.contactPhone}>{formatBrPhone(c.phone)}</span>
                       <a
                         href={waLink(c.phone, c.name)}
                         target="_blank"
@@ -198,7 +202,9 @@ export function AdminClinicas({ clinics, onReload }: Props) {
               {([['name','Nome *','text'],['slug','Slug *','text'],['email','E-mail','email'],['phone','Telefone','tel'],['address','Endereço','text']] as [string,string,string][]).map(([k,l,t]) => (
                 <div className={styles.field} key={k}>
                   <label>{l}</label>
-                  <input type={t} className={styles.fieldInput} value={(newForm as Record<string,string>)[k]} onChange={(e) => setNewForm((p) => ({ ...p, [k]: e.target.value }))} />
+                  {k === 'phone'
+                    ? <PhoneInput className={styles.fieldInput} value={newForm.phone} onChange={(v) => setNewForm((p) => ({ ...p, phone: v }))} />
+                    : <input type={t} className={styles.fieldInput} value={(newForm as Record<string,string>)[k]} onChange={(e) => setNewForm((p) => ({ ...p, [k]: e.target.value }))} />}
                 </div>
               ))}
               <div className={styles.field}>

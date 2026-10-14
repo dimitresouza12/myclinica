@@ -31,21 +31,6 @@
   margin-left: 0.75rem;
 }
 
-.right {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  margin-left: auto;
-}
-
-.logo {
-  height: 48px;
-  width: auto;
-  max-width: 160px;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
 @media (max-width: 768px) {
   .bar {
     padding: 0.75rem 1rem 0;
@@ -60,10 +45,5 @@
     flex-direction: column;
     justify-content: center;
     flex: 1 1 auto;
-  }
-
-  .logo {
-    height: 40px;
-    max-width: 120px;
   }
 }

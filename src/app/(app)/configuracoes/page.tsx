@@ -4,9 +4,9 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { connectGoogleCalendar, disconnectGoogleCalendar, isGCalConnected } from '@/lib/googleCalendar'
-import type { AuthClinic, ClinicDocumentTemplate, DocumentTemplateType, ClinicUser, UserRole, AuditLog, ClinicType } from '@/types'
+import type { AuthClinic, ClinicDocumentTemplate, DocumentTemplateType, FieldPosition, ClinicUser, UserRole, AuditLog, ClinicType } from '@/types'
 import { mergeSpecialtyConfigs, specialtyRoleLabel, roleForSpecialty, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
-import { hasWhatsApp } from '@/lib/planGates'
+import { hasWhatsAppAI } from '@/lib/planGates'
 import { professionalLimitFor, getPlanEntry, PLAN_CATALOG } from '@/lib/planCatalog'
 import { MODULES, MODULE_EXTRAS, presetPermissions, blankPermissions, type PermissionsForm } from '@/lib/permissionPresets'
 import { normalizeUsername } from '@/lib/username'
@@ -19,7 +19,13 @@ import { CredentialsConfirmModal } from '@/components/ui/CredentialsConfirmModal
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 import { SelectMenu } from '@/components/ui/SelectMenu'
+import { PhoneInput } from '@/components/ui/PhoneInput'
+import { phoneInputError, previousPhoneNote, toInputValue } from '@/lib/phoneFormat'
 import { PageTitle } from '@/components/layout/PageTitle'
+import { DocumentFieldCalibrator } from '@/components/configuracoes/DocumentFieldCalibrator'
+import { WhatsAppTab } from '@/components/configuracoes/WhatsAppTab'
+import { isImageUrl } from '@/hooks/useTemplateBackground'
+import { IntegerInput } from '@/components/ui/NumericInput'
 
 const ROLE_LABELS: Record<UserRole, string> = {
   recepcao:     'Recepção',
@@ -103,12 +109,12 @@ function ConfiguracoesContent() {
     u.specialty_type ? specialtyRoleLabel(u.specialty_type) : roleLabel(u.role)
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab')
-  const [tab, setTab] = useState<'geral' | 'equipe' | 'plano' | 'documentos' | 'integracoes' | 'conta' | 'auditoria'>(
-    initialTab === 'equipe' ? 'equipe' : 'geral'
+  const [tab, setTab] = useState<'geral' | 'equipe' | 'plano' | 'documentos' | 'integracoes' | 'whatsapp' | 'conta' | 'auditoria'>(
+    initialTab === 'equipe' ? 'equipe' : initialTab === 'whatsapp' ? 'whatsapp' : 'geral'
   )
   const [name, setName] = useState(clinic?.name ?? '')
   const [address, setAddress] = useState(clinic?.address ?? '')
-  const [phone, setPhone] = useState(clinic?.phone ?? '')
+  const [phone, setPhone] = useState(() => toInputValue(clinic?.phone))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [billingLoading, setBillingLoading] = useState(false)
@@ -226,8 +232,33 @@ function ConfiguracoesContent() {
 
   const [docTemplates, setDocTemplates] = useState<ClinicDocumentTemplate[]>([])
   const [docUploading, setDocUploading] = useState<DocumentTemplateType | null>(null)
-  const [docMsg, setDocMsg] = useState<{ type: DocumentTemplateType; ok: boolean } | null>(null)
+  const [docMsg, setDocMsg] = useState<{ type: DocumentTemplateType; ok: boolean; errorText?: string } | null>(null)
   const docInputRefs = useRef<Partial<Record<DocumentTemplateType, HTMLInputElement | null>>>({})
+  const [calibratingType, setCalibratingType] = useState<DocumentTemplateType | null>(null)
+  // DPI efetivo do arquivo enviado, quando abaixo do recomendado pra
+  // impressão — só calculado pra imagem (largura natural / 8.27" de uma
+  // A4); em PDF a resolução não é um conceito direto (a exportação sempre
+  // re-renderiza a 300dpi independente do arquivo original), então não
+  // avisa nesse caso. Nunca bloqueia o upload, só avisa. Chaveado pela
+  // própria URL (não pelo tipo) — handleDocUpload sempre gera uma URL nova
+  // (?t=timestamp) a cada envio, então trocar o arquivo automaticamente
+  // invalida o valor antigo e recalcula, sem precisar de um caminho
+  // separado só pro "upload que acabou de acontecer".
+  const [dpiByUrl, setDpiByUrl] = useState<Record<string, number | undefined>>({})
+  useEffect(() => {
+    for (const t of docTemplates) {
+      if (t.pdf_url in dpiByUrl) continue
+      if (!isImageUrl(t.pdf_url)) continue
+      const img = new Image()
+      img.onload = () => {
+        const dpi = img.naturalWidth / 8.27
+        setDpiByUrl(prev => ({ ...prev, [t.pdf_url]: dpi < 150 ? Math.round(dpi) : undefined }))
+      }
+      img.onerror = () => setDpiByUrl(prev => ({ ...prev, [t.pdf_url]: undefined }))
+      img.src = t.pdf_url
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docTemplates])
 
   // ── Gestão de usuários ──────────────────────────────────────
   // Inclui isSuperAdmin — igual a usePermissions.ts e AppSidebar.tsx.
@@ -239,6 +270,7 @@ function ConfiguracoesContent() {
     { key: 'plano', label: 'Plano' },
     { key: 'documentos', label: 'Documentos' },
     { key: 'integracoes', label: 'Integrações' },
+    ...(isAdmin ? [{ key: 'whatsapp' as const, label: 'WhatsApp' }] : []),
     { key: 'conta', label: 'Conta' },
     ...(isAdmin ? [{ key: 'auditoria' as const, label: 'Auditoria' }] : []),
   ]
@@ -555,17 +587,44 @@ function ConfiguracoesContent() {
     const ext = isPdf ? 'pdf' : file.name.split('.').pop()?.toLowerCase() ?? 'png'
     const path = `${clinic.id}/${type}.${ext}`
     const { error: upErr } = await supabase.storage.from('document-templates').upload(path, file, { upsert: true, contentType: file.type })
-    if (upErr) { setDocUploading(null); setDocMsg({ type, ok: false }); return }
+    if (upErr) { setDocUploading(null); setDocMsg({ type, ok: false, errorText: upErr.message }); return }
     const { data: urlData } = supabase.storage.from('document-templates').getPublicUrl(path)
     const pdf_url = urlData.publicUrl + '?t=' + Date.now()
-    await supabase.from('clinic_document_templates').upsert({ clinic_id: clinic.id, type, pdf_url }, { onConflict: 'clinic_id,type' })
+    const { error: dbErr } = await supabase.from('clinic_document_templates').upsert({ clinic_id: clinic.id, type, pdf_url }, { onConflict: 'clinic_id,type' })
+    if (dbErr) { setDocUploading(null); setDocMsg({ type, ok: false, errorText: dbErr.message }); return }
     setDocTemplates(prev => {
       const rest = prev.filter(t => t.type !== type)
-      return [...rest, { id: '', clinic_id: clinic.id, type, pdf_url, created_at: '', updated_at: '' }]
+      const previous = prev.find(t => t.type === type)
+      // Upsert só toca clinic_id/type/pdf_url — a calibração de campos (se
+      // existia) sobrevive no banco a uma troca de arquivo; refletimos isso
+      // aqui também em vez de zerar o estado otimista.
+      return [...rest, { id: previous?.id ?? '', clinic_id: clinic.id, type, pdf_url, field_positions: previous?.field_positions ?? [], created_at: previous?.created_at ?? '', updated_at: '' }]
     })
     setDocUploading(null)
     setDocMsg({ type, ok: true })
     setTimeout(() => setDocMsg(null), 3000)
+    // Aviso de baixa resolução (imagem estreita demais sai borrada quando
+    // ampliada pra ocupar a largura de uma A4 impressa) é calculado pelo
+    // efeito abaixo, disparado por essa mesma mudança de docTemplates.
+  }
+
+  async function handleSaveFieldPositions(type: DocumentTemplateType, fieldPositions: FieldPosition[]) {
+    if (!clinic?.id) return
+    // pdf_url é NOT NULL na tabela — mesmo atualizando uma linha existente,
+    // o upsert do supabase-js gera um INSERT ... ON CONFLICT, e o Postgres
+    // valida NOT NULL nos valores propostos ANTES de resolver o conflito.
+    // Sem reenviar o pdf_url que já existe, a calibração de um modelo já
+    // cadastrado falhava com "null value in column pdf_url".
+    const existingUrl = docTemplates.find(t => t.type === type)?.pdf_url
+    if (!existingUrl) return
+    const { error } = await supabase.from('clinic_document_templates').upsert(
+      { clinic_id: clinic.id, type, pdf_url: existingUrl, field_positions: fieldPositions },
+      { onConflict: 'clinic_id,type' }
+    )
+    if (error) { showToast('error', `Erro ao salvar calibração: ${error.message}`); return }
+    setDocTemplates(prev => prev.map(t => t.type === type ? { ...t, field_positions: fieldPositions } : t))
+    setCalibratingType(null)
+    showToast('ok', 'Campos calibrados salvos!')
   }
 
   async function handleLogoUpload(file: File) {
@@ -614,9 +673,14 @@ function ConfiguracoesContent() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     if (!clinic) return
+    const phoneError = phoneInputError(phone)
+    if (phoneError) { showToast('error', phoneError); return }
+    // telefone antigo que o campo não mostra (ex.: sem DDD) e que não foi digitado de novo: mantém, não apaga
+    const keepOldPhone = !phone && !!clinic.phone?.trim() && toInputValue(clinic.phone) === ''
+    const nextPhone = keepOldPhone ? clinic.phone : phone
     setSaving(true)
-    await supabase.from('clinics').update({ name, address, phone }).eq('id', clinic.id)
-    setSession({ ...clinic, name, address, phone }, user!)
+    await supabase.from('clinics').update({ name, address, phone: nextPhone }).eq('id', clinic.id)
+    setSession({ ...clinic, name, address, phone: nextPhone }, user!)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
     setSaving(false)
@@ -816,11 +880,10 @@ function ConfiguracoesContent() {
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>Novo dia de vencimento (1–28):</p>
-                  <input
-                    type="number"
+                  <IntegerInput
                     min={1} max={28}
                     value={dueDayInput}
-                    onChange={e => setDueDayInput(e.target.value)}
+                    onChange={setDueDayInput}
                     style={{ width: '4rem', padding: '0.3rem 0.5rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
                     placeholder="15"
                   />
@@ -882,7 +945,8 @@ function ConfiguracoesContent() {
           </div>
           <div className={styles.field}>
             <label>Telefone</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" />
+            <PhoneInput value={phone} onChange={setPhone} />
+            {previousPhoneNote(clinic?.phone) && <small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>Valor anterior no cadastro: {previousPhoneNote(clinic?.phone)}. Confira e digite o número completo com DDD.</small>}
           </div>
           <div className={styles.field}>
             <label>Endereço</label>
@@ -901,7 +965,7 @@ function ConfiguracoesContent() {
       <div className={styles.card}>
         <h2 className={styles.cardTitle}>Logo da Clínica</h2>
         <p className={styles.gcalDesc}>
-          A logo aparece no topo do painel e no cabeçalho de prontuários, contratos, receitas e atestados impressos.
+          A logo aparece no cabeçalho de prontuários, contratos, receitas e atestados — não é exibida no painel do sistema.
           Recomendado: PNG/SVG com fundo transparente, até 2 MB.
         </p>
         <div className={styles.logoRow}>
@@ -1005,6 +1069,9 @@ function ConfiguracoesContent() {
         </div>
       )}
 
+      {/* WhatsApp (conexão da clínica) — só admin */}
+      {tab === 'whatsapp' && isAdmin && <WhatsAppTab />}
+
       {/* Google Calendar */}
       {tab === 'integracoes' && (
       <div className={styles.card}>
@@ -1049,41 +1116,72 @@ function ConfiguracoesContent() {
             const existing = docTemplates.find(t => t.type === type)
             const uploading = docUploading === type
             const msg = docMsg?.type === type ? docMsg : null
+            const lowResDpi = existing ? dpiByUrl[existing.pdf_url] : undefined
             return (
-              <div key={type} className={styles.docTemplateRow}>
-                <span className={styles.docTemplateLabel}>{label}</span>
-                <div className={styles.docTemplateActions}>
-                  {existing
-                    ? <span className={styles.docTemplateStatus}><Icon name="check" size={12} /> Modelo cadastrado</span>
-                    : <span className={styles.docTemplateStatusEmpty}>Sem modelo</span>
-                  }
-                  {msg?.ok && <span className={styles.docTemplateSaved}>Salvo!</span>}
-                  {msg && !msg.ok && <span className={styles.docTemplateError}>Erro no upload</span>}
-                  <button
-                    className={styles.btnDocUpload}
-                    disabled={uploading}
-                    onClick={() => docInputRefs.current[type]?.click()}
-                  >
-                    {uploading ? 'Enviando...' : existing ? 'Trocar PDF' : 'Enviar PDF'}
-                  </button>
-                  <input
-                    type="file"
-                    accept=".pdf,image/*"
-                    style={{ display: 'none' }}
-                    ref={el => { docInputRefs.current[type] = el }}
-                    onChange={e => {
-                      const file = e.target.files?.[0]
-                      e.target.value = ''
-                      if (file) handleDocUpload(type, file)
-                    }}
-                  />
+              <div key={type} className={styles.docTemplateRowWrap}>
+                <div className={styles.docTemplateRow}>
+                  <span className={styles.docTemplateLabel}>{label}</span>
+                  <div className={styles.docTemplateActions}>
+                    {existing
+                      ? <span className={styles.docTemplateStatus}><Icon name="check" size={12} /> Modelo cadastrado</span>
+                      : <span className={styles.docTemplateStatusEmpty}>Sem modelo</span>
+                    }
+                    {msg?.ok && <span className={styles.docTemplateSaved}>Salvo!</span>}
+                    {msg && !msg.ok && <span className={styles.docTemplateError}>Erro no upload{msg.errorText ? `: ${msg.errorText}` : ''}</span>}
+                    {existing && (
+                      <button
+                        className={styles.btnDocCalibrate}
+                        onClick={() => setCalibratingType(type)}
+                        title="Marcar onde cada dado (paciente, data, etc.) aparece no seu modelo"
+                      >
+                        {existing.field_positions?.length ? 'Editar calibração' : 'Calibrar campos'}
+                      </button>
+                    )}
+                    <button
+                      className={styles.btnDocUpload}
+                      disabled={uploading}
+                      onClick={() => docInputRefs.current[type]?.click()}
+                    >
+                      {uploading ? 'Enviando...' : existing ? 'Trocar PDF' : 'Enviar PDF'}
+                    </button>
+                    <input
+                      type="file"
+                      accept=".pdf,image/*"
+                      style={{ display: 'none' }}
+                      ref={el => { docInputRefs.current[type] = el }}
+                      onChange={e => {
+                        const file = e.target.files?.[0]
+                        e.target.value = ''
+                        if (file) handleDocUpload(type, file)
+                      }}
+                    />
+                  </div>
                 </div>
+                {existing && lowResDpi && (
+                  <p className={styles.docTemplateLowRes}>
+                    Esta imagem tem resolução baixa (~{lowResDpi}dpi) — a impressão pode sair suave. Pra nitidez máxima, envie um PDF ou uma imagem maior (pelo menos 2480px de largura).
+                  </p>
+                )}
               </div>
             )
           })}
         </div>
       </div>
       )}
+
+      {calibratingType && (() => {
+        const tpl = docTemplates.find(t => t.type === calibratingType)
+        if (!tpl) return null
+        return (
+          <DocumentFieldCalibrator
+            type={calibratingType}
+            pdfUrl={tpl.pdf_url}
+            initialFields={tpl.field_positions ?? []}
+            onSave={fields => handleSaveFieldPositions(calibratingType, fields)}
+            onClose={() => setCalibratingType(null)}
+          />
+        )
+      })()}
 
       {tab === 'conta' && (
       <>
@@ -1360,7 +1458,7 @@ function ConfiguracoesContent() {
                       <span className={styles.permCheckCol}>Ver</span>
                       <span className={styles.permCheckCol}>Editar</span>
                     </div>
-                    {MODULES.filter(m => !m.plusOnly || hasWhatsApp(clinic?.plan)).map(m => {
+                    {MODULES.filter(m => !m.plusOnly || hasWhatsAppAI(clinic?.plan)).map(m => {
                       const perm = permissionsForm[m.key] ?? { can_view: false, can_edit: false, metadata: {} }
                       const extras = MODULE_EXTRAS[m.key] ?? []
                       return (

@@ -12,7 +12,9 @@ const CSP = [
   `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `font-src 'self' data: https://fonts.gstatic.com`,
   // blob: para PDFs/documentos gerados; lh3 para avatares Google
-  `img-src 'self' data: blob: https://${SUPABASE_HOST} https://*.supabase.co https://lh3.googleusercontent.com https://www.gstatic.com`,
+  `img-src 'self' data: blob: https://${SUPABASE_HOST} https://*.supabase.co https://lh3.googleusercontent.com https://www.gstatic.com https://pps.whatsapp.net`,
+  // áudio e vídeo das conversas do WhatsApp vêm do Storage por link assinado
+  `media-src 'self' blob: https://${SUPABASE_HOST} https://*.supabase.co`,
   // wss para Supabase Realtime; googleapis para Calendar e OAuth
   `connect-src 'self' https://${SUPABASE_HOST} https://*.supabase.co wss://${SUPABASE_HOST} wss://*.supabase.co https://www.googleapis.com https://calendar.googleapis.com https://accounts.google.com`,
   // Supabase OAuth abre popup Google — precisa de frame-src
@@ -25,6 +27,8 @@ const CSP = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // o middleware guarda o corpo da requisição em memória; o padrão (10 MB) cortaria o envio de arquivos de até 16 MB
+  experimental: { proxyClientMaxBodySize: '22mb' },
   async headers() {
     return [
       {
@@ -34,7 +38,7 @@ const nextConfig: NextConfig = {
           { key: 'X-Content-Type-Options',          value: 'nosniff' },
           { key: 'X-XSS-Protection',                value: '1; mode=block' },
           { key: 'Referrer-Policy',                 value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy',              value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
+          { key: 'Permissions-Policy',              value: 'camera=(), microphone=(self), geolocation=(), payment=(), usb=()' },
           { key: 'Strict-Transport-Security',       value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'Content-Security-Policy',         value: CSP },
           { key: 'Cross-Origin-Opener-Policy',      value: 'same-origin-allow-popups' },

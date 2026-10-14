@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { pickLatest, type ConfirmationInfo } from '@/lib/whatsapp/labels'
 import type { Professional, Procedure, Appointment, Patient, StockItem, StockMovement, FinancialRecord, PatientCredit } from '@/types'
 
 // Busca TODOS (ativos + inativos) para que dados históricos sejam resolvidos.
@@ -53,7 +54,7 @@ interface DashboardStats {
   avgTicket: number
 }
 export interface RevenueByCategory { category: string; value: number }
-export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario' | 'estoque_baixo'
+export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario' | 'estoque_baixo' | 'pediu_remarcacao' | 'respondeu'
 export interface DashboardAlert {
   patientId: string
   name: string
@@ -87,7 +88,7 @@ export function useDashboardData(clinicId: string | undefined) {
 
       const [
         patientsRes, todayApptRowsRes, pendingRes, allFinRes, newPatientsRes, todayFinRes,
-        monthApptsRes, proceduresRes, alertApptsRes, birthdayPatientsRes,
+        monthApptsRes, proceduresRes, alertApptsRes, birthdayPatientsRes, confRepliesRes,
       ] = await Promise.all([
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true),
         supabase.from('appointments').select('id, patient_id, professional_id, procedure_name, procedure_id, procedure_price, status, scheduled_at, duration_minutes, patients(id, name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', startOfDay).lte('scheduled_at', endOfDay).order('scheduled_at', { ascending: true }),
@@ -99,6 +100,8 @@ export function useDashboardData(clinicId: string | undefined) {
         supabase.from('procedures').select('id, category').eq('clinic_id', clinicId),
         supabase.from('appointments').select('id, patient_id, status, scheduled_at, patients(name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', twoHundredDaysAgo).order('scheduled_at', { ascending: false }),
         supabase.from('patients').select('id, name, phone, birth_date').eq('clinic_id', clinicId).eq('is_active', true).not('birth_date', 'is', null),
+        // pacientes que responderam ao WhatsApp de confirmação e precisam de atenção da recepção
+        supabase.from('appointment_confirmations').select('status, appointment_at, appointments(patient_id, status, patients(name, phone))').eq('clinic_id', clinicId).in('status', ['pediu_remarcacao', 'respondeu']).gt('appointment_at', new Date().toISOString()),
       ])
 
       const todayApptRows = (todayApptRowsRes.data ?? []) as unknown as Appointment[]
@@ -194,7 +197,20 @@ export function useDashboardData(clinicId: string | undefined) {
         })
         .map(p => ({ patientId: p.id, name: p.name, phone: p.phone, date: p.birth_date, reason: 'aniversario' as const }))
 
-      const alerts: DashboardAlert[] = [...noShowAlerts, ...birthdayAlerts, ...noReturnAlerts]
+      // Respostas do WhatsApp são o mais urgente (a consulta é logo ali): entram primeiro.
+      type ReplyRow = { status: 'pediu_remarcacao' | 'respondeu'; appointment_at: string; appointments: { patient_id: string | null; status: string; patients: { name: string; phone: string | null } | null } | null }
+      const replyAlerts: DashboardAlert[] = ((confRepliesRes.data ?? []) as unknown as ReplyRow[])
+        .filter(r => r.appointments?.patient_id && (r.appointments.status === 'agendado' || r.appointments.status === 'confirmado'))
+        .sort((a, b) => a.appointment_at.localeCompare(b.appointment_at))
+        .map(r => ({
+          patientId: r.appointments!.patient_id as string,
+          name: r.appointments!.patients?.name ?? '—',
+          phone: r.appointments!.patients?.phone ?? null,
+          date: r.appointment_at,
+          reason: r.status,
+        }))
+
+      const alerts: DashboardAlert[] = [...replyAlerts, ...noShowAlerts, ...birthdayAlerts, ...noReturnAlerts]
 
       return {
         stats: {
@@ -274,18 +290,34 @@ export function useAgendaData(clinicId: string | undefined, scopeProfessionalId:
   return useQuery({
     queryKey: ['agenda', clinicId, scopeProfessionalId],
     queryFn: async () => {
-      if (!clinicId) return { appointments: [], patients: [] }
+      if (!clinicId) return { appointments: [], patients: [], confirmations: {} as Record<string, ConfirmationInfo> }
       const threeMonthsAgo = new Date()
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
       let apptQuery = supabase.from('appointments').select('*, patients(id, name, phone), professionals(id, name)').eq('clinic_id', clinicId).gte('scheduled_at', threeMonthsAgo.toISOString()).order('scheduled_at', { ascending: true })
       if (scopeProfessionalId) apptQuery = apptQuery.eq('professional_id', scopeProfessionalId)
-      const [apptRes, patRes] = await Promise.all([
+      // confirmações de WhatsApp só importam para consultas de ontem em diante
+      const sinceConf = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const [apptRes, patRes, confRes] = await Promise.all([
         apptQuery,
         supabase.from('patients').select('id, name, phone').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
+        supabase.from('appointment_confirmations')
+          .select('appointment_id, kind, status, sent_at, answered_at, error, created_at')
+          .eq('clinic_id', clinicId).gte('appointment_at', sinceConf),
       ])
+      // uma entrada por consulta: a mais recente. Se a consulta falhar ao ler (tabela/RLS), a agenda segue sem os selos.
+      const grouped: Record<string, (ConfirmationInfo & { created_at: string })[]> = {}
+      for (const r of (confRes.data ?? []) as (ConfirmationInfo & { created_at: string; appointment_id: string })[]) {
+        (grouped[r.appointment_id] ??= []).push(r)
+      }
+      const confirmations: Record<string, ConfirmationInfo> = {}
+      for (const [id, rows] of Object.entries(grouped)) {
+        const latest = pickLatest(rows)
+        if (latest) confirmations[id] = latest
+      }
       return {
         appointments: (apptRes.data ?? []) as Appointment[],
         patients: (patRes.data ?? []) as Patient[],
+        confirmations,
       }
     },
     enabled: !!clinicId,
@@ -415,5 +447,22 @@ export function useCommissionsData(clinicId: string | undefined, period: string)
     },
     enabled: !!clinicId,
     staleTime: 5 * 60 * 1000,
+  })
+}
+
+// ── WhatsApp da clínica (estado da conexão, para a Agenda e o Dashboard) ──────
+
+export interface WhatsAppState { status: 'desconectado' | 'aguardando_qr' | 'conectado'; confirmEnabled: boolean }
+
+export function useWhatsAppState(clinicId: string | undefined) {
+  return useQuery({
+    queryKey: ['whatsapp-state', clinicId],
+    queryFn: async (): Promise<WhatsAppState | null> => {
+      if (!clinicId) return null
+      const { data } = await supabase.from('clinic_whatsapp').select('status, confirm_enabled').eq('clinic_id', clinicId).maybeSingle()
+      return data ? { status: data.status as WhatsAppState['status'], confirmEnabled: !!data.confirm_enabled } : null
+    },
+    enabled: !!clinicId,
+    staleTime: 2 * 60 * 1000,
   })
 }

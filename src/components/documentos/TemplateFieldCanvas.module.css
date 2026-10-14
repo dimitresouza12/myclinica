@@ -1,0 +1,9 @@
+/* :empty::before não dá pra fazer via style inline — placeholder da área de
+   digitação (ver 1.4 no plano: "área de digitação invisível"). O texto vem
+   do atributo data-empty-hint (setado só em kind:'body', modo fill) e some
+   assim que o profissional digita qualquer coisa (:empty deixa de bater). */
+.field:empty::before {
+  content: attr(data-empty-hint);
+  color: rgba(17, 17, 17, 0.35);
+  pointer-events: none;
+}

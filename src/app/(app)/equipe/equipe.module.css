@@ -14,6 +14,9 @@
 .bold { font-weight: 600; }
 .code { font-family: monospace; font-size: 0.78rem; background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; }
 .empty { text-align: center; color: var(--text-secondary); padding: 3rem 1rem !important; }
+.rowActions { display: flex; gap: 0.5rem; align-items: center; }
+.btnEdit { padding: 0.35rem 0.7rem; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: none; background: rgba(77,217,192,0.1); color: #0B9B85; border-radius: 999px; font-size: 0.76rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s; }
+.btnEdit:hover { background: rgba(77,217,192,0.18); }
 .btnDelete { padding: 0.35rem 0.7rem; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: none; background: rgba(239,68,68,0.08); color: #EF4444; border-radius: 999px; font-size: 0.76rem; font-weight: 600; cursor: pointer; transition: background .15s; }
 .btnDelete:hover { background: rgba(239,68,68,0.15); }
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 1rem; overflow: hidden; overscroll-behavior: contain; touch-action: none; }

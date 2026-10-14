@@ -3,9 +3,10 @@ import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
-import { formatDate, formatPhone, formatCurrency } from '@/lib/utils'
+import { formatDate, formatCurrency } from '@/lib/utils'
+import { formatBrPhone } from '@/lib/phoneFormat'
 import { syncLeadAppointments } from '@/lib/sync-leads'
-import { hasWhatsApp } from '@/lib/planGates'
+import { hasWhatsAppAI } from '@/lib/planGates'
 import { usePacientesData, usePatientCreditsData } from '@/hooks/useClinicData'
 import type { Patient } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
@@ -45,7 +46,7 @@ function PacientesContent() {
 
   // Fire-and-forget sync in background
   useEffect(() => {
-    if (clinic && hasWhatsApp(clinic.plan)) syncLeadAppointments(clinic.id, clinic.slug)
+    if (clinic && hasWhatsAppAI(clinic.plan)) syncLeadAppointments(clinic.id, clinic.slug)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinic?.id])
 
@@ -116,7 +117,7 @@ function PacientesContent() {
                       </div>
                     )}
                   </td>
-                  <td data-label="Telefone">{formatPhone(p.phone)}</td>
+                  <td data-label="Telefone">{formatBrPhone(p.phone) || '-'}</td>
                   <td data-label="Cadastro">{formatDate(p.created_at, true)}</td>
                   <td data-label="Ações">
                     <div className={styles.actions}>

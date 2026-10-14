@@ -1,5 +1,7 @@
 import type { Patient, MedicalRecord, RecordEntry, FinancialRecord, ClinicType, TreatmentPlanItem } from '@/types'
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
+import { formatBrPhone } from '@/lib/phoneFormat'
+import { formatCpf } from '@/lib/numericFormat'
 
 interface ClinicInfo {
   name: string
@@ -15,7 +17,7 @@ function clinicHeader(clinic: ClinicInfo) {
       <div>
         <h1 style="margin:0;font-size:20px;font-weight:800;color:#111">${clinic.name}</h1>
         ${clinic.address ? `<p style="margin:2px 0;font-size:12px;color:#555">${clinic.address}</p>` : ''}
-        ${clinic.phone ? `<p style="margin:2px 0;font-size:12px;color:#555">${clinic.phone}</p>` : ''}
+        ${clinic.phone ? `<p style="margin:2px 0;font-size:12px;color:#555">${formatBrPhone(clinic.phone)}</p>` : ''}
       </div>
     </div>
   `
@@ -64,9 +66,9 @@ export function printProntuario(clinic: ClinicInfo, patient: Patient, record: Me
     <h3>Identificação do Paciente</h3>
     <div class="grid">
       ${field('Nome', patient.name)}
-      ${field('Telefone', patient.phone)}
+      ${field('Telefone', formatBrPhone(patient.phone))}
       ${field('E-mail', patient.email)}
-      ${field('CPF', patient.cpf)}
+      ${field('CPF', formatCpf(patient.cpf))}
       ${field('RG', patient.rg)}
       ${field('Data de Nascimento', formatDateBR(patient.birth_date))}
       ${field('Gênero', patient.gender)}
@@ -233,7 +235,42 @@ export function printDocumento(contentHtml: string, bgImage: string | null) {
   openPrint(html)
 }
 
-function openPrint(html: string) {
+// O caminho calibrado (papel timbrado com campos posicionados) não usa mais
+// esta função — foi substituída por documentRender.ts (composeCalibratedDoc
+// + printBlob), que gera o MESMO PDF pra baixar e pra imprimir, encaixado
+// numa A4 física de verdade. Ver auditoria D1/D2/D3/D4/D6 no plano.
+
+// Acha toda URL de imagem usada no HTML (background-image inline + <img
+// src>) pra poder pré-carregar antes de imprimir — ver preloadImages abaixo.
+function extractImageUrls(html: string): string[] {
+  const urls = new Set<string>()
+  const bgRe = /url\((['"]?)([^'")]+)\1\)/g
+  let m: RegExpExecArray | null
+  while ((m = bgRe.exec(html))) urls.add(m[2])
+  const imgRe = /<img[^>]+src=["']([^"']+)["']/g
+  while ((m = imgRe.exec(html))) urls.add(m[1])
+  return Array.from(urls)
+}
+
+// Antes disso, w.print() rodava num setTimeout fixo de 400ms — uma corrida
+// contra o carregamento real do papel timbrado (mais lento em rede ruim ou
+// com PDF pesado convertido em data URL grande) que às vezes abria o
+// diálogo de impressão com o fundo em branco, de forma intermitente. Espera
+// de verdade cada imagem carregar, com um teto de segurança (nunca trava
+// pra sempre numa URL quebrada).
+function preloadImages(urls: string[], timeoutMs = 4000): Promise<void> {
+  if (urls.length === 0) return Promise.resolve()
+  const loaders = urls.map(url => new Promise<void>(resolve => {
+    const img = new Image()
+    img.onload = () => resolve()
+    img.onerror = () => resolve()
+    img.src = url
+  }))
+  const timeout = new Promise<void>(resolve => setTimeout(resolve, timeoutMs))
+  return Promise.race([Promise.all(loaders).then(() => undefined), timeout])
+}
+
+async function openPrint(html: string) {
   const w = window.open('', '_blank', 'width=900,height=700')
   if (!w) {
     // window.open volta null quando o navegador bloqueia o pop-up — sem
@@ -242,8 +279,9 @@ function openPrint(html: string) {
     window.alert('Não abriu a impressão — seu navegador bloqueou o pop-up. Libere pop-ups para este site e tente de novo.')
     return
   }
+  await preloadImages(extractImageUrls(html))
   w.document.write(html)
   w.document.close()
   w.focus()
-  setTimeout(() => { w.print() }, 400)
+  w.print()
 }

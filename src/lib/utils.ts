@@ -22,23 +22,6 @@ export function formatMonthLabel(monthStr: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 }
 
-export function formatPhone(phone: string | null | undefined): string {
-  if (!phone) return '-'
-  let str = String(phone)
-  if (str.includes('@')) str = str.split('@')[0]
-  const digits = str.replace(/\D/g, '')
-  if (digits.length >= 12 && digits.startsWith('55')) {
-    return `(${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9, 13)}`
-  }
-  if (digits.length === 11) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
-  }
-  if (digits.length === 10) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
-  }
-  return digits || '-'
-}
-
 export function formatCurrency(value: number | null | undefined): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value ?? 0)
 }

@@ -23,6 +23,7 @@ import { Icon } from '@/components/ui/Icon'
 import { MonthPicker } from '@/components/ui/MonthPicker'
 import { usePermissions } from '@/hooks/usePermissions'
 import { motion } from 'framer-motion'
+import { MoneyInput } from '@/components/ui/NumericInput'
 
 // Recharts – dynamic import to avoid SSR issues
 const Charts = dynamic(() => import('./FinanceiroCharts'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráficos...</div> })
@@ -682,8 +683,8 @@ function FinanceiroContent() {
               })()}
               <div className={styles.field}>
                 <label>Valor (R$) *</label>
-                <input type="number" step="0.01" min="0" value={form.total_amount}
-                  onChange={e => setForm(p => ({ ...p, total_amount: e.target.value }))} placeholder="0,00" />
+                <MoneyInput value={form.total_amount}
+                  onChange={v => setForm(p => ({ ...p, total_amount: v }))} />
               </div>
               <div className={styles.field}>
                 <label>Data</label>

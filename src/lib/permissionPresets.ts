@@ -15,7 +15,7 @@ export const MODULES = [
   { key: 'metas',         label: 'Metas',          icon: '', plusOnly: false },
   { key: 'estoque',       label: 'Estoque',        icon: '', plusOnly: false },
   { key: 'equipe',        label: 'Equipe',         icon: '', plusOnly: false },
-  { key: 'crm',           label: 'CRM',            icon: '', plusOnly: true  },
+  { key: 'crm',           label: 'CRM',            icon: '', plusOnly: false },
   { key: 'campanhas',     label: 'Campanhas',      icon: '', plusOnly: true  },
   { key: 'configuracoes', label: 'Configurações',  icon: '', plusOnly: false },
 ]

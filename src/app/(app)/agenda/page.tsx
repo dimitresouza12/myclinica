@@ -1,16 +1,20 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { formatDate, formatPhone, formatCurrency } from '@/lib/utils'
+import { formatDate, formatCurrency } from '@/lib/utils'
+import { PhoneInput } from '@/components/ui/PhoneInput'
+import { formatBrPhone, isCompleteBrPhone, waMeNumber, PHONE_INCOMPLETE } from '@/lib/phoneFormat'
 import { getGCalToken, isGCalConnected, silentRefreshGCal, fetchGCalEvents, createGCalEvent, updateGCalEvent, deleteGCalEvent, connectGoogleCalendar, disconnectGoogleCalendar, type GCalEvent } from '@/lib/googleCalendar'
 import { Portal } from '@/components/ui/Portal'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { syncLeadAppointments } from '@/lib/sync-leads'
-import { hasWhatsApp } from '@/lib/planGates'
-import { useProfessionals, useProcedures, useAgendaData } from '@/hooks/useClinicData'
+import { useProfessionals, useProcedures, useAgendaData, useWhatsAppState } from '@/hooks/useClinicData'
+import { confirmationLabel, type ConfirmationInfo } from '@/lib/whatsapp/labels'
+import { whatsappApi } from '@/components/configuracoes/whatsappApi'
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import { isAdminOrRecepcao, myScopedProfessionalId } from '@/lib/professionalScope'
 import { useQueryClient } from '@tanstack/react-query'
@@ -22,6 +26,7 @@ import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
 import { ensureRevenueForAppointment, notifyRevenuePending, removeRevenueForAppointment, promptCreditUsage } from '@/lib/appointmentRevenue'
+import { IntegerInput, MoneyInput } from '@/components/ui/NumericInput'
 
 const FullCalendarWrapper = dynamic(
   () => import('@/components/agenda/FullCalendarWrapper'),
@@ -159,6 +164,9 @@ function ApptDetailContent({
   onEdit,
   onDelete,
   onPhoneAdded,
+  confirmation,
+  whatsappConnected,
+  onWhatsAppSent,
 }: {
   appt: Appointment
   profColorIdx: Record<string, number>
@@ -168,19 +176,45 @@ function ApptDetailContent({
   onEdit: (a: Appointment) => void
   onDelete: (a: Appointment) => void
   onPhoneAdded?: (patientId: string, phone: string) => void
+  confirmation?: ConfirmationInfo
+  whatsappConnected?: boolean
+  onWhatsAppSent?: () => void
 }) {
   const color = profColor(appt.professional_id, profColorIdx)
+  // instante em que o detalhe foi aberto (não chamar Date.now() direto no render)
+  const [openedAt] = useState(() => Date.now())
+  const [waSending, setWaSending] = useState(false)
+  const [waMsg, setWaMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const waLabel = confirmation ? confirmationLabel(confirmation) : null
+  const canSendWa =
+    !!whatsappConnected && !!appt.patient_id &&
+    (appt.status === 'agendado' || appt.status === 'confirmado') &&
+    new Date(appt.scheduled_at).getTime() > openedAt
+
+  async function sendWhatsAppNow() {
+    setWaSending(true); setWaMsg(null)
+    try {
+      await whatsappApi('/api/whatsapp/send-now', { method: 'POST', body: { appointmentId: appt.id } })
+      setWaMsg({ ok: true, text: 'Mensagem enviada.' })
+      onWhatsAppSent?.()
+    } catch (e) {
+      setWaMsg({ ok: false, text: e instanceof Error ? e.message : 'Não foi possível enviar.' })
+    } finally {
+      setWaSending(false)
+    }
+  }
   const [showPhoneInput, setShowPhoneInput] = useState(false)
   const [phoneInput, setPhoneInput] = useState('')
   const [savingPhone, setSavingPhone] = useState(false)
 
   async function savePhone() {
-    if (!phoneInput.trim() || !appt.patient_id) return
+    if (!appt.patient_id) return
+    if (!isCompleteBrPhone(phoneInput)) { showToast('error', PHONE_INCOMPLETE); return }
     setSavingPhone(true)
-    await supabase.from('patients').update({ phone: phoneInput.trim() }).eq('id', appt.patient_id)
+    await supabase.from('patients').update({ phone: phoneInput }).eq('id', appt.patient_id)
     setSavingPhone(false)
     setShowPhoneInput(false)
-    onPhoneAdded?.(appt.patient_id, phoneInput.trim())
+    onPhoneAdded?.(appt.patient_id, phoneInput)
   }
   return (
     <>
@@ -204,12 +238,25 @@ function ApptDetailContent({
           <InfoCard label="Procedimento" value={appt.procedure_name ?? '-'} />
           <InfoCard label="Data e hora" value={formatDate(appt.scheduled_at)} />
           <InfoCard label="Duração" value={`${appt.duration_minutes ?? 60} min`} />
-          <InfoCard label="Telefone" value={formatPhone(appt.patients?.phone)} />
+          <InfoCard label="Telefone" value={formatBrPhone(appt.patients?.phone) || '-'} />
           {appt.professionals?.name && (
             <InfoCard label="Profissional" value={appt.professionals.name} />
           )}
           {appt.notes && <InfoCard label="Observações" value={appt.notes} fullWidth />}
         </div>
+
+        {(waLabel || canSendWa) && (
+          <div className={styles.waBox}>
+            <p className={styles.detailActionsLabel}>Confirmação pelo WhatsApp</p>
+            {waLabel && <span className={`${styles.waChip} ${styles[`waTone_${waLabel.tone}`]}`}>{waLabel.text}</span>}
+            {canSendWa && (
+              <button className={styles.waBtn} onClick={sendWhatsAppNow} disabled={waSending}>
+                {waSending ? 'Enviando…' : confirmation ? 'Reenviar mensagem agora' : 'Enviar confirmação agora'}
+              </button>
+            )}
+            {waMsg && <span className={waMsg.ok ? styles.waOk : styles.waErr} role="status">{waMsg.text}</span>}
+          </div>
+        )}
 
         <div className={styles.detailActions}>
           <p className={styles.detailActionsLabel}>Alterar status</p>
@@ -230,33 +277,31 @@ function ApptDetailContent({
 
       <div className={styles.detailFooter}>
         <div className={styles.detailFooterWa}>
-          {appt.patients?.phone ? (
+          {waMeNumber(appt.patients?.phone) ? (
             <>
               <a
                 className={styles.btnWhatsApp}
-                href={`https://wa.me/55${appt.patients.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                  `Olá, ${appt.patients.name?.split(' ')[0]}! Passando para lembrar da sua consulta marcada para ${formatDate(appt.scheduled_at)}. Até lá!`
+                href={`https://wa.me/${waMeNumber(appt.patients?.phone)}?text=${encodeURIComponent(
+                  `Olá, ${appt.patients?.name?.split(' ')[0]}! Passando para lembrar da sua consulta marcada para ${formatDate(appt.scheduled_at)}. Até lá!`
                 )}`}
                 target="_blank" rel="noopener noreferrer"
               >Lembrar</a>
               <a
                 className={styles.btnChat}
-                href={`https://wa.me/55${appt.patients.phone.replace(/\D/g, '')}`}
+                href={`https://wa.me/${waMeNumber(appt.patients?.phone)}`}
                 target="_blank" rel="noopener noreferrer"
               >Conversar</a>
             </>
           ) : showPhoneInput ? (
             <div className={styles.phoneInputRow}>
-              <input
+              <PhoneInput
                 className={styles.phoneInput}
-                type="tel"
-                placeholder="(11) 99999-9999"
                 value={phoneInput}
-                onChange={e => setPhoneInput(e.target.value)}
+                onChange={setPhoneInput}
                 onKeyDown={e => { if (e.key === 'Enter') savePhone(); if (e.key === 'Escape') setShowPhoneInput(false) }}
                 autoFocus
               />
-              <button className={styles.btnPhoneSave} onClick={savePhone} disabled={savingPhone || !phoneInput.trim()}>
+              <button className={styles.btnPhoneSave} onClick={savePhone} disabled={savingPhone || !isCompleteBrPhone(phoneInput)}>
                 {savingPhone ? '...' : 'Salvar'}
               </button>
               <button className={styles.btnPhoneCancel} onClick={() => setShowPhoneInput(false)}><Icon name="close" size={14} /></button>
@@ -331,6 +376,9 @@ function AgendaContent() {
   const blankAppt = useCallback((): NewAppt => ({ ...BLANK, duration_minutes: defaultDuration, professional_id: scopeProfessionalId ?? '' }), [defaultDuration, scopeProfessionalId])
   const queryClient = useQueryClient()
   const { data: agendaData, isLoading: loading } = useAgendaData(clinic?.id, scopeProfessionalId)
+  const confirmations = agendaData?.confirmations ?? {}
+  const { data: waState } = useWhatsAppState(clinic?.id)
+  const whatsappConnected = waState?.status === 'conectado'
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const { data: allProfessionals = [] } = useProfessionals(clinic?.id)
@@ -407,6 +455,22 @@ function AgendaContent() {
       setPatients(agendaData.patients)
     }
   }, [agendaData])
+
+  // Vindo do CRM ("Agendar"), abre o novo agendamento já com o paciente escolhido. Uma vez só; o parâmetro some da URL.
+  const prefillPatientId = useSearchParams().get('paciente')
+  const prefillDone = useRef(false)
+  useEffect(() => {
+    if (!prefillPatientId || prefillDone.current || !agendaData) return
+    prefillDone.current = true
+    window.history.replaceState(null, '', '/agenda')
+    const p = agendaData.patients.find(x => x.id === prefillPatientId)
+    if (!p) return
+    // roda uma única vez (ref acima), quando os dados chegam: não há como derivar isso no render
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setForm({ ...blankAppt(), patient_id: p.id })
+    setPatientSearch(p.name)
+    setShowModal(true)
+  }, [prefillPatientId, agendaData, blankAppt])
 
   function loadData() {
     queryClient.invalidateQueries({ queryKey: ['agenda', clinic?.id] })
@@ -812,10 +876,11 @@ function AgendaContent() {
 
   async function createPatient() {
     if (!clinic || !npName.trim()) return
+    if (npPhone && !isCompleteBrPhone(npPhone)) { showToast('error', PHONE_INCOMPLETE); return }
     setSavingPatient(true)
     const { data, error } = await supabase
       .from('patients')
-      .insert([{ clinic_id: clinic.id, name: npName.trim(), phone: npPhone.trim() || null, is_active: true }])
+      .insert([{ clinic_id: clinic.id, name: npName.trim(), phone: npPhone || null, is_active: true }])
       .select('id, name, phone')
       .single()
     setSavingPatient(false)
@@ -1233,6 +1298,10 @@ function AgendaContent() {
                                   <span className={styles.lrProName}>{a.professionals.name}</span>
                                 </>
                               )}
+                              {confirmations[a.id] && (() => {
+                                const l = confirmationLabel(confirmations[a.id])
+                                return <span className={`${styles.lrWa} ${styles[`waTone_${l.tone}`]}`} title={l.text}>{l.short}</span>
+                              })()}
                               <span className={`${styles.lrStatus} ${styles[`badge_${a.status ?? 'agendado'}`]}`}>
                                 {STATUS_LABELS[a.status ?? ''] ?? a.status}
                               </span>
@@ -1264,6 +1333,9 @@ function AgendaContent() {
                   appt={selected}
                   profColorIdx={profColorIndex}
                   onUpdateStatus={updateStatus}
+                  confirmation={confirmations[selected.id]}
+                  whatsappConnected={whatsappConnected}
+                  onWhatsAppSent={() => queryClient.invalidateQueries({ queryKey: ['agenda', clinic?.id] })}
                   onGCal={openGCal}
                   onClose={() => setSelected(null)}
                   onEdit={openEdit}
@@ -1299,6 +1371,9 @@ function AgendaContent() {
                 appt={selected}
                 profColorIdx={profColorIndex}
                 onUpdateStatus={updateStatus}
+                  confirmation={confirmations[selected.id]}
+                  whatsappConnected={whatsappConnected}
+                  onWhatsAppSent={() => queryClient.invalidateQueries({ queryKey: ['agenda', clinic?.id] })}
                 onGCal={openGCal}
                 onClose={() => setSelected(null)}
                 onEdit={openEdit}
@@ -1392,12 +1467,7 @@ function AgendaContent() {
                         onKeyDown={e => { if (e.key === 'Enter') createPatient() }}
                         autoFocus
                       />
-                      <input
-                        placeholder="Telefone / WhatsApp"
-                        value={npPhone}
-                        onChange={e => setNpPhone(e.target.value)}
-                        type="tel"
-                      />
+                      <PhoneInput value={npPhone} onChange={setNpPhone} aria-label="Telefone / WhatsApp" />
                       <button
                         type="button"
                         className={styles.btnCreatePatient}
@@ -1507,13 +1577,9 @@ function AgendaContent() {
                 {form.procedure_id && form.procedure_id !== 'outro' && (
                   <div className={styles.field}>
                     <label>Valor (R$)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
+                    <MoneyInput
                       value={form.procedure_price}
-                      onChange={e => setForm(p => ({ ...p, procedure_price: e.target.value }))}
-                      placeholder="0,00"
+                      onChange={v => setForm(p => ({ ...p, procedure_price: v }))}
                     />
                   </div>
                 )}
@@ -1575,7 +1641,7 @@ function AgendaContent() {
                 {/* ── Duração / Status / Notas ── */}
                 <div className={styles.field}>
                   <label>Duração (min)</label>
-                  <input type="number" value={form.duration_minutes} onChange={e => setForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))} min={15} step={15} />
+                  <IntegerInput value={form.duration_minutes || ''} onChange={v => setForm(p => ({ ...p, duration_minutes: v === '' ? 0 : Number(v) }))} min={5} max={720} placeholder="60" />
                 </div>
                 <div className={styles.field}>
                   <label>Status</label>
@@ -1647,7 +1713,7 @@ function AgendaContent() {
                 </div>
                 <div className={styles.field}>
                   <label>Duração (min)</label>
-                  <input type="number" value={blockForm.duration_minutes} onChange={e => setBlockForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))} min={15} step={15} />
+                  <IntegerInput value={blockForm.duration_minutes || ''} onChange={v => setBlockForm(p => ({ ...p, duration_minutes: v === '' ? 0 : Number(v) }))} min={5} max={720} placeholder="60" />
                 </div>
                 <div className={styles.field}>
                   <label>Motivo</label>

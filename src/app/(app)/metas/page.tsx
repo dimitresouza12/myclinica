@@ -9,6 +9,7 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { useDashboardData } from '@/hooks/useClinicData'
 import { PageTitle } from '@/components/layout/PageTitle'
 import styles from './metas.module.css'
+import { MoneyInput } from '@/components/ui/NumericInput'
 
 const MetasHistoryChart = dynamic(() => import('./MetasHistoryChart'), {
   ssr: false,
@@ -89,13 +90,10 @@ function MetasContent() {
               <div className={styles.editRow}>
                 <div className={styles.field}>
                   <label>Meta de faturamento mensal (R$)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step="50"
-                    placeholder="Ex: 30000"
+                  <MoneyInput
+                    placeholder="Ex: 30.000,00"
                     value={goalInput}
-                    onChange={(e) => setGoalInput(e.target.value)}
+                    onChange={setGoalInput}
                     className={styles.goalInput}
                   />
                 </div>

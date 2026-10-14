@@ -7,9 +7,10 @@ import { useAuthStore } from '@/store/auth'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatCurrencyCompact, formatDate } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
-import { hasWhatsApp } from '@/lib/planGates'
+import { hasWhatsAppAI } from '@/lib/planGates'
+import { waMeNumber } from '@/lib/phoneFormat'
 import { Icon } from '@/components/ui/Icon'
-import { useDashboardData, useProcedures, useEstoqueData } from '@/hooks/useClinicData'
+import { useDashboardData, useProcedures, useEstoqueData, useWhatsAppState } from '@/hooks/useClinicData'
 import type { DashboardAlertReason, DashboardAlert, RevenueByCategory } from '@/hooks/useClinicData'
 import { usePermissions } from '@/hooks/usePermissions'
 import { showToast } from '@/components/ui/Toast'
@@ -52,12 +53,12 @@ const ALERT_META: Record<DashboardAlertReason, { label: string; icon: IconName; 
   sem_retorno:   { label: 'Sem retorno',  icon: 'calendar', color: '#F59E0B' },
   aniversario:   { label: 'Aniversário',  icon: 'cake',     color: '#8B5CF6' },
   estoque_baixo: { label: 'Estoque baixo', icon: 'stock',   color: '#F59E0B' },
+  pediu_remarcacao: { label: 'Pediu para remarcar', icon: 'swap', color: '#D97706' },
+  respondeu:     { label: 'Respondeu',    icon: 'mail',     color: '#2563EB' },
 }
 
 function buildWaLink(phone: string, message: string): string {
-  const clean = phone.replace(/\D/g, '')
-  const number = clean.startsWith('55') ? clean : `55${clean}`
-  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`
+  return `https://wa.me/${waMeNumber(phone)}?text=${encodeURIComponent(message)}`
 }
 
 function Money({ value, hide }: { value: number; hide: boolean }) {
@@ -72,6 +73,8 @@ function Money({ value, hide }: { value: number; hide: boolean }) {
 
 function alertMessage(reason: DashboardAlertReason, name: string, clinicName: string): string {
   const first = name.split(' ')[0]
+  if (reason === 'pediu_remarcacao') return `Olá ${first}! Recebemos seu pedido para remarcar a consulta na ${clinicName}. Qual dia e horário ficam melhores para você?`
+  if (reason === 'respondeu') return `Olá ${first}! Vimos sua mensagem sobre a consulta na ${clinicName}. Como podemos ajudar?`
   if (reason === 'faltou') return `Olá ${first}! Notamos que você não conseguiu comparecer à sua última consulta na ${clinicName}. Vamos reagendar? 😊`
   if (reason === 'aniversario') return `Olá ${first}! 🎉 A equipe da ${clinicName} deseja um Feliz Aniversário! Se quiser aproveitar para marcar sua próxima consulta, é só chamar por aqui.`
   return `Olá ${first}! Faz um tempo desde seu último atendimento na ${clinicName}. Que tal agendarmos seu retorno? 😊`
@@ -185,11 +188,15 @@ function DashboardContent() {
   const { data, isLoading: loading } = useDashboardData(clinic?.id)
   const { data: procedures = [] } = useProcedures(clinic?.id)
   const { data: estoqueData } = useEstoqueData(clinic?.id)
+  const { data: waState } = useWhatsAppState(clinic?.id)
+  // confirmação automática ligada, mas o WhatsApp caiu: nenhum aviso está saindo
+  const whatsappDown = !!waState?.confirmEnabled && waState.status !== 'conectado'
+  const isClinicAdmin = user?.role === 'admin' || !!user?.isSuperAdmin
   const lowStockCount = (estoqueData?.items ?? []).filter(i => i.quantity <= i.min_quantity).length
 
   // Fire-and-forget in background — does not block dashboard queries
   useEffect(() => {
-    if (clinic && hasWhatsApp(clinic.plan)) syncLeadAppointments(clinic.id, clinic.slug)
+    if (clinic && hasWhatsAppAI(clinic.plan)) syncLeadAppointments(clinic.id, clinic.slug)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinic?.id])
 
@@ -341,6 +348,15 @@ function DashboardContent() {
         <p className={styles.loading}>Carregando...</p>
       ) : (
         <>
+          {whatsappDown && (
+            <div className={styles.waDown} role="alert">
+              <strong>O WhatsApp da clínica está desconectado.</strong>
+              <span>As confirmações automáticas de consulta pararam de sair.</span>
+              {isClinicAdmin
+                ? <Link className={styles.waDownLink} href="/configuracoes?tab=whatsapp">Reconectar</Link>
+                : <span>Peça ao administrador para reconectar em Configurações.</span>}
+            </div>
+          )}
           <OnboardingModal procedures={procedures} patientsCount={stats.totalPatients} />
           <OnboardingChecklist procedures={procedures} patientsCount={stats.totalPatients} />
           <WelcomeModal />
@@ -381,8 +397,8 @@ function DashboardContent() {
                           <Link className={styles.alertBtnWa} href="/estoque" title="Ver estoque">
                             Ver estoque
                           </Link>
-                        ) : a.phone && (
-                          <a className={styles.alertBtnWa} href={buildWaLink(a.phone, msg)} target="_blank" rel="noopener noreferrer" title="WhatsApp">
+                        ) : waMeNumber(a.phone) && (
+                          <a className={styles.alertBtnWa} href={buildWaLink(a.phone ?? '', msg)} target="_blank" rel="noopener noreferrer" title="WhatsApp">
                             WhatsApp
                           </a>
                         )}

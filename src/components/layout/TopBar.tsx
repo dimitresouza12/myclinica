@@ -1,14 +1,14 @@
 'use client'
 import styles from './TopBar.module.css'
-import type { AuthClinic } from '@/types'
 import { Icon } from '@/components/ui/Icon'
 
 interface Props {
-  clinic: AuthClinic
   onMenuToggle: () => void
 }
 
-export function TopBar({ clinic, onMenuToggle }: Props) {
+// Nota: a logo da clínica (clinic.logo) não aparece na UI do sistema — só
+// no cabeçalho dos documentos gerados no prontuário (ver TabDocumentos.tsx).
+export function TopBar({ onMenuToggle }: Props) {
   return (
     <header className={styles.bar}>
       <button className={styles.menuBtn} onClick={onMenuToggle} aria-label="Menu">
@@ -20,11 +20,6 @@ export function TopBar({ clinic, onMenuToggle }: Props) {
           fica sempre vazio e sem efeito, já que cada página mantém seu próprio
           cabeçalho ali. */}
       <div id="topbar-title-slot" className={styles.titleSlot} />
-      <div className={styles.right}>
-        {clinic.logo && (
-          <img src={clinic.logo} alt={clinic.name} className={styles.logo} />
-        )}
-      </div>
     </header>
   )
 }

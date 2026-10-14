@@ -17,6 +17,7 @@ import { PageTitle } from '@/components/layout/PageTitle'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 import { SelectMenu } from '@/components/ui/SelectMenu'
+import { IntegerInput, MoneyInput } from '@/components/ui/NumericInput'
 
 const EstoqueChart = dynamic(() => import('./EstoqueChart'), { ssr: false, loading: () => null })
 
@@ -375,11 +376,11 @@ function EstoqueContent() {
               <div className={styles.fieldRow}>
                 <div className={styles.field}>
                   <label>Qtd {!editingItem && 'Inicial'} *</label>
-                  <input type="number" min="0" value={itemForm.quantity} onChange={e => setItemForm(p => ({ ...p, quantity: parseInt(e.target.value) || 0 }))} />
+                  <IntegerInput value={itemForm.quantity} max={999999} onChange={v => setItemForm(p => ({ ...p, quantity: v === '' ? 0 : Number(v) }))} />
                 </div>
                 <div className={styles.field}>
                   <label>Qtd Mínima</label>
-                  <input type="number" min="0" value={itemForm.min_quantity} onChange={e => setItemForm(p => ({ ...p, min_quantity: parseInt(e.target.value) || 0 }))} />
+                  <IntegerInput value={itemForm.min_quantity} max={999999} onChange={v => setItemForm(p => ({ ...p, min_quantity: v === '' ? 0 : Number(v) }))} />
                 </div>
                 <div className={styles.field}>
                   <label>Unidade</label>
@@ -391,7 +392,7 @@ function EstoqueContent() {
               <div className={styles.fieldRow}>
                 <div className={styles.field}>
                   <label>Preço de Custo (R$)</label>
-                  <input type="number" min="0" step="0.01" value={itemForm.cost_price} onChange={e => setItemForm(p => ({ ...p, cost_price: e.target.value }))} placeholder="0,00" />
+                  <MoneyInput value={itemForm.cost_price} onChange={v => setItemForm(p => ({ ...p, cost_price: v }))} />
                 </div>
                 <div className={styles.field}>
                   <label>Fornecedor</label>
@@ -431,7 +432,7 @@ function EstoqueContent() {
               </div>
               <div className={styles.field}>
                 <label>Quantidade *</label>
-                <input type="number" min="1" value={movForm.quantity} onChange={e => setMovForm(p => ({ ...p, quantity: e.target.value }))} placeholder="0" autoFocus />
+                <IntegerInput min={1} max={999999} value={movForm.quantity} onChange={v => setMovForm(p => ({ ...p, quantity: v }))} placeholder="0" autoFocus />
               </div>
               <div className={styles.field}>
                 <label>Motivo</label>

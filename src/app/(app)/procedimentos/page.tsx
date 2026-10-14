@@ -12,6 +12,7 @@ import { PageTitle } from '@/components/layout/PageTitle'
 import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
+import { MoneyInput } from '@/components/ui/NumericInput'
 
 interface FormData { name: string; price: string; is_free: boolean; category: string; is_active: boolean }
 const BLANK: FormData = { name: '', price: '', is_free: false, category: '', is_active: true }
@@ -232,13 +233,9 @@ function ProcedimentosContent() {
               <div className={styles.row2}>
                 <div className={styles.field}>
                   <label>Valor (R$)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.is_free ? '0' : form.price}
-                    onChange={(e) => setForm(p => ({ ...p, price: e.target.value }))}
-                    placeholder="0,00"
+                  <MoneyInput
+                    value={form.is_free ? 0 : form.price}
+                    onChange={(v) => setForm(p => ({ ...p, price: v }))}
                     disabled={form.is_free}
                   />
                 </div>

@@ -8,6 +8,9 @@ import type { AuthClinic } from '@/types'
 import { printProntuario, printContrato, printOrcamento } from '@/lib/print'
 import styles from './TabFicha.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { showToast } from '@/components/ui/Toast'
+import { CpfInput, DateInput, DecimalInput, MoneyInput } from '@/components/ui/NumericInput'
+import { cpfInputError, cpfToInputValue, dateBRToISO, dateInputError, isoToDateBR, previousCpfNote } from '@/lib/numericFormat'
 import { PET_SPECIES, PET_BREEDS, VET_ANAMNESIS_EXTRA_BY_SPECIES, VET_EXAM_EXTRA_BY_SPECIES } from '@/lib/vetSpecies'
 import { MEDICO_ANAMNESIS_EXTRA_BY_SPECIALTY, MEDICO_EXAM_EXTRA_BY_SPECIALTY } from '@/lib/medicoSpecialties'
 import { getSpecialtyConfig, CLINIC_TYPE_LABELS } from '@/lib/specialtyConfig'
@@ -123,18 +126,11 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  function formatDateBR(iso: string | null) {
-    if (!iso) return ''
-    const d = iso.slice(0, 10).split('-')
-    if (d.length !== 3) return iso
-    return `${d[2]}/${d[1]}/${d[0]}`
-  }
-
   useEffect(() => {
     setPatientInfo({
-      'p-cpf':        patient.cpf ?? '',
+      'p-cpf':        cpfToInputValue(patient.cpf),
       'p-rg':         patient.rg ?? '',
-      'p-nasc':       formatDateBR(patient.birth_date),
+      'p-nasc':       isoToDateBR(patient.birth_date),
       'p-genero':     patient.gender ?? '',
       'p-ocupacao':   patient.occupation ?? '',
       'p-endereco':   patient.address ?? '',
@@ -175,15 +171,14 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
   }
   const treatmentPlanTotal = treatmentPlanItems.reduce((sum, it) => sum + (it.value ?? 0), 0)
 
-  function parseDateISO(br: string): string | null {
-    if (!br) return null
-    const parts = br.split('/')
-    if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`
-    if (/^\d{4}-\d{2}-\d{2}$/.test(br)) return br
-    return null
-  }
-
   async function handleSave() {
+    // CPF com os 11 números e nascimento como data real: se estiver errado, avisa antes de gravar
+    const cpfError = cpfInputError(patientInfo['p-cpf'])
+    if (cpfError) { showToast('error', cpfError); return }
+    const birthError = dateInputError(patientInfo['p-nasc'])
+    if (birthError) { showToast('error', birthError); return }
+    // CPF antigo que o campo não mostra (incompleto) e que não foi digitado de novo: mantém, não apaga
+    const keepOldCpf = !patientInfo['p-cpf'] && !!patient.cpf?.trim() && cpfToInputValue(patient.cpf) === ''
     setSaving(true)
     try {
       const payload = {
@@ -204,9 +199,9 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
       // Sincroniza campos de identificação de volta para a tabela patients
       await supabase.from('patients').update({
-        cpf:               patientInfo['p-cpf'] || null,
+        cpf:               keepOldCpf ? patient.cpf : (patientInfo['p-cpf'] || null),
         rg:                patientInfo['p-rg'] || null,
-        birth_date:        parseDateISO(patientInfo['p-nasc'] ?? ''),
+        birth_date:        dateBRToISO(patientInfo['p-nasc']),
         gender:            patientInfo['p-genero'] || null,
         occupation:        patientInfo['p-ocupacao'] || null,
         address:           patientInfo['p-endereco'] || null,
@@ -317,16 +312,16 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Identificação</h3>
         <div className={styles.grid2}>
-          {pField('p-cpf', 'CPF')}
+          <div className={styles.field}>
+            <label>CPF</label>
+            <CpfInput value={patientInfo['p-cpf'] ?? ''} onChange={v => setP('p-cpf', v)} />
+            {previousCpfNote(patient.cpf) && <small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>Valor anterior no cadastro: {previousCpfNote(patient.cpf)}. Confira e digite os 11 números.</small>}
+          </div>
           {pField('p-rg', 'RG')}
 
           <div className={styles.field}>
             <label>Data de Nascimento</label>
-            <input
-              placeholder="DD/MM/AAAA"
-              value={patientInfo['p-nasc'] ?? ''}
-              onChange={e => setP('p-nasc', e.target.value)}
-            />
+            <DateInput value={patientInfo['p-nasc'] ?? ''} onChange={v => setP('p-nasc', v)} />
           </div>
 
           <div className={styles.field}>
@@ -419,7 +414,9 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
               ].map(([k,l]) => (
                 <div className={styles.field} key={k}>
                   <label>{l}</label>
-                  <input value={patientInfo[k] ?? ''} onChange={e => setP(k, e.target.value)} />
+                  {k === 'p-pet_peso'
+                    ? <DecimalInput value={patientInfo[k] ?? ''} onChange={v => setP(k, v)} max={500} decimals={2} placeholder="0" />
+                    : <input value={patientInfo[k] ?? ''} onChange={e => setP(k, e.target.value)} />}
                 </div>
               ))}
             </>
@@ -507,14 +504,11 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
                 placeholder="Ex: Exo 15 + dente, Faceta 11..."
                 onChange={(e) => updateTreatmentItem(item.id, { description: e.target.value })}
               />
-              <input
-                type="number"
-                step="0.01"
-                min="0"
+              <MoneyInput
                 className={styles.treatmentItemValue}
-                value={item.value ?? ''}
+                value={item.value}
                 placeholder="R$"
-                onChange={(e) => updateTreatmentItem(item.id, { value: e.target.value === '' ? null : Number(e.target.value) })}
+                onChange={(v) => updateTreatmentItem(item.id, { value: v === '' ? null : Number(v) })}
               />
               <button type="button" className={styles.treatmentItemRemove} onClick={() => removeTreatmentItem(item.id)} aria-label="Remover item">
                 <Icon name="close" size={14} />

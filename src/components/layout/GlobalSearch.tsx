@@ -1,4 +1,5 @@
 'use client'
+import { formatBrPhone } from '@/lib/phoneFormat'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -92,7 +93,7 @@ export function GlobalSearch() {
             {results.length > 0 ? results.map(p => (
               <button key={p.id} className={styles.item} onClick={() => handleSelect(p)}>
                 <span className={styles.itemName}>{p.name}{p.pet_name ? ` · ${p.pet_name}` : ''}</span>
-                {p.phone && <span className={styles.itemPhone}>{p.phone}</span>}
+                {p.phone && <span className={styles.itemPhone}>{formatBrPhone(p.phone)}</span>}
               </button>
             )) : (
               <p className={styles.empty}>Nenhum paciente encontrado.</p>

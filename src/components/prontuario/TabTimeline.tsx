@@ -19,7 +19,7 @@ interface Props {
 
 interface PendingPhoto { file: File; previewUrl: string }
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024  // 5MB
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024  // 15MB
 const SIGNED_URL_EXPIRES = 3600           // 1 hora
 
 export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPendingChange }: Props) {

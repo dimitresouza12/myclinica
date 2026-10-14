@@ -1,8 +1,10 @@
-// Planos que incluem integrações WhatsApp / CRM / IA
-const WHATSAPP_PLANS = ['completo_plus'] as const
+// Mensagens (WhatsApp), confirmação automática e CRM (funil de leads) valem para TODOS os planos:
+// não há função de trava para eles. Só o que depende do atendente virtual com IA é exclusivo.
+const AI_PLANS = ['completo_plus'] as const
 
-export function hasWhatsApp(plan: string | null | undefined): boolean {
-  return WHATSAPP_PLANS.includes(plan as typeof WHATSAPP_PLANS[number])
+/** Atendente virtual com IA (Ilimitado + IA): CRM de leads do agente (n8n), Campanhas e a sincronização de leads. */
+export function hasWhatsAppAI(plan: string | null | undefined): boolean {
+  return AI_PLANS.includes(plan as typeof AI_PLANS[number])
 }
 
 // Espelha o default do trigger enforce_clinic_user_limit() no banco —

@@ -1,4 +1,5 @@
 'use client'
+import { formatBrPhone } from '@/lib/phoneFormat'
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
@@ -255,7 +256,7 @@ function CampanhasContent() {
                 <div className={styles.audienceList}>
                   {audience.slice(0, 6).map(p => (
                     <div key={p.id} className={styles.audienceName}>
-                      {p.name} · {p.phone}
+                      {p.name} · {formatBrPhone(p.phone)}
                     </div>
                   ))}
                   {audience.length > 6 && (

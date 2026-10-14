@@ -8,11 +8,12 @@ import { AdminClinicas } from '@/components/admin/AdminClinicas'
 import { AdminAlertas } from '@/components/admin/AdminAlertas'
 import { AdminLogs } from '@/components/admin/AdminLogs'
 import { AdminUsuarios } from '@/components/admin/AdminUsuarios'
+import { AdminWhatsApp } from '@/components/admin/AdminWhatsApp'
 import styles from '@/components/admin/admin.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { PageTitle } from '@/components/layout/PageTitle'
 
-type AdminTab = 'overview' | 'clinicas' | 'alertas' | 'logs' | 'usuarios'
+type AdminTab = 'overview' | 'clinicas' | 'alertas' | 'logs' | 'usuarios' | 'whatsapp'
 
 type UserWithClinic = ClinicUser & { clinics?: { name: string } | null }
 
@@ -22,6 +23,7 @@ const TABS: { key: AdminTab; label: string; icon: string }[] = [
   { key: 'alertas',   label: 'Avisos',    icon: '' },
   { key: 'logs',      label: 'Auditoria', icon: '' },
   { key: 'usuarios',  label: 'Usuários',  icon: '' },
+  { key: 'whatsapp',  label: 'WhatsApp',  icon: '' },
 ]
 
 export default function AdminPage() {
@@ -96,6 +98,7 @@ export default function AdminPage() {
           {tab === 'alertas'   && <AdminAlertas />}
           {tab === 'logs'      && <AdminLogs clinics={clinics} />}
           {tab === 'usuarios'  && <AdminUsuarios users={users} clinics={clinics} />}
+          {tab === 'whatsapp'  && <AdminWhatsApp />}
         </>
       )}
     </div>

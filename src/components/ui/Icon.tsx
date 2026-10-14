@@ -7,7 +7,7 @@ export type IconName =
   | 'crm' | 'stock' | 'reports' | 'campaigns' | 'procedures' | 'target' | 'alert' | 'phone' | 'cake'
   | 'close' | 'check' | 'checkCircle' | 'edit' | 'trash' | 'arrowUp' | 'swap' | 'refresh'
   | 'ban' | 'eye' | 'camera' | 'paperclip' | 'bell' | 'mail' | 'trophy' | 'download' | 'upload'
-  | 'pause' | 'play' | 'info' | 'percent' | 'receipt' | 'search' | 'copy'
+  | 'pause' | 'play' | 'info' | 'percent' | 'receipt' | 'search' | 'copy' | 'chat' | 'send' | 'plus' | 'clock' | 'mic'
 
 const PATHS: Record<IconName, string> = {
   dashboard:    'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
@@ -56,6 +56,11 @@ const PATHS: Record<IconName, string> = {
   percent:      'M19 5L5 19M6.5 9a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM17.5 20a2.5 2.5 0 100-5 2.5 2.5 0 000 5z',
   receipt:      'M4 2l1.7 1 1.8-1 1.8 1 1.7-1 1.8 1 1.7-1 1.8 1 1.7-1v20l-1.7-1-1.8 1-1.7-1-1.8 1-1.7-1-1.8 1-1.7-1-1.8 1V2zM8 8h8M8 12h8M8 16h5',
   search:       'M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35',
+  chat:         'M21 12a8 8 0 01-11.6 7.1L3 21l1.9-6A8 8 0 1121 12z',
+  send:         'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z',
+  plus:         'M12 5v14M5 12h14',
+  clock:        'M12 2a10 10 0 100 20 10 10 0 000-20zM12 6v6l4 2',
+  mic:          'M12 2a3 3 0 00-3 3v6a3 3 0 006 0V5a3 3 0 00-3-3zM19 10v1a7 7 0 01-14 0v-1M12 18v4M8 22h8',
   copy:         'M20 9H11a2 2 0 00-2 2v9a2 2 0 002 2h9a2 2 0 002-2v-9a2 2 0 00-2-2zM5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1',
 }
 

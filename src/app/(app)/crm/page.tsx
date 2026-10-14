@@ -1,433 +1,328 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { callN8n } from '@/lib/supabase-n8n'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { Portal } from '@/components/ui/Portal'
-import { useScrollLock } from '@/hooks/useScrollLock'
-import { formatDate, cleanPhone } from '@/lib/utils'
-import styles from './crm.module.css'
-import { PermissionGuard } from '@/components/ui/PermissionGuard'
-import { hasWhatsApp } from '@/lib/planGates'
-import { Icon } from '@/components/ui/Icon'
 import { PageTitle } from '@/components/layout/PageTitle'
+import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { SelectMenu } from '@/components/ui/SelectMenu'
+import { Icon } from '@/components/ui/Icon'
+import { showToast } from '@/components/ui/Toast'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { usePermissions } from '@/hooks/usePermissions'
+import { useWhatsAppState } from '@/hooks/useClinicData'
+import { conversationPhoto, useConversations } from '@/hooks/useWhatsAppInbox'
+import { useCrmMembers, useCrmRealtime, useLeadMutations, useLeads, leadErrorMessage, type LeadPatch } from '@/hooks/useCrmLeads'
+import { whatsappApi } from '@/components/configuracoes/whatsappApi'
+import { CrmBoard } from '@/components/crm/CrmBoard'
+import { LeadDrawer, type LeadSaveValues } from '@/components/crm/LeadDrawer'
+import { LostReasonDialog } from '@/components/crm/LostReasonDialog'
+import { LegacyAiLeads } from '@/components/crm/LegacyAiLeads'
+import { hasWhatsAppAI } from '@/lib/planGates'
+import { formatMoney, leadPhoneLabel, leadTitle, openLeadCount, stagePatch, type Lead, type Stage } from '@/lib/crm/model'
+import { phoneKeys } from '@/lib/whatsapp/phone'
+import styles from '@/components/crm/Crm.module.css'
 
-interface PatientRow { id: string; phone: string }
+type DrawerState = { mode: 'edit'; leadId: string } | { mode: 'create'; stage: Stage } | null
 
-interface Lead {
-  phone: string
-  conversation_id: string
-  nome: string | null
-  procedimento: string | null
-  status: string | null
-  data_agendamento: string | null
-  created_at: string | null
-  ai_service: string | null
-  contexto: string | null
-  memoria_contexto: string | null
-}
-
-interface ChatMessage {
-  id: number
-  created_at: string | null
-  phone: string | null
-  bot_message: string | null
-  user_message: string | null
-}
-
-const COLUMNS: { key: string; label: string; color: string }[] = [
-  { key: 'novo',      label: 'Novo Lead',   color: '#6B7280' },
-  { key: 'Agendado',  label: 'Agendado',    color: '#0EA5E9' },
-  { key: 'Concluído', label: 'Concluído',   color: '#10B981' },
-]
-
-function normalizeStatus(status: string | null): string {
-  if (!status) return 'novo'
-  const s = status.toLowerCase()
-  if (s === 'agendado') return 'Agendado'
-  if (s === 'concluído' || s === 'concluido') return 'Concluído'
-  return status
-}
-
-function colKey(status: string | null) {
-  const n = normalizeStatus(status)
-  if (n === 'Agendado' || n === 'Concluído') return n
-  return 'novo'
-}
-
-function initials(name: string | null, phone: string) {
-  if (name?.trim()) return name.trim().split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
-  return phone.slice(-2)
-}
-
-function fmtPhone(phone: string) {
-  const d = phone.replace(/\D/g, '')
-  if (d.length === 13) return `+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4,9)}-${d.slice(9)}`
-  if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
-  return phone
-}
-
-const WHATSAPP_ORCAMENTO = 'https://wa.me/5588920020570?text=Ol%C3%A1%2C+gostaria+de+fazer+um+or%C3%A7amento+para+integrar+o+CRM+com+WhatsApp+IA.'
-
-function CRMContent() {
-  const { clinic } = useAuthStore()
+function Funnel() {
+  const clinic = useAuthStore(s => s.clinic)
+  const user = useAuthStore(s => s.user)
   const router = useRouter()
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
-  const [automacaoAtiva, setAutomacaoAtiva] = useState<boolean | null>(null)
-  const [selected, setSelected] = useState<Lead | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [msgLoading, setMsgLoading] = useState(false)
-  const [converting, setConverting] = useState(false)
-  const [convertMsg, setConvertMsg] = useState('')
-  const [existingPatients, setExistingPatients] = useState<Set<string>>(new Set())
-  const [patientIdMap, setPatientIdMap] = useState<Record<string, string>>({})
+  const qc = useQueryClient()
+  const clinicId = clinic?.id
+  const { canEdit } = usePermissions('crm')
+  const { canEdit: canEditPatients } = usePermissions('pacientes')
 
-  useScrollLock(!!selected)
+  const { data: leads = [], isLoading, isError } = useLeads(clinicId)
+  const { data: members = [] } = useCrmMembers(clinicId)
+  const { data: conversations = [] } = useConversations(clinicId)
+  const { data: waState } = useWhatsAppState(clinicId)
+  useCrmRealtime(clinicId)
+  const { create, update, moveStage, remove } = useLeadMutations(clinicId, user?.id)
 
-  // Gate: CRM é exclusivo do plano Plus
+  const [query, setQuery] = useState('')
+  const [owner, setOwner] = useState('')
+  const [drawer, setDrawer] = useState<DrawerState>(null)
+  const [lostFor, setLostFor] = useState<Lead | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
+  // "agora" para rótulos de tempo: muda a cada minuto, sem chamar Date.now() no render
+  const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    if (clinic && !hasWhatsApp(clinic.plan)) {
-      router.replace('/dashboard')
-    }
-  }, [clinic, router])
+    const t = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(t)
+  }, [])
 
+  // Ao abrir o CRM, o funil se põe em dia com a agenda e o silêncio (o agendador faz o mesmo a cada 5 min)
+  const synced = useRef(false)
   useEffect(() => {
-    if (!clinic?.id || !hasWhatsApp(clinic.plan)) return
-    setLeads([])
-    setAutomacaoAtiva(null)
-    loadLeads()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clinic?.id])
-  useEffect(() => {
-    if (!clinic?.id || !hasWhatsApp(clinic.plan)) return
-    setExistingPatients(new Set())
-    loadExistingPatients()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clinic?.id])
+    if (!clinicId || synced.current) return
+    synced.current = true
+    whatsappApi<{ linked: number; moved: number }>('/api/crm/sync', { method: 'POST' })
+      .then(r => { if (r.linked > 0 || r.moved > 0) qc.invalidateQueries({ queryKey: ['crm-leads', clinicId] }) })
+      .catch(() => { /* o agendador tenta de novo */ })
+  }, [clinicId, qc])
 
-  if (clinic && !hasWhatsApp(clinic.plan)) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.header}>
-          <PageTitle title="CRM" />
-        </div>
-        <p className={styles.loading}>Redirecionando…</p>
-      </div>
-    )
+  const convByKey = useMemo(() => new Map(conversations.map(c => [c.phone_key, c])), [conversations])
+  const photoByKey = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const c of conversations) { const p = conversationPhoto(c); if (p) m.set(c.phone_key, p) }
+    return m
+  }, [conversations])
+  const unreadByKey = useMemo(() => new Map(conversations.filter(c => c.unread_count > 0).map(c => [c.phone_key, c.unread_count])), [conversations])
+  const ownerNames = useMemo(() => new Map(members.map(m => [m.userId, m.name])), [members])
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const qDigits = q.replace(/\D/g, '')
+    return leads.filter(l => {
+      if (owner === '__none' && l.assigned_to) return false
+      if (owner && owner !== '__none' && l.assigned_to !== owner) return false
+      if (!q) return true
+      return leadTitle(l).toLowerCase().includes(q)
+        || (l.interest ?? '').toLowerCase().includes(q)
+        || (qDigits.length >= 3 && (l.phone ?? '').replace(/\D/g, '').includes(qDigits))
+    })
+  }, [leads, query, owner])
+
+  const open = leads.filter(l => l.stage !== 'perdido' && l.stage !== 'compareceu')
+  const potential = open.reduce((s, l) => s + (l.estimated_value ?? 0), 0)
+  const editing = drawer?.mode === 'edit' ? leads.find(l => l.id === drawer.leadId) ?? null : null
+
+  // ── ações ──────────────────────────────────────────────────────────────────
+
+  async function requestMove(lead: Lead, to: Stage) {
+    if (!canEdit || lead.stage === to) return
+    if (to === 'perdido') { setLostFor(lead); return }
+    try { await moveStage(lead, to) } catch (e) { showToast('error', leadErrorMessage(e)) }
   }
 
-  async function loadLeads() {
-    if (!clinic?.id) return
-    setLoading(true)
+  async function confirmLost(reason: string | null) {
+    if (!lostFor) return
+    setSaving(true)
     try {
-      let rows: Lead[] = []
-      let queryError = false
-      try {
-        const { data } = await callN8n<{ data: Lead[] }>({ action: 'list_chats' })
-        rows = data ?? []
-      } catch (e) {
-        queryError = true
-        console.error('[CRM] chats query error:', e)
-      }
-      const filtered = rows.filter(r => {
-        if (!r.phone || r.phone === '=' || r.phone.length <= 5) return false
-        if (r.phone.includes('@g.us')) return false   // grupos WhatsApp
-        if (r.phone.includes('@lid')) return false    // dispositivos linked
-        return true
-      })
+      await update.mutateAsync({ id: lostFor.id, patch: stagePatch('perdido', lostFor, reason) })
+      setLostFor(null)
+    } catch (e) { showToast('error', leadErrorMessage(e)) } finally { setSaving(false) }
+  }
 
-      // Extrair nome do memoria_contexto para leads que ainda não têm nome
-      const semNome = filtered.filter(r => !r.nome && r.memoria_contexto)
-      for (const lead of semNome) {
-        const match = lead.memoria_contexto!.match(/Nome:\s*(.+)/i)
-        if (!match) continue
-        const nome = match[1].trim()
-        const invalido = !nome || nome.startsWith('[') || nome === 'Não informado' || nome === 'Desconhecido'
-        if (invalido) continue
-        // Atualiza a coluna nome no banco do n8n (via Edge Function)
-        try {
-          await callN8n({ action: 'update_chat_name', conversation_id: lead.conversation_id, nome })
-          lead.nome = nome // atualiza localmente também
-        } catch (e) {
-          console.error('[CRM] update name error:', e)
+  async function talk(lead: Lead) {
+    if (!lead.phone_key) { showToast('error', 'Este lead não tem telefone. Abra o lead e informe o telefone.'); return }
+    const conv = convByKey.get(lead.phone_key)
+    if (conv) { router.push(`/mensagens?c=${conv.id}`); return }
+    setBusyId(lead.id)
+    try {
+      const r = await whatsappApi<{ conversationId: string }>('/api/whatsapp/conversations/open', { method: 'POST', body: { leadId: lead.id } })
+      router.push(`/mensagens?c=${r.conversationId}`)
+    } catch (e) {
+      showToast('error', e instanceof Error ? e.message : 'Não foi possível abrir a conversa.')
+    } finally { setBusyId(null) }
+  }
+
+  /** Paciente do lead: o que já existe com esse telefone, ou um novo. Devolve o id, ou null se falhar. */
+  async function ensurePatient(lead: Lead): Promise<string | null> {
+    if (lead.patient_id) return lead.patient_id
+    if (!clinicId) return null
+    setBusyId(lead.id)
+    try {
+      const national = !!lead.phone_key && !lead.phone_key.startsWith('lid:') && !lead.phone_key.startsWith('raw:')
+      if (national) {
+        const { data } = await supabase.from('patients').select('id, name, phone').eq('clinic_id', clinicId).eq('is_active', true).not('phone', 'is', null).limit(20000)
+        const hit = (data ?? []).find(p => phoneKeys(p.phone as string).includes(lead.phone_key as string))
+        if (hit) {
+          await update.mutateAsync({ id: lead.id, patch: { patient_id: hit.id as string } })
+          showToast('ok', `Já existe o paciente ${hit.name} com esse telefone. O lead foi vinculado a ele.`)
+          return hit.id as string
         }
       }
-
-      setLeads(filtered)
-      setAutomacaoAtiva(!queryError && rows.length > 0)
-    } finally {
-      setLoading(false)
-    }
+      const phone = lead.phone ? (lead.phone_key?.startsWith('raw:') ? `+${lead.phone}` : lead.phone) : null
+      const { data: created, error } = await supabase.from('patients').insert({
+        clinic_id: clinicId,
+        name: lead.name?.trim() || (phone ? `Lead ${leadPhoneLabel(lead)}` : 'Lead sem nome'),
+        phone,
+        is_active: true,
+        registration_status: 'approved',
+        notes: lead.interest ? `Interesse: ${lead.interest}` : null,
+      }).select('id').single()
+      if (error || !created) throw error ?? new Error('sem id')
+      await update.mutateAsync({ id: lead.id, patch: { patient_id: created.id as string } })
+      showToast('ok', 'Paciente cadastrado.')
+      // a Agenda e a lista de Pacientes têm o próprio cache: precisam enxergar o paciente novo
+      qc.invalidateQueries({ queryKey: ['agenda', clinicId] })
+      qc.invalidateQueries({ queryKey: ['pacientes', clinicId] })
+      return created.id as string
+    } catch {
+      showToast('error', 'Não foi possível cadastrar o paciente. Tente de novo.')
+      return null
+    } finally { setBusyId(null) }
   }
 
-  async function loadExistingPatients() {
-    if (!clinic) return
-    const { data } = await supabase.from('patients').select('id, phone').eq('clinic_id', clinic.id)
-    const rows = (data ?? []) as PatientRow[]
-    const phones = new Set(rows.map(p => cleanPhone(p.phone)).filter(Boolean))
-    const idMap: Record<string, string> = {}
-    for (const p of rows) {
-      const clean = cleanPhone(p.phone)
-      if (clean) idMap[clean] = p.id
-    }
-    setExistingPatients(phones)
-    setPatientIdMap(idMap)
-  }
-
-  async function openLead(lead: Lead) {
-    setSelected(lead)
-    setConvertMsg('')
-    setMsgLoading(true)
-    // Filter by conversation_id (unique per lead) — phone is unreliable due to format variants
-    try {
-      const { data } = await callN8n<{ data: ChatMessage[] }>({
-        action: 'list_messages_by_conversation',
-        conversation_id: lead.conversation_id,
+  async function schedule(lead: Lead) {
+    if (!lead.patient_id) {
+      if (!canEditPatients) { showToast('error', 'Você não tem permissão para cadastrar pacientes.'); return }
+      const ok = await confirmDialog({
+        title: 'Cadastrar como paciente?',
+        message: `Para agendar, ${leadTitle(lead)} precisa estar cadastrado como paciente. Cadastrar agora e abrir a agenda?`,
+        confirmText: 'Cadastrar e agendar',
       })
-      setMessages(data ?? [])
+      if (!ok) return
+    }
+    const id = await ensurePatient(lead)
+    if (id) router.push(`/agenda?paciente=${id}`)
+  }
+
+  async function convert(lead: Lead) {
+    await ensurePatient(lead)
+  }
+
+  async function save(values: LeadSaveValues) {
+    setSaving(true); setFormError('')
+    try {
+      if (drawer?.mode === 'create') {
+        await create.mutateAsync({
+          ...values.fields,
+          stage: values.stage,
+          lost_reason: values.stage === 'perdido' ? values.lostReason : null,
+          next_contact_at: values.nextContactAt,
+        })
+      } else if (editing) {
+        const patch: LeadPatch = { ...values.fields, next_contact_at: values.nextContactAt }
+        if (values.stage !== editing.stage) Object.assign(patch, stagePatch(values.stage, editing, values.lostReason))
+        else if (values.stage === 'perdido') patch.lost_reason = values.lostReason
+        await update.mutateAsync({ id: editing.id, patch })
+      }
+      setDrawer(null)
     } catch (e) {
-      console.error('[CRM] messages error:', e)
-      setMessages([])
-    }
-    setMsgLoading(false)
+      setFormError(leadErrorMessage(e))
+    } finally { setSaving(false) }
   }
 
-  function cleanUserMsg(raw: string | null): string {
-    if (!raw) return ''
-    // n8n stores user messages as JSON-like: ["oi"] or ["oi" "igor"] or ["msg"] null
-    // Strip surrounding brackets, drop trailing " null", split tokens, take the last one (most recent batch)
-    let s = raw.trim().replace(/\s+null\s*$/, '').trim()
-    if (s.startsWith('[') && s.endsWith(']')) s = s.slice(1, -1).trim()
-    // Split by `" "` boundary between batched tokens
-    const tokens = s.split(/"\s+"/).map((t) => t.replace(/^"|"$/g, '').trim()).filter(Boolean)
-    return tokens.length ? tokens[tokens.length - 1] : s
+  async function removeLead(lead: Lead) {
+    const ok = await confirmDialog({
+      title: 'Excluir lead?',
+      message: `${leadTitle(lead)} sai do funil. A conversa do WhatsApp e o cadastro de paciente, se houver, não são apagados.`,
+      confirmText: 'Excluir',
+      danger: true,
+    })
+    if (!ok) return
+    try { await remove.mutateAsync(lead.id); setDrawer(null) } catch (e) { showToast('error', leadErrorMessage(e)) }
   }
 
-  function cleanBotMsg(raw: string | null): string {
-    if (!raw) return ''
-    return raw.replace(/^=/, '').trim()
-  }
+  // ── tela ───────────────────────────────────────────────────────────────────
 
-  async function convertToPatient() {
-    if (!selected || !clinic) return
-    setConverting(true)
-    setConvertMsg('')
-    const clean = cleanPhone(selected.phone)
-
-    // Check duplicate
-    if (existingPatients.has(clean)) {
-      setConvertMsg('already')
-      setConverting(false)
-      return
-    }
-
-    const { error } = await supabase.from('patients').insert([{
-      clinic_id: clinic.id,
-      name: selected.nome?.trim() || `Lead ${clean || selected.phone}`,
-      phone: clean || null,
-      is_active: true,
-      registration_status: 'approved',
-      notes: selected.procedimento ? `Procedimento de interesse: ${selected.procedimento}` : null,
-    }])
-
-    if (error) {
-      setConvertMsg('error')
-    } else {
-      setConvertMsg('ok')
-      setExistingPatients(prev => new Set([...prev, clean]))
-      // Reload patients to get the new ID for the "Ver Atendimento" button
-      loadExistingPatients()
-      loadLeads()
-    }
-    setConverting(false)
-  }
-
-  const byCol = (col: string) => leads.filter(l => colKey(l.status) === col)
-
-  const stats = {
-    total: leads.length,
-    agendados: leads.filter(l => normalizeStatus(l.status) === 'Agendado').length,
-    concluidos: leads.filter(l => normalizeStatus(l.status) === 'Concluído').length,
-    semNome: leads.filter(l => !l.nome).length,
-  }
+  const memberOptions = [{ value: '', label: 'Todos os responsáveis' }, { value: '__none', label: 'Sem responsável' }, ...members.map(m => ({ value: m.userId, label: m.name }))]
+  const connected = waState?.status === 'conectado'
 
   return (
-    <div className={styles.page}>
-      <div className={styles.header}>
-        <PageTitle title="CRM — Leads WhatsApp" subtitle="Contatos captados pelo bot de IA" />
-        <button className={styles.btnRefresh} onClick={loadLeads}><Icon name="refresh" size={14} /> Atualizar</button>
-      </div>
-
-      {/* Stats */}
-      <div className={styles.stats}>
-        <div className={styles.stat}><span className={styles.statVal}>{stats.total}</span><span className={styles.statLabel}>Total de leads</span></div>
-        <div className={styles.stat}><span className={styles.statVal} style={{ color: '#0EA5E9' }}>{stats.agendados}</span><span className={styles.statLabel}>Agendados</span></div>
-        <div className={styles.stat}><span className={styles.statVal} style={{ color: '#10B981' }}>{stats.concluidos}</span><span className={styles.statLabel}>Concluídos</span></div>
-        <div className={styles.stat}><span className={styles.statVal} style={{ color: '#F59E0B' }}>{stats.semNome}</span><span className={styles.statLabel}>Sem identificação</span></div>
-      </div>
-
-      {loading ? (
-        <p className={styles.loading}>Carregando leads...</p>
-      ) : automacaoAtiva === false ? (
-        <div className={styles.gateBox}>
-          <div className={styles.gateIcon}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-          </div>
-          <h2 className={styles.gateTitle}>Automação WhatsApp não configurada</h2>
-          <p className={styles.gateSub}>
-            O CRM com IA é exclusivo do plano Plus e requer a integração com o bot WhatsApp da sua clínica.
-            Entre em contato para fazer um orçamento e ativar o serviço.
-          </p>
-          <a
-            href={WHATSAPP_ORCAMENTO}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.btnOrcamento}
-          >
-            Fazer orçamento pelo WhatsApp
-          </a>
+    <>
+      <div className={styles.head}>
+        <p className={styles.summary}>
+          <strong>{openLeadCount(leads)}</strong> {openLeadCount(leads) === 1 ? 'lead em andamento' : 'leads em andamento'}
+          {potential > 0 && <> · <strong>{formatMoney(potential)}</strong> em potencial</>}
+          . O funil se atualiza sozinho com o WhatsApp e a agenda.{canEdit && <> Arraste um cartão só para corrigir.</>}
+        </p>
+        <div className={styles.tools}>
+          <label className={styles.search}>
+            <Icon name="search" size={16} />
+            <input type="search" placeholder="Buscar lead" value={query} onChange={e => setQuery(e.target.value)} aria-label="Buscar lead por nome, telefone ou interesse" />
+          </label>
+          <div className={styles.ownerFilter}><SelectMenu value={owner} onChange={setOwner} options={memberOptions} /></div>
+          {canEdit && <button type="button" className={styles.btnPrimary} onClick={() => { setFormError(''); setDrawer({ mode: 'create', stage: 'novo' }) }}><Icon name="plus" size={16} />Novo lead</button>}
         </div>
+      </div>
+
+      {waState && !connected && (
+        <div className={styles.notice} role="alert">
+          <strong>O WhatsApp da clínica está desconectado.</strong>
+          <span>Contatos novos não entram no funil e não dá para conversar até reconectar.</span>
+          <Link className={styles.emptyLink} href="/configuracoes?tab=whatsapp">Reconectar</Link>
+        </div>
+      )}
+
+      {isLoading ? (
+        <p className={styles.loading}>Carregando leads…</p>
+      ) : isError ? (
+        <p className={styles.errorBox} role="alert">Não foi possível carregar os leads. Atualize a página.</p>
       ) : (
-        <div className={styles.kanban}>
-          {COLUMNS.map(col => {
-            const cards = byCol(col.key)
-            return (
-              <div key={col.key} className={styles.column}>
-                <div className={styles.colHeader}>
-                  <span className={styles.colDot} style={{ background: col.color }} />
-                  <span className={styles.colLabel}>{col.label}</span>
-                  <span className={styles.colCount}>{cards.length}</span>
-                </div>
-                <div className={styles.cards}>
-                  {cards.length === 0 && <p className={styles.empty}>Nenhum lead</p>}
-                  {cards.map(lead => {
-                    const clean = cleanPhone(lead.phone)
-                    const isPatient = existingPatients.has(clean)
-                    return (
-                      <div key={`${lead.phone}-${lead.conversation_id}`} className={styles.card} onClick={() => openLead(lead)}>
-                        <div className={styles.cardTop}>
-                          <div className={styles.avatar}>{initials(lead.nome, lead.phone)}</div>
-                          <div className={styles.cardInfo}>
-                            <span className={styles.cardName}>{lead.nome || <em className={styles.noName}>Sem nome</em>}</span>
-                            <span className={styles.cardPhone}>{fmtPhone(lead.phone)}</span>
-                          </div>
-                          {isPatient && <span className={styles.badgePatient}>Paciente</span>}
-                        </div>
-                        {lead.procedimento && (
-                          <span className={styles.badgeProcedimento}>{lead.procedimento}</span>
-                        )}
-                        {lead.data_agendamento && (
-                          <span className={styles.cardDate}>{formatDate(lead.data_agendamento, true)}</span>
-                        )}
-                        {lead.created_at && (
-                          <span className={styles.cardCreated}>{formatDate(lead.created_at, true)}</span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
+        <>
+          {leads.length === 0 && (
+            <div className={styles.emptyBox}>
+              <h2 className={styles.emptyTitle}>Nenhum lead ainda</h2>
+              <p className={styles.emptyText}>
+                {waState
+                  ? 'Quando alguém que ainda não é paciente escrever para o WhatsApp da clínica, o contato aparece aqui sozinho, na etapa Novo. Você também pode cadastrar um lead à mão.'
+                  : 'Conecte o WhatsApp da clínica para os contatos novos entrarem aqui sozinhos. Você também pode cadastrar leads à mão, como os que vêm do Instagram.'}
+              </p>
+              {!waState && <Link className={styles.emptyLink} href="/configuracoes?tab=whatsapp">Conectar o WhatsApp</Link>}
+            </div>
+          )}
+          <CrmBoard
+            leads={visible}
+            ownerNames={ownerNames}
+            unreadByKey={unreadByKey}
+            photoByKey={photoByKey}
+            now={now}
+            canEdit={canEdit}
+            busyId={busyId}
+            onOpen={l => { setFormError(''); setDrawer({ mode: 'edit', leadId: l.id }) }}
+            onTalk={talk}
+            onSchedule={schedule}
+            onMove={requestMove}
+            onAdd={stage => { setFormError(''); setDrawer({ mode: 'create', stage }) }}
+          />
+        </>
+      )}
+
+      {drawer && (drawer.mode === 'create' || editing) && (
+        <LeadDrawer
+          key={drawer.mode === 'edit' ? drawer.leadId : 'novo'}
+          lead={editing}
+          initialStage={drawer.mode === 'create' ? drawer.stage : 'novo'}
+          members={members}
+          photoUrl={editing?.phone_key ? photoByKey.get(editing.phone_key) ?? null : null}
+          hasConversation={!!editing?.phone_key && convByKey.has(editing.phone_key)}
+          canEdit={canEdit}
+          canCreatePatient={canEditPatients}
+          saving={saving}
+          error={formError}
+          onSave={save}
+          onClose={() => setDrawer(null)}
+          onTalk={() => editing && talk(editing)}
+          onSchedule={() => editing && schedule(editing)}
+          onConvert={() => editing && convert(editing)}
+          onOpenPatient={() => editing?.patient_id && router.push(`/pacientes?patient=${editing.patient_id}`)}
+          onDelete={() => editing && removeLead(editing)}
+        />
+      )}
+
+      {lostFor && <LostReasonDialog lead={lostFor} saving={saving} onConfirm={confirmLost} onCancel={() => setLostFor(null)} />}
+    </>
+  )
+}
+
+function CrmContent() {
+  const plan = useAuthStore(s => s.clinic?.plan)
+  const hasAI = hasWhatsAppAI(plan)
+  const [tab, setTab] = useState<'funil' | 'ia'>('funil')
+
+  return (
+    <div className={styles.root}>
+      <PageTitle title="CRM" subtitle="Acompanhe cada contato até virar paciente" />
+      {hasAI && (
+        <div className={styles.tabs} role="tablist" aria-label="Seções do CRM">
+          <button type="button" role="tab" aria-selected={tab === 'funil'} className={`${styles.tab} ${tab === 'funil' ? styles.tabOn : ''}`} onClick={() => setTab('funil')}>Funil</button>
+          <button type="button" role="tab" aria-selected={tab === 'ia'} className={`${styles.tab} ${tab === 'ia' ? styles.tabOn : ''}`} onClick={() => setTab('ia')}>Atendente virtual</button>
         </div>
       )}
-
-      {/* Detail panel */}
-      {selected && (
-        <Portal>
-          <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && setSelected(null)}>
-            <div className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <div className={styles.panelAvatarWrap}>
-                  <div className={styles.panelAvatar}>{initials(selected.nome, selected.phone)}</div>
-                  <div>
-                    <h2 className={styles.panelName}>{selected.nome || 'Sem nome'}</h2>
-                    <p className={styles.panelPhone}>{fmtPhone(selected.phone)}</p>
-                  </div>
-                </div>
-                <button className={styles.btnClose} onClick={() => setSelected(null)}><Icon name="close" size={18} /></button>
-              </div>
-
-              <div className={styles.panelMeta}>
-                {selected.procedimento && <MetaRow label="Procedimento" value={selected.procedimento} />}
-                {selected.status && <MetaRow label="Status" value={selected.status} />}
-                {selected.data_agendamento && <MetaRow label="Agendamento" value={formatDate(selected.data_agendamento, true)} />}
-                {selected.ai_service && <MetaRow label="Serviço IA" value={selected.ai_service} />}
-                {selected.created_at && <MetaRow label="Primeiro contato" value={formatDate(selected.created_at, true)} />}
-              </div>
-
-              {/* Conversation */}
-              <div className={styles.chatSection}>
-                <p className={styles.chatTitle}>Histórico WhatsApp</p>
-                <div className={styles.chatBox}>
-                  {msgLoading && <p className={styles.chatInfo}>Carregando...</p>}
-                  {!msgLoading && messages.length === 0 && <p className={styles.chatInfo}>Nenhuma mensagem encontrada.</p>}
-                  {messages.map(m => {
-                    const userText = cleanUserMsg(m.user_message)
-                    const botText = cleanBotMsg(m.bot_message)
-                    const time = m.created_at ? new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
-                    const msgs = []
-                    if (userText) msgs.push(
-                      <div key={`u-${m.id}`} className={`${styles.bubble} ${styles.user}`}>
-                        <span>{userText}</span>
-                        {time && <span className={styles.bubbleTime}>{time}</span>}
-                      </div>
-                    )
-                    if (botText) msgs.push(
-                      <div key={`b-${m.id}`} className={`${styles.bubble} ${styles.bot}`}>
-                        <span>{botText}</span>
-                        {time && <span className={styles.bubbleTime}>{time}</span>}
-                      </div>
-                    )
-                    return msgs
-                  })}
-                </div>
-              </div>
-
-              {/* Convert action */}
-              <div className={styles.panelFooter}>
-                {convertMsg === 'ok' && <p className={styles.msgOk}><Icon name="check" size={14} /> Paciente criado com sucesso!</p>}
-                {convertMsg === 'already' && <p className={styles.msgWarn}>Telefone já cadastrado como paciente.</p>}
-                {convertMsg === 'error' && <p className={styles.msgErr}>Erro ao criar paciente.</p>}
-                {existingPatients.has(cleanPhone(selected.phone)) ? (
-                  <>
-                    <button className={styles.btnPatientExists} disabled><Icon name="check" size={14} /> Já é paciente</button>
-                    {patientIdMap[cleanPhone(selected.phone)] && (
-                      <button
-                        className={styles.btnAtendimento}
-                        onClick={() => router.push(`/pacientes?patient=${patientIdMap[cleanPhone(selected.phone)]}`)}
-                      >
-                        Ver Atendimento
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <button className={styles.btnConvert} onClick={convertToPatient} disabled={converting}>
-                    {converting ? 'Convertendo...' : '+ Converter em Paciente'}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </Portal>
-      )}
+      {tab === 'ia' && hasAI ? <LegacyAiLeads /> : <Funnel />}
     </div>
   )
 }
 
 export default function CRMPage() {
-  return <PermissionGuard module="crm"><CRMContent /></PermissionGuard>
-}
-
-function MetaRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={styles.metaRow}>
-      <span className={styles.metaLabel}>{label}</span>
-      <span className={styles.metaValue}>{value}</span>
-    </div>
-  )
+  return <PermissionGuard module="crm"><CrmContent /></PermissionGuard>
 }

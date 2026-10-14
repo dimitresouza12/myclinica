@@ -1,0 +1,28 @@
+.card { background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 1.5rem; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 1rem; }
+.title { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+.muted { font-size: 0.85rem; color: var(--text-secondary); margin: 0; line-height: 1.5; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.6rem; }
+.stat { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--bg-secondary); min-width: 0; }
+.statValue { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.statLabel { font-size: 0.75rem; color: var(--text-secondary); line-height: 1.3; }
+.t_good .statValue { color: #059669; }
+.t_warn .statValue { color: #D97706; }
+.t_bad .statValue { color: #DC2626; }
+
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.item { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem 0; border-top: 1px solid var(--border-subtle); flex-wrap: wrap; }
+.item:first-child { border-top: none; }
+.itemMain { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.name { font-size: 0.875rem; color: var(--text-primary); }
+.sub { font-size: 0.78rem; color: var(--text-secondary); }
+
+.badge { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: 999px; background: var(--bg-tertiary); color: var(--text-secondary); white-space: nowrap; }
+.b_confirmado { background: #ECFDF5; color: #065F46; }
+.b_pediu_remarcacao { background: #FFFBEB; color: #92400E; }
+.b_respondeu { background: #EFF6FF; color: #1E40AF; }
+.b_falhou { background: #FEF2F2; color: #991B1B; }
+
+.error { font-size: 0.82rem; color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; padding: 0.6rem 0.8rem; margin: 0; }
+
+@media (max-width: 600px) { .card { padding: 1.1rem; } }

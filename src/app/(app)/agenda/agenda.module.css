@@ -1204,3 +1204,19 @@
   .btnPhoneCancel { width: 44px; height: 44px; }
   .segBtn { min-height: 44px; }
 }
+
+/* ── Confirmação pelo WhatsApp (detalhe da consulta e cartão da lista) ── */
+.waBox { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; padding-top: 0.25rem; }
+.waChip { font-size: 0.8rem; font-weight: 600; padding: 0.4rem 0.75rem; border-radius: 10px; line-height: 1.4; }
+.waTone_ok    { background: #ECFDF5; color: #065F46; }
+.waTone_warn  { background: #FFFBEB; color: #92400E; }
+.waTone_info  { background: #EFF6FF; color: #1E40AF; }
+.waTone_bad   { background: #FEF2F2; color: #991B1B; }
+.waTone_muted { background: var(--bg-tertiary); color: var(--text-secondary); }
+.waBtn { min-height: 44px; padding: 0 1rem; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.waBtn:hover:not(:disabled) { background: var(--bg-tertiary); }
+.waBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+.waBtn:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.waOk  { font-size: 0.78rem; color: #065F46; }
+.waErr { font-size: 0.78rem; color: #B91C1C; }
+.lrWa { font-size: 0.64rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; white-space: nowrap; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }

@@ -13,6 +13,7 @@ import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 import { MonthPicker } from '@/components/ui/MonthPicker'
+import { PercentInput } from '@/components/ui/NumericInput'
 
 type EarningsPeriod = 'diario' | 'semanal' | 'mensal'
 
@@ -350,10 +351,9 @@ function ComissoesContent() {
 
               <div className={styles.field}>
                 <label>% padrão (aplica a qualquer procedimento sem regra específica)</label>
-                <input
-                  type="number" min="0" max="100" step="0.5"
+                <PercentInput
                   value={form.generalPercent}
-                  onChange={(e) => setForm(p => ({ ...p, generalPercent: e.target.value }))}
+                  onChange={(v) => setForm(p => ({ ...p, generalPercent: v }))}
                   placeholder="Ex: 40"
                 />
               </div>
@@ -403,10 +403,9 @@ function ComissoesContent() {
                 </div>
                 <div className={styles.field} style={{ maxWidth: '110px' }}>
                   <label>%</label>
-                  <input
-                    type="number" min="0" max="100" step="0.5"
+                  <PercentInput
                     value={newRulePercent}
-                    onChange={(e) => setNewRulePercent(e.target.value)}
+                    onChange={setNewRulePercent}
                     placeholder="0"
                   />
                 </div>

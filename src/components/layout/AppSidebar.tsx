@@ -9,7 +9,9 @@ import { useTheme } from '@/hooks/useTheme'
 import { Icon } from '@/components/ui/Icon'
 import type { AuthClinic, AuthUser } from '@/types'
 import styles from './AppSidebar.module.css'
-import { hasWhatsApp } from '@/lib/planGates'
+import { hasWhatsAppAI } from '@/lib/planGates'
+import { useWhatsAppState } from '@/hooks/useClinicData'
+import { useUnreadTotal, useWhatsAppRealtime } from '@/hooks/useWhatsAppInbox'
 import { getSpecialtyConfig, specialtyRoleLabel } from '@/lib/specialtyConfig'
 
 // Rótulo humano do cargo — mesmo padrão de configuracoes/page.tsx e
@@ -36,7 +38,8 @@ const NAV = [
   { path: '/metas',         label: 'Metas',         icon: 'target'     as const, plusOnly: false },
   { path: '/estoque',       label: 'Estoque',       icon: 'stock'      as const, plusOnly: false },
   { path: '/equipe',        label: 'Equipe',        icon: 'team'       as const, plusOnly: false },
-  { path: '/crm',           label: 'CRM',           icon: 'crm'        as const, plusOnly: true  },
+  { path: '/mensagens',     label: 'Mensagens',     icon: 'chat'       as const, plusOnly: false, module: 'crm' as string | undefined },
+  { path: '/crm',           label: 'CRM',           icon: 'crm'        as const, plusOnly: false },
   { path: '/campanhas',     label: 'Campanhas',     icon: 'campaigns'  as const, plusOnly: true  },
   { path: '/configuracoes', label: 'Configurações', icon: 'settings'   as const, plusOnly: false },
 ]
@@ -57,6 +60,10 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   const [collapsed, setCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const isAdmin = user.role === 'admin' || user.isSuperAdmin
+  // Mensagens: contador de não lidas no menu, atualizado em tempo real (só quando a clínica já conectou o WhatsApp)
+  const { data: waState } = useWhatsAppState(clinic.id)
+  useWhatsAppRealtime(clinic.id, !!waState)
+  const { data: unreadTotal = 0 } = useUnreadTotal(clinic.id, !!waState)
   // specialtyType manda quando existe — é o que diferencia "Nutricionista"
   // de "Esteticista" numa clínica multi-área (os dois têm o mesmo cargo
   // genérico 'profissional' no banco).
@@ -106,7 +113,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
     window.location.href = '/login'
   }
 
-  const isPlus = hasWhatsApp(clinic.plan)
+  const isPlus = hasWhatsAppAI(clinic.plan)
   const filteredNav = NAV.filter((item) => {
     // Filtra plano plus
     if (item.plusOnly && !isPlus) return false
@@ -115,7 +122,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
     // Aguarda permissões carregarem para não piscar
     if (!permsLoaded) return false
     // Verifica permissão de visualização para o módulo
-    const module = item.path.replace('/', '')
+    const module = ('module' in item && item.module) || item.path.replace('/', '')
     const perm = permissions[module]
     return perm?.can_view ?? false
   })
@@ -173,6 +180,11 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
                 <Icon name={item.icon} size={16} />
               </span>
               <span className={`${styles.navLabel} ${isCollapsed ? styles.navLabelHidden : ''}`}>{item.label}</span>
+              {item.path === '/mensagens' && unreadTotal > 0 && (
+                <span className={`${styles.navBadge} ${isCollapsed ? styles.navBadgeDot : ''}`} aria-label={`${unreadTotal} mensagens não lidas`}>
+                  {isCollapsed ? '' : unreadTotal > 99 ? '99+' : unreadTotal}
+                </span>
+              )}
             </Link>
           )
         })}

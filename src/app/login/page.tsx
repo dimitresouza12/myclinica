@@ -13,6 +13,10 @@ import { PLAN_CATALOG } from '@/lib/planCatalog'
 import type { Clinic, ClinicUser, AuthClinic, AuthUser, ClinicPlan, ClinicType } from '@/types'
 import styles from './login.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { PhoneInput } from '@/components/ui/PhoneInput'
+import { CpfInput } from '@/components/ui/NumericInput'
+import { cpfInputError } from '@/lib/numericFormat'
+import { phoneInputError } from '@/lib/phoneFormat'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -156,14 +160,6 @@ interface RegisterForm {
   phone: string
   cpf: string
   plan: PlanValue
-}
-
-function formatCpf(value: string) {
-  const d = value.replace(/\D/g, '').slice(0, 11)
-  if (d.length <= 3) return d
-  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`
-  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
-  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
 }
 
 function toSlug(name: string) {
@@ -647,12 +643,14 @@ function LoginContent() {
     if (founderIsProfessional === null) return setRegError('Diga se você também atende pacientes pessoalmente.')
     if (founderHasTeam === null)        return setRegError('Diga se você vai ter mais gente usando o sistema com você.')
     if (!acceptedTerms)     return setRegError('Você precisa aceitar os Termos de Uso para continuar.')
-    const cpfDigits = reg.cpf.replace(/\D/g, '')
-    if (cpfDigits.length !== 11) return setRegError('CPF inválido. Digite os 11 dígitos.')
+    const cpfError = cpfInputError(reg.cpf, { required: true })
+    if (cpfError) return setRegError(cpfError)
     if (!reg.clinic_name.trim()) return setRegError('Nome da clínica é obrigatório.')
     if (!reg.admin_name.trim())  return setRegError('Seu nome é obrigatório.')
     const usernameClean = normalizeUsername(reg.username)
     if (usernameClean.length < 3 || usernameClean.length > 30) return setRegError('Nome de usuário deve ter 3-30 caracteres (letras minúsculas, números, _ . -).')
+    const regPhoneError = phoneInputError(reg.phone)
+    if (regPhoneError)           return setRegError(regPhoneError)
     if (!reg.email.trim())       return setRegError('E-mail é obrigatório.')
     if (reg.password.length < 6) return setRegError('Senha deve ter pelo menos 6 caracteres.')
 
@@ -1430,23 +1428,17 @@ function LoginContent() {
 
                   <div className={styles.field}>
                     <label>Telefone</label>
-                    <input
-                      type="tel"
+                    <PhoneInput
                       value={reg.phone}
-                      onChange={e => setReg(p => ({ ...p, phone: e.target.value }))}
-                      placeholder="(00) 00000-0000"
+                      onChange={v => setReg(p => ({ ...p, phone: v }))}
                     />
                   </div>
 
                   <div className={styles.field}>
                     <label>CPF *</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
+                    <CpfInput
                       value={reg.cpf}
-                      onChange={e => setReg(p => ({ ...p, cpf: formatCpf(e.target.value) }))}
-                      placeholder="000.000.000-00"
-                      maxLength={14}
+                      onChange={v => setReg(p => ({ ...p, cpf: v }))}
                       required
                     />
                     <span className={styles.slugHint}>Você poderá usar o CPF para fazer login</span>

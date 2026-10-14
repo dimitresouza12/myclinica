@@ -332,3 +332,7 @@
   .brand { padding: 1.25rem 1rem 1rem; }
   .footer { padding: 0.75rem 0.875rem; }
 }
+
+/* Contador de mensagens não lidas no item "Mensagens" */
+.navBadge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--brand-primary); color: #06312B; font-size: 0.7rem; font-weight: 800; display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.navBadgeDot { position: absolute; top: 8px; right: 8px; min-width: 9px; width: 9px; height: 9px; padding: 0; }

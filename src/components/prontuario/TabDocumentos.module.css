@@ -5,6 +5,10 @@
 .typeTab { padding: 0.35rem 0.75rem; border: none; background: none; border-radius: calc(var(--radius-sm) - 2px); font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all .15s; white-space: nowrap; }
 .typeTabActive { background: var(--brand-primary); color: #fff; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 
+/* Profissional responsável (só aparece quando há mais de um e quem logou não é profissional) */
+.professionalPicker { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; color: var(--text-secondary); }
+.professionalPicker select { padding: 0.3rem 0.5rem; min-height: 36px; border: 1px solid var(--border-color); background: var(--bg-primary); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.8rem; }
+
 /* Toolbar */
 .toolbar { display: flex; align-items: center; gap: 4px; padding: 0.4rem 0.6rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); flex-wrap: wrap; }
 .toolBtn { padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); background: var(--bg-primary); border-radius: var(--radius-sm); cursor: pointer; font-size: 0.85rem; color: var(--text-primary); transition: all .15s; min-width: 28px; min-height: 32px; }
@@ -16,6 +20,19 @@
 .toolSelect { padding: 0.2rem 0.4rem; border: 1px solid var(--border-color); background: var(--bg-primary); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--text-primary); cursor: pointer; outline: none; }
 .btnPrint { margin-left: auto; padding: 0.35rem 0.9rem; min-height: 44px; background: linear-gradient(135deg, #059669, #10B981); color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
 .btnPrint:hover { opacity: .88; }
+
+.btnDownload { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.85rem; min-height: 44px; border: 1px solid var(--border-color); background: var(--bg-primary); border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all .15s; white-space: nowrap; }
+.btnDownload:hover:not(:disabled) { border-color: var(--brand-primary); color: var(--brand-primary); }
+.btnDownload:disabled { opacity: .6; cursor: not-allowed; }
+
+.downloadPopover { position: fixed; z-index: 1000; min-width: 200px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md); box-shadow: 0 8px 24px -8px rgba(0,0,0,.25); padding: 4px; display: flex; flex-direction: column; }
+.downloadOption { padding: 0.6rem 0.75rem; min-height: 44px; border: none; background: none; border-radius: calc(var(--radius-md) - 2px); font-size: 0.85rem; color: var(--text-primary); text-align: left; cursor: pointer; transition: background .15s; }
+.downloadOption:hover { background: var(--bg-secondary); }
+
+/* Erro de geração de baixar/imprimir — nunca mais um clique silencioso que
+   não faz nada (auditoria D5): sempre uma mensagem específica, dispensável. */
+.exportErrorBanner { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.55rem 0.75rem; background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.35); border-radius: var(--radius-md); color: #B91C1C; font-size: 0.8rem; }
+.exportErrorClose { border: none; background: none; color: inherit; font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 0.2rem; }
 
 /* Editor */
 .editorWrap { position: relative; flex: 1; display: flex; flex-direction: column; }
@@ -33,10 +50,17 @@
   line-height: 1.7;
   outline: none;
   overflow-y: auto;
-  background-position: top center;
-  background-size: 100% auto;
+  /* background-position/size do papel timbrado são calculados em JS a
+     partir do tamanho natural da imagem (ver bgStyle no componente) —
+     evita cortar ou ampliar além da resolução real do arquivo. */
 }
 .editor:focus { border-color: var(--brand-primary); }
+
+/* Modelo calibrado (campos posicionados pela clínica) — TemplateFieldCanvas
+   tem tamanho fixo em px (igual à proporção real da imagem), então só
+   precisa ficar centralizado dentro do wrap; sem overflow-y aqui porque a
+   altura já acompanha a imagem inteira, não o texto digitado. */
+.calibratedScroll { display: flex; justify-content: center; border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: auto; padding: 12px; background: var(--bg-secondary); }
 
 .noTemplateHint { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem; }
 .hintLink { color: var(--brand-primary); text-decoration: underline; }

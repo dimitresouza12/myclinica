@@ -3,7 +3,11 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { audit } from '@/lib/audit'
-import { sanitizeString, sanitizeEmail, sanitizeDigits } from '@/lib/sanitize'
+import { sanitizeString, sanitizeEmail } from '@/lib/sanitize'
+import { phoneInputError, previousPhoneNote, toInputValue } from '@/lib/phoneFormat'
+import { PhoneInput } from '@/components/ui/PhoneInput'
+import { CpfInput } from '@/components/ui/NumericInput'
+import { cpfInputError, cpfToInputValue, previousCpfNote } from '@/lib/numericFormat'
 import { COMMON_CONVENIOS } from '@/lib/convenios'
 import type { Patient } from '@/types'
 import { Portal } from '@/components/ui/Portal'
@@ -41,9 +45,9 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
     if (patient) {
       setForm({
         name: patient.name ?? '',
-        phone: patient.phone ?? '',
+        phone: toInputValue(patient.phone),
         email: patient.email ?? '',
-        cpf: patient.cpf ?? '',
+        cpf: cpfToInputValue(patient.cpf),
         rg: patient.rg ?? '',
         birth_date: patient.birth_date ?? '',
         gender: patient.gender ?? '',
@@ -69,14 +73,14 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
     // Validação server-side com sanitização
     const name = sanitizeString(form.name)
     const email = form.email ? sanitizeEmail(form.email) : ''
-    const cpfDigits = sanitizeDigits(form.cpf)
-    const phone = sanitizeDigits(form.phone)
 
     if (!name || name.length < 2) return setError('Nome deve ter pelo menos 2 caracteres.')
     if (name.length > 120) return setError('Nome muito longo (máx. 120 caracteres).')
     if (form.email && !email) return setError('E-mail inválido.')
-    if (form.phone && phone.length > 15) return setError('Telefone inválido.')
-    if (form.cpf && cpfDigits.length > 11) return setError('CPF inválido (máx. 11 dígitos).')
+    const phoneError = phoneInputError(form.phone)
+    if (phoneError) return setError(phoneError)
+    const cpfError = cpfInputError(form.cpf)
+    if (cpfError) return setError(cpfError)
     if (isNew && !lgpdConsent) return setError('O consentimento LGPD é obrigatório para cadastrar o paciente.')
 
     setSaving(true)
@@ -85,8 +89,14 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
       const clean = Object.fromEntries(
         Object.entries(form).map(([k, v]) => [k, typeof v === 'string' && v.trim() === '' ? null : v])
       )
+      // telefone antigo que o campo não consegue mostrar (ex.: sem DDD) e que a pessoa não preencheu de novo: mantém, não apaga
+      const keepOldPhone = !form.phone && !!patient?.phone?.trim() && toInputValue(patient.phone) === ''
+      // idem para um CPF antigo que o campo não mostra (incompleto): mantém, não apaga
+      const keepOldCpf = !form.cpf && !!patient?.cpf?.trim() && cpfToInputValue(patient.cpf) === ''
       const payload = {
         ...clean,
+        ...(keepOldPhone && { phone: patient!.phone }),
+        ...(keepOldCpf && { cpf: patient!.cpf }),
         clinic_id: clinicId,
         ...(isNew && {
           lgpd_consent: true,
@@ -143,9 +153,9 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
           <p className={styles.requiredNote}><span className={styles.requiredStar}>*</span> Campo obrigatório</p>
           <div className={styles.grid2}>
             <Field label="Nome" required value={form.name} onChange={(v) => set('name', v)} />
-            <Field label="Telefone" value={form.phone} onChange={(v) => set('phone', v)} placeholder="(11) 99999-9999" />
+            <Field label="Telefone" phone previous={previousPhoneNote(patient?.phone)} value={form.phone} onChange={(v) => set('phone', v)} />
             <Field label="E-mail" type="email" value={form.email} onChange={(v) => set('email', v)} />
-            <Field label="CPF" value={form.cpf} onChange={(v) => set('cpf', v)} />
+            <Field label="CPF" cpf previous={previousCpfNote(patient?.cpf)} value={form.cpf} onChange={(v) => set('cpf', v)} />
             <Field label="RG" value={form.rg} onChange={(v) => set('rg', v)} />
             <Field label="Data de Nascimento" type="date" value={form.birth_date} onChange={(v) => set('birth_date', v)} />
             <div className={styles.fieldGroup}>
@@ -248,10 +258,16 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props)
 }
 
 function Field({
-  label, value, onChange, type = 'text', placeholder = '', required = false,
+  label, value, onChange, type = 'text', placeholder = '', required = false, phone = false, cpf = false, previous = null,
 }: {
   label: string; value: string; onChange: (v: string) => void;
   type?: string; placeholder?: string; required?: boolean
+  /** campo de telefone: só aceita (85) 99999-8888 */
+  phone?: boolean
+  /** campo de CPF: só os 11 números */
+  cpf?: boolean
+  /** valor antigo guardado que o campo não mostra por inteiro */
+  previous?: string | null
 }) {
   return (
     <div className={styles.fieldGroup}>
@@ -259,13 +275,20 @@ function Field({
         {label}
         {required && <span className={styles.requiredStar}> *</span>}
       </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-      />
+      {phone || cpf ? (
+        <>
+          {phone ? <PhoneInput value={value} onChange={onChange} /> : <CpfInput value={value} onChange={onChange} />}
+          {previous && <small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: 1.4 }}>Valor anterior no cadastro: {previous}. Confira e digite {phone ? 'o número completo com DDD' : 'os 11 números'}.</small>}
+        </>
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          required={required}
+        />
+      )}
     </div>
   )
 }

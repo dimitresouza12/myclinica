@@ -963,3 +963,8 @@
   .onbModalHeader { padding: 1rem; padding-top: max(1rem, env(safe-area-inset-top)); }
   .onbModalFooter { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 }
+
+/* Aviso: WhatsApp da clínica desconectado com a confirmação automática ligada */
+.waDown { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; padding: 0.8rem 1rem; margin-bottom: 1rem; border: 1px solid #FECACA; background: #FEF2F2; color: #7F1D1D; border-radius: 12px; font-size: 0.85rem; line-height: 1.45; }
+.waDownLink { min-height: 44px; display: inline-flex; align-items: center; padding: 0 1rem; border-radius: 10px; background: #DC2626; color: #fff; font-weight: 600; text-decoration: none; margin-left: auto; }
+.waDownLink:focus-visible { outline: 2px solid #7F1D1D; outline-offset: 2px; }
