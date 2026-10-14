@@ -54,3 +54,11 @@
   .qrBox { width: 100%; max-width: 280px; height: auto; aspect-ratio: 1; }
   .btnPrimary, .btnDanger { flex: 1 1 auto; }
 }
+
+/* QR code em janela */
+.qrOverlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.6); }
+.qrDialog { width: min(420px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 1.5rem; background: var(--bg-primary); color: var(--text-primary); border-radius: 16px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); }
+.qrTitle { margin: 0; font-size: 1.1rem; font-weight: 700; text-align: center; text-wrap: balance; }
+.qrDialog .qrBox { width: min(280px, 100%); height: auto; aspect-ratio: 1; }
+.qrSteps { margin: 0; padding-left: 1.2rem; align-self: stretch; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; line-height: 1.5; }
+.qrDialog .hint { text-align: center; }

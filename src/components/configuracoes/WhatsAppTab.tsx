@@ -1,5 +1,8 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '@/store/auth'
+import { Portal } from '@/components/ui/Portal'
 import styles from './WhatsAppTab.module.css'
 import { whatsappApi } from './whatsappApi'
 import { WhatsAppSettingsForm } from './WhatsAppSettingsForm'
@@ -22,6 +25,8 @@ const QR_REFRESH_MS = 20000
 const api = whatsappApi
 
 export function WhatsAppTab() {
+  const qc = useQueryClient()
+  const clinicId = useAuthStore(s => s.clinic?.id)
   const [conn, setConn] = useState<Connection | null>(null)
   const [qr, setQr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -42,6 +47,12 @@ export function WhatsAppTab() {
       setError(e instanceof Error ? e.message : 'Erro ao consultar o WhatsApp')
     }
   }, [])
+
+  // as outras telas (Mensagens, Agenda, Dashboard) guardam o estado da conexão: quando ele muda aqui, elas precisam saber
+  const status0 = conn?.status
+  useEffect(() => {
+    if (status0) qc.invalidateQueries({ queryKey: ['whatsapp-state', clinicId] })
+  }, [status0, clinicId, qc])
 
   // primeira consulta ao abrir a aba
   useEffect(() => {
@@ -169,24 +180,26 @@ export function WhatsAppTab() {
       )}
 
       {status === 'aguardando_qr' && (
-        <div className={styles.qrWrap}>
-          <div className={styles.qrBox}>
-            {qr
-              ? /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={qr} alt="QR code para conectar o WhatsApp da clínica" className={styles.qrImg} />
-              : <span className={styles.muted}>Gerando o QR code…</span>}
+        <Portal>
+          <div className={styles.qrOverlay}>
+            <div className={styles.qrDialog} role="dialog" aria-modal="true" aria-labelledby="qr-title">
+              <h2 id="qr-title" className={styles.qrTitle}>Conectar o WhatsApp da clínica</h2>
+              <div className={styles.qrBox}>
+                {qr
+                  ? /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={qr} alt="QR code para conectar o WhatsApp da clínica" className={styles.qrImg} />
+                  : <span className={styles.muted}>Gerando o QR code…</span>}
+              </div>
+              <ol className={styles.qrSteps}>
+                <li>Abra o WhatsApp no celular da clínica.</li>
+                <li>Toque em <strong>Configurações</strong> e depois em <strong>Aparelhos conectados</strong>.</li>
+                <li>Toque em <strong>Conectar um aparelho</strong> e aponte a câmera para este QR code.</li>
+              </ol>
+              <p className={styles.hint}>O QR code se renova sozinho. Esta janela fecha quando a conexão for feita.</p>
+              <button className={styles.btnGhost} onClick={handleDisconnect} disabled={busy}>Cancelar</button>
+            </div>
           </div>
-          <div className={styles.steps}>
-            <h3 className={styles.stepsTitle}>Como conectar</h3>
-            <ol>
-              <li>Abra o WhatsApp no celular da clínica.</li>
-              <li>Toque em <strong>Configurações</strong> e depois em <strong>Aparelhos conectados</strong>.</li>
-              <li>Toque em <strong>Conectar um aparelho</strong> e aponte a câmera para este QR code.</li>
-            </ol>
-            <p className={styles.hint}>O QR code se renova sozinho. Esta tela atualiza quando a conexão for feita.</p>
-            <button className={styles.btnGhost} onClick={handleDisconnect} disabled={busy}>Cancelar</button>
-          </div>
-        </div>
+        </Portal>
       )}
 
       {status === 'desconectado' && (

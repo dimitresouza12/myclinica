@@ -232,7 +232,10 @@ export function useDashboardData(clinicId: string | undefined) {
       }
     },
     enabled: !!clinicId,
-    staleTime: 2 * 60 * 1000,
+    // a conexão pode mudar a qualquer momento (QR lido, celular desconectado): confere ao voltar para a aba e de tempos em tempos
+    staleTime: 15 * 1000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 60 * 1000,
   })
 }
 
