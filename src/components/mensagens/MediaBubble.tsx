@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Icon } from '@/components/ui/Icon'
 import { MAX_STORED_BYTES, formatBytes, formatDuration } from '@/lib/whatsapp/media'
+import { VoicePlayer } from './VoicePlayer'
 import type { WaMessage } from '@/hooks/useWhatsAppInbox'
 import styles from './Inbox.module.css'
 
@@ -71,12 +72,7 @@ export function MediaBubble({ m, url, onOpenImage, onRetry, onDownload }: Props)
   }
 
   if (m.kind === 'audio') {
-    return (
-      <div className={styles.mediaBox}>
-        <span className={styles.mediaTitle}>Áudio{m.media_seconds ? ` (${formatDuration(m.media_seconds)})` : ''}</span>
-        <audio className={styles.audio} controls preload="none" src={url} />
-      </div>
-    )
+    return <VoicePlayer url={url} seed={m.id} wave={m.media_wave} seconds={m.media_seconds} outgoing={m.direction === 'out'} />
   }
 
   if (m.kind === 'video') {

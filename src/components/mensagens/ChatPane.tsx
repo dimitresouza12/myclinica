@@ -12,7 +12,7 @@ import { fillQuickReply, filterQuickReplies, slashQuery } from '@/lib/whatsapp/q
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import type { QuickReplyRow, OutboxItem } from '@/hooks/useWhatsAppInbox'
 import { useVoiceRecorder } from './useVoiceRecorder'
-import { UPLOAD_ACCEPT, checkUpload, formatBytes, formatDuration } from '@/lib/whatsapp/media'
+import { UPLOAD_ACCEPT, checkUpload, formatBytes, formatDuration, waveBars } from '@/lib/whatsapp/media'
 import styles from './Inbox.module.css'
 
 const KIND_TITLE: Record<WaMessage['kind'], string> = {
@@ -133,7 +133,17 @@ function OutboxBubble({ item, onRetry, onDiscard }: { item: OutboxItem; onRetry:
           <span className={styles.docInfo}><b>{item.name}</b><span>{formatBytes(item.size)}</span></span>
         </span>
       )}
-      {item.kind === 'audio' && <span className={styles.mediaTitle}>Áudio{item.seconds ? ` (${formatDuration(item.seconds)})` : ''}</span>}
+      {item.kind === 'audio' && (
+        <span className={`${styles.vp} ${styles.vpOut}`}>
+          <span className={styles.vpPlayOff} aria-hidden="true"><Icon name="play" size={18} /></span>
+          <span className={styles.vpMain}>
+            <span className={styles.vpBars} aria-hidden="true">
+              {waveBars(item.wave ?? null, item.id, 40).map((h, i) => <span key={i} className={styles.vpBar} style={{ height: `${Math.round(h * 100)}%` }} />)}
+            </span>
+            <span className={styles.vpTime}>{formatDuration(item.seconds) || '0:00'}</span>
+          </span>
+        </span>
+      )}
       {item.caption}
       {failed && <span className={styles.mediaError} role="alert">{item.error}</span>}
       {failed ? (
@@ -163,7 +173,7 @@ interface Props {
   /** envia imagem ou documento (o texto vira legenda) */
   onSendFile: (file: File, caption: string) => Promise<boolean>
   /** envia mensagem de voz gravada */
-  onSendVoice: (blob: Blob, seconds: number) => Promise<boolean>
+  onSendVoice: (blob: Blob, seconds: number, wave: string | null) => Promise<boolean>
   /** arquivos e áudios em envio (ou que falharam) nesta conversa */
   outbox: OutboxItem[]
   onRetryOutbox: (id: string) => void
@@ -249,7 +259,7 @@ export function ChatPane(p: Props) {
   async function sendRecording() {
     if (p.sending || !p.canSend) return
     const r = await recorder.finish()
-    if (r) await p.onSendVoice(r.blob, r.seconds)
+    if (r) await p.onSendVoice(r.blob, r.seconds, r.wave)
   }
 
   async function submit() {
@@ -325,7 +335,13 @@ export function ChatPane(p: Props) {
       {recorder.recording && (
         <div className={styles.composer} role="group" aria-label="Gravando mensagem de voz">
           <button type="button" className={styles.attachBtn} onClick={recorder.cancel} aria-label="Descartar a gravação"><Icon name="trash" size={20} /></button>
-          <span className={styles.recInfo}><span className={styles.recDot} aria-hidden="true" />Gravando {formatDuration(recorder.seconds)}</span>
+          <span className={styles.recInfo}>
+            <span className={styles.recDot} aria-hidden="true" />
+            <span className={styles.recTime}>{formatDuration(recorder.seconds)}</span>
+            <span className={styles.recBars} aria-hidden="true">
+              {recorder.levels.map((l, i) => <span key={i} className={styles.recBar} style={{ height: `${Math.round(12 + l * 88)}%` }} />)}
+            </span>
+          </span>
           <button className={styles.send} onClick={() => void sendRecording()} disabled={p.sending} aria-label="Enviar a gravação"><Icon name="send" size={18} /></button>
         </div>
       )}

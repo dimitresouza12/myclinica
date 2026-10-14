@@ -86,7 +86,7 @@ function Inbox() {
    * a caixa de mensagem já fica livre, e quando o servidor confirma ela é trocada pela mensagem de verdade.
    * Se falhar, continua na conversa com o motivo e os botões "Tentar de novo" e "Descartar".
    */
-  function startOutbox(base: Pick<OutboxItem, 'convId' | 'kind' | 'name' | 'caption' | 'seconds' | 'size' | 'previewUrl'>, form: FormData) {
+  function startOutbox(base: Pick<OutboxItem, 'convId' | 'kind' | 'name' | 'caption' | 'seconds' | 'wave' | 'size' | 'previewUrl'>, form: FormData) {
     const id = crypto.randomUUID()
     const dispose = () => { if (base.previewUrl) URL.revokeObjectURL(base.previewUrl) }
     const attempt = async () => {
@@ -127,14 +127,15 @@ function Inbox() {
     return true
   }
 
-  async function handleSendVoice(blob: Blob, seconds: number): Promise<boolean> {
+  async function handleSendVoice(blob: Blob, seconds: number, wave: string | null): Promise<boolean> {
     if (!selectedId) return false
     const form = new FormData()
     form.append('conversationId', selectedId)
     form.append('file', new File([blob], 'audio', { type: blob.type }))
     form.append('voice', '1')
     form.append('seconds', String(seconds))
-    startOutbox({ convId: selectedId, kind: 'audio', name: 'Áudio', caption: '', seconds, size: blob.size, previewUrl: null }, form)
+    if (wave) form.append('wave', wave)
+    startOutbox({ convId: selectedId, kind: 'audio', name: 'Áudio', caption: '', seconds, wave, size: blob.size, previewUrl: null }, form)
     return true
   }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   extractMediaInfo, storedMime, sanitizeFileName, formatBytes, formatDuration, expiryFrom, checkUpload, baseMime,
-  MAX_UPLOAD_BYTES, UPLOAD_ACCEPT, isInlineKind, checkVoice,
+  MAX_UPLOAD_BYTES, UPLOAD_ACCEPT, isInlineKind, checkVoice, normalizeWave, encodeWave, waveBars, WAVE_POINTS,
 } from './media'
 import { extractMessage } from './webhook-parse'
 
@@ -16,7 +16,7 @@ const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x4
 describe('extractMediaInfo', () => {
   it('imagem com miniatura em base64', () => {
     const m = extractMediaInfo({ imageMessage: { mimetype: 'image/jpeg', fileLength: '48213', jpegThumbnail: '/9j/4AAQ', caption: 'oi' } })
-    expect(m).toEqual({ kind: 'image', mime: 'image/jpeg', name: null, size: 48213, seconds: null, thumb: '/9j/4AAQ' })
+    expect(m).toEqual({ kind: 'image', mime: 'image/jpeg', name: null, size: 48213, seconds: null, thumb: '/9j/4AAQ', wave: null })
   })
   it('miniatura como lista de bytes', () => {
     const m = extractMediaInfo({ imageMessage: { mimetype: 'image/png', jpegThumbnail: { 0: 255, 1: 216, 2: 255 } } })
@@ -179,5 +179,42 @@ describe('checkVoice', () => {
     expect(v(WEBP)).toMatchObject({ ok: false })
     expect(v(bytes(0x1a, 0x45, 0xdf, 0xa3), 0)).toMatchObject({ ok: false })
     expect(v(bytes(0x1a, 0x45, 0xdf, 0xa3), MAX_UPLOAD_BYTES + 1)).toMatchObject({ ok: false })
+  })
+})
+
+describe('onda do áudio', () => {
+  const b64 = (bytes: number[]) => Buffer.from(bytes).toString('base64')
+  it('lê a onda do WhatsApp (texto ou lista de bytes) e limita a 0 a 100', () => {
+    expect(extractMediaInfo({ audioMessage: { mimetype: 'audio/ogg', waveform: b64([0, 50, 100]) } })?.wave).toBe(b64([0, 50, 100]))
+    expect(normalizeWave({ 0: 10, 1: 200, 2: -5 })).toBe(b64([10, 100, 0]))
+    expect(normalizeWave({ type: 'Buffer', data: [1, 2, 3] })).toBe(b64([1, 2, 3]))
+  })
+  it('descarta o que não serve', () => {
+    expect(normalizeWave('não é base64!')).toBeNull()
+    expect(normalizeWave('A'.repeat(200))).toBeNull()
+    expect(normalizeWave(null)).toBeNull()
+    expect(normalizeWave('')).toBeNull()
+    expect(normalizeWave({ 0: 'x' })).toBeNull()
+    expect(extractMediaInfo({ imageMessage: { waveform: b64([1]) } })?.wave).toBeNull()
+  })
+  it('codifica níveis gravados em 64 pontos de 0 a 100, com o pico em 100', () => {
+    const wave = encodeWave(Array.from({ length: 300 }, (_, i) => (i % 50) / 50))!
+    const bytes = Array.from(Buffer.from(wave, 'base64'))
+    expect(bytes).toHaveLength(WAVE_POINTS)
+    expect(Math.max(...bytes)).toBe(100)
+    expect(Math.min(...bytes)).toBeGreaterThanOrEqual(0)
+    expect(encodeWave([])).toBeNull()
+    expect(Buffer.from(encodeWave([0.5])!, 'base64')).toHaveLength(WAVE_POINTS)
+  })
+  it('barras do player: da onda, ou desenho estável a partir do id', () => {
+    const bars = waveBars(b64(Array.from({ length: 64 }, (_, i) => i)), 'x', 20)
+    expect(bars).toHaveLength(20)
+    expect(bars.every(b => b >= 0.12 && b <= 1)).toBe(true)
+    expect(bars[19]).toBeGreaterThan(bars[0])
+    const a = waveBars(null, 'msg-1'), c = waveBars(null, 'msg-1'), d = waveBars(null, 'msg-2')
+    expect(a).toEqual(c)
+    expect(a).not.toEqual(d)
+    expect(a).toHaveLength(40)
+    expect(a.every(b => b >= 0.2 && b <= 0.9)).toBe(true)
   })
 })

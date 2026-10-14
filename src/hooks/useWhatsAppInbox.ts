@@ -36,6 +36,8 @@ export interface WaMessage {
   media_seconds: number | null
   /** miniatura JPEG em base64 (sem prefixo) */
   media_thumb: string | null
+  /** onda do áudio (base64, até 64 valores de 0 a 100) */
+  media_wave: string | null
   /** só em mensagem enviada: sent | delivered | read (vazio = ainda sem confirmação) */
   delivery_status: 'sent' | 'delivered' | 'read' | null
   /** uma reação por pessoa */
@@ -77,7 +79,7 @@ export function useMessages(conversationId: string | null) {
       if (!conversationId) return []
       const { data, error } = await supabase
         .from('whatsapp_messages')
-        .select('id, conversation_id, direction, kind, body, origin, sent_by_name, created_at, media_status, media_mime, media_name, media_size, media_seconds, media_thumb, delivery_status, reactions, deleted_at, edited_at')
+        .select('id, conversation_id, direction, kind, body, origin, sent_by_name, created_at, media_status, media_mime, media_name, media_size, media_seconds, media_thumb, media_wave, delivery_status, reactions, deleted_at, edited_at')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true })
         .limit(500)
@@ -187,6 +189,8 @@ export interface OutboxItem {
   name: string
   caption: string
   seconds: number | null
+  /** onda do áudio gravado */
+  wave?: string | null
   size: number
   /** miniatura local da imagem enviada */
   previewUrl: string | null

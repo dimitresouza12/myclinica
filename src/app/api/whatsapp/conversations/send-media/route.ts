@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireModulePerm } from '@/lib/whatsapp/auth'
 import { sendMediaFromInbox } from '@/lib/whatsapp/conversations'
-import { checkUpload, checkVoice, MAX_UPLOAD_BYTES, MAX_VOICE_SECONDS } from '@/lib/whatsapp/media'
+import { checkUpload, checkVoice, normalizeWave, MAX_UPLOAD_BYTES, MAX_VOICE_SECONDS } from '@/lib/whatsapp/media'
 import { rateLimit } from '@/lib/rateLimit'
 import { failure } from '../../_shared'
 
@@ -43,16 +43,16 @@ export async function POST(req: Request) {
 
   const head = new Uint8Array(await file.slice(0, 16).arrayBuffer())
   const isVoice = form.get('voice') === '1'
-  let target: { name: string; mime: string; kind: 'image' | 'document' | 'audio'; seconds: number | null }
+  let target: { name: string; mime: string; kind: 'image' | 'document' | 'audio'; seconds: number | null; wave: string | null }
   if (isVoice) {
     const v = checkVoice({ size: file.size, head })
     if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
     const seconds = Number(form.get('seconds'))
-    target = { name: 'audio', mime: v.mime, kind: 'audio', seconds: Number.isFinite(seconds) && seconds > 0 ? Math.min(Math.round(seconds), MAX_VOICE_SECONDS) : null }
+    target = { name: 'audio', mime: v.mime, kind: 'audio', seconds: Number.isFinite(seconds) && seconds > 0 ? Math.min(Math.round(seconds), MAX_VOICE_SECONDS) : null, wave: normalizeWave(form.get('wave')) }
   } else {
     const c = checkUpload({ name: file.name, size: file.size, head })
     if (!c.ok) return NextResponse.json({ error: c.error }, { status: 400 })
-    target = { name: c.name, mime: c.mime, kind: c.kind, seconds: null }
+    target = { name: c.name, mime: c.mime, kind: c.kind, seconds: null, wave: null }
   }
 
   try {

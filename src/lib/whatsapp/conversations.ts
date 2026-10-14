@@ -181,7 +181,7 @@ export async function storeIncoming(instance: string, data: unknown): Promise<St
     // o arquivo é baixado logo depois (abaixo); até lá a conversa mostra "baixando"
     ...(m.media ? {
       media_status: 'pending', media_mime: m.media.mime, media_name: m.media.name,
-      media_size: m.media.size, media_seconds: m.media.seconds, media_thumb: m.media.thumb,
+      media_size: m.media.size, media_seconds: m.media.seconds, media_thumb: m.media.thumb, media_wave: m.media.wave,
     } : {}),
   }
 
@@ -296,7 +296,7 @@ export async function recordOutgoing(p: {
   clinicId: string; jid: string; text: string; providerMessageId: string | null
   origin: Extract<MessageOrigin, 'sistema' | 'automatico'>; userId?: string | null; userName?: string | null
   /** quando a mensagem leva um arquivo: `text` é a legenda e o arquivo já está guardado em `path` */
-  media?: { kind: Extract<MediaKind, 'image' | 'document' | 'audio'>; mime: string; name: string | null; size: number; path: string; seconds?: number | null }
+  media?: { kind: Extract<MediaKind, 'image' | 'document' | 'audio'>; mime: string; name: string | null; size: number; path: string; seconds?: number | null; wave?: string | null }
 }): Promise<void> {
   const admin = getAdminClient()
   const at = new Date()
@@ -314,7 +314,7 @@ export async function recordOutgoing(p: {
     created_at: at.toISOString(),
     ...(p.media ? {
       media_status: 'ready', media_mime: p.media.mime, media_name: p.media.name, media_size: p.media.size,
-      media_seconds: p.media.seconds ?? null, media_path: p.media.path, media_expires_at: expiryFrom(at).toISOString(),
+      media_seconds: p.media.seconds ?? null, media_wave: p.media.wave ?? null, media_path: p.media.path, media_expires_at: expiryFrom(at).toISOString(),
     } : {}),
   }
   if (p.providerMessageId) {
@@ -357,7 +357,7 @@ export async function sendFromInbox(p: { clinicId: string; conversationId: strin
 /** Envia imagem, documento ou mensagem de voz pela caixa de entrada (legenda opcional, só para imagem e documento). O arquivo já foi conferido pela rota. */
 export async function sendMediaFromInbox(p: {
   clinicId: string; conversationId: string; userId: string; userName: string
-  bytes: Buffer; name: string; mime: string; kind: 'image' | 'document' | 'audio'; caption: string; seconds?: number | null
+  bytes: Buffer; name: string; mime: string; kind: 'image' | 'document' | 'audio'; caption: string; seconds?: number | null; wave?: string | null
 }): Promise<SendResult> {
   const admin = getAdminClient()
   const { data: conv } = await admin.from('whatsapp_conversations').select('id, jid')
@@ -386,7 +386,7 @@ export async function sendMediaFromInbox(p: {
   await recordOutgoing({
     clinicId: p.clinicId, jid, text: p.caption, providerMessageId: sent.messageId,
     origin: 'sistema', userId: p.userId, userName: p.userName,
-    media: { kind: p.kind, mime: p.mime, name: p.kind === 'audio' ? null : p.name, size: p.bytes.length, path, seconds: p.seconds ?? null },
+    media: { kind: p.kind, mime: p.mime, name: p.kind === 'audio' ? null : p.name, size: p.bytes.length, path, seconds: p.seconds ?? null, wave: p.wave ?? null },
   })
   return { ok: true }
 }

@@ -1,12 +1,12 @@
 /* Tela Mensagens: lista | conversa | ficha. Adapta-se à largura do próprio painel (container query),
    então funciona igual com a barra lateral aberta ou recolhida e no celular. */
-.root { container-type: inline-size; container-name: inbox; height: calc(100dvh - 7.5rem); min-height: 460px; border: 1px solid var(--border-subtle); border-radius: 16px; overflow: hidden; background: var(--bg-primary); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; }
+.root { container-type: inline-size; container-name: inbox; height: calc(100dvh - 3.2rem); min-height: 460px; border: 1px solid var(--border-subtle); border-radius: 16px; overflow: hidden; background: var(--bg-primary); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; }
 .banner { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; align-items: center; padding: 0.7rem 1rem; background: #FEF2F2; color: #7F1D1D; border-bottom: 1px solid #FECACA; font-size: 0.84rem; line-height: 1.45; }
 .bannerLink { margin-left: auto; min-height: 44px; display: inline-flex; align-items: center; padding: 0 1rem; border-radius: 10px; background: #DC2626; color: #fff; font-weight: 600; text-decoration: none; }
 .bannerLink:focus-visible { outline: 2px solid #7F1D1D; outline-offset: 2px; }
 :global([data-theme="dark"]) .banner { background: rgba(248,113,113,.12); color: #FCA5A5; border-color: rgba(248,113,113,.3); }
 
-.grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 320px minmax(0, 1fr) 280px; position: relative; }
+.grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr) 300px; position: relative; }
 .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 
 /* ── lista ── */
@@ -56,7 +56,7 @@
 
 .msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 6px; }
 .day { align-self: center; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); background: var(--bg-primary); border: 1px solid var(--border-subtle); padding: 3px 12px; border-radius: 999px; margin: 8px 0 4px; }
-.b { max-width: min(74%, 480px); padding: 7px 12px 5px; border-radius: 14px; font-size: 0.86rem; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
+.b { max-width: min(78%, 620px); padding: 7px 12px 5px; border-radius: 14px; font-size: 0.86rem; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
 .in { align-self: flex-start; background: var(--bg-primary); border: 1px solid var(--border-subtle); border-bottom-left-radius: 4px; color: var(--text-primary); }
 .out { align-self: flex-end; background: #DCF8E9; color: #0D2421; border-bottom-right-radius: 4px; }
 :global([data-theme="dark"]) .out { background: #14493F; color: #E8F5F4; }
@@ -93,8 +93,8 @@
 .hint { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; margin: 0; }
 
 /* ── adaptação à largura do painel ── */
-@container inbox (max-width: 1100px) {
-  .grid { grid-template-columns: 300px minmax(0, 1fr); }
+@container inbox (max-width: 980px) {
+  .grid { grid-template-columns: 290px minmax(0, 1fr); }
   .info { display: none; }
   .infoOpen { display: flex; position: absolute; inset: 0 0 0 auto; width: min(320px, 92%); z-index: 5; box-shadow: var(--shadow-lg); border-left: 1px solid var(--border-color); }
   .mediumOnly { display: grid; }
@@ -207,3 +207,26 @@
 .sendingDots::after { content: ''; display: inline-block; width: 1.2em; text-align: left; animation: dots 1.2s steps(4, end) infinite; }
 @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
 @media (prefers-reduced-motion: reduce) { .sendingDots::after { animation: none; content: '...'; } }
+
+/* ── mensagem de voz, no estilo do WhatsApp ── */
+.vp { display: flex; align-items: center; gap: 10px; min-width: 240px; padding: 2px 0; color: var(--text-secondary); }
+.vpOut { color: #3B6B58; }
+:global([data-theme="dark"]) .vpOut { color: #9CC9B6; }
+.vpPlay { width: 40px; height: 40px; border-radius: 50%; border: 0; flex-shrink: 0; display: grid; place-items: center; cursor: pointer; background: var(--brand-primary); color: #06312B; }
+.vpPlay:hover { filter: brightness(0.95); }
+.vpPlay:focus-visible, .vpSpeed:focus-visible, .vpBars:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.vpMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.vpBars { position: relative; display: flex; align-items: center; gap: 2px; height: 28px; cursor: pointer; touch-action: manipulation; }
+.vpBar { flex: 1; min-width: 2px; max-width: 4px; border-radius: 2px; background: currentColor; opacity: 0.4; }
+.vpBarOn { opacity: 1; color: var(--brand-accent); }
+.vpDot { position: absolute; top: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; transform: translateY(-50%); background: var(--brand-accent); pointer-events: none; }
+.vpTime { font-size: 0.68rem; font-variant-numeric: tabular-nums; }
+.vpSpeed { min-width: 44px; height: 32px; padding: 0 8px; border: 0; border-radius: 999px; flex-shrink: 0; background: rgba(0, 0, 0, 0.1); color: inherit; font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+:global([data-theme="dark"]) .vpSpeed { background: rgba(255, 255, 255, 0.14); }
+.vpPending { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; font-weight: 600; min-width: 200px; }
+.vpPlayOff { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-primary); color: #06312B; opacity: 0.5; }
+
+/* ── gravando: barras ao vivo ── */
+.recTime { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 2.6em; }
+.recBars { flex: 1; min-width: 0; height: 28px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; overflow: hidden; }
+.recBar { width: 3px; flex-shrink: 0; border-radius: 2px; background: var(--text-secondary); opacity: 0.7; }

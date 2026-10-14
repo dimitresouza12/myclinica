@@ -22,6 +22,8 @@ export interface MediaInfo {
   seconds: number | null
   /** JPEG pequeno em base64, sem prefixo */
   thumb: string | null
+  /** onda do áudio: até 64 valores de 0 a 100, em base64 */
+  wave: string | null
 }
 
 const PART_KEYS: Array<[string, MediaKind]> = [
@@ -81,6 +83,7 @@ export function extractMediaInfo(message: unknown): MediaInfo | null {
       size: toNumber(part.fileLength),
       seconds: toNumber(part.seconds),
       thumb: thumbToBase64(part.jpegThumbnail),
+      wave: kind === 'audio' ? normalizeWave(part.waveform) : null,
     }
   }
   return null
@@ -224,4 +227,69 @@ export function checkVoice(file: { size: number; head: Uint8Array }): VoiceCheck
     : startsWith(h, [0x49, 0x44, 0x33]) || (h[0] === 0xff && (h[1] & 0xe0) === 0xe0) ? 'audio/mpeg'
     : null
   return mime ? { ok: true, mime } : { ok: false, error: 'Formato de áudio não reconhecido. Grave de novo.' }
+}
+
+// ── onda do áudio (as barrinhas do player) ──────────────────────────────────
+
+export const WAVE_POINTS = 64
+
+function bytesToBase64(bytes: number[]): string {
+  return btoa(String.fromCharCode(...bytes))
+}
+
+function base64ToBytes(b64: string): number[] | null {
+  try { return Array.from(atob(b64), c => c.charCodeAt(0)) } catch { return null }
+}
+
+/**
+ * Aceita a onda como o WhatsApp manda (texto base64 ou lista de bytes) ou como guardamos, e devolve base64
+ * com no máximo 64 valores de 0 a 100; null se não servir.
+ */
+export function normalizeWave(v: unknown): string | null {
+  let bytes: number[] | null = null
+  if (typeof v === 'string') bytes = /^[A-Za-z0-9+/=]+$/.test(v) && v.length <= 140 ? base64ToBytes(v) : null
+  else if (isObj(v)) {
+    const list = Array.isArray(v.data) ? v.data : Object.values(v)
+    bytes = list.length > 0 && list.every(x => typeof x === 'number' && Number.isFinite(x)) ? (list as number[]) : null
+  }
+  if (!bytes || bytes.length === 0 || bytes.length > 100) return null
+  return bytesToBase64(bytes.map(b => Math.max(0, Math.min(100, Math.round(b)))))
+}
+
+/** Reduz uma lista de níveis (0 a 1) para `WAVE_POINTS` valores de 0 a 100, em base64, prontos para guardar. */
+export function encodeWave(levels: number[]): string | null {
+  if (levels.length === 0) return null
+  const peak = Math.max(...levels, 0.0001)
+  const out: number[] = []
+  for (let i = 0; i < WAVE_POINTS; i++) {
+    const from = Math.floor((i * levels.length) / WAVE_POINTS)
+    const to = Math.max(from + 1, Math.floor(((i + 1) * levels.length) / WAVE_POINTS))
+    let m = 0
+    for (let j = from; j < Math.min(to, levels.length); j++) m = Math.max(m, levels[j])
+    out.push(Math.round((m / peak) * 100))
+  }
+  return bytesToBase64(out)
+}
+
+/**
+ * Alturas (0 a 1) das `count` barras do player. Usa a onda da mensagem; sem ela, gera um desenho estável
+ * a partir do `seed` (o mesmo áudio sempre tem o mesmo desenho).
+ */
+export function waveBars(wave: string | null | undefined, seed: string, count = 40): number[] {
+  const bytes = wave ? base64ToBytes(wave) : null
+  if (bytes && bytes.length > 0) {
+    return Array.from({ length: count }, (_, i) => {
+      const from = Math.floor((i * bytes.length) / count)
+      const to = Math.max(from + 1, Math.floor(((i + 1) * bytes.length) / count))
+      let m = 0
+      for (let j = from; j < Math.min(to, bytes.length); j++) m = Math.max(m, bytes[j])
+      return Math.max(0.12, Math.min(1, m / 100))
+    })
+  }
+  let h = 2166136261
+  for (const ch of seed) h = Math.imul(h ^ ch.charCodeAt(0), 16777619)
+  return Array.from({ length: count }, () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0
+    return 0.2 + (h % 1000) / 1000 * 0.7
+  })
 }
