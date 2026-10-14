@@ -26,6 +26,25 @@ function numberFor(jid: string): string {
   return isLidJid(jid) ? jid : jid.split('@')[0]
 }
 
+const INLINE_TIMEOUT_MS = 3000
+
+export interface AvatarLookup { url: string | null; checkedAt: string }
+
+/**
+ * Busca a foto ANTES de a conversa aparecer na tela, para ela já chegar com a foto. Espera no máximo 3 s;
+ * se a Evolution não responder a tempo, devolve null e a foto é buscada depois (refreshAvatar).
+ * Também devolve null quando a foto ainda está fresca (não precisa buscar).
+ */
+export async function lookupAvatarNow(instance: string, jid: string, checkedAt: string | null): Promise<AvatarLookup | null> {
+  if (!isAvatarStale(checkedAt)) return null
+  try {
+    const url = await fetchProfilePicture(instance, numberFor(jid), INLINE_TIMEOUT_MS)
+    return { url, checkedAt: new Date().toISOString() }
+  } catch {
+    return null
+  }
+}
+
 /**
  * Atualiza a foto da conversa se a última consulta estiver velha. Nunca lança: foto é detalhe,
  * não pode derrubar o webhook. Se a Evolution falhar, a foto anterior é mantida e só se adia a próxima tentativa.

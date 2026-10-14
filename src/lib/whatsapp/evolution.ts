@@ -146,10 +146,10 @@ export async function checkNumbers(instanceName: string, numbers: string[]): Pro
  * Foto de perfil do contato (URL da CDN do WhatsApp, que expira). null quando o contato não tem foto
  * ou a esconde nas configurações de privacidade. `number` é o telefone com DDI ou o jid completo.
  */
-export async function fetchProfilePicture(instanceName: string, number: string): Promise<string | null> {
+export async function fetchProfilePicture(instanceName: string, number: string, timeoutMs?: number): Promise<string | null> {
   const r = await evo<{ profilePictureUrl?: string | null } | null>(
     `/chat/fetchProfilePictureUrl/${encodeURIComponent(instanceName)}`,
-    { method: 'POST', body: { number } },
+    { method: 'POST', body: { number }, timeoutMs },
   )
   const url = r?.profilePictureUrl
   return typeof url === 'string' && url.startsWith('https://') ? url : null

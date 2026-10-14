@@ -9,7 +9,7 @@ import { phoneKeys, phoneKeyFromJid, isLidJid } from './phone'
 import { sendText, sendMedia, sendVoice, deleteForEveryone, editText } from './evolution'
 import { connectedInstanceFor } from './connection'
 import { createLeadForNewConversation, onLeadMessage, fillLeadName } from './leads'
-import { refreshAvatar } from './avatar'
+import { refreshAvatar, lookupAvatarNow, type AvatarLookup } from './avatar'
 import { adoptLidConversation, conversationForLid } from './identity'
 import { downloadMessageMedia, newMediaPath, putMedia, removeMedia } from './media-store'
 import { expiryFrom, storedMime, type MediaKind } from './media'
@@ -59,7 +59,7 @@ async function matchPatientId(clinicId: string, key: string): Promise<string | n
  * Acha ou cria a conversa. Vincula ao paciente na criação e, enquanto não há vínculo, a cada hora.
  * `created` diz se esta chamada foi quem a criou (é o gatilho para nascer o lead no CRM).
  */
-export async function ensureConversation(clinicId: string, m: { phoneKey: string; jid: string; pushName: string | null; lidId?: string | null; authoritative?: boolean }, firstMessageAt: Date): Promise<{ row: ConvRow; created: boolean }> {
+export async function ensureConversation(clinicId: string, m: { phoneKey: string; jid: string; pushName: string | null; lidId?: string | null; authoritative?: boolean; avatar?: AvatarLookup | null }, firstMessageAt: Date): Promise<{ row: ConvRow; created: boolean }> {
   const admin = getAdminClient()
 
   let { data: conv } = await admin.from('whatsapp_conversations').select(CONV_COLS)
@@ -70,7 +70,11 @@ export async function ensureConversation(clinicId: string, m: { phoneKey: string
     await admin.from('whatsapp_conversations')
       // nasce com o horário da própria mensagem (e não "agora"): senão a primeira mensagem, que tem
       // horário em segundos, parece mais antiga que a conversa e o resumo da lista fica vazio
-      .upsert({ clinic_id: clinicId, phone_key: m.phoneKey, jid: m.jid, contact_name: m.pushName, last_message_at: firstMessageAt.toISOString() }, { onConflict: 'clinic_id,phone_key', ignoreDuplicates: true })
+      .upsert({
+        clinic_id: clinicId, phone_key: m.phoneKey, jid: m.jid, contact_name: m.pushName, last_message_at: firstMessageAt.toISOString(),
+        // a foto já vem junto: a conversa aparece na tela com ela
+        ...(m.avatar ? { avatar_url: m.avatar.url, avatar_checked_at: m.avatar.checkedAt } : {}),
+      }, { onConflict: 'clinic_id,phone_key', ignoreDuplicates: true })
     const r = await admin.from('whatsapp_conversations').select(CONV_COLS).eq('clinic_id', clinicId).eq('phone_key', m.phoneKey).single()
     conv = r.data
   }
@@ -85,6 +89,7 @@ export async function ensureConversation(clinicId: string, m: { phoneKey: string
   // lembra o @lid deste contato: mensagens futuras só com o @lid caem nesta mesma conversa
   if (m.lidId && m.lidId !== row.lid) patch.lid = m.lidId
   if (m.pushName && m.pushName !== row.contact_name) patch.contact_name = m.pushName
+  if (m.avatar && (m.avatar.url || !row.avatar_checked_at)) { patch.avatar_url = m.avatar.url; patch.avatar_checked_at = m.avatar.checkedAt; row.avatar_checked_at = m.avatar.checkedAt }
 
   const stale = !row.patient_checked_at || Date.now() - new Date(row.patient_checked_at).getTime() > RECHECK_PATIENT_MS
   if (!row.patient_id && stale) {
@@ -148,7 +153,16 @@ export async function storeIncoming(instance: string, data: unknown): Promise<St
   }
 
   const at = m.timestamp ?? new Date()
-  const { row: conv, created } = await ensureConversation(clinicId, { ...m, authoritative: !m.fromMe }, at)
+
+  // foto do contato: busca já, antes de a conversa existir na tela (só para mensagem DELE; a foto fresca não é buscada de novo)
+  let avatar: AvatarLookup | null = null
+  if (!m.fromMe) {
+    const { data: known } = await admin.from('whatsapp_conversations').select('avatar_checked_at')
+      .eq('clinic_id', clinicId).eq('phone_key', m.phoneKey).maybeSingle()
+    avatar = await lookupAvatarNow(instance, m.jid, (known?.avatar_checked_at as string | null | undefined) ?? null)
+  }
+
+  const { row: conv, created } = await ensureConversation(clinicId, { ...m, authoritative: !m.fromMe, avatar }, at)
   const direction = m.fromMe ? 'out' : 'in'
 
   // contato novo e desconhecido → lead no CRM (uma vez só); contato antigo: completa o nome se faltava
@@ -189,7 +203,8 @@ export async function storeIncoming(instance: string, data: unknown): Promise<St
   await touchConversation(conv, { at, direction, preview: previewFor(m.kind, m.body) }, direction === 'in' ? 1 : 0)
   // as regras do funil (a clínica respondeu, o contato voltou) e a foto de perfil, sem atrasar a resposta ao webhook
   await onLeadMessage(clinicId, conv.phone_key, direction)
-  if (direction === 'in') after(() => refreshAvatar(instance, conv))
+  // se a busca imediata não deu (Evolution lenta), tenta de novo depois da resposta
+  if (direction === 'in' && !avatar) after(() => refreshAvatar(instance, conv))
   return 'guardada'
 }
 

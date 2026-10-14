@@ -29,7 +29,8 @@ export function Avatar({ url, name, size = 40, className }: Props) {
         alt=""
         width={size}
         height={size}
-        loading="lazy"
+        loading="eager"
+        decoding="async"
         referrerPolicy="no-referrer"
         onError={() => setFailed(url)}
         style={{ ...box, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
