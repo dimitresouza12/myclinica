@@ -219,12 +219,16 @@ function Funnel() {
 
   return (
     <>
-      <div className={styles.head}>
-        <p className={styles.summary}>
-          <strong>{openLeadCount(leads)}</strong> {openLeadCount(leads) === 1 ? 'lead em andamento' : 'leads em andamento'}
-          {potential > 0 && <> · <strong>{formatMoney(potential)}</strong> em potencial</>}
-          . O funil se atualiza sozinho com o WhatsApp e a agenda.{canEdit && <> Arraste um cartão só para corrigir.</>}
-        </p>
+      <ul className={styles.stats} aria-label="Resumo do funil">
+        <li className={`${styles.stat} ${styles.stConversa}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Em andamento</span><span className={styles.statValue}>{openLeadCount(leads)}</span></li>
+        <li className={`${styles.stat} ${styles.stAgendado}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Agendados</span><span className={styles.statValue}>{leads.filter(l => l.stage === 'agendado').length}</span></li>
+        <li className={`${styles.stat} ${styles.stCompareceu}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Compareceram</span><span className={styles.statValue}>{leads.filter(l => l.stage === 'compareceu').length}</span></li>
+        <li className={`${styles.stat} ${styles.stPerdido}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Perdidos</span><span className={styles.statValue}>{leads.filter(l => l.stage === 'perdido').length}</span></li>
+        <li className={styles.stat}><span className={styles.statLabel}><span className={styles.statDot} style={{ background: 'var(--brand-primary)' }} aria-hidden="true" />Valor em potencial</span><span className={`${styles.statValue} ${styles.statValueMoney}`}>{formatMoney(potential)}</span></li>
+      </ul>
+
+      <div className={styles.bar}>
+        <p className={styles.hintLine}><Icon name="info" size={14} />O funil se atualiza sozinho com o WhatsApp e a agenda.{canEdit && <> Arraste um cartão só para corrigir.</>}</p>
         <div className={styles.tools}>
           <label className={styles.search}>
             <Icon name="search" size={16} />

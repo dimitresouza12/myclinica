@@ -13,7 +13,8 @@ import {
   validateLeadForm, type Lead, type LeadFormInput, type Source, type Stage,
 } from '@/lib/crm/model'
 import styles from './Crm.module.css'
-import { MoneyInput } from '@/components/ui/NumericInput'
+import { MoneyInput, DateInput } from '@/components/ui/NumericInput'
+import { dateBRToISO, dateInputError, isoToDateBR, DATE_PLACEHOLDER } from '@/lib/numericFormat'
 
 export interface LeadSaveValues {
   fields: Extract<ReturnType<typeof validateLeadForm>, { ok: true }>['value']
@@ -63,7 +64,9 @@ export function LeadDrawer({
   }))
   const [stage, setStage] = useState<Stage>(lead?.stage ?? initialStage)
   const [lostReason, setLostReason] = useState(lead?.lost_reason ?? '')
-  const [followUp, setFollowUp] = useState(isoToDateInput(lead?.next_contact_at))
+  // a data é digitada como dd/mm/aaaa (só números); internamente continua aaaa-mm-dd
+  const [followUp, setFollowUp] = useState(isoToDateBR(isoToDateInput(lead?.next_contact_at)))
+  const [followUpErr, setFollowUpErr] = useState('')
   const [errors, setErrors] = useState<Partial<Record<keyof LeadFormInput, string>>>({})
   const firstRef = useRef<HTMLInputElement>(null)
 
@@ -86,9 +89,11 @@ export function LeadDrawer({
     const locked = hasConversation && !!lead
     const r = validateLeadForm(form, { phoneLocked: locked })
     if (!r.ok) { setErrors(r.errors); return }
+    const dateErr = dateInputError(followUp, { allowFuture: true })
+    if (dateErr) { setFollowUpErr(dateErr); return }
     // mantém a chave original quando o telefone não pode mudar (ex.: contato com número oculto)
     const fields = locked && lead ? { ...r.value, phone: lead.phone, phone_key: lead.phone_key } : r.value
-    onSave({ fields, stage, lostReason: stage === 'perdido' ? lostReason || null : null, nextContactAt: dateInputToIso(followUp) })
+    onSave({ fields, stage, lostReason: stage === 'perdido' ? lostReason || null : null, nextContactAt: dateInputToIso(dateBRToISO(followUp, { allowFuture: true }) ?? '') })
   }
 
   const title = creating ? 'Novo lead' : leadTitle(lead)
@@ -175,7 +180,8 @@ export function LeadDrawer({
               </div>
               <div className={styles.field}>
                 <label htmlFor="lead-followup">Retomar em</label>
-                <input id="lead-followup" type="date" className={styles.input} value={followUp} onChange={e => setFollowUp(e.target.value)} readOnly={readOnly} />
+                <DateInput id="lead-followup" className={styles.input} value={followUp} onChange={v => { setFollowUp(v); setFollowUpErr('') }} readOnly={readOnly} placeholder={DATE_PLACEHOLDER} autoComplete="off" aria-invalid={!!followUpErr} aria-describedby={followUpErr ? 'lead-followup-err' : undefined} />
+                {followUpErr && <p id="lead-followup-err" className={styles.fieldErr} role="alert">{followUpErr}</p>}
               </div>
             </div>
 

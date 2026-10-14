@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { LeadCard } from './LeadCard'
+import { Icon } from '@/components/ui/Icon'
 import { STAGES, formatMoney, groupByStage, stageTotals, type Lead, type Stage } from '@/lib/crm/model'
 import styles from './Crm.module.css'
 
@@ -50,15 +51,21 @@ export function CrmBoard({ leads, ownerNames, unreadByKey, photoByKey, now, canE
             onDrop={e => { e.preventDefault(); drop(st.key) }}
           >
             <header className={styles.colHead}>
-              <div className={styles.colTitleRow}>
-                <h3 className={styles.colTitle}><span className={styles.dot} aria-hidden="true" />{st.label}</h3>
+              <h3 className={styles.colTitle}><span className={styles.dot} aria-hidden="true" />{st.label}</h3>
+              <div className={styles.colHeadRight}>
                 <span className={styles.colCount}>{items.length}</span>
+                {canEdit && (
+                  <button type="button" className={styles.colAdd} onClick={() => onAdd(st.key)} aria-label={`Adicionar lead em ${st.label}`} title="Adicionar lead">
+                    <Icon name="plus" size={16} />
+                  </button>
+                )}
               </div>
               <p className={styles.colValue}>{total.value > 0 ? `${formatMoney(total.value)} em potencial` : st.hint}</p>
             </header>
 
             <div className={styles.cards}>
-              {items.length === 0 && <p className={styles.colEmpty}>{canEdit ? 'Arraste um cartão para cá' : 'Nenhum lead'}</p>}
+              {dragId && overStage === st.key && <p className={styles.colDrop}>Solte aqui</p>}
+              {items.length === 0 && !(dragId && overStage === st.key) && <p className={styles.colEmpty}>Nenhum lead nesta etapa</p>}
               {items.map(lead => (
                 <LeadCard
                   key={lead.id}
@@ -80,9 +87,6 @@ export function CrmBoard({ leads, ownerNames, unreadByKey, photoByKey, now, canE
               ))}
             </div>
 
-            {canEdit && (
-              <button type="button" className={styles.colAdd} onClick={() => onAdd(st.key)}>+ Adicionar lead</button>
-            )}
           </section>
         )
       })}

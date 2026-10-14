@@ -70,10 +70,10 @@ export function LeadCard({ lead, ownerName, photoUrl, unread, now, canEdit, drag
 
       <div className={styles.cardFoot}>
         {ownerName
-          ? <span className={styles.owner} title={`Responsável: ${ownerName}`}>{initialsOf(ownerName)}</span>
-          : <span className={`${styles.owner} ${styles.ownerNone}`} title="Sem responsável">-</span>}
+          ? <><span className={styles.owner} title={`Responsável: ${ownerName}`}>{initialsOf(ownerName)}</span><span className={styles.ownerName}>{ownerName.split(' ')[0]}</span></>
+          : null}
         <span className={`${styles.age} ${stale ? styles.ageStale : ''}`}>
-          <Icon name="clock" size={12} />{elapsedLabel(lead.stage_changed_at, now)} na etapa
+          <Icon name="clock" size={12} />{elapsedLabel(lead.stage_changed_at, now)}
         </span>
       </div>
 
