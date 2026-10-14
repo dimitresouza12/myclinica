@@ -391,6 +391,24 @@ export async function sendMediaFromInbox(p: {
   return { ok: true }
 }
 
+/**
+ * Liga a conversa ao paciente que tenha o telefone dela (chamado logo depois de cadastrar o paciente
+ * pela própria conversa; sem isso o vínculo só apareceria na próxima mensagem ou em até 1 hora).
+ * Também liga o lead do CRM. Devolve o id do paciente, ou null se nenhum bate.
+ */
+export async function linkConversationPatient(clinicId: string, conversationId: string): Promise<string | null> {
+  const admin = getAdminClient()
+  const { data: conv } = await admin.from('whatsapp_conversations').select('id, phone_key')
+    .eq('id', conversationId).eq('clinic_id', clinicId).maybeSingle()
+  if (!conv) return null
+  const patientId = await matchPatientId(clinicId, conv.phone_key as string)
+  if (!patientId) return null
+  const now = new Date().toISOString()
+  await admin.from('whatsapp_conversations').update({ patient_id: patientId, patient_checked_at: now, updated_at: now }).eq('id', conv.id)
+  await admin.from('crm_leads').update({ patient_id: patientId }).eq('clinic_id', clinicId).eq('phone_key', conv.phone_key as string).is('patient_id', null)
+  return patientId
+}
+
 /** Zera o contador de não lidas da conversa. */
 export async function markConversationRead(clinicId: string, conversationId: string): Promise<boolean> {
   const { data } = await getAdminClient().from('whatsapp_conversations')

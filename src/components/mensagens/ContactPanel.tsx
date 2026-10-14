@@ -1,6 +1,12 @@
 'use client'
+import { useState } from 'react'
 import Link from 'next/link'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '@/store/auth'
+import { usePermissions } from '@/hooks/usePermissions'
+import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
+import { whatsappApi } from '@/components/configuracoes/whatsappApi'
+import { toInputValue } from '@/lib/phoneFormat'
 import { supabase } from '@/lib/supabase'
 import { Icon } from '@/components/ui/Icon'
 import { contactDisplayName, formatJidPhone } from '@/lib/whatsapp/inbox'
@@ -29,8 +35,19 @@ function useNextAppointment(patientId: string | null) {
   })
 }
 
+/** Telefone brasileiro do contato, no formato do campo (DDD + número), ou '' se o contato não tem número utilizável (@lid, exterior). */
+function phoneForForm(jid: string): string {
+  if (jid.includes('@lid') || jid.startsWith('lid:') || jid.startsWith('raw:')) return ''
+  const d = jid.split('@')[0].replace(/\D/g, '')
+  return d.startsWith('55') && (d.length === 12 || d.length === 13) ? toInputValue(d.slice(2)) : ''
+}
+
 export function ContactPanel({ conversation, open }: { conversation: WaConversation | null; open: boolean }) {
   const { data: next } = useNextAppointment(conversation?.patient_id ?? null)
+  const clinicId = useAuthStore(s => s.clinic?.id)
+  const qc = useQueryClient()
+  const { canEdit: canRegister } = usePermissions('pacientes')
+  const [registering, setRegistering] = useState(false)
   if (!conversation) return <aside className={`${styles.pane} ${styles.info} ${open ? styles.infoOpen : ''}`} aria-label="Ficha do contato" />
 
   const c = conversation
@@ -70,8 +87,28 @@ export function ContactPanel({ conversation, open }: { conversation: WaConversat
             Esse contato ainda não está cadastrado. Quando você cadastrar o paciente com este telefone, a conversa passa a aparecer como paciente.
           </p>
           <div className={styles.stack}>
-            <Link className={`${styles.btn} ${styles.btnPrimary}`} href="/pacientes"><Icon name="patients" size={16} />Cadastrar paciente</Link>
+            {canRegister && clinicId
+              ? <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => setRegistering(true)}><Icon name="patients" size={16} />Cadastrar paciente</button>
+              : <span className={styles.hint}>Você não tem permissão para cadastrar pacientes.</span>}
           </div>
+          {registering && clinicId && (
+            <PatientFormModal
+              patient={null}
+              clinicId={clinicId}
+              initial={{ name: c.contact_name ?? '', phone: phoneForForm(c.jid) }}
+              onClose={() => setRegistering(false)}
+              onSaved={() => {
+                setRegistering(false)
+                // liga já a conversa (e o lead) ao paciente novo, sem esperar a próxima mensagem
+                whatsappApi('/api/whatsapp/conversations/link-patient', { method: 'POST', body: { conversationId: c.id } })
+                  .catch(() => { /* o vínculo se completa na próxima mensagem */ })
+                  .finally(() => {
+                    qc.invalidateQueries({ queryKey: ['wa-convs', clinicId] })
+                    qc.invalidateQueries({ queryKey: ['crm-leads', clinicId] })
+                  })
+              }}
+            />
+          )}
         </>
       )}
     </aside>

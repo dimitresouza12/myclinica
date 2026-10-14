@@ -19,13 +19,15 @@ interface Props {
   clinicId: string
   onClose: () => void
   onSaved: () => void
+  /** cadastro novo já com nome e telefone preenchidos (ex.: vindo de uma conversa do WhatsApp) */
+  initial?: { name?: string; phone?: string }
 }
 
-export function PatientFormModal({ patient, clinicId, onClose, onSaved }: Props) {
+export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial }: Props) {
   const isNew = !patient
   const { user } = useAuthStore()
   const [form, setForm] = useState({
-    name: '', phone: '', email: '', cpf: '', rg: '',
+    name: initial?.name ?? '', phone: initial?.phone ?? '', email: '', cpf: '', rg: '',
     birth_date: '', gender: '', address: '', occupation: '',
     emergency_contact: '', referred_by: '', notes: '',
     convenio: '', convenio_carteirinha: '',
