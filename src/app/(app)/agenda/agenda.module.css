@@ -1220,3 +1220,6 @@
 .waOk  { font-size: 0.78rem; color: #065F46; }
 .waErr { font-size: 0.78rem; color: #B91C1C; }
 .lrWa { font-size: 0.64rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; white-space: nowrap; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
+
+/* no desktop a busca fica na barra de cima; este campo só aparece no celular */
+@media (min-width: 769px) { .localSearch { display: none; } }

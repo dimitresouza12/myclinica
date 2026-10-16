@@ -14,6 +14,7 @@ import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useWhatsAppState } from '@/hooks/useClinicData'
 import { conversationPhoto, useConversations } from '@/hooks/useWhatsAppInbox'
+import { usePageSearch } from '@/store/pageSearch'
 import { useCrmMembers, useCrmRealtime, useLeadMutations, useLeads, leadErrorMessage, type LeadPatch } from '@/hooks/useCrmLeads'
 import { whatsappApi } from '@/components/configuracoes/whatsappApi'
 import { CrmBoard } from '@/components/crm/CrmBoard'
@@ -43,7 +44,7 @@ function Funnel() {
   useCrmRealtime(clinicId)
   const { create, update, moveStage, remove } = useLeadMutations(clinicId, user?.id)
 
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = usePageSearch()
   const [owner, setOwner] = useState('')
   const [drawer, setDrawer] = useState<DrawerState>(null)
   const [lostFor, setLostFor] = useState<Lead | null>(null)
@@ -63,7 +64,12 @@ function Funnel() {
     if (!clinicId || synced.current) return
     synced.current = true
     whatsappApi<{ linked: number; moved: number }>('/api/crm/sync', { method: 'POST' })
-      .then(r => { if (r.linked > 0 || r.moved > 0) qc.invalidateQueries({ queryKey: ['crm-leads', clinicId] }) })
+      .then(r => {
+        if (r.linked > 0 || r.moved > 0) {
+          qc.invalidateQueries({ queryKey: ['crm-leads', clinicId] })
+          qc.invalidateQueries({ queryKey: ['wa-convs', clinicId] })
+        }
+      })
       .catch(() => { /* o agendador tenta de novo */ })
   }, [clinicId, qc])
 
@@ -123,6 +129,14 @@ function Funnel() {
     } finally { setBusyId(null) }
   }
 
+  /** A conversa do WhatsApp desse contato passa a mostrar "Paciente" também na tela de Mensagens. */
+  function linkConversation(lead: Lead) {
+    if (!lead.phone_key) return
+    whatsappApi('/api/whatsapp/conversations/link-patient', { method: 'POST', body: { phoneKey: lead.phone_key } })
+      .catch(() => { /* a rotina do funil completa o vínculo em poucos minutos */ })
+      .finally(() => qc.invalidateQueries({ queryKey: ['wa-convs', clinicId] }))
+  }
+
   /** Paciente do lead: o que já existe com esse telefone, ou um novo. Devolve o id, ou null se falhar. */
   async function ensurePatient(lead: Lead): Promise<string | null> {
     if (lead.patient_id) return lead.patient_id
@@ -135,6 +149,7 @@ function Funnel() {
         const hit = (data ?? []).find(p => phoneKeys(p.phone as string).includes(lead.phone_key as string))
         if (hit) {
           await update.mutateAsync({ id: lead.id, patch: { patient_id: hit.id as string } })
+          linkConversation(lead)
           showToast('ok', `Já existe o paciente ${hit.name} com esse telefone. O lead foi vinculado a ele.`)
           return hit.id as string
         }
@@ -150,6 +165,7 @@ function Funnel() {
       }).select('id').single()
       if (error || !created) throw error ?? new Error('sem id')
       await update.mutateAsync({ id: lead.id, patch: { patient_id: created.id as string } })
+      linkConversation(lead)
       showToast('ok', 'Paciente cadastrado.')
       // a Agenda e a lista de Pacientes têm o próprio cache: precisam enxergar o paciente novo
       qc.invalidateQueries({ queryKey: ['agenda', clinicId] })
@@ -219,7 +235,7 @@ function Funnel() {
 
   return (
     <>
-      <ul className={styles.stats} aria-label="Resumo do funil">
+      <ul className={styles.stats} data-hscroll aria-label="Resumo do funil">
         <li className={`${styles.stat} ${styles.stConversa}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Em andamento</span><span className={styles.statValue}>{openLeadCount(leads)}</span></li>
         <li className={`${styles.stat} ${styles.stAgendado}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Agendados</span><span className={styles.statValue}>{leads.filter(l => l.stage === 'agendado').length}</span></li>
         <li className={`${styles.stat} ${styles.stCompareceu}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Compareceram</span><span className={styles.statValue}>{leads.filter(l => l.stage === 'compareceu').length}</span></li>
@@ -230,7 +246,7 @@ function Funnel() {
       <div className={styles.bar}>
         <p className={styles.hintLine}><Icon name="info" size={14} />O funil se atualiza sozinho com o WhatsApp e a agenda.{canEdit && <> Arraste um cartão só para corrigir.</>}</p>
         <div className={styles.tools}>
-          <label className={styles.search}>
+          <label className={`${styles.search} ${styles.localSearch}`}>
             <Icon name="search" size={16} />
             <input type="search" placeholder="Buscar lead" value={query} onChange={e => setQuery(e.target.value)} aria-label="Buscar lead por nome, telefone ou interesse" />
           </label>

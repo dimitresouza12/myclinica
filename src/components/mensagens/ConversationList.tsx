@@ -52,7 +52,7 @@ export function ConversationList(p: Props) {
     <div className={`${styles.pane} ${styles.list}`}>
       <div className={styles.listHead}>
         <h2 className={styles.listTitle}>Mensagens</h2>
-        <label className={styles.search}>
+        <label className={`${styles.search} ${styles.localSearch}`}>
           <Icon name="search" size={16} />
           <input type="search" placeholder="Buscar conversa" aria-label="Buscar conversa" value={p.query} onChange={e => p.onQuery(e.target.value)} />
         </label>

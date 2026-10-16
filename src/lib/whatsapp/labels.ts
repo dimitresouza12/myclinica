@@ -15,7 +15,7 @@ export const ERROR_LABEL: Record<string, string> = {
   telefone_invalido: 'Telefone inválido',
   sem_whatsapp: 'Número sem WhatsApp',
   interrompido: 'Envio interrompido',
-  tentar_novamente: 'WhatsApp demorou para responder',
+  tentar_novamente: 'WhatsApp não respondeu, vai tentar de novo',
   whatsapp_desconectado: 'WhatsApp desconectado',
 }
 

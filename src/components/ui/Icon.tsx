@@ -7,7 +7,7 @@ export type IconName =
   | 'crm' | 'stock' | 'reports' | 'campaigns' | 'procedures' | 'target' | 'alert' | 'phone' | 'cake'
   | 'close' | 'check' | 'checkCircle' | 'edit' | 'trash' | 'arrowUp' | 'swap' | 'refresh'
   | 'ban' | 'eye' | 'camera' | 'paperclip' | 'bell' | 'mail' | 'trophy' | 'download' | 'upload'
-  | 'pause' | 'play' | 'info' | 'percent' | 'receipt' | 'search' | 'copy' | 'chat' | 'send' | 'plus' | 'clock' | 'mic'
+  | 'pause' | 'play' | 'info' | 'percent' | 'receipt' | 'search' | 'copy' | 'chat' | 'send' | 'plus' | 'clock' | 'mic' | 'help'
 
 const PATHS: Record<IconName, string> = {
   dashboard:    'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
@@ -60,6 +60,7 @@ const PATHS: Record<IconName, string> = {
   send:         'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z',
   plus:         'M12 5v14M5 12h14',
   clock:        'M12 2a10 10 0 100 20 10 10 0 000-20zM12 6v6l4 2',
+  help:         'M12 2a10 10 0 100 20 10 10 0 000-20zM9.1 9a3 3 0 015.8 1c0 2-3 3-3 3M12 17h.01',
   mic:          'M12 2a3 3 0 00-3 3v6a3 3 0 006 0V5a3 3 0 00-3-3zM19 10v1a7 7 0 01-14 0v-1M12 18v4M8 22h8',
   copy:         'M20 9H11a2 2 0 00-2 2v9a2 2 0 002 2h9a2 2 0 002-2v-9a2 2 0 00-2-2zM5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1',
 }

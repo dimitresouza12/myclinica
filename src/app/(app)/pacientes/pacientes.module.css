@@ -390,3 +390,6 @@
   /* Touch targets mínimos 44px */
   .btnClose { width: 44px; height: 44px; }
 }
+
+.mobileSearch { display: contents; }
+@media (min-width: 769px) { .mobileSearch { display: none; } }

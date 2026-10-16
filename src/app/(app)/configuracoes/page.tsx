@@ -17,13 +17,14 @@ import { showToast } from '@/components/ui/Toast'
 import { Portal } from '@/components/ui/Portal'
 import { CredentialsConfirmModal } from '@/components/ui/CredentialsConfirmModal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
-import { Icon } from '@/components/ui/Icon'
+import { Icon, type IconName } from '@/components/ui/Icon'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { phoneInputError, previousPhoneNote, toInputValue } from '@/lib/phoneFormat'
 import { PageTitle } from '@/components/layout/PageTitle'
 import { DocumentFieldCalibrator } from '@/components/configuracoes/DocumentFieldCalibrator'
 import { WhatsAppTab } from '@/components/configuracoes/WhatsAppTab'
+import { useWhatsAppState } from '@/hooks/useClinicData'
 import { isImageUrl } from '@/hooks/useTemplateBackground'
 import { IntegerInput } from '@/components/ui/NumericInput'
 
@@ -110,7 +111,7 @@ function ConfiguracoesContent() {
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab')
   const [tab, setTab] = useState<'geral' | 'equipe' | 'plano' | 'documentos' | 'integracoes' | 'whatsapp' | 'conta' | 'auditoria'>(
-    initialTab === 'equipe' ? 'equipe' : initialTab === 'whatsapp' ? 'whatsapp' : 'geral'
+    initialTab === 'equipe' ? 'equipe' : initialTab === 'whatsapp' ? 'whatsapp' : initialTab === 'integracoes' ? 'integracoes' : initialTab === 'conta' ? 'conta' : 'geral'
   )
   const [name, setName] = useState(clinic?.name ?? '')
   const [address, setAddress] = useState(clinic?.address ?? '')
@@ -264,16 +265,34 @@ function ConfiguracoesContent() {
   // Inclui isSuperAdmin — igual a usePermissions.ts e AppSidebar.tsx.
   // Sem isso, um superadmin não via as abas Equipe/Auditoria aqui.
   const isAdmin = user?.role === 'admin' || user?.isSuperAdmin
-  const tabs: { key: typeof tab; label: string }[] = [
-    { key: 'geral', label: 'Geral' },
-    ...(isAdmin ? [{ key: 'equipe' as const, label: 'Equipe' }] : []),
-    { key: 'plano', label: 'Plano' },
-    { key: 'documentos', label: 'Documentos' },
-    { key: 'integracoes', label: 'Integrações' },
-    ...(isAdmin ? [{ key: 'whatsapp' as const, label: 'WhatsApp' }] : []),
-    { key: 'conta', label: 'Conta' },
-    ...(isAdmin ? [{ key: 'auditoria' as const, label: 'Auditoria' }] : []),
+  type NavItem = { key: typeof tab; label: string; hint: string; icon: IconName }
+  const navGroups: { title: string; items: NavItem[] }[] = [
+    {
+      title: 'Clínica',
+      items: [
+        { key: 'geral', label: 'Geral', hint: 'Nome, telefone e logo', icon: 'settings' },
+        ...(isAdmin ? [{ key: 'equipe' as const, label: 'Equipe', hint: 'Acessos e permissões', icon: 'team' as const }] : []),
+        { key: 'documentos', label: 'Documentos', hint: 'Papel timbrado', icon: 'procedures' },
+      ],
+    },
+    {
+      title: 'Assinatura e conexões',
+      items: [
+        { key: 'plano', label: 'Plano', hint: 'Assinatura e pagamentos', icon: 'receipt' },
+        { key: 'integracoes', label: 'Integrações', hint: isAdmin ? 'WhatsApp e Google Calendar' : 'Google Calendar', icon: 'swap' },
+        ...(isAdmin ? [{ key: 'whatsapp' as const, label: 'WhatsApp', hint: 'Número e confirmações', icon: 'chat' as const }] : []),
+      ],
+    },
+    {
+      title: 'Segurança',
+      items: [
+        { key: 'conta', label: 'Conta', hint: 'Sua senha e seu acesso', icon: 'admin' },
+        ...(isAdmin ? [{ key: 'auditoria' as const, label: 'Auditoria', hint: 'Histórico de ações no sistema', icon: 'clock' as const }] : []),
+      ],
+    },
   ]
+  const navRef = useRef<HTMLElement>(null)
+  const { data: waState } = useWhatsAppState(clinic?.id)
   const [clinicUsers, setClinicUsers] = useState<ClinicUser[]>([])
   const activeUserCount = clinicUsers.filter(u => u.is_active && !u.is_superadmin).length
   // Login (clinic_users) não tem mais limite de plano — só profissional
@@ -743,18 +762,31 @@ function ConfiguracoesContent() {
     <div className={styles.page}>
       <PageTitle title="Configurações" />
 
-      <div className={styles.tabs} data-hscroll>
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            className={`${styles.tabBtn} ${tab === t.key ? styles.tabActive : ''}`}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <div className={styles.shell}>
+        <nav className={styles.nav} aria-label="Seções das configurações" ref={navRef} data-hscroll>
+          {navGroups.map(g => (
+            <div key={g.title} className={styles.navGroup}>
+              <p className={styles.navTitle}>{g.title}</p>
+              {g.items.map(t => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`${styles.navItem} ${tab === t.key ? styles.navActive : ''}`}
+                  aria-current={tab === t.key ? 'page' : undefined}
+                  onClick={e => { setTab(t.key); e.currentTarget.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }) }}
+                >
+                  <span className={styles.navIcon}><Icon name={t.icon} size={18} /></span>
+                  <span className={styles.navText}>
+                    <b>{t.label}</b>
+                    <small>{t.hint}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
 
+      <div className={styles.panel}>
       {/* ── Plano & Faturamento ── */}
       {tab === 'plano' && (
       <div className={styles.card}>
@@ -1069,10 +1101,35 @@ function ConfiguracoesContent() {
         </div>
       )}
 
-      {/* WhatsApp (conexão da clínica) — só admin */}
+      {/* WhatsApp: a configuração fica na própria aba; em Integrações só aparece o cartão de status */}
       {tab === 'whatsapp' && isAdmin && <WhatsAppTab />}
 
-      {/* Google Calendar */}
+      {tab === 'integracoes' && isAdmin && (
+      <div className={styles.card}>
+        <div className={styles.gcalHeader}>
+          <div>
+            <h2 className={styles.cardTitle} style={{ marginBottom: '0.25rem' }}>WhatsApp</h2>
+            <p className={styles.gcalDesc}>O número da clínica para confirmar consultas e conversar com pacientes na tela de Mensagens.</p>
+          </div>
+          <div className={styles.waLogo}><Icon name="chat" size={20} /></div>
+        </div>
+        {waState?.status === 'conectado' ? (
+          <div className={styles.gcalConnected}>
+            <span className={styles.gcalDot} />
+            <span>WhatsApp conectado</span>
+            <button type="button" className={styles.btnDisconnect} onClick={() => setTab('whatsapp')}>Gerenciar</button>
+          </div>
+        ) : (
+          <div className={styles.gcalConnect}>
+            {waState?.status === 'aguardando_qr' && <p className={styles.gcalHint}>A conexão ficou pela metade: falta ler o QR code com o celular.</p>}
+            <button type="button" className={styles.btnWaConnect} onClick={() => setTab('whatsapp')}>
+              {waState?.status === 'aguardando_qr' ? 'Continuar conexão' : 'Conectar WhatsApp'}
+            </button>
+          </div>
+        )}
+      </div>
+      )}
+
       {tab === 'integracoes' && (
       <div className={styles.card}>
         <div className={styles.gcalHeader}>
@@ -1256,6 +1313,8 @@ function ConfiguracoesContent() {
           )}
         </div>
       )}
+      </div>
+      </div>
 
       {/* ── Modal de confirmação (desativar/reativar/excluir) ── */}
       {confirmModal && (

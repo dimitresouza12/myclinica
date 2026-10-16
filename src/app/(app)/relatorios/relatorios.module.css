@@ -62,7 +62,6 @@
   color:var(--text-secondary);
   cursor:pointer;
   transition:color .15s, border-color .15s;
-  margin-bottom:-1px;
   white-space:nowrap;
   flex-shrink: 0;
 }

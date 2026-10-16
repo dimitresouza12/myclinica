@@ -397,7 +397,7 @@
   border-radius: 10px;
   overflow: hidden;
   /* Filho direto de .page (flex-column): overflow:hidden + flex-shrink:1 padrão
-     faz o item colapsar a 0 se a coluna não couber na tela — ver .alertWidget. */
+     faz o item colapsar a 0 se a coluna não couber na tela. */
   flex-shrink: 0;
 }
 
@@ -578,58 +578,8 @@
 }
 
 /* ─── Widget de Atenção Prioritária ─── */
-.alertWidget {
-  background: #FFFBEB;
-  border: 1px solid #FDE68A;
-  border-radius: 12px;
-  overflow: hidden;
-  /* Item de flex-column com overflow:hidden resolve min-height:auto como 0 por
-     spec, então encolhe até sumir se a coluna não couber na tela — flex-shrink:0
-     mantém a altura de conteúdo garantida (mesmo bug afeta outros cards abaixo). */
-  flex-shrink: 0;
-}
-[data-theme="dark"] .alertWidget {
-  background: rgba(245, 158, 11, 0.08);
-  border-color: rgba(245, 158, 11, 0.3);
-}
 
-.alertHeader {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.875rem 1.25rem;
-}
-.alertHeaderIcon { color: #F59E0B; display: flex; }
-.alertTitle {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #92400E;
-}
-[data-theme="dark"] .alertTitle { color: #FBBF24; }
-.alertCount {
-  background: #F59E0B;
-  color: #fff;
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 999px;
-}
 
-.alertCollapseBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  margin-left: auto;
-  background: none;
-  border: none;
-  border-radius: 999px;
-  color: #92400E;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
 
 /* ── Checklist "Primeiros passos" ── */
 .onboardingCard {
@@ -736,106 +686,17 @@
   .subMetric { font-size: 0.92rem; }
   .subGrid > div + div { padding-left: 0.6rem; }
 }
-.alertCollapseBtn:hover { background: rgba(146, 64, 14, 0.1); }
-[data-theme="dark"] .alertCollapseBtn { color: #FBBF24; }
-[data-theme="dark"] .alertCollapseBtn:hover { background: rgba(251, 191, 36, 0.12); }
-.alertCollapseBtn svg { transition: transform 0.2s; }
-.alertCollapseIconOpen { transform: rotate(90deg); }
 
-.alertList {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-primary);
-}
+/* expandida: com muitas pendências a lista rola dentro do bloco em vez de empurrar a página */
 
-.alertItem {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  padding: 0.75rem 1.25rem;
-  border-top: 1px solid var(--border-subtle);
-}
 
-.alertBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
 
-.alertInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  flex: 1;
-}
-.alertName {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.alertDate {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-}
 
-.alertActions {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-shrink: 0;
-}
-.alertBtnWa {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0 0.875rem;
-  background: #25D366;
-  color: #fff;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  white-space: nowrap;
-  transition: opacity 0.15s;
-}
-.alertBtnWa:hover { opacity: 0.88; }
-.alertBtnIgnore {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0 0.875rem;
-  background: none;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  font-family: inherit;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.alertBtnIgnore:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 
 @media (max-width: 900px) {
   .chartsGrid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 768px) {
-  .alertItem { flex-wrap: wrap; }
-  .alertActions { width: 100%; justify-content: flex-end; margin-left: auto; }
-}
 .chartLoading { padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 0.875rem; }
 
 /* ─── Conclusões & Dicas ─── */

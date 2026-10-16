@@ -396,10 +396,13 @@ export async function sendMediaFromInbox(p: {
  * pela própria conversa; sem isso o vínculo só apareceria na próxima mensagem ou em até 1 hora).
  * Também liga o lead do CRM. Devolve o id do paciente, ou null se nenhum bate.
  */
-export async function linkConversationPatient(clinicId: string, conversationId: string): Promise<string | null> {
+export async function linkConversationPatient(clinicId: string, ref: { conversationId?: string; phoneKey?: string }): Promise<string | null> {
   const admin = getAdminClient()
-  const { data: conv } = await admin.from('whatsapp_conversations').select('id, phone_key')
-    .eq('id', conversationId).eq('clinic_id', clinicId).maybeSingle()
+  let q = admin.from('whatsapp_conversations').select('id, phone_key').eq('clinic_id', clinicId)
+  if (ref.conversationId) q = q.eq('id', ref.conversationId)
+  else if (ref.phoneKey) q = q.eq('phone_key', ref.phoneKey)
+  else return null
+  const { data: conv } = await q.maybeSingle()
   if (!conv) return null
   const patientId = await matchPatientId(clinicId, conv.phone_key as string)
   if (!patientId) return null

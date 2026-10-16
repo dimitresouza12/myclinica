@@ -85,6 +85,12 @@
   text-align: center;
 }
 
+/* na barra de cima: ocupa a coluna do meio e tem o visual de campo da barra */
+.wrapBar { width: 100%; }
+.wrapBar .inputWrap { min-height: 40px; padding: 0 0.85rem; border-radius: 12px; background: var(--bg-tertiary); box-shadow: none; }
+.wrapBar .inputWrap:focus-within { background: var(--bg-primary); border-color: var(--brand-primary); }
+.wrapBar .input { font-size: 0.875rem; }
+
 @media (max-width: 768px) {
   .wrap { width: 180px; }
 }

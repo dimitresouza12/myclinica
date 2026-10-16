@@ -11,10 +11,10 @@ import { usePacientesData, usePatientCreditsData } from '@/hooks/useClinicData'
 import type { Patient } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
-import { GlobalSearch } from '@/components/layout/GlobalSearch'
 import { PetIcon } from '@/components/ui/PetIcon'
 import { Icon } from '@/components/ui/Icon'
 import { useScrollLock } from '@/hooks/useScrollLock'
+import { GlobalSearch } from '@/components/layout/GlobalSearch'
 import { PageTitle } from '@/components/layout/PageTitle'
 import styles from './pacientes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -75,7 +75,8 @@ function PacientesContent() {
       <div className={styles.header}>
         <PageTitle title="Pacientes" subtitle={`${filteredPatients.length} pacientes`} />
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <GlobalSearch />
+          {/* no desktop a busca de pacientes fica na barra de cima */}
+          <div className={styles.mobileSearch}><GlobalSearch /></div>
           <button className={styles.btnPrimary} onClick={() => setShowNewPatient(true)}>
             + Novo Paciente
           </button>

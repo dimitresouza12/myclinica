@@ -107,3 +107,6 @@
 .btnSaveSaida:hover:not(:disabled) { opacity:.85; }
 .btnSaveSaida:disabled { opacity:.5; cursor:not-allowed; }
 .error { color:#EF4444; font-size:0.82rem; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:0.5rem 0.75rem; }
+
+/* no desktop a busca fica na barra de cima; este campo só aparece no celular */
+@media (min-width: 769px) { .localSearch { display: none; } }

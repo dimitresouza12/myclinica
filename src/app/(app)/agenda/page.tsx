@@ -27,6 +27,7 @@ import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
 import { ensureRevenueForAppointment, notifyRevenuePending, removeRevenueForAppointment, promptCreditUsage } from '@/lib/appointmentRevenue'
 import { IntegerInput, MoneyInput } from '@/components/ui/NumericInput'
+import { usePageSearch } from '@/store/pageSearch'
 
 const FullCalendarWrapper = dynamic(
   () => import('@/components/agenda/FullCalendarWrapper'),
@@ -406,7 +407,7 @@ function AgendaContent() {
   const [saving, setSaving] = useState(false)
   const [syncToGCal, setSyncToGCal] = useState(false)
   const [filterStatus, setFilterStatus] = useState('')
-  const [searchQ, setSearchQ] = useState('')
+  const [searchQ, setSearchQ] = usePageSearch()
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [selected, setSelected] = useState<Appointment | null>(null)
   const [selectedGcal, setSelectedGcal] = useState<GCalEvent | null>(null)
@@ -1052,7 +1053,7 @@ function AgendaContent() {
         <div className={styles.topbarRow}>
           <div className={styles.tbRight}>
             {viewMode === 'dia' && (
-              <div className={styles.search}>
+              <div className={`${styles.search} ${styles.localSearch}`}>
                 <SearchIcon />
                 <input
                   placeholder="Buscar paciente..."

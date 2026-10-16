@@ -10,6 +10,7 @@ import { toInputValue } from '@/lib/phoneFormat'
 import { STAGES, SOURCES, formatMoney, followUpLabel } from '@/lib/crm/model'
 import { supabase } from '@/lib/supabase'
 import { Icon } from '@/components/ui/Icon'
+import { showToast } from '@/components/ui/Toast'
 import { contactDisplayName, formatJidPhone } from '@/lib/whatsapp/inbox'
 import { Avatar } from '@/components/ui/Avatar'
 import { conversationPhoto } from '@/hooks/useWhatsAppInbox'
@@ -87,10 +88,26 @@ export function ContactPanel({ conversation, open }: { conversation: WaConversat
   const { data: lead } = useLeadFor(clinicId, conversation?.phone_key ?? null, !conversation?.patient_id)
   const { data: patient } = usePatientInfo(conversation?.patient_id ?? null)
   const [registering, setRegistering] = useState(false)
+  const [checking, setChecking] = useState(false)
   if (!conversation) return <aside className={`${styles.pane} ${styles.info} ${open ? styles.infoOpen : ''}`} aria-label="Ficha do contato" />
 
   const c = conversation
   const name = contactDisplayName({ patientName: c.patients?.name, contactName: c.contact_name, jid: c.jid })
+
+  /** Antes de abrir o cadastro, vê se já existe paciente com esse telefone: se existir, só liga a conversa (sem duplicar). */
+  async function startRegister() {
+    setChecking(true)
+    try {
+      const r = await whatsappApi<{ linked: boolean }>('/api/whatsapp/conversations/link-patient', { method: 'POST', body: { conversationId: c.id } })
+      if (r.linked) {
+        showToast('ok', 'Esse contato já era paciente. A conversa foi vinculada ao cadastro existente.')
+        qc.invalidateQueries({ queryKey: ['wa-convs', clinicId] })
+        qc.invalidateQueries({ queryKey: ['crm-leads', clinicId] })
+        return
+      }
+    } catch { /* sem a checagem, segue para o cadastro */ } finally { setChecking(false) }
+    setRegistering(true)
+  }
 
   return (
     <aside className={`${styles.pane} ${styles.info} ${open ? styles.infoOpen : ''}`} aria-label="Ficha do contato">
@@ -151,7 +168,7 @@ export function ContactPanel({ conversation, open }: { conversation: WaConversat
           </p>
           <div className={styles.stack}>
             {canRegister && clinicId
-              ? <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => setRegistering(true)}><Icon name="patients" size={16} />Cadastrar paciente</button>
+              ? <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void startRegister()} disabled={checking}><Icon name="patients" size={16} />{checking ? 'Verificando…' : 'Cadastrar paciente'}</button>
               : <span className={styles.hint}>Você não tem permissão para cadastrar pacientes.</span>}
             <Link className={styles.btn} href="/crm"><Icon name="crm" size={16} />Abrir no CRM</Link>
           </div>

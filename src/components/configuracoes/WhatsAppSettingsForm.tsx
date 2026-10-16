@@ -8,6 +8,7 @@ import {
 } from '@/lib/whatsapp/settings'
 import { renderMessage } from '@/lib/whatsapp/message'
 import { zonedTimeToUtc } from '@/lib/whatsapp/window'
+import { WARMUP_DAILY_LIMITS, PAUSE_WINDOW_MS } from '@/lib/whatsapp/safety'
 import styles from './WhatsAppSettingsForm.module.css'
 
 const TIME_OPTIONS = Array.from({ length: 35 }, (_, i) => {
@@ -145,6 +146,12 @@ export function WhatsAppSettingsForm({ connected }: { connected: boolean }) {
       {!connected && !form.confirmEnabled && (
         <p className={styles.hint}>Conecte o WhatsApp da clínica acima para poder ligar a confirmação automática.</p>
       )}
+      <p className={styles.hint}>
+        Para proteger o número da clínica, um número recém-conectado (ou parado há 3 dias) envia no máximo{' '}
+        {WARMUP_DAILY_LIMITS[0]} confirmações no primeiro dia, subindo até {WARMUP_DAILY_LIMITS[WARMUP_DAILY_LIMITS.length - 1]}{' '}
+        no {WARMUP_DAILY_LIMITS.length}º dia, sempre começando pelas consultas mais próximas. Se vários envios falharem seguidos,
+        o sistema pausa por {PAUSE_WINDOW_MS / 60_000} minutos e avisa nos alertas.
+      </p>
 
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>Quando enviar</legend>

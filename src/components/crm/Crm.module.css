@@ -186,3 +186,6 @@
 @media (prefers-reduced-motion: reduce) {
   .drawer { animation: none; }
 }
+
+/* no desktop a busca fica na barra de cima; este campo só aparece no celular */
+@media (min-width: 769px) { .localSearch { display: none; } }

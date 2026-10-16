@@ -48,6 +48,11 @@ a {
    scrollWidth > clientWidth naquele breakpoint. */
 [data-hscroll] {
   overscroll-behavior-x: contain;
+  /* overflow-x:auto faz o overflow-y virar auto também. Se algum filho passar 1px da altura da faixa
+     (o sublinhado da aba ativa usa margin-bottom:-1px), a faixa passa a rolar na vertical e o dedo
+     "arrasta" as abas para cima e para baixo, segurando o gesto que seria da página. A faixa só rola
+     de lado, então a vertical fica travada. Não é touch-action: não muda quem recebe o gesto. */
+  overflow-y: hidden;
 }
 
 /* ─── Status badges ──────────────────────────────── */

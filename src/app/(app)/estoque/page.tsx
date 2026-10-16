@@ -1,4 +1,5 @@
 'use client'
+import { usePageSearch } from '@/store/pageSearch'
 import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
@@ -39,7 +40,7 @@ function EstoqueContent() {
   const items = estoqueData?.items ?? []
   const movements = estoqueData?.movements ?? []
   const [tab, setTab] = useState<Tab>('produtos')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = usePageSearch()
   const [filterCategory, setFilterCategory] = useState('')
   const [filterLow, setFilterLow] = useState(false)
   const [filterMovType, setFilterMovType] = useState('')
@@ -234,7 +235,7 @@ function EstoqueContent() {
 
         {tab === 'produtos' && (
           <div className={styles.filters}>
-            <input className={styles.search} placeholder="Buscar produto ou fornecedor..." value={search} onChange={e => setSearch(e.target.value)} />
+            <input className={`${styles.search} ${styles.localSearch}`} placeholder="Buscar produto ou fornecedor..." value={search} onChange={e => setSearch(e.target.value)} />
             <SelectMenu
               value={filterCategory}
               onChange={setFilterCategory}

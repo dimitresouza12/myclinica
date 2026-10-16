@@ -56,3 +56,6 @@
     padding: 0.5rem 1rem 1.5rem;
   }
 }
+
+/* sem a reserva de 5px da barra de rolagem à direita (a tela é fixa e preenche tudo) */
+.content:has([data-fullbleed]) > .main { scrollbar-gutter: auto; }

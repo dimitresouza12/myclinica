@@ -1,28 +1,38 @@
 /* backwards, não both — evita transform residual (matrix, não "none") que
    vira containing block e quebra modais position:fixed no mobile. */
-.page { display: flex; flex-direction: column; gap: 1.5rem; max-width: 620px; animation: fadeUp .35s cubic-bezier(.22,1,.36,1) backwards; }
+.page { container: cfg / inline-size; display: flex; flex-direction: column; gap: 1.5rem; max-width: 940px; animation: fadeUp .35s cubic-bezier(.22,1,.36,1) backwards; }
 @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 .title { font-family:'Plus Jakarta Sans',-apple-system,sans-serif; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
 
-.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border-color); overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-top: -0.5rem; }
-.tabs::-webkit-scrollbar { display: none; }
-.tabBtn {
-  padding: 0.6rem 1rem;
-  min-height: 44px;
-  border: none;
-  background: none;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
-  white-space: nowrap;
-  margin-bottom: -1px;
-  flex-shrink: 0;
+/* ── navegação das seções: lista lateral no desktop, faixa rolável no celular ── */
+.shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.panel { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+.nav { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: -0.5rem -1rem 0; padding: 0.25rem 1rem; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.nav::-webkit-scrollbar { display: none; }
+.navGroup { display: contents; }
+.navTitle { display: none; }
+.navItem { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 44px; padding: 0 14px 0 10px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-secondary); font: inherit; cursor: pointer; white-space: nowrap; scroll-snap-align: center; transition: background .15s, color .15s, border-color .15s; }
+.navItem:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+.navItem:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.navActive, .navActive:hover { background: var(--brand-light); border-color: var(--brand-primary); color: var(--brand-accent); }
+.navIcon { display: grid; place-items: center; width: 24px; height: 24px; color: inherit; flex-shrink: 0; }
+.navText { display: flex; flex-direction: column; min-width: 0; text-align: left; }
+.navText b { font-size: 0.85rem; font-weight: 600; color: inherit; }
+.navText small { display: none; }
+
+@container cfg (min-width: 820px) {
+  .shell { grid-template-columns: 232px minmax(0, 640px); gap: 2.5rem; }
+  .nav { position: sticky; top: 0.5rem; flex-direction: column; gap: 18px; overflow: visible; margin: 0; padding: 0; scroll-snap-type: none; }
+  .navGroup { display: flex; flex-direction: column; gap: 2px; }
+  .navTitle { display: block; margin: 0 0 4px 10px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); }
+  .navItem { width: 100%; min-height: 48px; padding: 6px 10px; border-radius: 12px; border-color: transparent; background: none; align-items: center; white-space: normal; }
+  .navItem:hover { background: var(--bg-tertiary); }
+  .navActive, .navActive:hover { background: var(--brand-light); border-color: transparent; }
+  .navIcon { width: 32px; height: 32px; border-radius: 9px; background: var(--bg-tertiary); }
+  .navActive .navIcon { background: var(--brand-primary); color: #06312B; }
+  .navText small { display: block; font-size: 0.72rem; line-height: 1.35; color: var(--text-tertiary); font-weight: 400; }
+  .navActive .navText small { color: var(--text-secondary); }
 }
-.tabBtn:hover { color: var(--text-primary); }
-.tabActive { color: var(--brand-primary); border-bottom-color: var(--brand-primary); font-weight: 600; }
 .card { background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 1.5rem; box-shadow: var(--shadow-sm); }
 .cardTitle { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1.25rem; }
 .form { display: flex; flex-direction: column; gap: 1rem; }
@@ -48,6 +58,9 @@
 /* Google Calendar */
 .gcalHeader { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
 .gcalDesc { font-size:0.82rem; color:var(--text-secondary); margin-top:0.2rem; line-height:1.5; }
+.waLogo { display:flex; align-items:center; justify-content:center; width:2.5rem; height:2.5rem; border-radius:10px; background:rgba(37,211,102,.12); color:#128C7E; flex-shrink:0; }
+.btnWaConnect { min-height:44px; padding:0 1.25rem; background:#128C7E; color:#fff; border:none; border-radius:10px; font-size:.875rem; font-weight:600; cursor:pointer; align-self:flex-start; transition:opacity .15s; }
+.btnWaConnect:hover { opacity:.9; }
 .gcalLogo { display:flex; align-items:center; justify-content:center; width:2.5rem; height:2.5rem; border-radius:10px; background:rgba(66,133,244,.1); color:#4285F4; flex-shrink:0; }
 .gcalWarning { background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; padding:.75rem 1rem; font-size:.82rem; color:#92400E; line-height:1.6; }
 .gcalConnected { display:flex; align-items:center; gap:.75rem; padding:.75rem 1rem; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px; font-size:.875rem; color:#065F46; font-weight:500; }

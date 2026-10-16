@@ -1,4 +1,5 @@
 'use client'
+import { usePageSearch } from '@/store/pageSearch'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -29,7 +30,7 @@ function Inbox() {
   const initialConversation = useSearchParams().get('c')
   const [selectedId, setSelectedId] = useState<string | null>(initialConversation)
   const [filter, setFilter] = useState<InboxFilter>('todas')
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = usePageSearch()
   const [mobileView, setMobileView] = useState<'list' | 'chat'>(initialConversation ? 'chat' : 'list')
   const [infoOpen, setInfoOpen] = useState(false)
   const [sending, setSending] = useState(false)
@@ -196,7 +197,7 @@ function Inbox() {
   return (
     <>
       <PageTitle title="Mensagens" mobileOnly />
-      <div className={styles.root}>
+      <div className={styles.root} data-fullbleed>
         {everConnected && !connected && (
           <div className={styles.banner} role="alert">
             <strong>O WhatsApp da clínica está desconectado.</strong>
@@ -204,7 +205,7 @@ function Inbox() {
             <Link className={styles.bannerLink} href="/configuracoes?tab=whatsapp">Reconectar</Link>
           </div>
         )}
-        <div className={`${styles.grid} ${mobileView === 'chat' ? styles.gridChat : styles.gridList}`}>
+        <div className={`${styles.grid} ${mobileView === 'chat' ? styles.gridChat : styles.gridList} ${selected ? '' : styles.gridNone}`}>
           <ConversationList
             conversations={conversations}
             loading={isLoading}

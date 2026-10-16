@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { pickLatest, type ConfirmationInfo } from '@/lib/whatsapp/labels'
+import { isPaused, PAUSE_WINDOW_MS, type FailureRow } from '@/lib/whatsapp/safety'
 import type { Professional, Procedure, Appointment, Patient, StockItem, StockMovement, FinancialRecord, PatientCredit } from '@/types'
 
 // Busca TODOS (ativos + inativos) para que dados históricos sejam resolvidos.
@@ -54,7 +55,7 @@ interface DashboardStats {
   avgTicket: number
 }
 export interface RevenueByCategory { category: string; value: number }
-export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario' | 'estoque_baixo' | 'pediu_remarcacao' | 'respondeu'
+export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario' | 'estoque_baixo' | 'pediu_remarcacao' | 'respondeu' | 'whatsapp_pausado'
 export interface DashboardAlert {
   patientId: string
   name: string
@@ -88,7 +89,7 @@ export function useDashboardData(clinicId: string | undefined) {
 
       const [
         patientsRes, todayApptRowsRes, pendingRes, allFinRes, newPatientsRes, todayFinRes,
-        monthApptsRes, proceduresRes, alertApptsRes, birthdayPatientsRes, confRepliesRes,
+        monthApptsRes, proceduresRes, alertApptsRes, birthdayPatientsRes, confRepliesRes, confFailuresRes,
       ] = await Promise.all([
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true),
         supabase.from('appointments').select('id, patient_id, professional_id, procedure_name, procedure_id, procedure_price, status, scheduled_at, duration_minutes, patients(id, name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', startOfDay).lte('scheduled_at', endOfDay).order('scheduled_at', { ascending: true }),
@@ -102,6 +103,8 @@ export function useDashboardData(clinicId: string | undefined) {
         supabase.from('patients').select('id, name, phone, birth_date').eq('clinic_id', clinicId).eq('is_active', true).not('birth_date', 'is', null),
         // pacientes que responderam ao WhatsApp de confirmação e precisam de atenção da recepção
         supabase.from('appointment_confirmations').select('status, appointment_at, appointments(patient_id, status, patients(name, phone))').eq('clinic_id', clinicId).in('status', ['pediu_remarcacao', 'respondeu']).gt('appointment_at', new Date().toISOString()),
+        // falhas recentes de envio: a rotina pausa as confirmações da clínica (ver whatsapp/safety.ts)
+        supabase.from('appointment_confirmations').select('error, updated_at').eq('clinic_id', clinicId).eq('status', 'falhou').gte('updated_at', new Date(Date.now() - PAUSE_WINDOW_MS).toISOString()),
       ])
 
       const todayApptRows = (todayApptRowsRes.data ?? []) as unknown as Appointment[]
@@ -210,7 +213,20 @@ export function useDashboardData(clinicId: string | undefined) {
           reason: r.status,
         }))
 
-      const alerts: DashboardAlert[] = [...replyAlerts, ...noShowAlerts, ...birthdayAlerts, ...noReturnAlerts]
+      // Confirmações automáticas paradas porque os envios estão falhando: a recepção precisa saber.
+      const failures = (confFailuresRes.data ?? []) as FailureRow[]
+      const pauseAlerts: DashboardAlert[] = isPaused(failures, new Date())
+        ? [{
+          // o id muda a cada episódio: "Ignorar" esconde este, não as próximas pausas
+          patientId: `whatsapp-${failures.reduce((m, f) => (f.updated_at > m ? f.updated_at : m), '')}`,
+          name: 'Confirmações automáticas pausadas: os últimos envios falharam',
+          phone: null,
+          date: new Date().toISOString(),
+          reason: 'whatsapp_pausado',
+        }]
+        : []
+
+      const alerts: DashboardAlert[] = [...pauseAlerts, ...replyAlerts, ...noShowAlerts, ...birthdayAlerts, ...noReturnAlerts]
 
       return {
         stats: {

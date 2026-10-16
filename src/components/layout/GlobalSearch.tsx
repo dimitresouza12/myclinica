@@ -8,7 +8,7 @@ import { Portal } from '@/components/ui/Portal'
 import type { Patient } from '@/types'
 import styles from './GlobalSearch.module.css'
 
-export function GlobalSearch() {
+export function GlobalSearch({ size = 'default', placeholder = 'Buscar paciente' }: { size?: 'default' | 'bar'; placeholder?: string }) {
   const { clinic } = useAuthStore()
   const router = useRouter()
   const [query, setQuery] = useState('')
@@ -67,7 +67,7 @@ export function GlobalSearch() {
   const showDropdown = open && (results.length > 0 || (!loading && query.trim().length > 0))
 
   return (
-    <div className={styles.wrap} ref={wrapRef}>
+    <div className={`${styles.wrap} ${size === 'bar' ? styles.wrapBar : ''}`} ref={wrapRef}>
       <div className={styles.inputWrap}>
         <span className={styles.icon}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -76,7 +76,8 @@ export function GlobalSearch() {
         </span>
         <input
           className={styles.input}
-          placeholder="Buscar paciente..."
+          placeholder={placeholder}
+          aria-label={placeholder}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}

@@ -45,9 +45,14 @@ export async function syncClinicLeads(clinicId: string, now = new Date()): Promi
   const leads = (leadsData ?? []) as LeadRow[]
   if (leads.length === 0) return result
 
-  // 1. paciente com o mesmo telefone
-  const unlinked = leads.filter(l => !l.patient_id && l.phone_key && !l.phone_key.startsWith('lid:') && !l.phone_key.startsWith('raw:'))
-  if (unlinked.length > 0) {
+  // 1. paciente com o mesmo telefone: liga o lead e também a conversa do WhatsApp (o que a tela de
+  //    Mensagens mostra como "Paciente"), para a mesma pessoa não aparecer como lead lá e paciente aqui
+  const isNational = (k: string | null): k is string => !!k && !k.startsWith('lid:') && !k.startsWith('raw:')
+  const unlinked = leads.filter(l => !l.patient_id && isNational(l.phone_key))
+  const { data: convsData } = await admin.from('whatsapp_conversations').select('id, phone_key')
+    .eq('clinic_id', clinicId).is('patient_id', null).limit(5000)
+  const unlinkedConvs = (convsData ?? []).filter(c => isNational(c.phone_key as string))
+  if (unlinked.length > 0 || unlinkedConvs.length > 0) {
     const { data: patients } = await admin.from('patients').select('id, phone')
       .eq('clinic_id', clinicId).eq('is_active', true).not('phone', 'is', null).limit(20000)
     const byKey = new Map<string, string>()
@@ -59,6 +64,17 @@ export async function syncClinicLeads(clinicId: string, now = new Date()): Promi
       if (!pid) continue
       const { error } = await admin.from('crm_leads').update({ patient_id: pid }).eq('id', l.id).is('patient_id', null)
       if (!error) { l.patient_id = pid; result.linked++ }
+    }
+    // o paciente que o lead já tem vale mais que um achado pelo telefone (o mesmo número pode estar em mais de um cadastro)
+    const leadPatient = new Map<string, string>()
+    for (const l of leads) if (l.patient_id && l.phone_key) leadPatient.set(l.phone_key, l.patient_id)
+    const checkedAt = now.toISOString()
+    for (const c of unlinkedConvs) {
+      const pid = leadPatient.get(c.phone_key as string) ?? byKey.get(c.phone_key as string)
+      if (!pid) continue
+      const { error } = await admin.from('whatsapp_conversations')
+        .update({ patient_id: pid, patient_checked_at: checkedAt, updated_at: checkedAt }).eq('id', c.id).is('patient_id', null)
+      if (!error) result.linked++
     }
   }
 

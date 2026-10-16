@@ -8,10 +8,9 @@ import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatCurrencyCompact, formatDate } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsAppAI } from '@/lib/planGates'
-import { waMeNumber } from '@/lib/phoneFormat'
 import { Icon } from '@/components/ui/Icon'
-import { useDashboardData, useProcedures, useEstoqueData, useWhatsAppState } from '@/hooks/useClinicData'
-import type { DashboardAlertReason, DashboardAlert, RevenueByCategory } from '@/hooks/useClinicData'
+import { useDashboardData, useProcedures, useWhatsAppState } from '@/hooks/useClinicData'
+import type { DashboardAlert, RevenueByCategory } from '@/hooks/useClinicData'
 import { usePermissions } from '@/hooks/usePermissions'
 import { showToast } from '@/components/ui/Toast'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
@@ -48,19 +47,6 @@ interface Stats {
   avgTicket: number
 }
 
-const ALERT_META: Record<DashboardAlertReason, { label: string; icon: IconName; color: string }> = {
-  faltou:        { label: 'Faltou',       icon: 'alert',    color: '#EF4444' },
-  sem_retorno:   { label: 'Sem retorno',  icon: 'calendar', color: '#F59E0B' },
-  aniversario:   { label: 'Aniversário',  icon: 'cake',     color: '#8B5CF6' },
-  estoque_baixo: { label: 'Estoque baixo', icon: 'stock',   color: '#F59E0B' },
-  pediu_remarcacao: { label: 'Pediu para remarcar', icon: 'swap', color: '#D97706' },
-  respondeu:     { label: 'Respondeu',    icon: 'mail',     color: '#2563EB' },
-}
-
-function buildWaLink(phone: string, message: string): string {
-  return `https://wa.me/${waMeNumber(phone)}?text=${encodeURIComponent(message)}`
-}
-
 function Money({ value, hide }: { value: number; hide: boolean }) {
   if (hide) return <>••••</>
   return (
@@ -69,15 +55,6 @@ function Money({ value, hide }: { value: number; hide: boolean }) {
       <span className={styles.valueMobile}>{formatCurrencyCompact(value)}</span>
     </>
   )
-}
-
-function alertMessage(reason: DashboardAlertReason, name: string, clinicName: string): string {
-  const first = name.split(' ')[0]
-  if (reason === 'pediu_remarcacao') return `Olá ${first}! Recebemos seu pedido para remarcar a consulta na ${clinicName}. Qual dia e horário ficam melhores para você?`
-  if (reason === 'respondeu') return `Olá ${first}! Vimos sua mensagem sobre a consulta na ${clinicName}. Como podemos ajudar?`
-  if (reason === 'faltou') return `Olá ${first}! Notamos que você não conseguiu comparecer à sua última consulta na ${clinicName}. Vamos reagendar? 😊`
-  if (reason === 'aniversario') return `Olá ${first}! 🎉 A equipe da ${clinicName} deseja um Feliz Aniversário! Se quiser aproveitar para marcar sua próxima consulta, é só chamar por aqui.`
-  return `Olá ${first}! Faz um tempo desde seu último atendimento na ${clinicName}. Que tal agendarmos seu retorno? 😊`
 }
 
 interface Insight { icon: IconName; color: string; text: string }
@@ -146,7 +123,7 @@ function buildInsights(params: {
   const noShowCount = alerts.filter(a => a.reason === 'faltou').length
   const noReturnCount = alerts.filter(a => a.reason === 'sem_retorno').length
   if (noShowCount + noReturnCount >= 3) {
-    out.push({ icon: 'alert', color: '#F59E0B', text: `${noShowCount + noReturnCount} pacientes com falta recente ou sem retorno agendado. Reative esses contatos no widget "Ações necessárias" para recuperar receita.` })
+    out.push({ icon: 'alert', color: '#F59E0B', text: `${noShowCount + noReturnCount} pacientes com falta recente ou sem retorno agendado. Reative esses contatos pelo alerta "Ações necessárias", na barra de cima, para recuperar receita.` })
   }
 
   // Concentração de receita numa única categoria de procedimento
@@ -178,8 +155,6 @@ function buildInsights(params: {
 function DashboardContent() {
   const { clinic, user } = useAuthStore()
   const [hideValues, setHideValues] = useState(false)
-  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
-  const [alertsCollapsed, setAlertsCollapsed] = useState(false)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
   const queryClient = useQueryClient()
@@ -187,12 +162,10 @@ function DashboardContent() {
 
   const { data, isLoading: loading } = useDashboardData(clinic?.id)
   const { data: procedures = [] } = useProcedures(clinic?.id)
-  const { data: estoqueData } = useEstoqueData(clinic?.id)
   const { data: waState } = useWhatsAppState(clinic?.id)
   // confirmação automática ligada, mas o WhatsApp caiu: nenhum aviso está saindo
   const whatsappDown = !!waState?.confirmEnabled && waState.status !== 'conectado'
   const isClinicAdmin = user?.role === 'admin' || !!user?.isSuperAdmin
-  const lowStockCount = (estoqueData?.items ?? []).filter(i => i.quantity <= i.min_quantity).length
 
   // Fire-and-forget in background — does not block dashboard queries
   useEffect(() => {
@@ -210,17 +183,8 @@ function DashboardContent() {
   const todayCash = data?.todayCash ?? { recebido: 0, aReceber: 0, aReceberRecords: [], previsto: 0 }
   const monthlyData: MonthlyData[] = data?.monthlyData ?? []
   const revenueByCategory = data?.revenueByCategory ?? []
-  const rawAlerts: DashboardAlert[] = [...(data?.alerts ?? [])]
-  if (lowStockCount > 0) {
-    rawAlerts.push({
-      patientId: 'estoque',
-      name: `${lowStockCount} ${lowStockCount === 1 ? 'item' : 'itens'} abaixo do estoque mínimo`,
-      phone: null,
-      date: new Date().toISOString(),
-      reason: 'estoque_baixo',
-    })
-  }
-  const alerts = rawAlerts.filter(a => !dismissedAlerts.has(`${a.reason}-${a.patientId}`))
+  // as pendências em si ficam na barra de cima; aqui só entram nas conclusões e dicas
+  const alerts: DashboardAlert[] = data?.alerts ?? []
 
   const revenueTrendPct = (() => {
     if (monthlyData.length < 2) return null
@@ -360,63 +324,6 @@ function DashboardContent() {
           <OnboardingModal procedures={procedures} patientsCount={stats.totalPatients} />
           <OnboardingChecklist procedures={procedures} patientsCount={stats.totalPatients} />
           <WelcomeModal />
-
-          {alerts.length > 0 && (
-            <div className={styles.alertWidget}>
-              <div className={styles.alertHeader}>
-                <span className={styles.alertHeaderIcon}><Icon name="alert" size={16} /></span>
-                <h2 className={styles.alertTitle}>Ações necessárias</h2>
-                <span className={styles.alertCount}>{alerts.length}</span>
-                <button
-                  className={styles.alertCollapseBtn}
-                  onClick={() => setAlertsCollapsed(v => !v)}
-                  title={alertsCollapsed ? 'Expandir' : 'Encolher'}
-                  aria-label={alertsCollapsed ? 'Expandir' : 'Encolher'}
-                >
-                  <Icon name="chevronRight" size={14} className={alertsCollapsed ? '' : styles.alertCollapseIconOpen} />
-                </button>
-              </div>
-              {!alertsCollapsed && (
-              <div className={styles.alertList}>
-                {alerts.slice(0, 6).map((a) => {
-                  const meta = ALERT_META[a.reason]
-                  const isStock = a.reason === 'estoque_baixo'
-                  const msg = isStock ? '' : alertMessage(a.reason, a.name, clinic?.name ?? 'nossa clínica')
-                  const alertKey = `${a.reason}-${a.patientId}`
-                  return (
-                    <div key={alertKey} className={styles.alertItem}>
-                      <span className={styles.alertBadge} style={{ background: `${meta.color}1a`, color: meta.color }}>
-                        <Icon name={meta.icon} size={12} /> {meta.label}
-                      </span>
-                      <div className={styles.alertInfo}>
-                        <span className={styles.alertName}>{a.name}</span>
-                        {!isStock && <span className={styles.alertDate}>{a.reason === 'aniversario' ? 'Hoje' : formatDate(a.date, true)}</span>}
-                      </div>
-                      <div className={styles.alertActions}>
-                        {isStock ? (
-                          <Link className={styles.alertBtnWa} href="/estoque" title="Ver estoque">
-                            Ver estoque
-                          </Link>
-                        ) : waMeNumber(a.phone) && (
-                          <a className={styles.alertBtnWa} href={buildWaLink(a.phone ?? '', msg)} target="_blank" rel="noopener noreferrer" title="WhatsApp">
-                            WhatsApp
-                          </a>
-                        )}
-                        <button
-                          className={styles.alertBtnIgnore}
-                          onClick={() => setDismissedAlerts(prev => new Set(prev).add(alertKey))}
-                          title="Ignorar"
-                        >
-                          Ignorar
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              )}
-            </div>
-          )}
 
           <div className={styles.section}>
             <div className={styles.sectionHeader}>

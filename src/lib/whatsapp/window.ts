@@ -67,6 +67,11 @@ function atLocalTime(ref: Date, hhmm: string, dayOffset: number, tz: string): Da
   return zonedTimeToUtc(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), h, min, tz)
 }
 
+/** Meia-noite (no fuso) do dia local de `at`, como instante UTC. */
+export function startOfLocalDay(at: Date, timeZone: string): Date {
+  return atLocalTime(at, '00:00', 0, timeZone)
+}
+
 // ─── janela permitida ───────────────────────────────────────────────────────
 
 export function isInsideWindow(at: Date, s: Pick<SendSettings, 'windowStart' | 'windowEnd' | 'timezone'>): boolean {

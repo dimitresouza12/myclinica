@@ -1,9 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { useAuthStore } from '@/store/auth'
+import { usePathname } from 'next/navigation'
 import { usePermissionsStore } from '@/store/permissions'
 import { useTheme } from '@/hooks/useTheme'
 import { Icon } from '@/components/ui/Icon'
@@ -12,20 +10,8 @@ import styles from './AppSidebar.module.css'
 import { hasWhatsAppAI } from '@/lib/planGates'
 import { useWhatsAppState } from '@/hooks/useClinicData'
 import { useUnreadTotal, useWhatsAppRealtime } from '@/hooks/useWhatsAppInbox'
-import { getSpecialtyConfig, specialtyRoleLabel } from '@/lib/specialtyConfig'
-
-// Rótulo humano do cargo — mesmo padrão de configuracoes/page.tsx e
-// AdminUsuarios.tsx: primeiro tenta o rótulo específico da especialidade da
-// clínica (ex: "Dentista", "Esteticista"), com fallback genérico.
-const ROLE_LABELS_FALLBACK: Record<string, string> = {
-  admin:        'Admin',
-  recepcao:     'Recepção',
-  auxiliar:     'Auxiliar',
-  dentista:     'Dentista',
-  medico:       'Médico',
-  profissional: 'Profissional',
-  superadmin:   'Superadmin',
-}
+import { userRoleLabel, userInitials } from '@/lib/roleLabel'
+import { logout } from '@/lib/logout'
 
 const NAV = [
   { path: '/dashboard',     label: 'Dashboard',     icon: 'dashboard'  as const, plusOnly: false },
@@ -53,8 +39,6 @@ interface Props {
 
 export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: Props) {
   const pathname = usePathname()
-  const router = useRouter()
-  const clearSession = useAuthStore((s) => s.clearSession)
   const { permissions, loaded: permsLoaded } = usePermissionsStore()
   const { theme, toggle: toggleTheme } = useTheme()
   const [collapsed, setCollapsed] = useState(false)
@@ -64,16 +48,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   const { data: waState } = useWhatsAppState(clinic.id)
   useWhatsAppRealtime(clinic.id, !!waState)
   const { data: unreadTotal = 0 } = useUnreadTotal(clinic.id, !!waState)
-  // specialtyType manda quando existe — é o que diferencia "Nutricionista"
-  // de "Esteticista" numa clínica multi-área (os dois têm o mesmo cargo
-  // genérico 'profissional' no banco).
-  const roleLabel = user.isSuperAdmin
-    ? 'Superadmin'
-    : user.specialtyType
-      ? specialtyRoleLabel(user.specialtyType)
-      : getSpecialtyConfig(clinic.type).roles.find(r => r.value === user.role)?.label
-        ?? ROLE_LABELS_FALLBACK[user.role]
-        ?? user.role
+  const roleLabel = userRoleLabel(user, clinic)
 
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed')
@@ -99,19 +74,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
     })
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
-    clearSession()
-    try {
-      window.localStorage.removeItem('myclinica-auth')
-      // Limpa também a sessão do Supabase Auth para evitar JWT residual
-      Object.keys(window.localStorage)
-        .filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
-        .forEach((k) => window.localStorage.removeItem(k))
-    } catch { /* ignore */ }
-    // Hard navigation para garantir reset completo de qualquer estado em memória
-    window.location.href = '/login'
-  }
+  const handleLogout = logout
 
   const isPlus = hasWhatsAppAI(clinic.plan)
   const filteredNav = NAV.filter((item) => {
@@ -130,12 +93,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
     ? [...filteredNav, { path: '/admin', label: 'Admin', icon: 'admin' as const, plusOnly: false }]
     : filteredNav
 
-  const initials = user.displayName
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
+  const initials = userInitials(user.displayName)
 
   return (
     <aside

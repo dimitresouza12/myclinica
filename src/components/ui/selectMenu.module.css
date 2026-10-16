@@ -19,7 +19,7 @@
 .chevron { color: var(--text-tertiary); flex-shrink: 0; }
 
 .popover {
-  position: fixed; z-index: 300;
+  position: fixed; z-index: 1300; /* acima das gavetas e janelas (até 1200), abaixo dos avisos */
   background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 12px;
   box-shadow: var(--shadow-lg); padding: .4rem; max-height: 280px; overflow-y: auto;
   animation: popIn .15s ease both;
