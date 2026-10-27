@@ -1,24 +1,5 @@
-.overlay {
-  position: fixed; inset: 0; z-index: 1200;
-  background: rgba(15, 23, 20, .55);
-  display: flex; align-items: center; justify-content: center;
-  padding: 24px;
-}
-.modal {
-  width: 100%; max-width: 1080px; max-height: 90vh;
-  background: var(--bg-primary);
-  border-radius: 16px;
-  box-shadow: 0 24px 60px -20px rgba(0,0,0,.4);
-  display: flex; flex-direction: column;
-  overflow: hidden;
-}
-.header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem 0; }
-.title { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin: 0; }
-.closeBtn { width: 32px; height: 32px; border: none; background: var(--bg-secondary); border-radius: 50%; font-size: 1.1rem; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.closeBtn:hover { background: var(--border-color); }
-.subtitle { font-size: 0.82rem; color: var(--text-secondary); margin: 0.4rem 1.5rem 0; }
-
-.body { display: flex; gap: 1.25rem; padding: 1rem 1.5rem; overflow: auto; flex: 1; min-height: 0; }
+/* A casca (véu, painel, cabeçalho, rodapé) vem de <Modal size="wide">; aqui só a área de trabalho */
+.work { display: flex; gap: 1.25rem; flex: 1 1 auto; min-height: 0; }
 
 .palette { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.75rem; }
 .paletteHint { font-size: 0.74rem; color: var(--text-secondary); margin: 0; }
@@ -31,7 +12,7 @@
   transition: all .15s;
 }
 .paletteItemBtn:hover { border-color: #4DD9C0; }
-.paletteItemActive .paletteItemBtn { background: rgba(77, 217, 192, .12); border-color: #4DD9C0; color: #0B9B85; font-weight: 600; }
+.paletteItemActive .paletteItemBtn { background: var(--brand-light); border-color: #4DD9C0; color: var(--brand-text); font-weight: 600; }
 .paletteItemSelected .paletteItemBtn { box-shadow: 0 0 0 2px #4DD9C0 inset; }
 .removeFieldBtn { width: 32px; border: 1px solid var(--border-color); background: var(--bg-secondary); border-radius: 8px; color: var(--text-secondary); cursor: pointer; font-size: 1rem; }
 .removeFieldBtn:hover { color: #EF4444; border-color: #EF4444; }
@@ -44,7 +25,7 @@
 .optionRow input[type="number"] { width: 64px; padding: 0.3rem 0.4rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-primary); color: var(--text-primary); }
 .alignRow { display: flex; gap: 4px; }
 .alignBtn { flex: 1; padding: 0.35rem 0; border: 1px solid var(--border-color); background: var(--bg-secondary); border-radius: 6px; font-size: 0.72rem; color: var(--text-secondary); cursor: pointer; }
-.alignBtnActive { background: #4DD9C0; border-color: #4DD9C0; color: #fff; font-weight: 600; }
+.alignBtnActive { background: #4DD9C0; border-color: #4DD9C0; color: #0D2421; font-weight: 600; }
 .boldToggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-primary); cursor: pointer; }
 
 .canvasArea {
@@ -55,12 +36,8 @@
 }
 .loadingHint { font-size: 0.82rem; color: var(--text-secondary); margin: auto; }
 
-.footer { display: flex; justify-content: flex-end; gap: 0.6rem; padding: 1rem 1.5rem; border-top: 1px solid var(--border-subtle); }
-.btnCancel { padding: 0.5rem 1.1rem; border: 1px solid var(--border-color); background: var(--bg-primary); border-radius: 10px; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); cursor: pointer; }
-.btnSave { padding: 0.5rem 1.25rem; border: none; background: linear-gradient(135deg, #059669, #10B981); border-radius: 10px; font-size: 0.85rem; font-weight: 700; color: #fff; cursor: pointer; }
-.btnSave:hover { opacity: .9; }
-
 @media (max-width: 768px) {
-  .body { flex-direction: column; }
+  .work { flex-direction: column; flex: none; }
   .palette { width: 100%; }
+  .canvasArea { flex: none; min-height: 320px; }
 }

@@ -9,13 +9,18 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { useProfessionals, useProcedures, useRelatoriosRawData, useCommissionsData } from '@/hooks/useClinicData'
 import styles from './relatorios.module.css'
 import { Icon } from '@/components/ui/Icon'
-import { PageTitle } from '@/components/layout/PageTitle'
-import { SelectMenu } from '@/components/ui/SelectMenu'
+import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
+import { PillTabs } from '@/components/ui/PillTabs'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { StatusDot } from '@/components/ui/StatusDot'
+import { BarList } from '@/components/ui/BarList'
+import btn from '@/components/ui/button.module.css'
+import t from '@/components/ui/table.module.css'
+import { moneyShort, axisMoney, statMoney } from '@/lib/ui/money'
 
-const { FinanceiroBarChart, PacientesBarChart } = {
-  FinanceiroBarChart: dynamic(() => import('./RelatoriosCharts').then(m => m.FinanceiroBarChart), { ssr: false, loading: () => <div className={styles.loading}>Carregando gráfico...</div> }),
-  PacientesBarChart:  dynamic(() => import('./RelatoriosCharts').then(m => m.PacientesBarChart),  { ssr: false, loading: () => <div className={styles.loading}>Carregando gráfico...</div> }),
-}
+const AreaTrendChart = dynamic(() => import('@/components/ui/AreaTrendChart').then(m => m.AreaTrendChart), { ssr: false, loading: () => <div className={styles.chartLoading} /> })
+
 
 type ReportTab = 'financeiro' | 'clinico' | 'pacientes' | 'equipe' | 'comissoes'
 
@@ -328,43 +333,41 @@ function RelatoriosContent() {
 
   const maxProc = useMemo(() => procRank[0]?.count ?? 1, [procRank])
 
-  const TABS: { key: ReportTab; label: string }[] = [
-    { key: 'financeiro', label: 'Financeiro' },
-    { key: 'clinico',    label: 'Clínico'    },
-    { key: 'pacientes',  label: 'Pacientes'  },
-    { key: 'equipe',     label: 'Equipe'     },
-    { key: 'comissoes',  label: 'Comissões'  },
+  const TABS: { value: ReportTab; label: string }[] = [
+    { value: 'financeiro', label: 'Financeiro' },
+    { value: 'clinico',    label: 'Clínico'    },
+    { value: 'pacientes',  label: 'Pacientes'  },
+    { value: 'equipe',     label: 'Equipe'     },
+    { value: 'comissoes',  label: 'Comissões'  },
   ]
+  const PERIODS: { value: '3m' | '6m' | '12m'; label: string }[] = [
+    { value: '3m', label: '3 meses' },
+    { value: '6m', label: '6 meses' },
+    { value: '12m', label: '12 meses' },
+  ]
+
+  const trendFin = monthly.map(m => ({ label: m.month, value: m.receita, compare: m.lucro }))
+  const trendPat = newByMonth.map(m => ({ label: m.month, value: m.count }))
+  const hasFin = monthly.some(m => m.receita > 0 || m.despesa > 0)
+  const hasPat = newByMonth.some(m => m.count > 0)
+  const clip = (n: number) => Math.min(100, Math.max(0, n))
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <PageTitle title="Relatórios" subtitle="Análise completa de desempenho da clínica" />
-        <div className={styles.headerActions}>
-          <SelectMenu
-            value={period}
-            onChange={setPeriod}
-            options={[
-              { value: '3m', label: 'Últimos 3 meses' },
-              { value: '6m', label: 'Últimos 6 meses' },
-              { value: '12m', label: 'Últimos 12 meses' },
-            ]}
-          />
-          <button className={styles.btnExport} onClick={() => setShowExportModal(true)}>
-            <Icon name="download" size={14} /> Exportar planilha
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Relatórios"
+        subtitle="Análise completa de desempenho da clínica"
+        actions={
+          <>
+            <PillTabs label="Período do relatório" value={period as '3m' | '6m' | '12m'} onChange={setPeriod} options={PERIODS} />
+            <button type="button" className={btn.secondary} onClick={() => setShowExportModal(true)}>
+              <Icon name="download" size={15} /> Exportar planilha
+            </button>
+          </>
+        }
+      />
 
-      <div className={styles.tabs} data-hscroll>
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            className={`${styles.tab} ${tab === t.key ? styles.tabActive : ''}`}
-            onClick={() => setTab(t.key)}
-          >{t.label}</button>
-        ))}
-      </div>
+      <PillTabs label="Relatório" value={tab} onChange={setTab} options={TABS} className={styles.tabs} />
 
       {loading ? (
         <p className={styles.loading}>Carregando dados...</p>
@@ -374,87 +377,77 @@ function RelatoriosContent() {
           {tab === 'financeiro' && (
             <>
               <div className={styles.kpis}>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Receita total</div>
-                  <div className={`${styles.kpiValue} ${styles.kpiGreen}`}>{formatCurrency(finTotals.receita)}</div>
-                </div>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Despesa total</div>
-                  <div className={`${styles.kpiValue} ${styles.kpiRed}`}>{formatCurrency(finTotals.despesa)}</div>
-                </div>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Lucro líquido</div>
-                  <div className={`${styles.kpiValue} ${finTotals.lucro >= 0 ? styles.kpiGreen : styles.kpiRed}`}>
-                    {formatCurrency(finTotals.lucro)}
-                  </div>
-                </div>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Ticket médio</div>
-                  <div className={`${styles.kpiValue} ${styles.kpiBlue}`}>{formatCurrency(finTotals.ticketMedio)}</div>
-                </div>
+                <StatCard title="Receita total" value={statMoney(finTotals.receita)} compact hint={`no período de ${PERIODS.find(p => p.value === period)?.label}`} />
+                <StatCard title="Despesa total" value={statMoney(finTotals.despesa)} compact hint={`no período de ${PERIODS.find(p => p.value === period)?.label}`} />
+                <StatCard
+                  title="Lucro líquido"
+                  value={statMoney(finTotals.lucro)}
+                  compact
+                  hint={finTotals.receita > 0 ? `margem de ${Math.round((finTotals.lucro / finTotals.receita) * 100)}%` : 'sem receita no período'}
+                />
+                <StatCard title="Ticket médio" value={statMoney(finTotals.ticketMedio)} compact hint="receita por atendimento concluído" />
               </div>
 
-              <div className={styles.card}>
-                <div className={styles.cardTitle}>Receita vs Despesa por mês</div>
-                {monthly.length === 0 ? (
-                  <p className={styles.cardEmpty}>Sem dados no período</p>
-                ) : (
-                  <FinanceiroBarChart data={monthly} />
-                )}
+              <div className={styles.split}>
+                <Card title="Receita e lucro por mês" actions={<span className={styles.cardMeta}>{PERIODS.find(p => p.value === period)?.label}</span>}>
+                  {hasFin ? (
+                    <AreaTrendChart
+                      data={trendFin}
+                      highlightIndex={trendFin.length - 1}
+                      valueName="Receita"
+                      compareName="Lucro"
+                      formatValue={moneyShort}
+                      formatAxis={axisMoney}
+                      height={260}
+                      label="Receita e lucro por mês no período"
+                    />
+                  ) : (
+                    <p className={styles.cardEmpty}>Sem dados no período</p>
+                  )}
+                </Card>
+                <Card title="Faturamento por procedimento">
+                  <BarList
+                    items={procRevenue.slice(0, 7).map(p => ({ label: `${p.name} (${p.count})`, value: p.revenue }))}
+                    format={moneyShort}
+                    empty="Nenhuma receita ligada a procedimento no período."
+                  />
+                </Card>
               </div>
 
-              <div className={styles.card}>
-                <div className={styles.cardTitle}>Lucro líquido mensal</div>
-                <div className={`${styles.tableWrap} resp-table-wrap`}>
-                  <table className={`${styles.table} resp-table`}>
+              <Card flush title="Resultado mensal">
+                <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+                  <table className={`${t.table} resp-table`}>
                     <thead>
                       <tr>
-                        <th>Mês</th><th>Receita</th><th>Despesa</th><th>Lucro</th><th>Margem</th>
+                        <th>Mês</th>
+                        <th className={t.num}>Receita</th>
+                        <th className={t.num}>Despesa</th>
+                        <th className={t.num}>Lucro</th>
+                        <th>Margem</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {monthly.map(m => (
-                        <tr key={m.month}>
-                          <td>{m.month}</td>
-                          <td data-label="Receita" className={styles.kpiGreen}>{formatCurrency(m.receita)}</td>
-                          <td data-label="Despesa" className={styles.kpiRed}>{formatCurrency(m.despesa)}</td>
-                          <td data-label="Lucro" className={m.lucro >= 0 ? styles.kpiGreen : styles.kpiRed}>{formatCurrency(m.lucro)}</td>
-                          <td data-label="Margem">
-                            <span className={m.lucro >= 0 ? styles.tagGreen : styles.tagRed}>
-                              {m.receita > 0 ? Math.round((m.lucro / m.receita) * 100) : 0}%
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {monthly.map(m => {
+                        const pct = m.receita > 0 ? Math.round((m.lucro / m.receita) * 100) : 0
+                        return (
+                          <tr key={m.month}>
+                            <td className={t.strong}>{m.month}</td>
+                            <td data-label="Receita" className={t.num}>{formatCurrency(m.receita)}</td>
+                            <td data-label="Despesa" className={`${t.num} ${t.muted}`}>{formatCurrency(m.despesa)}</td>
+                            <td data-label="Lucro" className={`${t.num} ${m.lucro < 0 ? styles.neg : styles.strongNum}`}>{formatCurrency(m.lucro)}</td>
+                            <td data-label="Margem">
+                              <div className={styles.margin}>
+                                <span className={pct < 0 ? styles.neg : undefined}>{pct}%</span>
+                                <span className={styles.marginTrack} aria-hidden="true"><i style={{ width: `${clip(pct)}%` }} /></span>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
-              </div>
-
-              {procRevenue.length > 0 && (
-                <div className={styles.card}>
-                  <div className={styles.cardTitle}>Faturamento por procedimento</div>
-                  <div className={`${styles.tableWrap} resp-table-wrap`}>
-                    <table className={`${styles.table} resp-table`}>
-                      <thead>
-                        <tr>
-                          <th>Procedimento</th><th>Atendimentos</th><th>Faturamento</th><th>Ticket médio</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {procRevenue.map(p => (
-                          <tr key={p.name}>
-                            <td>{p.name}</td>
-                            <td data-label="Atendimentos">{p.count}</td>
-                            <td data-label="Faturamento" className={styles.kpiGreen}>{formatCurrency(p.revenue)}</td>
-                            <td data-label="Ticket médio">{formatCurrency(p.count > 0 ? p.revenue / p.count : 0)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+              </Card>
             </>
           )}
 
@@ -462,120 +455,83 @@ function RelatoriosContent() {
           {tab === 'clinico' && (
             <>
               <div className={styles.kpis}>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Total de atendimentos</div>
-                  <div className={styles.kpiValue}>{clinicStats.totalAppts}</div>
-                </div>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Taxa de conversão</div>
-                  <div className={`${styles.kpiValue} ${styles.kpiGreen}`}>{clinicStats.convRate}%</div>
-                  <div className={styles.kpiSub}>Agendados → Concluídos</div>
-                </div>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Taxa de cancelamento</div>
-                  <div className={`${styles.kpiValue} ${clinicStats.cancelRate > 20 ? styles.kpiRed : styles.kpiGreen}`}>
-                    {clinicStats.cancelRate}%
-                  </div>
-                </div>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Taxa de retorno</div>
-                  <div className={`${styles.kpiValue} ${styles.kpiBlue}`}>{clinicStats.returnRate}%</div>
-                  <div className={styles.kpiSub}>Pacientes com ≥2 consultas</div>
-                </div>
+                <StatCard title="Total de atendimentos" value={clinicStats.totalAppts} hint="agendados no período" />
+                <StatCard title="Taxa de conversão" value={`${clinicStats.convRate}%`} hint="agendados que viraram concluídos" />
+                <StatCard title="Taxa de cancelamento" value={`${clinicStats.cancelRate}%`} hint={clinicStats.cancelRate > 20 ? 'acima de 20%, vale rever os lembretes' : 'cancelamentos e faltas'} delta={clinicStats.cancelRate > 20 ? { label: 'alta', bad: true } : undefined} />
+                <StatCard title="Taxa de retorno" value={`${clinicStats.returnRate}%`} hint="pacientes com 2 ou mais consultas" />
               </div>
 
-              <div className={styles.card}>
-                <div className={styles.cardTitle}>Procedimentos mais realizados</div>
-                {procRank.length === 0 ? (
-                  <p className={styles.cardEmpty}>Nenhum procedimento registrado</p>
-                ) : (
-                  <div className={styles.rankList}>
-                    {procRank.map(p => (
-                      <div key={p.name} className={styles.rankItem}>
-                        <div className={styles.rankHeader}>
-                          <span className={styles.rankName}>{p.name}</span>
-                          <span className={styles.rankCount}>{p.count} atend.</span>
-                        </div>
-                        <div className={styles.rankBar}>
-                          <div className={styles.rankFill} style={{ width: `${Math.round((p.count / maxProc) * 100)}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <Card title="Procedimentos mais realizados">
+                <BarList
+                  items={procRank.map(p => ({ label: p.name, value: p.count }))}
+                  format={n => `${n} atend.`}
+                  total={maxProc}
+                  empty="Nenhum procedimento registrado"
+                />
+              </Card>
             </>
           )}
 
           {/* ── PACIENTES ── */}
           {tab === 'pacientes' && (
             <>
-              <div className={styles.kpis}>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Total de pacientes</div>
-                  <div className={styles.kpiValue}>{patStats.total}</div>
-                </div>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Novos este mês</div>
-                  <div className={`${styles.kpiValue} ${styles.kpiGreen}`}>{patStats.newMonth}</div>
-                </div>
-                <div className={styles.kpi}>
-                  <div className={styles.kpiLabel}>Com consentimento LGPD</div>
-                  <div className={`${styles.kpiValue} ${styles.kpiBlue}`}>{patStats.withConsent}</div>
-                  <div className={styles.kpiSub}>
-                    {patStats.total > 0 ? Math.round((patStats.withConsent / patStats.total) * 100) : 0}% do total
-                  </div>
-                </div>
+              <div className={styles.kpis3}>
+                <StatCard title="Total de pacientes" value={patStats.total} hint="ativos no cadastro" />
+                <StatCard title="Novos este mês" value={patStats.newMonth} hint="cadastros desde o dia 1" />
+                <StatCard
+                  title="Com consentimento LGPD"
+                  value={patStats.withConsent}
+                  hint={`${patStats.total > 0 ? Math.round((patStats.withConsent / patStats.total) * 100) : 0}% do total`}
+                />
               </div>
 
-              <div className={styles.card}>
-                <div className={styles.cardTitle}>Novos pacientes por mês</div>
-                {newByMonth.length === 0 ? (
-                  <p className={styles.cardEmpty}>Sem dados no período</p>
+              <Card title="Novos pacientes por mês" actions={<span className={styles.cardMeta}>{PERIODS.find(p => p.value === period)?.label}</span>}>
+                {hasPat ? (
+                  <AreaTrendChart
+                    data={trendPat}
+                    highlightIndex={trendPat.length - 1}
+                    valueName="Novos pacientes"
+                    formatValue={n => String(Math.round(n))}
+                    height={240}
+                    label="Novos pacientes por mês no período"
+                  />
                 ) : (
-                  <PacientesBarChart data={newByMonth} />
+                  <p className={styles.cardEmpty}>Sem dados no período</p>
                 )}
-              </div>
+              </Card>
             </>
           )}
 
           {/* ── EQUIPE ── */}
           {tab === 'equipe' && (
-            <>
+            <Card flush title="Produção por profissional">
               {profRows.length === 0 ? (
-                <div className={styles.card}>
-                  <p className={styles.cardEmpty}>Nenhum profissional cadastrado</p>
-                </div>
+                <p className={styles.cardEmpty}>Nenhum profissional cadastrado</p>
               ) : (
-                <div className={styles.card}>
-                  <div className={styles.cardTitle}>Produção por profissional</div>
-                  <div className={`${styles.tableWrap} resp-table-wrap`}>
-                    <table className={`${styles.table} resp-table`}>
-                      <thead>
-                        <tr>
-                          <th>Profissional</th>
-                          <th>Consultas concluídas</th>
-                          <th>Cancelamentos</th>
+                <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+                  <table className={`${t.table} resp-table`}>
+                    <thead>
+                      <tr>
+                        <th>Profissional</th>
+                        <th className={t.num}>Consultas concluídas</th>
+                        <th>Cancelamentos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {profRows.map(p => (
+                        <tr key={p.name}>
+                          <td className={t.strong}>{p.name}</td>
+                          <td data-label="Consultas concluídas" className={t.num}>{p.concluded}</td>
+                          <td data-label="Cancelamentos">
+                            <StatusDot tone={p.cancelRate > 20 ? 'bad' : 'ok'}>{p.cancelRate}%</StatusDot>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {profRows.map(p => (
-                          <tr key={p.name}>
-                            <td>{p.name}</td>
-                            <td data-label="Consultas concluídas"><span className={styles.tagGreen}>{p.concluded}</span></td>
-                            <td data-label="Cancelamentos">
-                              <span className={p.cancelRate > 20 ? styles.tagRed : styles.tagBlue}>
-                                {p.cancelRate}%
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
-            </>
+            </Card>
           )}
 
           {/* ── COMISSÕES ── */}
@@ -584,76 +540,68 @@ function RelatoriosContent() {
               <p className={styles.loading}>Carregando comissões...</p>
             ) : (
               <>
-                <div className={styles.kpis}>
-                  <div className={styles.kpi}>
-                    <div className={styles.kpiLabel}>Total pago em comissões</div>
-                    <div className={`${styles.kpiValue} ${styles.kpiGreen}`}>{formatCurrency(commissionsComputed.totalPaid)}</div>
-                  </div>
-                  <div className={styles.kpi}>
-                    <div className={styles.kpiLabel}>Beneficiários com lançamento</div>
-                    <div className={`${styles.kpiValue} ${styles.kpiBlue}`}>{commissionsComputed.recipientRows.length}</div>
-                  </div>
+                <div className={styles.kpis2}>
+                  <StatCard title="Total pago em comissões" value={statMoney(commissionsComputed.totalPaid)} compact />
+                  <StatCard title="Beneficiários com lançamento" value={commissionsComputed.recipientRows.length} />
                 </div>
 
                 {commissionsComputed.recipientRows.length === 0 ? (
-                  <div className={styles.card}>
+                  <Card>
                     <p className={styles.cardEmpty}>Nenhuma comissão calculada no período. Configure beneficiários e % na aba Comissões do menu.</p>
-                  </div>
+                  </Card>
                 ) : (
                   <>
-                    <div className={styles.card}>
-                      <div className={styles.cardTitle}>Total por beneficiário</div>
-                      <div className={`${styles.tableWrap} resp-table-wrap`}>
-                        <table className={`${styles.table} resp-table`}>
+                    <Card flush title="Total por beneficiário">
+                      <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+                        <table className={`${t.table} resp-table`}>
                           <thead>
                             <tr>
                               <th>Beneficiário</th>
-                              <th>Lançamentos</th>
-                              <th>Total recebido</th>
+                              <th className={t.num}>Lançamentos</th>
+                              <th className={t.num}>Total recebido</th>
                             </tr>
                           </thead>
                           <tbody>
                             {commissionsComputed.recipientRows.map(r => (
                               <tr key={r.name}>
-                                <td>{r.name}</td>
-                                <td data-label="Lançamentos"><span className={styles.tagBlue}>{r.count}</span></td>
-                                <td data-label="Total recebido"><span className={styles.tagGreen}>{formatCurrency(r.total)}</span></td>
+                                <td className={t.strong}>{r.name}</td>
+                                <td data-label="Lançamentos" className={t.num}>{r.count}</td>
+                                <td data-label="Total recebido" className={`${t.num} ${styles.strongNum}`}>{formatCurrency(r.total)}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </Card>
 
-                    <div className={styles.card}>
-                      <div className={styles.cardTitle}>Detalhamento dos lançamentos</div>
-                      <div className={`${styles.tableWrap} resp-table-wrap`}>
-                        <table className={`${styles.table} resp-table`}>
+                    <Card flush title="Detalhamento dos lançamentos">
+                      <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+                        <table className={`${t.table} resp-table`}>
                           <thead>
                             <tr>
                               <th>Data</th>
                               <th>Beneficiário</th>
                               <th>Procedimento</th>
                               <th>Paciente</th>
-                              <th>%</th>
-                              <th>Valor</th>
+                              <th className={t.num}>%</th>
+                              <th className={t.num}>Valor</th>
                             </tr>
                           </thead>
                           <tbody>
                             {commissionsComputed.entries.map(e => (
                               <tr key={e.id}>
-                                <td data-label="Data">{formatDate(e.created_at, true)}</td>
-                                <td data-label="Beneficiário">{e.recipient_name}</td>
-                                <td data-label="Procedimento">{e.financial_records?.procedures?.name ?? '—'}</td>
-                                <td data-label="Paciente">{e.financial_records?.patients?.name ?? '—'}</td>
-                                <td data-label="%">{e.percent}%</td>
-                                <td data-label="Valor">{formatCurrency(e.amount)}</td>
+                                <td className={t.muted}>{formatDate(e.created_at, true)}</td>
+                                <td data-label="Beneficiário" className={t.strong}>{e.recipient_name}</td>
+                                <td data-label="Procedimento" className={t.muted}>{e.financial_records?.procedures?.name ?? '-'}</td>
+                                <td data-label="Paciente" className={t.muted}>{e.financial_records?.patients?.name ?? '-'}</td>
+                                <td data-label="%" className={t.num}>{e.percent}%</td>
+                                <td data-label="Valor" className={`${t.num} ${styles.strongNum}`}>{formatCurrency(e.amount)}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </Card>
                   </>
                 )}
               </>
@@ -685,9 +633,9 @@ function RelatoriosContent() {
               </div>
             </div>
             <div className={styles.exportModalFooter}>
-              <button className={styles.exportBtnCancel} onClick={() => setShowExportModal(false)}>Cancelar</button>
-              <button className={styles.exportBtnConfirm} onClick={exportXLSX} disabled={exporting}>
-                {exporting ? 'Exportando...' : <><Icon name="download" size={14} /> Exportar</>}
+              <button type="button" className={btn.secondary} onClick={() => setShowExportModal(false)}>Cancelar</button>
+              <button type="button" className={btn.primary} onClick={exportXLSX} disabled={exporting}>
+                {exporting ? 'Exportando...' : <><Icon name="download" size={15} /> Exportar</>}
               </button>
             </div>
           </div>

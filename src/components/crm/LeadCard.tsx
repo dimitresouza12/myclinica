@@ -8,6 +8,7 @@ import {
   leadPhoneLabel, leadTitle, sourceLabel, type Lead, type Stage,
 } from '@/lib/crm/model'
 import styles from './Crm.module.css'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 interface Props {
   lead: Lead
@@ -43,7 +44,9 @@ export function LeadCard({ lead, ownerName, photoUrl, unread, now, canEdit, drag
       draggable={canEdit}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onClick={onOpen}
+      tabIndex={-1}
+      // foca o cartão ao abrir: é para onde o foco volta quando o painel fecha
+      onClick={e => { e.currentTarget.focus({ preventScroll: true }); onOpen() }}
     >
       <div className={styles.cardTop}>
         <Avatar url={photoUrl} name={title} size={36} className={styles.cardAvatar} />
@@ -94,14 +97,13 @@ export function LeadCard({ lead, ownerName, photoUrl, unread, now, canEdit, drag
       {canEdit && (
         <label className={styles.moveRow} onClick={e => e.stopPropagation()}>
           <span>Mover para</span>
-          <select
-            className={styles.moveSelect}
+          <SelectMenu
+            className={styles.moveMenu}
             value={lead.stage}
-            onChange={e => onMove(e.target.value as Stage)}
-            aria-label={`Mover ${title} para outra etapa`}
-          >
-            {STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
+            onChange={v => onMove(v as Stage)}
+            ariaLabel={`Mover ${title} para outra etapa`}
+            options={STAGES.map(s => ({ value: s.key, label: s.label }))}
+          />
         </label>
       )}
     </article>

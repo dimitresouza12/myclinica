@@ -2,18 +2,28 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { useScrollLock } from '@/hooks/useScrollLock'
+import { Modal } from '@/components/ui/Modal'
+import f from '@/components/ui/modalForm.module.css'
 import { useProcedures, useCommissionsData } from '@/hooks/useClinicData'
 import { formatCurrency, formatMonthLabel } from '@/lib/utils'
 import type { CommissionRecipient, CommissionRule } from '@/types'
 import styles from './comissoes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
-import { PageTitle } from '@/components/layout/PageTitle'
-import { Portal } from '@/components/ui/Portal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 import { MonthPicker } from '@/components/ui/MonthPicker'
 import { PercentInput } from '@/components/ui/NumericInput'
+import { Avatar } from '@/components/ui/Avatar'
+import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
+import { PillTabs } from '@/components/ui/PillTabs'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { StatusDot } from '@/components/ui/StatusDot'
+import { BarList } from '@/components/ui/BarList'
+import { MoreMenu } from '@/components/ui/MoreMenu'
+import { avatarTone } from '@/lib/ui/avatarTone'
+import btn from '@/components/ui/button.module.css'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 type EarningsPeriod = 'diario' | 'semanal' | 'mensal'
 
@@ -83,8 +93,6 @@ function ComissoesContent() {
     earningsPeriod === 'diario' ? 'hoje' :
     earningsPeriod === 'semanal' ? 'esta semana' :
     formatMonthLabel(earningsMonth)
-
-  useScrollLock(showModal)
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -232,62 +240,62 @@ function ComissoesContent() {
 
   const availableForNewRule = activeProcedures.filter(p => !form.specificRules.some(r => r.procedure_id === p.id))
 
+  const activeRecipients = recipients.filter(r => r.is_active).length
+  const specificRules = recipients.reduce((n, r) => n + rulesFor(r.id).filter(x => x.procedure_id !== null).length, 0)
+
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <PageTitle title="Comissões" subtitle={`${recipients.length} beneficiários · calculado automaticamente a cada procedimento concluído`} />
-        <button className={styles.btnPrimary} onClick={openNew}>+ Novo Beneficiário</button>
+      <PageHeader
+        title="Comissões"
+        subtitle={`${recipients.length} ${recipients.length === 1 ? 'beneficiário' : 'beneficiários'}, calculado automaticamente a cada procedimento concluído`}
+        actions={<button type="button" className={btn.primary} onClick={openNew}><Icon name="plus" size={15} /> Novo beneficiário</button>}
+      />
+
+      <div className={styles.stats}>
+        <StatCard title="Beneficiários ativos" value={activeRecipients} hint={`de ${recipients.length} cadastrados`} />
+        <StatCard title={`Recebido ${earningsPeriodLabel}`} value={formatCurrency(earningsTotal)} compact hint="soma de todos os beneficiários" />
+        <StatCard title="Regras por procedimento" value={specificRules} hint="além da % padrão de cada pessoa" />
       </div>
 
-      <div className={styles.warnBanner}>
+      <div className={styles.note}>
         <Icon name="info" size={16} />
-        <span>A % é aplicada sobre o valor de cada procedimento no momento em que a receita é lançada. Mudar a % aqui não altera comissões já calculadas — só vale para novos lançamentos.</span>
+        <span>A % é aplicada sobre o valor de cada procedimento no momento em que a receita é lançada. Mudar a % aqui não altera comissões já calculadas, só vale para novos lançamentos.</span>
       </div>
 
-      <div className={styles.earningsCard}>
-        <div className={styles.earningsHeader}>
-          <h2 className={styles.sectionTitleLg}>Recebido por beneficiário</h2>
-          {earningsByRecipient.length > 0 && (
-            <span className={styles.recipientRulesCount}>Total {earningsPeriodLabel}: {formatCurrency(earningsTotal)}</span>
-          )}
-        </div>
-        <div className={styles.earningsControls}>
-          <div className={styles.periodTabs}>
-            {(['diario', 'semanal', 'mensal'] as const).map(p => (
-              <button key={p} className={`${styles.periodTab} ${earningsPeriod === p ? styles.periodTabActive : ''}`} onClick={() => setEarningsPeriod(p)}>
-                {p === 'diario' ? 'Diário' : p === 'semanal' ? 'Semanal' : 'Mensal'}
-              </button>
-            ))}
-          </div>
-          {earningsPeriod === 'mensal' && (
-            <MonthPicker value={earningsMonth} onChange={setEarningsMonth} />
-          )}
-        </div>
+      <Card
+        title="Recebido por beneficiário"
+        actions={
+          <>
+            {earningsPeriod === 'mensal' && <MonthPicker value={earningsMonth} onChange={setEarningsMonth} />}
+            <PillTabs
+              label="Período dos ganhos"
+              value={earningsPeriod}
+              onChange={setEarningsPeriod}
+              options={[
+                { value: 'diario', label: 'Diário' },
+                { value: 'semanal', label: 'Semanal' },
+                { value: 'mensal', label: 'Mensal' },
+              ]}
+            />
+          </>
+        }
+      >
         {loadingEarnings ? (
           <p className={styles.loading}>Carregando...</p>
-        ) : earningsByRecipient.length === 0 ? (
-          <p className={styles.emptySmall}>Nenhuma comissão {earningsPeriodLabel === 'hoje' ? 'hoje' : `em ${earningsPeriodLabel}`}.</p>
         ) : (
-          <div className={styles.earningsList}>
-            {earningsByRecipient.map(e => (
-              <div key={e.id} className={styles.earningsRow}>
-                <span className={styles.earningsName}>{e.name}</span>
-                <span className={styles.earningsCount}>{e.count} lançamento{e.count > 1 ? 's' : ''}</span>
-                <span className={styles.earningsAmount}>{formatCurrency(e.total)}</span>
-              </div>
-            ))}
-            <div className={styles.earningsTotalRow}>
-              <span>Total {earningsPeriodLabel}</span>
-              <span>{formatCurrency(earningsTotal)}</span>
-            </div>
-          </div>
+          <BarList
+            items={earningsByRecipient.map(e => ({ label: `${e.name}, ${e.count} lançamento${e.count > 1 ? 's' : ''}`, value: e.total }))}
+            format={formatCurrency}
+            total={earningsTotal}
+            empty={`Nenhuma comissão ${earningsPeriodLabel === 'hoje' ? 'hoje' : `em ${earningsPeriodLabel}`}.`}
+          />
         )}
-      </div>
+      </Card>
 
       {loading ? (
         <p className={styles.loading}>Carregando...</p>
       ) : recipients.length === 0 ? (
-        <div className={styles.empty}>Nenhum beneficiário cadastrado. Clique em &quot;+ Novo Beneficiário&quot; para começar.</div>
+        <Card><p className={styles.empty}>Nenhum beneficiário cadastrado. Clique em &quot;Novo beneficiário&quot; para começar.</p></Card>
       ) : (
         <div className={styles.cardsGrid}>
           {recipients.map(r => {
@@ -295,135 +303,134 @@ function ComissoesContent() {
             const general = mine.find(x => x.procedure_id === null)
             const specificCount = mine.filter(x => x.procedure_id !== null).length
             return (
-              <div key={r.id} className={styles.recipientCard}>
+              <Card key={r.id} className={styles.recipientCard}>
                 <div className={styles.recipientTop}>
-                  <div>
+                  <Avatar name={r.name} size={40} className={`${styles.avatar} ${styles[`tone${avatarTone(r.name)}`]}`} />
+                  <div className={styles.recipientWho}>
                     <div className={styles.recipientName}>{r.name}</div>
-                    {r.role_label && <div className={styles.recipientLabel}>{r.role_label}</div>}
+                    <div className={styles.recipientLabel}>{r.role_label ?? 'Sem função'}</div>
                   </div>
-                  {!r.is_active && <span className={styles.tagInactive}>Inativo</span>}
+                  <MoreMenu
+                    label={`Mais ações de ${r.name}`}
+                    items={[
+                      { label: 'Editar', icon: 'edit', onClick: () => openEdit(r) },
+                      { label: 'Remover', icon: 'trash', danger: true, onClick: () => handleDelete(r) },
+                    ]}
+                  />
                 </div>
                 <div className={styles.recipientPercent}>
-                  <span className={styles.recipientPercentValue}>{general ? `${general.percent}%` : '—'}</span>
+                  <span className={styles.recipientPercentValue}>{general ? `${general.percent}%` : '-'}</span>
                   <span className={styles.recipientPercentLabel}>{general ? 'padrão em cada procedimento' : 'sem % padrão definida'}</span>
                 </div>
-                {specificCount > 0 && (
-                  <div className={styles.recipientRulesCount}>+ {specificCount} regra{specificCount > 1 ? 's' : ''} específica{specificCount > 1 ? 's' : ''} por procedimento</div>
-                )}
-                <div className={styles.recipientActions}>
-                  <button className={styles.btnEdit} onClick={() => openEdit(r)}>Editar</button>
-                  <button className={styles.btnDelete} onClick={() => handleDelete(r)}><Icon name="trash" size={14} /></button>
+                <div className={styles.recipientFoot}>
+                  <StatusDot tone={r.is_active ? 'ok' : 'idle'}>{r.is_active ? 'Ativo' : 'Inativo'}</StatusDot>
+                  {specificCount > 0 && (
+                    <span className={styles.recipientRulesCount}>{specificCount} regra{specificCount > 1 ? 's' : ''} por procedimento</span>
+                  )}
                 </div>
-              </div>
+              </Card>
             )
           })}
         </div>
       )}
 
-      {showModal && (
-        <Portal>
-        <div className={styles.overlay} onClick={closeModal}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>{editingId ? 'Editar Beneficiário' : 'Novo Beneficiário'}</h2>
-              <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
-            </div>
-            <div className={styles.modalBody}>
-              <div className={styles.row2}>
-                <div className={styles.field}>
-                  <label>Nome *</label>
-                  <input
-                    value={form.name}
-                    onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))}
-                    placeholder="Ex: Dra. Camila"
-                    autoFocus
-                  />
-                </div>
-                <div className={styles.field}>
-                  <label>Função</label>
-                  <input
-                    value={form.role_label}
-                    onChange={(e) => setForm(p => ({ ...p, role_label: e.target.value }))}
-                    placeholder="Ex: Dentista, Dona, Recepção..."
-                  />
-                </div>
-              </div>
-
-              <div className={styles.field}>
-                <label>% padrão (aplica a qualquer procedimento sem regra específica)</label>
-                <PercentInput
-                  value={form.generalPercent}
-                  onChange={(v) => setForm(p => ({ ...p, generalPercent: v }))}
-                  placeholder="Ex: 40"
-                />
-              </div>
-
-              <div className={styles.toggleRow}>
-                <span className={styles.toggleLabel}>Beneficiário ativo</span>
-                <label className={styles.toggle}>
-                  <input
-                    type="checkbox"
-                    checked={form.is_active}
-                    onChange={(e) => setForm(p => ({ ...p, is_active: e.target.checked }))}
-                  />
-                  <span className={styles.toggleSlider} />
-                </label>
-              </div>
-
-              <hr className={styles.sectionDivider} />
-              <div>
-                <div className={styles.sectionTitle}>Regras específicas por procedimento</div>
-                <p className={styles.sectionSub}>Opcional — sobrescreve a % padrão só para o procedimento escolhido.</p>
-              </div>
-
-              {form.specificRules.length > 0 && (
-                <div className={styles.rulesList}>
-                  {form.specificRules.map(r => {
-                    const proc = procedures.find(p => p.id === r.procedure_id)
-                    return (
-                      <div key={r.procedure_id} className={styles.ruleRow}>
-                        <span className={styles.ruleProcName}>{proc?.name ?? 'Procedimento removido'}</span>
-                        <span className={styles.rulePercent}>{r.percent}%</span>
-                        <button className={styles.ruleRemove} onClick={() => removeSpecificRule(r.procedure_id)} title="Remover regra">
-                          <Icon name="close" size={14} />
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
-              <div className={styles.addRuleRow}>
-                <div className={styles.field}>
-                  <label>Procedimento</label>
-                  <select value={newRuleProc} onChange={(e) => setNewRuleProc(e.target.value)}>
-                    <option value="">Selecione...</option>
-                    {availableForNewRule.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div className={styles.field} style={{ maxWidth: '110px' }}>
-                  <label>%</label>
-                  <PercentInput
-                    value={newRulePercent}
-                    onChange={setNewRulePercent}
-                    placeholder="0"
-                  />
-                </div>
-                <button className={styles.btnAddRule} onClick={addSpecificRule} disabled={!newRuleProc || !newRulePercent}>
-                  + Adicionar
-                </button>
-              </div>
-            </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.btnCancel} onClick={closeModal}>Cancelar</button>
-              <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.name.trim()}>
-                {saving ? 'Salvando...' : 'Salvar'}
-              </button>
-            </div>
+      <Modal
+        open={showModal}
+        onClose={closeModal}
+        title={editingId ? 'Editar Beneficiário' : 'Novo Beneficiário'}
+        footer={
+          <>
+            <button type="button" className={btn.secondary} onClick={closeModal}>Cancelar</button>
+            <button type="button" className={btn.primary} onClick={handleSave} disabled={saving || !form.name.trim()}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+          </>
+        }
+      >
+        <div className={f.row2}>
+          <div className={f.field}>
+            <label>Nome *</label>
+            <input
+              value={form.name}
+              onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))}
+              placeholder="Ex: Dra. Camila"
+              autoFocus
+            />
+          </div>
+          <div className={f.field}>
+            <label>Função</label>
+            <input
+              value={form.role_label}
+              onChange={(e) => setForm(p => ({ ...p, role_label: e.target.value }))}
+              placeholder="Ex: Dentista, Dona, Recepção..."
+            />
           </div>
         </div>
-        </Portal>
-      )}
+
+        <div className={f.field}>
+          <label>% padrão (aplica a qualquer procedimento sem regra específica)</label>
+          <PercentInput
+            value={form.generalPercent}
+            onChange={(v) => setForm(p => ({ ...p, generalPercent: v }))}
+            placeholder="Ex: 40"
+          />
+        </div>
+
+        <div className={styles.toggleRow}>
+          <span className={styles.toggleLabel}>Beneficiário ativo</span>
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              checked={form.is_active}
+              onChange={(e) => setForm(p => ({ ...p, is_active: e.target.checked }))}
+            />
+            <span className={styles.toggleSlider} />
+          </label>
+        </div>
+
+        <hr className={styles.sectionDivider} />
+        <div>
+          <div className={styles.sectionTitle}>Regras específicas por procedimento</div>
+          <p className={styles.sectionSub}>Opcional — sobrescreve a % padrão só para o procedimento escolhido.</p>
+        </div>
+
+        {form.specificRules.length > 0 && (
+          <div className={styles.rulesList}>
+            {form.specificRules.map(r => {
+              const proc = procedures.find(p => p.id === r.procedure_id)
+              return (
+                <div key={r.procedure_id} className={styles.ruleRow}>
+                  <span className={styles.ruleProcName}>{proc?.name ?? 'Procedimento removido'}</span>
+                  <span className={styles.rulePercent}>{r.percent}%</span>
+                  <button className={styles.ruleRemove} onClick={() => removeSpecificRule(r.procedure_id)} title="Remover regra">
+                    <Icon name="close" size={14} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <div className={styles.addRuleRow}>
+          <div className={f.field}>
+            <label>Procedimento</label>
+            <SelectMenu variant="field" ariaLabel="Procedimento" value={newRuleProc}
+              onChange={setNewRuleProc}
+              options={[{ value: '', label: 'Selecione...' }, ...availableForNewRule.map(p => ({ value: p.id, label: p.name }))]} />
+          </div>
+          <div className={f.field} style={{ maxWidth: '110px' }}>
+            <label>%</label>
+            <PercentInput
+              value={newRulePercent}
+              onChange={setNewRulePercent}
+              placeholder="0"
+            />
+          </div>
+          <button type="button" className={btn.secondary} onClick={addSpecificRule} disabled={!newRuleProc || !newRulePercent}>
+            + Adicionar
+          </button>
+        </div>
+      </Modal>
     </div>
   )
 }

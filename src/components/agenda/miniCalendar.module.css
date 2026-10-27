@@ -1,0 +1,36 @@
+.cal { min-width: 0; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.title { font-size: 0.875rem; font-weight: 600; letter-spacing: 0; color: var(--text-primary); }
+.title::first-letter { text-transform: uppercase; }
+.nav { display: flex; gap: 2px; margin-right: -6px; }
+.navBtn { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--text-secondary); cursor: pointer; transition: background 0.12s, color 0.12s; }
+.navBtn:hover { background: var(--surface-2); color: var(--text-primary); }
+.navBtn:focus-visible, .day:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
+
+.grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; }
+.dow { height: 26px; display: grid; place-items: center; font-size: 0.7rem; color: var(--text-secondary); }
+.day {
+  position: relative;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.day:hover { background: var(--surface-2); }
+.out { color: var(--text-tertiary); }
+/* período em foco: faixa suave; hoje: círculo escuro */
+.on { background: var(--brand-light); border-radius: 10px; }
+.today { background: var(--ink); color: var(--on-ink); font-weight: 600; }
+.today:hover { background: var(--ink); }
+.dot { position: absolute; bottom: 3px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--brand-accent); }
+.today .dot { background: var(--on-ink); }
+[data-theme="dark"] .dot { background: var(--brand-primary); }
+[data-theme="dark"] .today .dot { background: var(--on-ink); }

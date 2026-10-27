@@ -16,7 +16,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--brand-primary);
+  color: var(--brand-text);
   padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--border-color);
 }
@@ -126,7 +126,7 @@
   cursor: pointer;
   transition: all 0.15s;
 }
-.btnPrint:hover { background: var(--bg-secondary); border-color: var(--brand-primary); color: var(--brand-primary); }
+.btnPrint:hover { background: var(--bg-secondary); border-color: var(--brand-primary); color: var(--brand-text); }
 .btnPrint:disabled { opacity: 0.5; cursor: not-allowed; }
 .btnPrint:disabled:hover { background: none; border-color: var(--border-color); color: var(--text-secondary); }
 
@@ -215,7 +215,7 @@
   cursor: pointer;
   transition: all 0.15s;
 }
-.btnAddCustomField:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
+.btnAddCustomField:hover { border-color: var(--brand-primary); color: var(--brand-text); }
 
 .btnRemoveCustomField {
   display: inline-flex;

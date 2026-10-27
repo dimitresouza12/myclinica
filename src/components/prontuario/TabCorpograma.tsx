@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import type { Patient, MedicalRecord } from '@/types'
 import styles from './TabCorpograma.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 const TOOLS = [
   { key: 'criolipolise',     label: 'Criolipólise',        abbr: 'Cr', color: '#3B82F6', bg: '#DBEAFE' },
@@ -218,8 +219,8 @@ export function TabCorpograma({ record, patient, clinicId, onSaved }: Props) {
           {/* Session meta */}
           <div className={styles.sideSec}>
             <p className={styles.sideLabel}>Data da sessão</p>
-            <input type="date" className={styles.dateInput} value={session.date}
-              onChange={e => updSession(s => ({ ...s, date: e.target.value }))}/>
+            <DatePicker ariaLabel="Data da sessão" value={session.date}
+              onChange={v => updSession(s => ({ ...s, date: v }))} />
             <p className={styles.sideLabel} style={{ marginTop: '0.75rem' }}>Observações</p>
             <textarea className={styles.notesArea} rows={4}
               value={session.notes}

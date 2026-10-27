@@ -6,7 +6,9 @@ import type { Clinic } from '@/types'
 import { computeClinicStatus } from '@/lib/clinicStatus'
 import { StatusBadge } from './StatusBadge'
 import { ClinicEditModal } from './ClinicEditModal'
-import { Portal } from '@/components/ui/Portal'
+import { Modal } from '@/components/ui/Modal'
+import f from '@/components/ui/modalForm.module.css'
+import btn from '@/components/ui/button.module.css'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import styles from './admin.module.css'
 import { Icon } from '@/components/ui/Icon'
@@ -15,6 +17,7 @@ import { formatBrPhone, phoneInputError, waMeNumber } from '@/lib/phoneFormat'
 import { showToast } from '@/components/ui/Toast'
 import { CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { PLAN_CATALOG } from '@/lib/planCatalog'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 function waLink(phone: string, clinicName: string): string {
   const number = waMeNumber(phone)
@@ -75,13 +78,14 @@ export function AdminClinicas({ clinics, onReload }: Props) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <select className={styles.selectFilter} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-            <option value="">Todos os status</option>
-            <option value="active">Ativa</option>
-            <option value="trial">Trial</option>
-            <option value="trial_expired">Trial expirado</option>
-            <option value="suspended">Suspensa (atraso)</option>
-          </select>
+          <SelectMenu ariaLabel="Filtrar por status" value={filterStatus} onChange={setFilterStatus}
+            options={[
+              { value: '', label: 'Todos os status' },
+              { value: 'active', label: 'Ativa' },
+              { value: 'trial', label: 'Trial' },
+              { value: 'trial_expired', label: 'Trial expirado' },
+              { value: 'suspended', label: 'Suspensa (atraso)' },
+            ]} />
         </div>
         <button className={styles.btnPrimary} onClick={() => setShowNewModal(true)}>+ Nova Clínica</button>
       </div>
@@ -190,40 +194,35 @@ export function AdminClinicas({ clinics, onReload }: Props) {
         />
       )}
 
-      {showNewModal && (
-        <Portal>
-        <div className={styles.overlay} onClick={() => setShowNewModal(false)}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>Nova Clínica</h2>
-              <button className={styles.btnClose} onClick={() => setShowNewModal(false)}><Icon name="close" size={18} /></button>
-            </div>
-            <div className={styles.modalBody}>
-              {([['name','Nome *','text'],['slug','Slug *','text'],['email','E-mail','email'],['phone','Telefone','tel'],['address','Endereço','text']] as [string,string,string][]).map(([k,l,t]) => (
-                <div className={styles.field} key={k}>
-                  <label>{l}</label>
-                  {k === 'phone'
-                    ? <PhoneInput className={styles.fieldInput} value={newForm.phone} onChange={(v) => setNewForm((p) => ({ ...p, phone: v }))} />
-                    : <input type={t} className={styles.fieldInput} value={(newForm as Record<string,string>)[k]} onChange={(e) => setNewForm((p) => ({ ...p, [k]: e.target.value }))} />}
-                </div>
-              ))}
-              <div className={styles.field}>
-                <label>Tipo</label>
-                <select className={styles.fieldInput} value={newForm.clinic_type} onChange={(e) => setNewForm((p) => ({ ...p, clinic_type: e.target.value }))}>
-                  {CLINIC_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.btnCancel} onClick={() => setShowNewModal(false)}>Cancelar</button>
-              <button className={styles.btnSave} onClick={handleCreateClinic} disabled={saving || !newForm.name || !newForm.slug}>
-                {saving ? 'Criando...' : 'Criar Clínica'}
-              </button>
-            </div>
+      <Modal
+        open={showNewModal}
+        onClose={() => setShowNewModal(false)}
+        size="sm"
+        title="Nova clínica"
+        footer={
+          <>
+            <button type="button" className={btn.secondary} onClick={() => setShowNewModal(false)}>Cancelar</button>
+            <button type="button" className={btn.primary} onClick={handleCreateClinic} disabled={saving || !newForm.name || !newForm.slug}>
+              {saving ? 'Criando...' : 'Criar clínica'}
+            </button>
+          </>
+        }
+      >
+        {([['name','Nome *','text'],['slug','Slug *','text'],['email','E-mail','email'],['phone','Telefone','tel'],['address','Endereço','text']] as [string,string,string][]).map(([k,l,t]) => (
+          <div className={f.field} key={k}>
+            <label>{l}</label>
+            {k === 'phone'
+              ? <PhoneInput value={newForm.phone} onChange={(v) => setNewForm((p) => ({ ...p, phone: v }))} />
+              : <input type={t} value={(newForm as Record<string,string>)[k]} onChange={(e) => setNewForm((p) => ({ ...p, [k]: e.target.value }))} />}
           </div>
+        ))}
+        <div className={f.field}>
+          <label>Tipo</label>
+          <SelectMenu variant="field" ariaLabel="Tipo" value={newForm.clinic_type}
+            onChange={v => setNewForm((p) => ({ ...p, clinic_type: v }))}
+            options={CLINIC_TYPE_OPTIONS.map(o => ({ value: o.value, label: o.label }))} />
         </div>
-        </Portal>
-      )}
+      </Modal>
     </>
   )
 }

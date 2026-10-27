@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { usePermissionsStore } from '@/store/permissions'
 import { useTheme } from '@/hooks/useTheme'
-import { Icon } from '@/components/ui/Icon'
+import { Icon, type IconName } from '@/components/ui/Icon'
+import { Portal } from '@/components/ui/Portal'
 import type { AuthClinic, AuthUser } from '@/types'
 import styles from './AppSidebar.module.css'
 import { hasWhatsAppAI } from '@/lib/planGates'
@@ -13,22 +14,36 @@ import { useUnreadTotal, useWhatsAppRealtime } from '@/hooks/useWhatsAppInbox'
 import { userRoleLabel, userInitials } from '@/lib/roleLabel'
 import { logout } from '@/lib/logout'
 
-const NAV = [
-  { path: '/dashboard',     label: 'Dashboard',     icon: 'dashboard'  as const, plusOnly: false },
-  { path: '/pacientes',     label: 'Pacientes',     icon: 'patients'   as const, plusOnly: false },
-  { path: '/agenda',        label: 'Agenda',        icon: 'calendar'   as const, plusOnly: false },
-  { path: '/financeiro',    label: 'Financeiro',    icon: 'finance'     as const, plusOnly: false },
-  { path: '/comissoes',     label: 'Comissões',     icon: 'percent'    as const, plusOnly: false },
-  { path: '/procedimentos', label: 'Procedimentos', icon: 'procedures' as const, plusOnly: false },
-  { path: '/relatorios',    label: 'Relatórios',    icon: 'reports'    as const, plusOnly: false },
-  { path: '/metas',         label: 'Metas',         icon: 'target'     as const, plusOnly: false },
-  { path: '/estoque',       label: 'Estoque',       icon: 'stock'      as const, plusOnly: false },
-  { path: '/mensagens',     label: 'Mensagens',     icon: 'chat'       as const, plusOnly: false, module: 'crm' as string | undefined },
-  { path: '/crm',           label: 'CRM',           icon: 'crm'        as const, plusOnly: false },
-  { path: '/campanhas',     label: 'Campanhas',     icon: 'campaigns'  as const, plusOnly: true  },
-  { path: '/equipe',        label: 'Equipe',        icon: 'team'       as const, plusOnly: false },
-  { path: '/configuracoes', label: 'Configurações', icon: 'settings'   as const, plusOnly: false },
+interface NavItem { path: string; label: string; icon: IconName; plusOnly?: boolean; module?: string }
+
+// Grupos por rotina: o que se usa todo dia fica no alto; Configurações vai para o pé da barra
+const NAV_GROUPS: { title: string | null; items: NavItem[] }[] = [
+  { title: null, items: [
+    { path: '/dashboard',     label: 'Dashboard',     icon: 'dashboard' },
+  ] },
+  { title: 'Dia a dia', items: [
+    { path: '/agenda',        label: 'Agenda',        icon: 'calendar' },
+    { path: '/pacientes',     label: 'Pacientes',     icon: 'patients' },
+    { path: '/mensagens',     label: 'Mensagens',     icon: 'messages', module: 'crm' },
+  ] },
+  { title: 'Gestão', items: [
+    { path: '/financeiro',    label: 'Financeiro',    icon: 'wallet' },
+    { path: '/comissoes',     label: 'Comissões',     icon: 'percent' },
+    { path: '/metas',         label: 'Metas',         icon: 'target' },
+    { path: '/relatorios',    label: 'Relatórios',    icon: 'reports' },
+  ] },
+  { title: 'Clínica', items: [
+    { path: '/procedimentos', label: 'Procedimentos', icon: 'procedures' },
+    { path: '/estoque',       label: 'Estoque',       icon: 'stock' },
+    { path: '/equipe',        label: 'Equipe',        icon: 'team' },
+  ] },
+  { title: 'Captação', items: [
+    { path: '/crm',           label: 'CRM',           icon: 'crm' },
+    { path: '/campanhas',     label: 'Campanhas',     icon: 'campaigns', plusOnly: true },
+  ] },
 ]
+const SETTINGS_ITEM: NavItem = { path: '/configuracoes', label: 'Configurações', icon: 'settings' }
+const ADMIN_ITEM: NavItem = { path: '/admin', label: 'Admin', icon: 'admin' }
 
 interface Props {
   clinic: AuthClinic
@@ -43,6 +58,10 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   const { theme, toggle: toggleTheme } = useTheme()
   const [collapsed, setCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  // dica de nome no modo recolhido (posição fixa: a barra tem overflow hidden e cortaria um balão em CSS puro)
+  const [tip, setTip] = useState<{ label: string; top: number; left: number } | null>(null)
+  // "agora" fixado na montagem: o aviso de teste conta dias, não precisa mudar a cada render
+  const [now] = useState(() => Date.now())
   const isAdmin = user.role === 'admin' || user.isSuperAdmin
   // Mensagens: contador de não lidas no menu, atualizado em tempo real (só quando a clínica já conectou o WhatsApp)
   const { data: waState } = useWhatsAppState(clinic.id)
@@ -77,7 +96,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   const handleLogout = logout
 
   const isPlus = hasWhatsAppAI(clinic.plan)
-  const filteredNav = NAV.filter((item) => {
+  function canSee(item: NavItem) {
     // Filtra plano plus
     if (item.plusOnly && !isPlus) return false
     // Admin e superadmin sempre veem tudo
@@ -85,15 +104,57 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
     // Aguarda permissões carregarem para não piscar
     if (!permsLoaded) return false
     // Verifica permissão de visualização para o módulo
-    const module = ('module' in item && item.module) || item.path.replace('/', '')
-    const perm = permissions[module]
+    const perm = permissions[item.module ?? item.path.replace('/', '')]
     return perm?.can_view ?? false
-  })
-  const navItems = user.isSuperAdmin
-    ? [...filteredNav, { path: '/admin', label: 'Admin', icon: 'admin' as const, plusOnly: false }]
-    : filteredNav
+  }
+  const groups = NAV_GROUPS
+    .map(g => ({ ...g, items: g.items.filter(canSee) }))
+    .filter(g => g.items.length > 0)
+  const bottomItems = [
+    ...(canSee(SETTINGS_ITEM) ? [SETTINGS_ITEM] : []),
+    ...(user.isSuperAdmin ? [ADMIN_ITEM] : []),
+  ]
 
   const initials = userInitials(user.displayName)
+
+  function showTip(e: React.MouseEvent<HTMLElement> | React.FocusEvent<HTMLElement>, label: string) {
+    if (!isCollapsed) return
+    const r = e.currentTarget.getBoundingClientRect()
+    setTip({ label, top: r.top + r.height / 2, left: r.right + 10 })
+  }
+  const hideTip = () => setTip(null)
+
+  // Aviso de período de teste: só para clínica em teste e que ainda não assinou
+  const trialDaysLeft = clinic.status === 'trial' && !clinic.billingPaid && clinic.trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(clinic.trialEndsAt).getTime() - now) / 86_400_000))
+    : null
+
+  function renderItem(item: NavItem) {
+    const active = pathname.startsWith(item.path)
+    return (
+      <Link
+        key={item.path}
+        href={item.path}
+        className={`${styles.navItem} ${active ? styles.active : ''}`}
+        aria-current={active ? 'page' : undefined}
+        onClick={onMobileClose}
+        onMouseEnter={e => showTip(e, item.label)}
+        onMouseLeave={hideTip}
+        onFocus={e => showTip(e, item.label)}
+        onBlur={hideTip}
+      >
+        <span className={styles.iconWrap}>
+          <Icon name={item.icon} size={16} />
+        </span>
+        <span className={`${styles.navLabel} ${isCollapsed ? styles.navLabelHidden : ''}`}>{item.label}</span>
+        {item.path === '/mensagens' && unreadTotal > 0 && (
+          <span className={`${styles.navBadge} ${isCollapsed ? styles.navBadgeDot : ''}`} aria-label={`${unreadTotal} mensagens não lidas`}>
+            {isCollapsed ? '' : unreadTotal > 99 ? '99+' : unreadTotal}
+          </span>
+        )}
+      </Link>
+    )
+  }
 
   return (
     <aside
@@ -110,43 +171,53 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
         ) : (
           <>
             <span className={styles.logoText}>My<strong>Clinica</strong></span>
-            <span className={styles.clinicName}>{clinic.name}</span>
+            <div className={styles.clinic}>
+              {clinic.logo
+                ? <img src={clinic.logo} alt="" className={styles.clinicMark} />
+                : <span className={styles.clinicMark} aria-hidden>{clinic.name.trim().charAt(0).toUpperCase()}</span>}
+              <span className={styles.clinicText}>
+                <b>{clinic.name}</b>
+              </span>
+            </div>
           </>
         )}
       </div>
 
-      <button
-        className={`${styles.collapseBtn} ${isCollapsed ? styles.collapseBtnCenter : ''}`}
-        onClick={toggleCollapse}
-        title={isCollapsed ? 'Expandir' : 'Recolher'}
-      >
-        <Icon name={isCollapsed ? 'chevronRight' : 'chevronLeft'} size={13} />
-      </button>
-
-      <nav className={`${styles.nav} ${isCollapsed ? styles.navCollapsed : ''}`}>
-        {navItems.map((item) => {
-          const active = pathname.startsWith(item.path)
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              className={`${styles.navItem} ${active ? styles.active : ''} ${isCollapsed ? styles.navItemCollapsed : ''}`}
-              title={isCollapsed ? item.label : undefined}
-              onClick={onMobileClose}
-            >
-              <span className={styles.iconWrap}>
-                <Icon name={item.icon} size={16} />
-              </span>
-              <span className={`${styles.navLabel} ${isCollapsed ? styles.navLabelHidden : ''}`}>{item.label}</span>
-              {item.path === '/mensagens' && unreadTotal > 0 && (
-                <span className={`${styles.navBadge} ${isCollapsed ? styles.navBadgeDot : ''}`} aria-label={`${unreadTotal} mensagens não lidas`}>
-                  {isCollapsed ? '' : unreadTotal > 99 ? '99+' : unreadTotal}
-                </span>
-              )}
-            </Link>
-          )
-        })}
+      <nav className={styles.nav} aria-label="Menu principal">
+        {groups.map((g, i) => (
+          <div key={g.title ?? i} className={styles.group}>
+            {g.title && (
+              <span className={`${styles.groupTitle} ${isCollapsed ? styles.groupTitleCollapsed : ''}`}>{g.title}</span>
+            )}
+            {g.items.map(renderItem)}
+          </div>
+        ))}
       </nav>
+
+      <div className={styles.bottom}>
+        {trialDaysLeft !== null && !isCollapsed && (
+          <Link href="/configuracoes?tab=plano" className={styles.trialNote} onClick={onMobileClose}>
+            <b>{trialDaysLeft === 0 ? 'Seu teste termina hoje' : `Teste: ${trialDaysLeft} ${trialDaysLeft === 1 ? 'dia restante' : 'dias restantes'}`}</b>
+            <span>Ver planos</span>
+          </Link>
+        )}
+        {bottomItems.map(renderItem)}
+        <button
+          type="button"
+          className={styles.collapseBtn}
+          onClick={toggleCollapse}
+          aria-label={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
+          onMouseEnter={e => showTip(e, 'Expandir menu')}
+          onMouseLeave={hideTip}
+          onFocus={e => showTip(e, 'Expandir menu')}
+          onBlur={hideTip}
+        >
+          <span className={styles.iconWrap}>
+            <Icon name={isCollapsed ? 'chevronRight' : 'chevronLeft'} size={16} />
+          </span>
+          <span className={`${styles.navLabel} ${isCollapsed ? styles.navLabelHidden : ''}`}>Recolher menu</span>
+        </button>
+      </div>
 
       {/* ── Tema — elemento único, label some com CSS ── */}
       <button
@@ -187,6 +258,11 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
           <Icon name="logout" size={15} />
         </button>
       </div>
+      {tip && isCollapsed && (
+        <Portal>
+          <div role="tooltip" className={styles.tip} style={{ top: tip.top, left: tip.left }}>{tip.label}</div>
+        </Portal>
+      )}
     </aside>
   )
 }

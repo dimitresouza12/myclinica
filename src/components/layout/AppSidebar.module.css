@@ -1,9 +1,9 @@
+/* A barra fica no mesmo fundo da página, sem borda: só o item ativo vira cartão */
 .sidebar {
   width: 232px;
   min-width: 232px;
   height: 100dvh;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-border);
+  background: var(--bg-page);
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -12,65 +12,209 @@
   transition: width 0.22s cubic-bezier(0.4,0,0.2,1), min-width 0.22s cubic-bezier(0.4,0,0.2,1);
 }
 
-/* subtle teal ambient glow at top */
-.sidebar::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 160px;
-  background: radial-gradient(ellipse at 50% -20%, rgba(77,217,192,0.08) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.collapsed { width: 60px; min-width: 60px; }
+.collapsed { width: 64px; min-width: 64px; }
 
 /* ─── Brand ─── */
 .brand {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0;
-  padding: 1.25rem 1.25rem 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--sidebar-border);
-  position: relative;
-  z-index: 1;
+  padding: 1.375rem 0.875rem 0.75rem 1.0625rem;
   transition: padding 0.22s cubic-bezier(0.4,0,0.2,1);
 }
 /* collapsed: centraliza o ícone no sidebar */
 .brandCollapsed {
-  padding: 0.6rem 0;
+  padding: 1.125rem 0 0.75rem;
   align-items: center;
 }
-.brandTop { display: flex; align-items: center; gap: 0.625rem; }
-.logo     { height: 28px; width: auto; max-width: 80px; object-fit: contain; border-radius: 6px; }
-.logoIcon { height: 32px; width: 32px; object-fit: contain; border-radius: 6px; }
-.logoDivider { width: 1px; height: 20px; background: var(--sidebar-border); flex-shrink: 0; }
 
 .logoText {
   font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-  font-size: 1.35rem;
+  font-size: 1.3rem;
   color: var(--text-primary);
   font-weight: 700;
   letter-spacing: -0.4px;
   line-height: 1;
   white-space: nowrap;
-  transition: opacity 0.15s ease;
 }
-.logoText strong { font-weight: 800; color: #4DD9C0; }
+.logoText strong { font-weight: 700; color: var(--brand-text); }
 
 .brandIcon { width: 32px; height: 32px; display: block; flex-shrink: 0; border-radius: 8px; }
 
-.clinicName {
-  font-size: 0.71rem;
-  color: var(--sidebar-text);
-  margin-top: 0.4rem;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+/* Clínica logada: marca + nome + plano */
+.clinic {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 1.125rem;
+  width: 100%;
+  min-width: 0;
+}
+.clinicMark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  object-fit: cover;
+}
+.clinicText { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.clinicText b {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;
+}
+.clinicText small { font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap; }
+
+/* ─── Nav ─── */
+.nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0.5rem 0.625rem 0.75rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.nav::-webkit-scrollbar { display: none; }
+
+.group { display: flex; flex-direction: column; gap: 2px; }
+
+/* altura fixa: ao recolher o título vira um traço e os ícones não pulam */
+.groupTitle {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  height: 24px;
+  padding: 0 0 6px 9px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+.groupTitleCollapsed { color: transparent; }
+.groupTitleCollapsed::after {
+  content: '';
+  position: absolute;
+  left: 12px; right: 12px; bottom: 11px;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.navItem,
+.collapseBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-inner);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.855rem;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.navItem:hover,
+.collapseBtn:hover { background: var(--surface); color: var(--text-primary); }
+.navItem:focus-visible,
+.collapseBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: -2px; }
+
+.active,
+.active:hover {
+  background: var(--surface);
+  border-color: var(--surface-edge);
+  box-shadow: var(--shadow-card);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.iconWrap {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.active .iconWrap { background: var(--ink); color: var(--on-ink); }
+
+/* ─── Nav label: só opacidade e largura somem ─── */
+.navLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 200px;
+  opacity: 1;
+  transition: opacity 0.15s ease, max-width 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+.navLabelHidden {
+  opacity: 0;
+  max-width: 0;
+}
+
+/* ─── Pé da barra: Configurações e recolher ─── */
+.bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.5rem 0.625rem 0.875rem;
+}
+
+/* Aviso de período de teste */
+.trialNote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-inner);
+  background: var(--surface);
+  border: 1px solid var(--surface-edge);
+  box-shadow: var(--shadow-card);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 0.8rem;
+  transition: border-color 0.15s;
+}
+.trialNote b { font-weight: 600; }
+.trialNote span { font-size: 0.74rem; font-weight: 500; color: var(--brand-text); }
+.trialNote:hover { border-color: var(--brand-primary); }
+.trialNote:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+
+/* Dica de nome no modo recolhido */
+.tip {
+  position: fixed;
+  z-index: 1400;
+  transform: translateY(-50%);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow-card);
 }
 
 /* ─── Label transition (expandir/recolher fluido) ─── */
@@ -86,175 +230,48 @@
   max-width: 0;
 }
 
-/* ─── Collapse toggle ─── */
-.collapseBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  align-self: flex-end;
-  margin: 0.5rem 0.6rem 0;
-  background: var(--sidebar-bg-hover);
-  border: 1px solid var(--sidebar-border);
-  border-radius: var(--radius-sm);
-  color: var(--sidebar-text);
-  cursor: pointer;
-  padding: 0.25rem 0.4rem;
-  transition: background 0.15s, color 0.15s;
-  position: relative; z-index: 1;
-}
-.collapseBtn:hover { background: var(--sidebar-bg-active); color: #4DD9C0; }
-.collapseBtnCenter { align-self: center; margin: 0.4rem auto 0; }
-
-/* ─── Nav ─── */
-.nav {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 1rem 0.75rem;
-  overflow-y: auto;
-  overflow-x: hidden;
-  position: relative; z-index: 1;
-}
-/* navCollapsed: mesma padding — ícones não se movem */
-.navCollapsed { padding: 1rem 0.75rem; }
-
-.navItem {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding: 0.55rem 0.75rem;
-  border-radius: var(--radius-sm);
-  color: var(--sidebar-text);
-  font-size: 0.855rem;
-  font-weight: 500;
-  transition: background 0.15s, color 0.15s;
-  text-decoration: none;
-  position: relative;
-  overflow: hidden;
-}
-.navItem:hover { background: var(--sidebar-bg-hover); color: var(--sidebar-text-hover); }
-/* navItemCollapsed: sem mudança de padding/layout — ícone fica onde está */
-.navItemCollapsed { }
-
-/* ─── Nav label: só opacidade e largura somem ─── */
-.navLabel {
-  white-space: nowrap;
-  overflow: hidden;
-  max-width: 200px;
-  opacity: 1;
-  transition: opacity 0.15s ease, max-width 0.22s cubic-bezier(0.4,0,0.2,1);
-}
-.navLabelHidden {
-  opacity: 0;
-  max-width: 0;
-}
-
-.active {
-  background: var(--sidebar-bg-active);
-  color: var(--sidebar-text-active);
-  font-weight: 600;
-}
-.active::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 25%; bottom: 25%;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: #4DD9C0;
-}
-
-.iconWrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 1.25rem;
-}
-
-/* ─── Theme row ─── */
-.themeRow {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  margin: 0 0.75rem 0.5rem;
-  padding: 0.525rem 0.75rem;
-  border-radius: var(--radius-sm);
-  background: none;
-  border: 1px solid var(--sidebar-border);
-  color: var(--sidebar-text);
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.15s, color 0.15s, border-color 0.22s;
-  position: relative; z-index: 1;
-  overflow: hidden;
-}
-.themeRow:hover { background: var(--sidebar-bg-hover); color: var(--sidebar-text-hover); }
-/* collapsed: mesma posição, só borda some — ícone não se move */
-.themeRow.sideItemCollapsed { border-color: transparent; }
-.themeIconWrap {
-  display: flex; align-items: center; justify-content: center;
-  width: 1.25rem;
-  flex-shrink: 0;
-  color: #4DD9C0;
-}
-
-/* ─── Support ─── */
+/* ─── Tema e suporte (só no menu do celular) ─── */
+.themeRow,
 .supportRow {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  margin: 0 0.75rem 0.5rem;
-  padding: 0.55rem 0.75rem;
-  border-radius: var(--radius-sm);
+  gap: 10px;
+  margin: 0 0.625rem 2px;
+  min-height: 44px;
+  padding: 4px 7px;
+  border-radius: var(--radius-inner);
   background: none;
-  border: 1px solid var(--sidebar-border);
-  color: var(--sidebar-text);
-  font-size: 0.855rem;
+  border: 0;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
+  text-align: left;
   text-decoration: none;
-  transition: background 0.15s, color 0.15s, border-color 0.22s;
-  position: relative; z-index: 1;
-  overflow: hidden;
+  transition: background 0.15s, color 0.15s;
 }
-.supportRow:hover { background: var(--sidebar-bg-hover); color: var(--sidebar-text-hover); }
-/* collapsed: mesma posição, só borda some — ícone não se move */
-.supportRow.sideItemCollapsed { border-color: transparent; }
+.themeRow:hover,
+.supportRow:hover { background: var(--surface); color: var(--text-primary); }
+.themeIconWrap,
 .supportIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.25rem;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
 }
 
-.supportBtn {
-  background: none; border: none; cursor: pointer;
-  padding: 0.3rem;
-  border-radius: var(--radius-xs);
-  text-decoration: none;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--sidebar-text);
-  transition: color 0.15s;
-  position: relative; z-index: 1;
-}
-.supportBtn:hover { color: var(--sidebar-text-hover); }
-
 /* ─── Footer ─── */
 .footer {
-  padding: 0.875rem 1rem;
-  border-top: 1px solid var(--sidebar-border);
+  padding: 0.75rem 0.875rem;
+  margin-top: 0.375rem;
+  border-top: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  position: relative; z-index: 1;
   overflow: hidden;
-  /* sem mudança de padding/gap — avatar fica sempre no mesmo lugar */
 }
-/* footerCollapsed: zero mudança de layout */
 .footerCollapsed { }
 
 .userInfo {
@@ -264,44 +281,40 @@
   flex-direction: column;
   gap: 1px;
   overflow: hidden;
-  max-width: 200px;
-  opacity: 1;
-  transition: opacity 0.15s ease, max-width 0.22s cubic-bezier(0.4,0,0.2,1);
 }
-.footerCollapsed .userInfo { opacity: 0; max-width: 0; }
 
 .avatar {
   width: 32px; height: 32px;
   border-radius: var(--radius-full);
-  background: linear-gradient(135deg, #E5F9F5, #CBF3EC);
-  border: 1.5px solid rgba(77,217,192,0.45);
+  background: var(--brand-light);
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.72rem; font-weight: 700;
-  color: #0B9B85;
+  font-size: 0.72rem; font-weight: 600;
+  color: var(--brand-text);
   flex-shrink: 0;
-  letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
 .userName {
-  font-size: 0.78rem; font-weight: 600;
+  font-size: 0.82rem; font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.userRole { font-size: 0.68rem; color: var(--sidebar-text); text-transform: capitalize; }
-
+.userRole { font-size: 0.72rem; color: var(--text-secondary); text-transform: capitalize; }
 
 .logoutBtn {
+  display: grid; place-items: center;
+  width: 40px; height: 40px;
+  flex-shrink: 0;
   background: none; border: none; cursor: pointer;
-  padding: 0.3rem; color: var(--sidebar-text);
-  border-radius: var(--radius-xs);
-  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-  opacity: 1;
-  transition: color 0.15s, opacity 0.15s ease;
+  color: var(--text-secondary);
+  border-radius: var(--radius-inner);
+  transition: color 0.15s, background 0.15s;
 }
-/* logoutBtn some em collapsed — sidebar clipa, não some abruptamente */
-.footerCollapsed .logoutBtn { opacity: 0; pointer-events: none; }
-.logoutBtn:hover { color: #f87171; }
+.logoutBtn:hover { color: var(--st-bad); background: var(--surface); }
+
+/* Contador de mensagens não lidas no item "Mensagens" */
+.navBadge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--brand-primary); color: #06312B; font-size: 0.7rem; font-weight: 700; display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.navBadgeDot { position: absolute; top: 6px; left: 30px; min-width: 9px; width: 9px; height: 9px; padding: 0; margin: 0; border: 2px solid var(--bg-page); box-sizing: content-box; }
 
 /* ─── Mobile ─── */
 @media (max-width: 768px) {
@@ -317,7 +330,6 @@
     max-width: 280px;
     height: 100dvh;
     box-shadow: var(--shadow-xl);
-    border-right: 1px solid var(--sidebar-border);
     overflow-y: auto;
     overflow-x: hidden;
   }
@@ -326,16 +338,10 @@
   }
   .collapseBtn { display: none; }
 
-  /* Itens de nav ficam legíveis em telas pequenas */
-  .nav { padding: 0.75rem 0.625rem; }
-  .navItem { padding: 0.75rem; font-size: 0.9rem; min-height: 44px; }
-  .brand { padding: 1.25rem 1rem 1rem; }
-  .footer { padding: 0.75rem 0.875rem; }
+  /* o menu inteiro rola junto; a lista não tem rolagem própria */
+  .nav { flex: none; overflow: visible; }
+  .navItem { min-height: 44px; font-size: 0.9rem; }
 }
-
-/* Contador de mensagens não lidas no item "Mensagens" */
-.navBadge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--brand-primary); color: #06312B; font-size: 0.7rem; font-weight: 800; display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-.navBadgeDot { position: absolute; top: 8px; right: 8px; min-width: 9px; width: 9px; height: 9px; padding: 0; }
 
 /* No desktop o tema, o suporte e o perfil ficam na barra de cima; no celular continuam aqui no menu */
 @media (min-width: 769px) {

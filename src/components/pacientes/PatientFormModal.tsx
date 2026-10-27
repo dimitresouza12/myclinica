@@ -1,18 +1,21 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { audit } from '@/lib/audit'
 import { sanitizeString, sanitizeEmail } from '@/lib/sanitize'
 import { phoneInputError, previousPhoneNote, toInputValue } from '@/lib/phoneFormat'
 import { PhoneInput } from '@/components/ui/PhoneInput'
-import { CpfInput } from '@/components/ui/NumericInput'
-import { cpfInputError, cpfToInputValue, previousCpfNote } from '@/lib/numericFormat'
+import { CpfInput, DateInput } from '@/components/ui/NumericInput'
+import { cpfInputError, cpfToInputValue, previousCpfNote, dateBRToISO, dateInputError, isoToDateBR } from '@/lib/numericFormat'
 import { COMMON_CONVENIOS } from '@/lib/convenios'
 import type { Patient } from '@/types'
-import { Portal } from '@/components/ui/Portal'
+import { Modal } from '@/components/ui/Modal'
+import f from '@/components/ui/modalForm.module.css'
+import btn from '@/components/ui/button.module.css'
 import styles from './PatientFormModal.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 interface Props {
   patient: Patient | null
@@ -38,6 +41,8 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial 
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const errorRef = useRef<HTMLParagraphElement>(null)
 
   const filteredConvenioSuggestions = COMMON_CONVENIOS.filter(c =>
     c.toLowerCase().includes(form.convenio.trim().toLowerCase())
@@ -51,7 +56,7 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial 
         email: patient.email ?? '',
         cpf: cpfToInputValue(patient.cpf),
         rg: patient.rg ?? '',
-        birth_date: patient.birth_date ?? '',
+        birth_date: isoToDateBR(patient.birth_date),
         gender: patient.gender ?? '',
         address: patient.address ?? '',
         occupation: patient.occupation ?? '',
@@ -61,8 +66,15 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial 
         convenio: patient.convenio ?? '',
         convenio_carteirinha: patient.convenio_carteirinha ?? '',
       })
+      // quem já tem dados na seção recolhida a vê aberta
+      setMoreOpen(!!(patient.occupation || patient.referred_by || patient.convenio || patient.notes))
     }
   }, [patient])
+
+  // o erro aparece no fim do formulário: leva a vista até ele
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [error])
 
   function set(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -83,6 +95,8 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial 
     if (phoneError) return setError(phoneError)
     const cpfError = cpfInputError(form.cpf)
     if (cpfError) return setError(cpfError)
+    const birthError = dateInputError(form.birth_date)
+    if (birthError) return setError(birthError)
     if (isNew && !lgpdConsent) return setError('O consentimento LGPD é obrigatório para cadastrar o paciente.')
 
     setSaving(true)
@@ -99,6 +113,8 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial 
         ...clean,
         ...(keepOldPhone && { phone: patient!.phone }),
         ...(keepOldCpf && { cpf: patient!.cpf }),
+        // data de nascimento: digitada como DD/MM/AAAA; sem mexer, mantém o valor guardado (mesmo fora de 1900–2099)
+        birth_date: form.birth_date === isoToDateBR(patient?.birth_date) ? (patient?.birth_date ?? null) : dateBRToISO(form.birth_date),
         clinic_id: clinicId,
         ...(isNew && {
           lgpd_consent: true,
@@ -143,119 +159,149 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial 
   }
 
   return (
-    <Portal>
-    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={styles.modal}>
-        <div className={styles.modalHeader}>
-          <h2>{isNew ? 'Novo Paciente' : 'Editar Paciente'}</h2>
-          <button className={styles.btnClose} onClick={onClose}><Icon name="close" size={18} /></button>
-        </div>
-
-        <form id="patient-form" onSubmit={handleSubmit} className={styles.form}>
-          <p className={styles.requiredNote}><span className={styles.requiredStar}>*</span> Campo obrigatório</p>
-          <div className={styles.grid2}>
-            <Field label="Nome" required value={form.name} onChange={(v) => set('name', v)} />
-            <Field label="Telefone" phone previous={previousPhoneNote(patient?.phone)} value={form.phone} onChange={(v) => set('phone', v)} />
-            <Field label="E-mail" type="email" value={form.email} onChange={(v) => set('email', v)} />
-            <Field label="CPF" cpf previous={previousCpfNote(patient?.cpf)} value={form.cpf} onChange={(v) => set('cpf', v)} />
-            <Field label="RG" value={form.rg} onChange={(v) => set('rg', v)} />
-            <Field label="Data de Nascimento" type="date" value={form.birth_date} onChange={(v) => set('birth_date', v)} />
-            <div className={styles.fieldGroup}>
-              <label>Gênero</label>
-              <select value={form.gender} onChange={(e) => set('gender', e.target.value)}>
-                <option value="">Selecionar</option>
-                <option value="Masculino">Masculino</option>
-                <option value="Feminino">Feminino</option>
-                <option value="Outro">Outro</option>
-              </select>
-            </div>
-            <Field label="Ocupação" value={form.occupation} onChange={(v) => set('occupation', v)} />
-          </div>
-          <Field label="Endereço" value={form.address} onChange={(v) => set('address', v)} />
-          <Field label="Contato de Emergência" value={form.emergency_contact} onChange={(v) => set('emergency_contact', v)} />
-          <Field label="Indicado por" value={form.referred_by} onChange={(v) => set('referred_by', v)} />
-          <div className={styles.grid2}>
-            <div className={styles.fieldGroup} style={!form.convenio.trim() ? { gridColumn: '1 / -1' } : undefined}>
-              <label>Convênio</label>
-              <input
-                value={form.convenio}
-                onChange={(e) => { set('convenio', e.target.value); setShowConvenioSuggestions(true) }}
-                onFocus={() => setShowConvenioSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowConvenioSuggestions(false), 150)}
-                placeholder="Ex: Unimed, Particular..."
-                autoComplete="off"
-              />
-              {showConvenioSuggestions && filteredConvenioSuggestions.length > 0 && (
-                <div className={styles.suggestionsDropdown}>
-                  {filteredConvenioSuggestions.map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      className={styles.suggestionItem}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => { set('convenio', c); setShowConvenioSuggestions(false) }}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {form.convenio.trim() && (
-              <Field label="Nº da Carteirinha" value={form.convenio_carteirinha} onChange={(v) => set('convenio_carteirinha', v)} />
-            )}
-          </div>
-          <div className={styles.fieldGroup}>
-            <label>Observações</label>
-            <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} />
-          </div>
-
-          {isNew && (
-            <label className={styles.lgpdConsent}>
-              <input
-                type="checkbox"
-                checked={lgpdConsent}
-                onChange={(e) => setLgpdConsent(e.target.checked)}
-                required
-              />
-              <span>
-                O paciente autoriza o tratamento dos seus dados pessoais e de saúde conforme a{' '}
-                <strong>LGPD (Lei 13.709/2018)</strong>, art. 7 e 11, para fins de atendimento clínico.
-              </span>
-            </label>
-          )}
-
-          {error && <p className={styles.error}>{error}</p>}
-
-          {!isNew && confirmDelete && (
-            <div className={styles.confirmDelete}>
-              <p>Excluir <strong>{form.name}</strong>? O paciente sairá das listas mas o histórico (prontuário e agendamentos) será preservado.</p>
-              <div className={styles.confirmActions}>
-                <button type="button" className={styles.btnCancel} onClick={() => setConfirmDelete(false)} disabled={deleting}>
-                  Cancelar
-                </button>
-                <button type="button" className={styles.btnDanger} onClick={handleDelete} disabled={deleting}>
-                  {deleting ? 'Excluindo...' : 'Sim, excluir'}
-                </button>
-              </div>
-            </div>
-          )}
-        </form>
-
-        <div className={styles.formFooter}>
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      title={isNew ? 'Novo paciente' : 'Editar paciente'}
+      subtitle={!isNew && form.name.trim() ? form.name.trim() : undefined}
+      footer={
+        <>
           {!isNew && !confirmDelete && (
-            <button type="button" className={styles.btnDangerOutline} onClick={() => setConfirmDelete(true)} disabled={saving}>
+            <button type="button" className={styles.btnDelete} onClick={() => setConfirmDelete(true)} disabled={saving}>
               Excluir
             </button>
           )}
-          <button type="button" className={styles.btnCancel} onClick={onClose}>Cancelar</button>
-          <button type="submit" form="patient-form" className={styles.btnSave} disabled={saving}>
+          <button type="button" className={btn.secondary} onClick={onClose}>Cancelar</button>
+          <button type="submit" form="patient-form" className={btn.primary} disabled={saving}>
             {saving ? 'Salvando...' : 'Salvar'}
           </button>
-        </div>
-      </div>
-    </div>
-    </Portal>
+        </>
+      }
+    >
+      <form id="patient-form" onSubmit={handleSubmit} className={styles.form}>
+        <p className={styles.requiredNote}><span className={styles.requiredStar}>*</span> Campo obrigatório</p>
+
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Dados pessoais</h3>
+          <Field label="Nome" required value={form.name} onChange={(v) => set('name', v)} />
+          <div className={f.row2}>
+            <div className={f.field}>
+              <label htmlFor="pf-birth">Data de nascimento</label>
+              <DateInput id="pf-birth" value={form.birth_date} onChange={(v) => set('birth_date', v)} autoComplete="off" />
+            </div>
+            <div className={f.field}>
+              <label>Gênero</label>
+              <SelectMenu variant="field" ariaLabel="Gênero" value={form.gender}
+                onChange={v => set('gender', v)}
+                options={[
+                  { value: '', label: 'Selecionar' },
+                  { value: 'Masculino', label: 'Masculino' },
+                  { value: 'Feminino', label: 'Feminino' },
+                  { value: 'Outro', label: 'Outro' },
+                ]} />
+            </div>
+          </div>
+          <div className={f.row2}>
+            <Field label="CPF" cpf previous={previousCpfNote(patient?.cpf)} value={form.cpf} onChange={(v) => set('cpf', v)} />
+            <Field label="RG" value={form.rg} onChange={(v) => set('rg', v)} />
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Contato</h3>
+          <div className={f.row2}>
+            <Field label="Telefone" phone previous={previousPhoneNote(patient?.phone)} value={form.phone} onChange={(v) => set('phone', v)} />
+            <Field label="E-mail" type="email" value={form.email} onChange={(v) => set('email', v)} />
+          </div>
+          <Field label="Endereço" value={form.address} onChange={(v) => set('address', v)} />
+          <Field label="Contato de emergência" value={form.emergency_contact} onChange={(v) => set('emergency_contact', v)} />
+        </section>
+
+        <details className={styles.more} open={moreOpen} onToggle={(e) => setMoreOpen(e.currentTarget.open)}>
+          <summary className={styles.moreSummary}>
+            <span className={styles.moreText}>
+              <b>Mais informações</b>
+              <small>Ocupação, indicação, convênio e observações</small>
+            </span>
+            <Icon name="chevronRight" size={16} />
+          </summary>
+          <div className={styles.moreBody}>
+            <div className={f.row2}>
+              <Field label="Ocupação" value={form.occupation} onChange={(v) => set('occupation', v)} />
+              <Field label="Indicado por" value={form.referred_by} onChange={(v) => set('referred_by', v)} />
+            </div>
+            <div className={f.row2}>
+              <div className={f.field} style={!form.convenio.trim() ? { gridColumn: '1 / -1' } : undefined}>
+                <label>Convênio</label>
+                <input
+                  value={form.convenio}
+                  onChange={(e) => { set('convenio', e.target.value); setShowConvenioSuggestions(true) }}
+                  onClick={() => setShowConvenioSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowConvenioSuggestions(false), 150)}
+                  placeholder="Ex: Unimed, Particular..."
+                  autoComplete="off"
+                />
+                {showConvenioSuggestions && filteredConvenioSuggestions.length > 0 && (
+                  <div className={styles.suggestionsDropdown}>
+                    {filteredConvenioSuggestions.map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        tabIndex={-1}
+                        className={styles.suggestionItem}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { set('convenio', c); setShowConvenioSuggestions(false) }}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {form.convenio.trim() && (
+                <Field label="Nº da carteirinha" value={form.convenio_carteirinha} onChange={(v) => set('convenio_carteirinha', v)} />
+              )}
+            </div>
+            <div className={f.field}>
+              <label>Observações</label>
+              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} />
+            </div>
+          </div>
+        </details>
+
+        {isNew && (
+          <label className={styles.lgpdConsent}>
+            <input
+              type="checkbox"
+              checked={lgpdConsent}
+              onChange={(e) => setLgpdConsent(e.target.checked)}
+              required
+            />
+            <span>
+              O paciente autoriza o tratamento dos seus dados pessoais e de saúde conforme a{' '}
+              <strong>LGPD (Lei 13.709/2018)</strong>, art. 7 e 11, para fins de atendimento clínico.
+            </span>
+          </label>
+        )}
+
+        {error && <p ref={errorRef} className={f.error} role="alert">{error}</p>}
+
+        {!isNew && confirmDelete && (
+          <div className={styles.confirmDelete}>
+            <p>Excluir <strong>{form.name}</strong>? O paciente sairá das listas mas o histórico (prontuário e agendamentos) será preservado.</p>
+            <div className={styles.confirmActions}>
+              <button type="button" className={btn.secondary} onClick={() => setConfirmDelete(false)} disabled={deleting}>
+                Cancelar
+              </button>
+              <button type="button" className={btn.danger} onClick={handleDelete} disabled={deleting}>
+                {deleting ? 'Excluindo...' : 'Sim, excluir'}
+              </button>
+            </div>
+          </div>
+        )}
+      </form>
+    </Modal>
   )
 }
 
@@ -272,7 +318,7 @@ function Field({
   previous?: string | null
 }) {
   return (
-    <div className={styles.fieldGroup}>
+    <div className={f.field}>
       <label>
         {label}
         {required && <span className={styles.requiredStar}> *</span>}
@@ -280,7 +326,7 @@ function Field({
       {phone || cpf ? (
         <>
           {phone ? <PhoneInput value={value} onChange={onChange} /> : <CpfInput value={value} onChange={onChange} />}
-          {previous && <small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: 1.4 }}>Valor anterior no cadastro: {previous}. Confira e digite {phone ? 'o número completo com DDD' : 'os 11 números'}.</small>}
+          {previous && <small className={f.hint}>Valor anterior no cadastro: {previous}. Confira e digite {phone ? 'o número completo com DDD' : 'os 11 números'}.</small>}
         </>
       ) : (
         <input

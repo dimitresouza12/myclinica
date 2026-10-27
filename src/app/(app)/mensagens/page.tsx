@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { PageTitle } from '@/components/layout/PageTitle'
+import { Icon } from '@/components/ui/Icon'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useWhatsAppState } from '@/hooks/useClinicData'
@@ -213,8 +214,8 @@ function Inbox() {
   }
 
   const sendBlockedReason =
-    !canEdit ? 'Você pode ver as conversas, mas não tem permissão para responder.'
-    : !connected ? 'O WhatsApp da clínica está desconectado. Reconecte para responder por aqui.'
+    !canEdit ? 'Você não tem permissão para responder'
+    : !connected ? 'Reconecte o WhatsApp para responder'
     : null
 
   return (
@@ -223,8 +224,8 @@ function Inbox() {
       <div className={styles.root} data-fullbleed>
         {everConnected && !connected && (
           <div className={styles.banner} role="alert">
-            <strong>O WhatsApp da clínica está desconectado.</strong>
-            <span>As mensagens novas não chegam e não dá para responder até reconectar.</span>
+            <Icon name="alert" size={16} />
+            <span className={styles.bannerText}><strong>WhatsApp desconectado.</strong> As mensagens novas não chegam até reconectar.</span>
             <Link className={styles.bannerLink} href="/configuracoes?tab=whatsapp">Reconectar</Link>
           </div>
         )}
@@ -271,6 +272,7 @@ function Inbox() {
             onDownloadMedia={handleDownloadMedia}
             onBack={() => setMobileView('list')}
             onToggleInfo={() => setInfoOpen(o => !o)}
+            waitingCount={conversations.filter(c => c.unread_count > 0).length}
           />
           <ContactPanel conversation={selected} open={infoOpen} />
         </div>

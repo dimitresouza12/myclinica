@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Portal } from './Portal'
+import { Icon } from './Icon'
+import btn from './button.module.css'
 import styles from './confirmDialog.module.css'
 
 export interface ConfirmOptions {
@@ -52,7 +54,6 @@ export function ConfirmDialogContainer() {
     if (!state) return
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') close(false)
-      if (e.key === 'Enter') close(true)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -62,23 +63,27 @@ export function ConfirmDialogContainer() {
 
   return (
     <Portal>
-      <div className={styles.overlay} onClick={() => close(false)}>
+      <div className={styles.overlay} onMouseDown={(e) => { if (e.target === e.currentTarget) close(false) }}>
         <div
           className={styles.modal}
-          onClick={(e) => e.stopPropagation()}
           role="alertdialog"
           aria-modal="true"
-          aria-labelledby="confirm-dialog-message"
+          aria-labelledby="confirm-dialog-title"
+          aria-describedby={state.title ? 'confirm-dialog-message' : undefined}
         >
-          {state.title && <h2 className={styles.title}>{state.title}</h2>}
-          <p id="confirm-dialog-message" className={styles.message}>{state.message}</p>
+          <span className={`${styles.icon} ${state.danger ? styles.iconDanger : ''}`} aria-hidden>
+            <Icon name={state.danger ? 'alert' : 'info'} size={20} />
+          </span>
+          {/* Sem título, a própria pergunta vira o título */}
+          <h2 id="confirm-dialog-title" className={styles.title}>{state.title ?? state.message}</h2>
+          {state.title && <p id="confirm-dialog-message" className={styles.message}>{state.message}</p>}
           <div className={styles.actions}>
-            <button type="button" className={styles.cancelBtn} onClick={() => close(false)}>
+            <button type="button" className={btn.secondary} onClick={() => close(false)}>
               {state.cancelText ?? 'Cancelar'}
             </button>
             <button
               type="button"
-              className={`${styles.confirmBtn} ${state.danger ? styles.confirmBtnDanger : ''}`}
+              className={state.danger ? btn.danger : btn.primary}
               onClick={() => close(true)}
               autoFocus
             >

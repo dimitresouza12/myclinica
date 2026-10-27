@@ -8,9 +8,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatCurrency, formatMonthLabel } from '@/lib/utils'
 import { printRecibo, PAYMENT_METHOD_LABELS } from '@/lib/print'
-import { PageTitle } from '@/components/layout/PageTitle'
 import { audit } from '@/lib/audit'
-import { useScrollLock } from '@/hooks/useScrollLock'
 import { useFinanceiroData, useProcedures } from '@/hooks/useClinicData'
 import { mergeSpecialtyConfigs } from '@/lib/specialtyConfig'
 import { COMMON_CONVENIOS } from '@/lib/convenios'
@@ -22,11 +20,24 @@ import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 import { MonthPicker } from '@/components/ui/MonthPicker'
 import { usePermissions } from '@/hooks/usePermissions'
-import { motion } from 'framer-motion'
 import { MoneyInput } from '@/components/ui/NumericInput'
+import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
+import { PillTabs } from '@/components/ui/PillTabs'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { BarList } from '@/components/ui/BarList'
+import { MoreMenu, type MoreMenuItem } from '@/components/ui/MoreMenu'
+import { Modal } from '@/components/ui/Modal'
+import btn from '@/components/ui/button.module.css'
+import f from '@/components/ui/modalForm.module.css'
+import t from '@/components/ui/table.module.css'
+import { SelectMenu } from '@/components/ui/SelectMenu'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { moneyShort, axisMoney, statMoney } from '@/lib/ui/money'
 
 // Recharts – dynamic import to avoid SSR issues
-const Charts = dynamic(() => import('./FinanceiroCharts'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráficos...</div> })
+const AreaTrendChart = dynamic(() => import('@/components/ui/AreaTrendChart').then(m => m.AreaTrendChart), { ssr: false, loading: () => <div className={styles.chartLoading} /> })
+
 
 
 interface NewRecord {
@@ -63,7 +74,6 @@ function FinanceiroContent() {
   const [modalType, setModalType] = useState<'receita' | 'despesa'>('receita')
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  useScrollLock(showModal)
   const [form, setForm] = useState<NewRecord>(BLANK)
   const [showConvenioSuggestions, setShowConvenioSuggestions] = useState(false)
   const filteredConvenioSuggestions = COMMON_CONVENIOS.filter(c =>
@@ -114,22 +124,29 @@ function FinanceiroContent() {
     const receitas = periodRecords.filter(r => r.type === 'receita').reduce((s, r) => s + (r.total_amount ?? 0), 0)
     const despesas = periodRecords.filter(r => r.type === 'despesa').reduce((s, r) => s + (r.total_amount ?? 0), 0)
     const saldo = receitas - despesas
-    return { receitas, despesas, saldo, count: periodRecords.length }
+    const nReceitas = periodRecords.filter(r => r.type === 'receita').length
+    const nDespesas = periodRecords.filter(r => r.type === 'despesa').length
+    return {
+      receitas, despesas, saldo, count: periodRecords.length, nReceitas, nDespesas,
+      margin: receitas > 0 ? Math.round((saldo / receitas) * 100) : null,
+      ticket: nReceitas > 0 ? receitas / nReceitas : 0,
+    }
   }, [periodRecords])
 
-  // Build monthly data for last 6 months
+  // Últimos 12 meses: receita (linha cheia) contra despesa (tracejada)
   const monthlyData = useMemo(() => {
-    const months: { month: string; receita: number; despesa: number }[] = []
-    for (let i = 5; i >= 0; i--) {
+    const months: { label: string; value: number; compare: number }[] = []
+    for (let i = 11; i >= 0; i--) {
       const d = new Date()
+      d.setDate(1)
       d.setMonth(d.getMonth() - i)
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const label = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+      const short = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
       const monthRecords = records.filter(r => r.created_at?.startsWith(key))
       months.push({
-        month: label,
-        receita: monthRecords.filter(r => r.type === 'receita').reduce((s, r) => s + (r.total_amount ?? 0), 0),
-        despesa: monthRecords.filter(r => r.type === 'despesa').reduce((s, r) => s + (r.total_amount ?? 0), 0),
+        label: i === 11 || d.getMonth() === 0 ? `${short} ${String(d.getFullYear()).slice(2)}` : short,
+        value: monthRecords.filter(r => r.type === 'receita').reduce((s, r) => s + (r.total_amount ?? 0), 0),
+        compare: monthRecords.filter(r => r.type === 'despesa').reduce((s, r) => s + (r.total_amount ?? 0), 0),
       })
     }
     return months
@@ -414,97 +431,107 @@ function FinanceiroContent() {
     filterPeriod === 'mensal' ? formatMonthLabel(filterMonth) :
     'todos os períodos'
 
+  const periodOptions = [
+    { value: 'diario' as const, label: 'Diário' },
+    { value: 'semanal' as const, label: 'Semanal' },
+    { value: 'mensal' as const, label: 'Mensal' },
+    { value: 'geral' as const, label: 'Geral' },
+  ]
+  const typeCounts = {
+    todos: periodRecords.length,
+    receita: stats.nReceitas,
+    despesa: stats.nDespesas,
+  }
+  const hasTrend = monthlyData.some(m => m.value > 0 || m.compare > 0)
+
+  function rowMenu(r: FinancialRecord): MoreMenuItem[] {
+    const items: MoreMenuItem[] = []
+    if (r.type === 'receita') items.push({ label: 'Imprimir recibo', icon: 'receipt', onClick: () => handlePrintRecibo(r) })
+    if (canEdit) {
+      items.push({ label: 'Editar lançamento', icon: 'edit', onClick: () => openEdit(r) })
+      items.push({ label: 'Excluir lançamento', icon: 'trash', danger: true, onClick: () => handleDelete(r) })
+    }
+    return items
+  }
+
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <PageTitle title="Financeiro" subtitle={`${filtered.length} lançamentos — ${periodLabelText}`} />
-        <div className={styles.headerActions}>
-          <button className={styles.btnExport} onClick={() => setShowExportModal(true)} disabled={records.length === 0} title="Exportar planilha Excel" aria-label="Exportar planilha Excel">
-            <Icon name="download" size={16} />
-          </button>
-          {canEdit && <button className={styles.btnDespesa} onClick={() => openModal('despesa')}>− Despesa</button>}
-          {canEdit && <button className={styles.btnReceita} onClick={() => openModal('receita')}>+ Receita</button>}
-        </div>
-      </div>
-
-      {/* Período — fica no topo (não dentro da seção da tabela, lá embaixo)
-          porque também controla os cards de totais e não só a listagem. */}
-      <div className={styles.periodBar}>
-        <div className={styles.periodTabs}>
-          {(['diario', 'semanal', 'mensal', 'geral'] as const).map(p => (
-            <button key={p} className={`${styles.periodTab} ${filterPeriod === p ? styles.periodTabActive : ''}`} onClick={() => setFilterPeriod(p)}>
-              {p === 'diario' ? 'Diário' : p === 'semanal' ? 'Semanal' : p === 'mensal' ? 'Mensal' : 'Geral'}
+      <PageHeader
+        title="Financeiro"
+        subtitle={`${filtered.length} ${filtered.length === 1 ? 'lançamento' : 'lançamentos'}, ${periodLabelText}`}
+        actions={
+          <>
+            {/* Período fica no topo (não na tabela, lá embaixo) porque também controla os cards de totais */}
+            <PillTabs label="Período" value={filterPeriod} onChange={setFilterPeriod} options={periodOptions} />
+            {filterPeriod === 'mensal' && <MonthPicker value={filterMonth} onChange={setFilterMonth} />}
+            <button type="button" className={`${btn.secondary} ${styles.exportBtn}`} onClick={() => setShowExportModal(true)} disabled={records.length === 0} title="Exportar planilha Excel" aria-label="Exportar planilha Excel">
+              <Icon name="download" size={15} /> <span className={styles.exportLabel}>Exportar</span>
             </button>
-          ))}
-        </div>
-        {filterPeriod === 'mensal' && (
-          <MonthPicker value={filterMonth} onChange={setFilterMonth} />
-        )}
-      </div>
+            {canEdit && <button type="button" className={btn.secondary} onClick={() => openModal('despesa')}><Icon name="plus" size={15} /> Despesa</button>}
+            {canEdit && <button type="button" className={btn.primary} onClick={() => openModal('receita')}><Icon name="plus" size={15} /> Receita</button>}
+          </>
+        }
+      />
 
-      {/* Metric cards — controlado pela permissão "Ver totais" */}
+      {/* Cards de totais: controlados pela permissão "Ver totais" */}
       {showTotals && (
         <div className={styles.cards}>
-          {([
-            {
-              value: formatCurrency(stats.receitas),
-              label: `Receitas ${periodLabel}`,
-              accent: '#0B9B85',
-            },
-            {
-              value: formatCurrency(stats.despesas),
-              label: `Despesas ${periodLabel}`,
-              accent: '#EF4444',
-            },
-            {
-              value: formatCurrency(stats.saldo),
-              label: `Saldo ${periodLabel}`,
-              accent: stats.saldo >= 0 ? '#0B9B85' : '#F59E0B',
-              valueColor: stats.saldo >= 0 ? '#059669' : '#DC2626',
-            },
-            {
-              value: String(stats.count),
-              label: 'Lançamentos',
-              accent: '#2563EB',
-            },
-          ] as const).map((m, i) => (
-            <motion.div
-              key={i}
-              className={styles.card}
-              style={{ '--card-accent': m.accent } as React.CSSProperties}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.05 }}
-            >
-              <span className={styles.cardLabel}>{m.label}</span>
-              <span className={styles.cardValue} style={'valueColor' in m ? { color: m.valueColor } : undefined}>
-                {m.value}
-              </span>
-            </motion.div>
-          ))}
+          <StatCard title={`Receitas ${periodLabel}`} value={statMoney(stats.receitas)} compact hint={`${stats.nReceitas} ${stats.nReceitas === 1 ? 'lançamento' : 'lançamentos'}`} />
+          <StatCard title={`Despesas ${periodLabel}`} value={statMoney(stats.despesas)} compact hint={`${stats.nDespesas} ${stats.nDespesas === 1 ? 'lançamento' : 'lançamentos'}`} />
+          <StatCard
+            title={`Saldo ${periodLabel}`}
+            value={statMoney(stats.saldo)}
+            compact
+            hint={stats.margin !== null ? `margem de ${stats.margin}% sobre a receita` : 'sem receita no período'}
+          />
+          <StatCard title="Ticket médio" value={statMoney(stats.ticket)} compact hint="por receita no período" />
         </div>
       )}
 
-      {/* Charts — controlado pela permissão "Ver totais" */}
-      {!loading && showTotals && <Charts monthlyData={monthlyData} categoryData={categoryData} convenioData={convenioData} />}
-
-      {/* Filters + Table */}
-      <div className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <div className={styles.filterTabs}>
-            {(['todos', 'receita', 'despesa'] as const).map(t => (
-              <button key={t} className={`${styles.filterTab} ${filterType === t ? styles.filterTabActive : ''}`} onClick={() => setFilterType(t)}>
-                {t !== 'todos' && <span className={styles.filterDot} style={{ background: t === 'receita' ? '#0B9B85' : '#DC2626' }} />}
-                {t === 'todos' ? 'Todos' : t === 'receita' ? 'Receitas' : 'Despesas'}
-              </button>
-            ))}
+      {/* Gráficos: também pela permissão "Ver totais" */}
+      {!loading && showTotals && (
+        <div className={styles.charts}>
+          <Card title="Receitas e despesas" actions={<span className={styles.cardMeta}>últimos 12 meses</span>}>
+            {hasTrend ? (
+              <AreaTrendChart
+                data={monthlyData}
+                highlightIndex={11}
+                valueName="Receitas"
+                compareName="Despesas"
+                formatValue={moneyShort}
+                formatAxis={axisMoney}
+                height={260}
+                label="Receitas e despesas dos últimos 12 meses"
+              />
+            ) : (
+              <p className={styles.chartEmpty}>Nenhum lançamento nos últimos 12 meses.</p>
+            )}
+          </Card>
+          <div className={styles.side}>
+            <Card title="Receitas por categoria" actions={<span className={styles.cardMeta}>{periodLabelText}</span>}>
+              <BarList items={[...categoryData].sort((a, b) => b.value - a.value).slice(0, 6).map(c => ({ label: c.name, value: c.value }))} format={moneyShort} empty="Nenhuma receita neste período." />
+            </Card>
+            {/* Receita por convênio: só aparece se houve receita com forma de pagamento = convênio no período */}
+            {convenioData.length > 0 && (
+              <Card title="Receita por convênio" actions={<span className={styles.cardMeta}>{periodLabelText}</span>}>
+                <BarList items={[...convenioData].sort((a, b) => b.value - a.value).slice(0, 6).map(c => ({ label: c.name, value: c.value }))} format={moneyShort} />
+              </Card>
+            )}
           </div>
-          <div className={styles.patientFilters}>
+        </div>
+      )}
+
+      <Card
+        flush
+        title="Lançamentos"
+        actions={
+          <>
             <div className={styles.patientSearchBox}>
-              <Icon name="search" size={13} />
+              <Icon name="search" size={14} />
               <input
                 className={styles.patientSearchInput}
-                placeholder="Buscar por nome do paciente..."
+                placeholder="Buscar por paciente"
+                aria-label="Buscar lançamentos por nome do paciente"
                 value={patientSearch}
                 onChange={e => {
                   setPatientSearch(e.target.value)
@@ -520,6 +547,7 @@ function FinanceiroContent() {
                   className={styles.patientSearchClear}
                   onMouseDown={e => e.preventDefault()}
                   onClick={() => { setPatientSearch(''); setFilterPatient(''); setShowPatientSuggestions(false) }}
+                  aria-label="Limpar busca"
                   title="Limpar busca"
                 >
                   <Icon name="close" size={12} />
@@ -541,74 +569,80 @@ function FinanceiroContent() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+            <PillTabs
+              label="Tipo de lançamento"
+              value={filterType}
+              onChange={setFilterType}
+              options={[
+                { value: 'todos', label: 'Todos', count: typeCounts.todos },
+                { value: 'receita', label: 'Receitas', count: typeCounts.receita },
+                { value: 'despesa', label: 'Despesas', count: typeCounts.despesa },
+              ]}
+            />
+          </>
+        }
+      >
         {patientSummary && (
           <div className={styles.patientSummary}>
-            <span>{patientSummary.name ? <>Extrato de <strong>{patientSummary.name}</strong></> : 'Resultado da busca'} — {periodLabel}</span>
+            <span>{patientSummary.name ? <>Extrato de <strong>{patientSummary.name}</strong></> : 'Resultado da busca'}, {periodLabel}</span>
             <span>{patientSummary.count} lançamento{patientSummary.count === 1 ? '' : 's'} · <strong>{formatCurrency(patientSummary.paid)}</strong> pago em receitas</span>
           </div>
         )}
         {loading ? <p className={styles.loading}>Carregando...</p> : (
-          <div className={`${styles.tableWrap} resp-table-wrap`}>
-            <table className={`${styles.table} resp-table`}>
+          <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+            <table className={`${t.table} resp-table`}>
               <thead>
                 <tr>
-                  <th>Tipo</th>
-                  <th>Data</th>
+                  <th>Lançamento</th>
                   <th>Paciente</th>
-                  <th>Categoria</th>
-                  <th>Descrição</th>
+                  <th>Data</th>
                   <th>Método</th>
-                  <th>Valor</th>
-                  <th>Ações</th>
+                  <th className={t.num}>Valor</th>
+                  <th aria-label="Ações" />
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className={styles.empty}>Nenhum lançamento encontrado.</td></tr>
-                ) : filtered.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <span className={r.type === 'receita' ? styles.tagReceita : styles.tagDespesa}>
-                        {r.type === 'receita' ? <><Icon name="arrowUp" size={11} /> Receita</> : <><Icon name="arrowUp" size={11} style={{ transform: 'rotate(180deg)' }} /> Despesa</>}
-                      </span>
-                    </td>
-                    <td data-label="Data">{formatDate(r.created_at, true)}</td>
-                    <td data-label="Paciente">{r.patients?.name ?? '—'}</td>
-                    <td data-label="Categoria">{r.category ?? '—'}</td>
-                    <td data-label="Descrição">{r.notes ?? '—'}</td>
-                    <td data-label="Método" className={styles.method}>
-                      {r.payment_method === 'convenio' && r.convenio ? `Convênio — ${r.convenio}` : (PAYMENT_METHOD_LABELS[r.payment_method ?? ''] ?? r.payment_method ?? '—')}
-                    </td>
-                    <td data-label="Valor" className={r.type === 'receita' ? styles.valuePos : styles.valueNeg}>
-                      {r.type === 'despesa' ? '−' : '+'}{formatCurrency(r.total_amount ?? 0)}
-                    </td>
-                    <td data-label="Ações">
-                      <div className={styles.rowActions}>
-                        {r.type === 'receita' && <button className={styles.btnEdit} onClick={() => handlePrintRecibo(r)} title="Imprimir recibo">
-                          <Icon name="receipt" size={13} />
-                        </button>}
-                        {canEdit && <button className={styles.btnEdit} onClick={() => openEdit(r)} title="Editar lançamento">
-                          <Icon name="edit" size={13} />
-                        </button>}
-                        {canEdit && <button
-                          className={styles.btnDelete}
-                          onClick={() => handleDelete(r)}
-                          disabled={deletingId === r.id}
-                          title="Excluir lançamento"
-                        >
-                          {deletingId === r.id ? '...' : <Icon name="trash" size={13} />}
-                        </button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                  <tr><td colSpan={6} className={t.empty}>Nenhum lançamento encontrado.</td></tr>
+                ) : filtered.map(r => {
+                  const menu = rowMenu(r)
+                  const isIn = r.type === 'receita'
+                  return (
+                    <tr key={r.id} className={styles.row}>
+                      <td>
+                        <div className={styles.entry}>
+                          <span className={isIn ? styles.arrowIn : styles.arrowOut} aria-hidden="true">
+                            <Icon name="arrowUp" size={14} style={isIn ? undefined : { transform: 'rotate(180deg)' }} />
+                          </span>
+                          <div className={styles.who}>
+                            <span className={styles.name}>{r.category ?? (isIn ? 'Receita' : 'Despesa')}<span className={styles.srOnly}>{isIn ? ', receita' : ', despesa'}</span></span>
+                            {r.notes && <span className={styles.sub}>{r.notes}</span>}
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="Paciente" className={t.muted}>{r.patients?.name ?? '-'}</td>
+                      <td data-label="Data" className={t.muted}>{formatDate(r.created_at, true)}</td>
+                      <td data-label="Método" className={t.muted}>
+                        {r.payment_method === 'convenio' && r.convenio ? `Convênio: ${r.convenio}` : (PAYMENT_METHOD_LABELS[r.payment_method ?? ''] ?? r.payment_method ?? '-')}
+                      </td>
+                      <td data-label="Valor" className={`${t.num} ${styles.amount} ${isIn ? '' : styles.amountOut}`}>
+                        {isIn ? '+' : '−'}{formatCurrency(r.total_amount ?? 0)}
+                      </td>
+                      <td className={styles.actionsCell}>
+                        {menu.length > 0 && (
+                          <div className={t.rowActions}>
+                            <MoreMenu label={`Mais ações do lançamento de ${formatCurrency(r.total_amount ?? 0)}`} items={menu} />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Export period modal — portal garante position:fixed relativo ao viewport */}
       {showExportModal && typeof document !== 'undefined' && createPortal(
@@ -649,8 +683,8 @@ function FinanceiroContent() {
               )}
             </div>
             <div className={styles.exportModalFooter}>
-              <button className={styles.exportBtnCancel} onClick={() => setShowExportModal(false)}>Cancelar</button>
-              <button className={styles.exportBtnConfirm} onClick={exportXLSX}><Icon name="download" size={14} /> Exportar</button>
+              <button type="button" className={btn.secondary} onClick={() => setShowExportModal(false)}>Cancelar</button>
+              <button type="button" className={btn.primary} onClick={exportXLSX}><Icon name="download" size={15} /> Exportar</button>
             </div>
           </div>
         </div>,
@@ -658,161 +692,157 @@ function FinanceiroContent() {
       )}
 
       {/* Modal */}
-      {showModal && (
-        <div className={styles.overlay} onClick={closeModal}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>
-                {editingId
-                  ? (form.type === 'receita' ? 'Editar Receita' : 'Editar Despesa')
-                  : (form.type === 'receita' ? 'Nova Receita' : 'Nova Despesa')}
-              </h2>
-              <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
+      <Modal
+        open={showModal}
+        onClose={closeModal}
+        title={editingId
+          ? (form.type === 'receita' ? 'Editar Receita' : 'Editar Despesa')
+          : (form.type === 'receita' ? 'Nova Receita' : 'Nova Despesa')}
+        footer={
+          <>
+            <button type="button" className={btn.secondary} onClick={closeModal}>Cancelar</button>
+            <button type="button" className={btn.primary}
+              onClick={handleSave} disabled={saving || !form.total_amount}>
+              {saving ? 'Salvando...' : (editingId ? 'Salvar alterações' : 'Salvar')}
+            </button>
+          </>
+        }
+      >
+        {(() => {
+          const appt = editingId ? records.find(r => r.id === editingId)?.appointments : null
+          if (!appt) return null
+          return (
+            <div className={styles.appointmentLink}>
+              <Icon name="calendar" size={13} />
+              Vinculado ao agendamento de {formatDate(appt.scheduled_at, true)}
+              {appt.procedure_name ? ` — ${appt.procedure_name}` : ''}
             </div>
-            <div className={styles.modalBody}>
-              {(() => {
-                const appt = editingId ? records.find(r => r.id === editingId)?.appointments : null
-                if (!appt) return null
-                return (
-                  <div className={styles.appointmentLink}>
-                    <Icon name="calendar" size={13} />
-                    Vinculado ao agendamento de {formatDate(appt.scheduled_at, true)}
-                    {appt.procedure_name ? ` — ${appt.procedure_name}` : ''}
-                  </div>
-                )
-              })()}
-              <div className={styles.field}>
-                <label>Valor (R$) *</label>
-                <MoneyInput value={form.total_amount}
-                  onChange={v => setForm(p => ({ ...p, total_amount: v }))} />
-              </div>
-              <div className={styles.field}>
-                <label>Data</label>
-                <input type="date" value={form.record_date} max={todayStr()}
-                  onChange={e => setForm(p => ({ ...p, record_date: e.target.value }))} />
-              </div>
-              <div className={styles.field}>
-                <label>Categoria</label>
-                <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
-                  {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              {form.type === 'receita' && (
-                <div className={styles.field}>
-                  <label>Paciente</label>
-                  <select
-                    value={form.patient_id}
-                    onChange={e => {
-                      const selected = patients.find(pt => pt.id === e.target.value)
-                      setForm(p => ({
-                        ...p,
-                        patient_id: e.target.value,
-                        // Pré-preenche com o convênio salvo no cadastro do
-                        // paciente, só se o campo ainda estiver vazio.
-                        convenio: !p.convenio && selected?.convenio ? selected.convenio : p.convenio,
-                      }))
-                    }}
-                  >
-                    <option value="">Sem paciente</option>
-                    {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-              )}
-              {form.type === 'receita' && (
-                <div className={styles.field}>
-                  <label>Procedimento</label>
-                  <select
-                    value={form.procedure_id}
-                    onChange={e => {
-                      const proc = activeProcedures.find(pr => pr.id === e.target.value)
-                      setForm(p => ({
-                        ...p,
-                        procedure_id: e.target.value,
-                        // Preenche o valor com o preço cadastrado do procedimento
-                        // — só se o campo Valor ainda não tiver sido digitado.
-                        total_amount: proc && proc.price > 0 && !p.total_amount ? String(proc.price) : p.total_amount,
-                      }))
-                    }}
-                  >
-                    <option value="">Sem procedimento vinculado</option>
-                    {activeProcedures.map(pr => <option key={pr.id} value={pr.id}>{pr.name}</option>)}
-                  </select>
-                  <p className={styles.hint}>Vincular um procedimento é o que permite calcular a comissão de cada pessoa sobre esse valor.</p>
-                </div>
-              )}
-              <div className={styles.field}>
-                <label>Método de Pagamento</label>
-                <select
-                  value={form.payment_method}
-                  onChange={e => {
-                    const method = e.target.value
-                    const selectedPatient = patients.find(pt => pt.id === form.patient_id)
-                    setForm(p => ({
-                      ...p,
-                      payment_method: method,
-                      convenio: method === 'convenio' && !p.convenio && selectedPatient?.convenio
-                        ? selectedPatient.convenio
-                        : p.convenio,
-                    }))
-                  }}
-                >
-                  <option value="pix">PIX</option>
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="cartao_credito">Cartão de Crédito</option>
-                  <option value="cartao_debito">Cartão de Débito</option>
-                  <option value="convenio">Convênio</option>
-                  <option value="outro">Outro</option>
-                </select>
-              </div>
-              {form.payment_method === 'convenio' && (
-                <div className={styles.field} style={{ position: 'relative' }}>
-                  <label>Qual convênio?</label>
-                  <input
-                    value={form.convenio}
-                    onChange={e => { setForm(p => ({ ...p, convenio: e.target.value })); setShowConvenioSuggestions(true) }}
-                    onFocus={() => setShowConvenioSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowConvenioSuggestions(false), 150)}
-                    placeholder="Ex: Unimed"
-                    autoComplete="off"
-                  />
-                  {showConvenioSuggestions && filteredConvenioSuggestions.length > 0 && (
-                    <div className={styles.patientSuggestions}>
-                      {filteredConvenioSuggestions.map(c => (
-                        <button
-                          key={c}
-                          type="button"
-                          className={styles.patientSuggestion}
-                          onMouseDown={e => e.preventDefault()}
-                          onClick={() => { setForm(p => ({ ...p, convenio: c })); setShowConvenioSuggestions(false) }}
-                        >
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              <div className={styles.field}>
-                <label>Descrição</label>
-                <input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Detalhe o lançamento..." />
-              </div>
-              {!editingId && form.type === 'receita' && form.patient_id && (
-                <label className={styles.checkboxField}>
-                  <input type="checkbox" checked={grantCredit} onChange={e => setGrantCredit(e.target.checked)} />
-                  Gerar saldo de pacote para o paciente
-                </label>
-              )}
-            </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.btnCancel} onClick={closeModal}>Cancelar</button>
-              <button className={form.type === 'receita' ? styles.btnSaveReceita : styles.btnSaveDespesa}
-                onClick={handleSave} disabled={saving || !form.total_amount}>
-                {saving ? 'Salvando...' : (editingId ? 'Salvar alterações' : 'Salvar')}
-              </button>
-            </div>
-          </div>
+          )
+        })()}
+        <div className={f.field}>
+          <label>Valor (R$) *</label>
+          <MoneyInput value={form.total_amount}
+            onChange={v => setForm(p => ({ ...p, total_amount: v }))} />
         </div>
-      )}
+        <div className={f.field}>
+          <label>Data</label>
+          <DatePicker ariaLabel="Data" value={form.record_date} max={todayStr()}
+            onChange={v => setForm(p => ({ ...p, record_date: v }))} />
+        </div>
+        <div className={f.field}>
+          <label>Categoria</label>
+          <SelectMenu variant="field" ariaLabel="Categoria" value={form.category}
+            onChange={v => setForm(p => ({ ...p, category: v }))}
+            options={categorias.map(c => ({ value: c, label: c }))} />
+        </div>
+        {form.type === 'receita' && (
+          <div className={f.field}>
+            <label>Paciente</label>
+            <SelectMenu
+              variant="field"
+              ariaLabel="Paciente"
+              value={form.patient_id}
+              onChange={v => {
+                const selected = patients.find(pt => pt.id === v)
+                setForm(p => ({
+                  ...p,
+                  patient_id: v,
+                  // Pré-preenche com o convênio salvo no cadastro do
+                  // paciente, só se o campo ainda estiver vazio.
+                  convenio: !p.convenio && selected?.convenio ? selected.convenio : p.convenio,
+                }))
+              }}
+              options={[{ value: '', label: 'Sem paciente' }, ...patients.map(p => ({ value: p.id, label: p.name }))]}
+            />
+          </div>
+        )}
+        {form.type === 'receita' && (
+          <div className={f.field}>
+            <label>Procedimento</label>
+            <SelectMenu
+              variant="field"
+              ariaLabel="Procedimento"
+              value={form.procedure_id}
+              onChange={v => {
+                const proc = activeProcedures.find(pr => pr.id === v)
+                setForm(p => ({
+                  ...p,
+                  procedure_id: v,
+                  // Preenche o valor com o preço cadastrado do procedimento
+                  // — só se o campo Valor ainda não tiver sido digitado.
+                  total_amount: proc && proc.price > 0 && !p.total_amount ? String(proc.price) : p.total_amount,
+                }))
+              }}
+              options={[{ value: '', label: 'Sem procedimento vinculado' }, ...activeProcedures.map(pr => ({ value: pr.id, label: pr.name }))]}
+            />
+            <p className={f.hint}>Vincular um procedimento é o que permite calcular a comissão de cada pessoa sobre esse valor.</p>
+          </div>
+        )}
+        <div className={f.field}>
+          <label>Método de Pagamento</label>
+          <SelectMenu
+            variant="field"
+            ariaLabel="Método de pagamento"
+            value={form.payment_method}
+            onChange={method => {
+              const selectedPatient = patients.find(pt => pt.id === form.patient_id)
+              setForm(p => ({
+                ...p,
+                payment_method: method,
+                convenio: method === 'convenio' && !p.convenio && selectedPatient?.convenio
+                  ? selectedPatient.convenio
+                  : p.convenio,
+              }))
+            }}
+            options={[
+              { value: 'pix', label: 'PIX' },
+              { value: 'dinheiro', label: 'Dinheiro' },
+              { value: 'cartao_credito', label: 'Cartão de Crédito' },
+              { value: 'cartao_debito', label: 'Cartão de Débito' },
+              { value: 'convenio', label: 'Convênio' },
+              { value: 'outro', label: 'Outro' },
+            ]}
+          />
+        </div>
+        {form.payment_method === 'convenio' && (
+          <div className={f.field} style={{ position: 'relative' }}>
+            <label>Qual convênio?</label>
+            <input
+              value={form.convenio}
+              onChange={e => { setForm(p => ({ ...p, convenio: e.target.value })); setShowConvenioSuggestions(true) }}
+              onFocus={() => setShowConvenioSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowConvenioSuggestions(false), 150)}
+              placeholder="Ex: Unimed"
+              autoComplete="off"
+            />
+            {showConvenioSuggestions && filteredConvenioSuggestions.length > 0 && (
+              <div className={styles.patientSuggestions}>
+                {filteredConvenioSuggestions.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={styles.patientSuggestion}
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={() => { setForm(p => ({ ...p, convenio: c })); setShowConvenioSuggestions(false) }}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <div className={f.field}>
+          <label>Descrição</label>
+          <input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Detalhe o lançamento..." />
+        </div>
+        {!editingId && form.type === 'receita' && form.patient_id && (
+          <label className={styles.checkboxField}>
+            <input type="checkbox" checked={grantCredit} onChange={e => setGrantCredit(e.target.checked)} />
+            Gerar saldo de pacote para o paciente
+          </label>
+        )}
+      </Modal>
     </div>
   )
 }

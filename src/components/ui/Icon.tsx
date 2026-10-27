@@ -5,9 +5,9 @@ export type IconName =
   | 'team' | 'settings' | 'admin' | 'logout'
   | 'sun' | 'moon' | 'chevronLeft' | 'chevronRight' | 'chevronDown' | 'menu'
   | 'crm' | 'stock' | 'reports' | 'campaigns' | 'procedures' | 'target' | 'alert' | 'phone' | 'cake'
-  | 'close' | 'check' | 'checkCircle' | 'edit' | 'trash' | 'arrowUp' | 'swap' | 'refresh'
+  | 'close' | 'check' | 'checkDouble' | 'checkCircle' | 'edit' | 'trash' | 'arrowUp' | 'swap' | 'refresh'
   | 'ban' | 'eye' | 'camera' | 'paperclip' | 'bell' | 'mail' | 'trophy' | 'download' | 'upload'
-  | 'pause' | 'play' | 'info' | 'percent' | 'receipt' | 'search' | 'copy' | 'chat' | 'send' | 'plus' | 'clock' | 'mic' | 'help'
+  | 'pause' | 'play' | 'info' | 'percent' | 'receipt' | 'search' | 'copy' | 'chat' | 'messages' | 'wallet' | 'send' | 'plus' | 'clock' | 'mic' | 'help'
 
 const PATHS: Record<IconName, string> = {
   dashboard:    'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
@@ -35,6 +35,7 @@ const PATHS: Record<IconName, string> = {
   cake:         'M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C9 2 12 7 12 7z',
   close:        'M18 6L6 18M6 6l12 12',
   check:        'M20 6L9 17l-5-5',
+  checkDouble:  'M18 6L7 17l-5-5M22 10l-7.5 7.5L13 16',
   checkCircle:  'M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3',
   edit:         'M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z',
   trash:        'M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6',
@@ -57,6 +58,8 @@ const PATHS: Record<IconName, string> = {
   receipt:      'M4 2l1.7 1 1.8-1 1.8 1 1.7-1 1.8 1 1.7-1 1.8 1 1.7-1v20l-1.7-1-1.8 1-1.7-1-1.8 1-1.7-1-1.8 1-1.7-1-1.8 1V2zM8 8h8M8 12h8M8 16h5',
   search:       'M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35',
   chat:         'M21 12a8 8 0 01-11.6 7.1L3 21l1.9-6A8 8 0 1121 12z',
+  messages:     'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2zM8 9h8M8 13h5',
+  wallet:       'M19 7V4a1 1 0 00-1-1H5a2 2 0 000 4h15a1 1 0 011 1v4h-3a2 2 0 000 4h3a1 1 0 001-1v-2a1 1 0 00-1-1M3 5v14a2 2 0 002 2h15a1 1 0 001-1v-4',
   send:         'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z',
   plus:         'M12 5v14M5 12h14',
   clock:        'M12 2a10 10 0 100 20 10 10 0 000-20zM12 6v6l4 2',

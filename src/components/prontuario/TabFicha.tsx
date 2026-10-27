@@ -14,6 +14,7 @@ import { cpfInputError, cpfToInputValue, dateBRToISO, dateInputError, isoToDateB
 import { PET_SPECIES, PET_BREEDS, VET_ANAMNESIS_EXTRA_BY_SPECIES, VET_EXAM_EXTRA_BY_SPECIES } from '@/lib/vetSpecies'
 import { MEDICO_ANAMNESIS_EXTRA_BY_SPECIALTY, MEDICO_EXAM_EXTRA_BY_SPECIALTY } from '@/lib/medicoSpecialties'
 import { getSpecialtyConfig, CLINIC_TYPE_LABELS } from '@/lib/specialtyConfig'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 interface Props {
   patient: Patient
@@ -300,11 +301,9 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
         <section className={styles.section}>
           <div className={styles.field}>
             <label>Ver ficha da área</label>
-            <select value={viewArea} onChange={(e) => setViewArea(e.target.value as ClinicType)}>
-              {clinicSpecialties.map((t) => (
-                <option key={t} value={t}>{CLINIC_TYPE_LABELS[t]}</option>
-              ))}
-            </select>
+            <SelectMenu variant="field" ariaLabel="Ver ficha da área" value={viewArea}
+              onChange={v => setViewArea(v as ClinicType)}
+              options={clinicSpecialties.map(t => ({ value: t, label: CLINIC_TYPE_LABELS[t] }))} />
           </div>
         </section>
       )}
@@ -326,13 +325,15 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
           <div className={styles.field}>
             <label>Gênero</label>
-            <select value={patientInfo['p-genero'] ?? ''} onChange={e => setP('p-genero', e.target.value)}>
-              <option value="">Selecionar</option>
-              <option value="Masculino">Masculino</option>
-              <option value="Feminino">Feminino</option>
-              <option value="Não binário">Não binário</option>
-              <option value="Prefiro não informar">Prefiro não informar</option>
-            </select>
+            <SelectMenu variant="field" ariaLabel="Gênero" value={patientInfo['p-genero'] ?? ''}
+              onChange={v => setP('p-genero', v)}
+              options={[
+                { value: '', label: 'Selecionar' },
+                { value: 'Masculino', label: 'Masculino' },
+                { value: 'Feminino', label: 'Feminino' },
+                { value: 'Não binário', label: 'Não binário' },
+                { value: 'Prefiro não informar', label: 'Prefiro não informar' },
+              ]} />
           </div>
 
           {pField('p-ocupacao', 'Ocupação')}
@@ -349,19 +350,18 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
               <div className={styles.field}>
                 <label>Espécie</label>
-                <select
+                <SelectMenu
+                  variant="field"
+                  ariaLabel="Espécie"
                   value={petSpecies}
-                  onChange={e => {
-                    const newSpecies = e.target.value
+                  onChange={newSpecies => {
                     setP('p-pet_especie', newSpecies)
                     const breedList = PET_BREEDS[newSpecies] ?? []
                     const currentRaca = patientInfo['p-pet_raca'] ?? ''
                     if (currentRaca && !breedList.includes(currentRaca)) setP('p-pet_raca', '')
                   }}
-                >
-                  <option value="">Selecionar</option>
-                  {PET_SPECIES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                  options={[{ value: '', label: 'Selecionar' }, ...PET_SPECIES.map(s => ({ value: s, label: s }))]}
+                />
               </div>
 
               {(() => {
@@ -385,13 +385,13 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
                   <>
                     <div className={styles.field}>
                       <label>Raça</label>
-                      <select
+                      <SelectMenu
+                        variant="field"
+                        ariaLabel="Raça"
                         value={selectValue}
-                        onChange={e => setP('p-pet_raca', e.target.value === 'Outra' ? '' : e.target.value)}
-                      >
-                        <option value="">Selecionar</option>
-                        {breedList.map(b => <option key={b} value={b}>{b}</option>)}
-                      </select>
+                        onChange={v => setP('p-pet_raca', v === 'Outra' ? '' : v)}
+                        options={[{ value: '', label: 'Selecionar' }, ...breedList.map(b => ({ value: b, label: b }))]}
+                      />
                     </div>
                     {selectValue === 'Outra' && (
                       <div className={styles.field}>

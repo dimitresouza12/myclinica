@@ -7,20 +7,27 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { StockItem, StockMovement } from '@/types'
-import { Portal } from '@/components/ui/Portal'
-import { useScrollLock } from '@/hooks/useScrollLock'
+import { Modal } from '@/components/ui/Modal'
+import f from '@/components/ui/modalForm.module.css'
 import { useEstoqueData } from '@/hooks/useClinicData'
 import { mergeSpecialtyConfigs, stockCategoryLabel } from '@/lib/specialtyConfig'
 import { audit } from '@/lib/audit'
 import styles from './estoque.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
-import { PageTitle } from '@/components/layout/PageTitle'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { IntegerInput, MoneyInput } from '@/components/ui/NumericInput'
+import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
+import { PillTabs } from '@/components/ui/PillTabs'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { StatusDot } from '@/components/ui/StatusDot'
+import { MoreMenu, type MoreMenuItem } from '@/components/ui/MoreMenu'
+import btn from '@/components/ui/button.module.css'
+import t from '@/components/ui/table.module.css'
 
-const EstoqueChart = dynamic(() => import('./EstoqueChart'), { ssr: false, loading: () => null })
+const AreaTrendChart = dynamic(() => import('@/components/ui/AreaTrendChart').then(m => m.AreaTrendChart), { ssr: false, loading: () => <div className={styles.chartLoading} /> })
 
 const UNITS = ['un', 'caixa', 'ml', 'L', 'kg', 'g', 'par', 'rolo']
 
@@ -52,8 +59,6 @@ function EstoqueContent() {
   const [movForm, setMovForm] = useState(BLANK_MOV)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  useScrollLock(modal !== null)
 
   function loadData() {
     queryClient.invalidateQueries({ queryKey: ['estoque', clinic?.id] })
@@ -194,272 +199,289 @@ function EstoqueContent() {
     loadData()
   }
 
+  const trendData = monthlyMovements.map(m => ({ label: m.month, value: m.entrada, compare: m.saida }))
+  const hasTrend = monthlyMovements.some(m => m.entrada > 0 || m.saida > 0)
+  const lowCount = stats.low
+  const monthKey = new Date().toISOString().slice(0, 7)
+  const movementsThisMonth = movements.filter(m => (m.created_at ?? '').startsWith(monthKey)).length
+
+  function itemMenu(item: StockItem): MoreMenuItem[] {
+    return [
+      { label: 'Registrar entrada', icon: 'plus', onClick: () => openMovModal(item, 'entrada') },
+      { label: 'Registrar saída', icon: 'arrowUp', onClick: () => openMovModal(item, 'saida') },
+      { label: 'Editar produto', icon: 'edit', onClick: () => openEditItem(item) },
+      { label: 'Desativar', icon: 'trash', danger: true, onClick: () => handleDelete(item) },
+    ]
+  }
+
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <PageTitle title="Estoque de Produtos" subtitle={`${filteredItems.length} produto${filteredItems.length !== 1 ? 's' : ''}`} />
-        <button className={styles.btnPrimary} onClick={openNewItem}>+ Novo Produto</button>
+      <PageHeader
+        title="Estoque"
+        subtitle={`${filteredItems.length} produto${filteredItems.length !== 1 ? 's' : ''}`}
+        actions={<button type="button" className={btn.primary} onClick={openNewItem}><Icon name="plus" size={15} /> Novo produto</button>}
+      />
+
+      <div className={styles.stats}>
+        <StatCard title="Total de produtos" value={stats.total} hint="ativos no cadastro" />
+        <StatCard
+          title="Estoque baixo"
+          value={lowCount}
+          hint={lowCount > 0 ? 'na quantidade mínima ou abaixo' : 'nenhum produto em falta'}
+          delta={lowCount > 0 ? { label: 'repor', bad: true } : undefined}
+        />
+        <StatCard title="Valor em estoque" value={formatCurrency(stats.totalValue)} compact hint="quantidade x preço de custo" />
+        <StatCard title="Movimentações no mês" value={movementsThisMonth} hint="entradas, saídas e ajustes" />
       </div>
 
-      {/* Stats */}
-      <div className={styles.statsGrid}>
-        <div className={styles.statCard}>
-          <div>
-            <span className={styles.statVal}>{stats.total}</span>
-            <span className={styles.statLabel}>Total de produtos</span>
-          </div>
-        </div>
-        <div className={`${styles.statCard} ${stats.low > 0 ? styles.statCardWarn : ''}`}>
-          <div>
-            <span className={styles.statVal} style={{ color: stats.low > 0 ? '#F59E0B' : undefined }}>{stats.low}</span>
-            <span className={styles.statLabel}>Estoque baixo</span>
-          </div>
-        </div>
-        <div className={styles.statCard}>
-          <div>
-            <span className={styles.statVal} style={{ color: '#059669' }}>{formatCurrency(stats.totalValue)}</span>
-            <span className={styles.statLabel}>Valor em estoque</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Chart */}
-      {!loading && <EstoqueChart data={monthlyMovements} />}
-
-      {/* Tabs */}
-      <div className={styles.toolbar}>
-        <div className={styles.tabs}>
-          <button className={`${styles.tab} ${tab === 'produtos' ? styles.tabActive : ''}`} onClick={() => setTab('produtos')}>Produtos</button>
-          <button className={`${styles.tab} ${tab === 'movimentacoes' ? styles.tabActive : ''}`} onClick={() => setTab('movimentacoes')}>Movimentações</button>
-        </div>
-
-        {tab === 'produtos' && (
-          <div className={styles.filters}>
-            <input className={`${styles.search} ${styles.localSearch}`} placeholder="Buscar produto ou fornecedor..." value={search} onChange={e => setSearch(e.target.value)} />
-            <SelectMenu
-              value={filterCategory}
-              onChange={setFilterCategory}
-              options={[{ value: '', label: 'Todas as categorias' }, ...CATEGORIES.map(c => ({ value: c, label: stockCategoryLabel(c) }))]}
+      {!loading && (
+        <Card title="Entradas e saídas" actions={<span className={styles.cardMeta}>últimos 6 meses, em unidades</span>}>
+          {hasTrend ? (
+            <AreaTrendChart
+              data={trendData}
+              highlightIndex={trendData.length - 1}
+              valueName="Entradas"
+              compareName="Saídas"
+              formatValue={n => String(Math.round(n))}
+              height={220}
+              label="Entradas e saídas de estoque nos últimos 6 meses"
             />
-            <label className={styles.checkLabel}>
-              <input type="checkbox" checked={filterLow} onChange={e => setFilterLow(e.target.checked)} />
-              Estoque baixo
-            </label>
-          </div>
-        )}
-        {tab === 'movimentacoes' && (
-          <div className={styles.filters}>
-            <SelectMenu
-              value={filterMovType}
-              onChange={setFilterMovType}
+          ) : (
+            <p className={styles.chartEmpty}>Nenhuma movimentação nos últimos 6 meses.</p>
+          )}
+        </Card>
+      )}
+
+      <Card
+        flush
+        title="Estoque"
+        actions={
+          <PillTabs
+            label="Visão do estoque"
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: 'produtos', label: 'Produtos', count: items.length },
+              { value: 'movimentacoes', label: 'Movimentações', count: movements.length },
+            ]}
+          />
+        }
+      >
+        <div className={styles.filters}>
+          {tab === 'produtos' && (
+            <>
+              {/* no desktop a busca fica na barra de cima; este campo só aparece no celular */}
+              <input type="search" className={`${styles.search} ${styles.localSearch}`} placeholder="Buscar produto ou fornecedor" aria-label="Buscar produto ou fornecedor" value={search} onChange={e => setSearch(e.target.value)} />
+              <SelectMenu
+                value={filterCategory}
+                onChange={setFilterCategory}
+                options={[{ value: '', label: 'Todas as categorias' }, ...CATEGORIES.map(c => ({ value: c, label: stockCategoryLabel(c) }))]}
+              />
+              <PillTabs
+                label="Filtrar por nível"
+                value={filterLow ? 'baixo' : 'todos'}
+                onChange={v => setFilterLow(v === 'baixo')}
+                options={[{ value: 'todos', label: 'Todos' }, { value: 'baixo', label: 'Estoque baixo', count: lowCount }]}
+              />
+            </>
+          )}
+          {tab === 'movimentacoes' && (
+            <PillTabs
+              label="Filtrar por tipo"
+              value={(filterMovType || 'todos') as 'todos' | 'entrada' | 'saida' | 'ajuste'}
+              onChange={v => setFilterMovType(v === 'todos' ? '' : v)}
               options={[
-                { value: '', label: 'Todos os tipos' },
+                { value: 'todos', label: 'Todos' },
                 { value: 'entrada', label: 'Entrada' },
                 { value: 'saida', label: 'Saída' },
                 { value: 'ajuste', label: 'Ajuste' },
               ]}
             />
-          </div>
-        )}
-      </div>
-
-      {loading ? <p className={styles.loading}>Carregando...</p> : (
-        <>
-          {tab === 'produtos' && (
-            <div className={`${styles.tableWrap} resp-table-wrap`}>
-              <table className={`${styles.table} resp-table`}>
-                <thead>
-                  <tr>
-                    <th>Nome</th>
-                    <th>Categoria</th>
-                    <th>Qtd Atual</th>
-                    <th>Qtd Mín.</th>
-                    <th>Unidade</th>
-                    <th>Preço Custo</th>
-                    <th>Fornecedor</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.length === 0 ? (
-                    <tr><td colSpan={8} className={styles.empty}>Nenhum produto encontrado.</td></tr>
-                  ) : filteredItems.map(item => {
-                    const isLow = item.quantity <= item.min_quantity
-                    return (
-                      <tr key={item.id} className={isLow ? styles.rowLow : ''}>
-                        <td className={styles.bold}>{item.name}{isLow && <span className={styles.lowBadge}>Baixo</span>}</td>
-                        <td data-label="Categoria">{item.category ? stockCategoryLabel(item.category) : '—'}</td>
-                        <td data-label="Qtd Atual" className={styles.bold} style={{ color: isLow ? '#F59E0B' : undefined }}>{item.quantity}</td>
-                        <td data-label="Qtd Mín.">{item.min_quantity}</td>
-                        <td data-label="Unidade">{item.unit}</td>
-                        <td data-label="Preço Custo">{item.cost_price != null ? formatCurrency(item.cost_price) : '—'}</td>
-                        <td data-label="Fornecedor">{item.supplier ?? '—'}</td>
-                        <td data-label="Ações">
-                          <div className={styles.rowActions}>
-                            <button className={styles.btnEntrada} onClick={() => openMovModal(item, 'entrada')} title="Registrar entrada">+ Entrada</button>
-                            <button className={styles.btnSaida} onClick={() => openMovModal(item, 'saida')} title="Registrar saída">− Saída</button>
-                            <button className={styles.btnEdit} onClick={() => openEditItem(item)} title="Editar"><Icon name="edit" size={13} /></button>
-                            <button className={styles.btnDelete} onClick={() => handleDelete(item)} title="Desativar"><Icon name="trash" size={13} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
           )}
+        </div>
 
-          {tab === 'movimentacoes' && (
-            <div className={`${styles.tableWrap} resp-table-wrap`}>
-              <table className={`${styles.table} resp-table`}>
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Produto</th>
-                    <th>Tipo</th>
-                    <th>Quantidade</th>
-                    <th>Motivo</th>
-                    <th>Responsável</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredMovements.length === 0 ? (
-                    <tr><td colSpan={6} className={styles.empty}>Nenhuma movimentação encontrada.</td></tr>
-                  ) : filteredMovements.map(m => (
-                    <tr key={m.id}>
-                      <td>{formatDate(m.created_at, true)}</td>
-                      <td data-label="Produto" className={styles.bold}>{m.stock_items?.name ?? '—'}</td>
-                      <td data-label="Tipo">
-                        <span className={m.type === 'entrada' ? styles.badgeEntrada : m.type === 'saida' ? styles.badgeSaida : styles.badgeAjuste}>
-                          {m.type === 'entrada'
-                            ? <><Icon name="arrowUp" size={11} /> Entrada</>
-                            : m.type === 'saida'
-                            ? <><Icon name="arrowUp" size={11} style={{ transform: 'rotate(180deg)' }} /> Saída</>
-                            : <><Icon name="swap" size={11} /> Ajuste</>}
-                        </span>
-                      </td>
-                      <td data-label="Quantidade">{m.quantity} {m.stock_items?.unit ?? ''}</td>
-                      <td data-label="Motivo">{m.reason ?? '—'}</td>
-                      <td data-label="Responsável">{m.user_name ?? '—'}</td>
+        {loading ? <p className={styles.loading}>Carregando...</p> : (
+          <>
+            {tab === 'produtos' && (
+              <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+                <table className={`${t.table} resp-table`}>
+                  <thead>
+                    <tr>
+                      <th>Produto</th>
+                      <th>Categoria</th>
+                      <th className={t.num}>Quantidade</th>
+                      <th className={t.num}>Mínimo</th>
+                      <th className={t.num}>Preço de custo</th>
+                      <th>Situação</th>
+                      <th aria-label="Ações" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
+                  </thead>
+                  <tbody>
+                    {filteredItems.length === 0 ? (
+                      <tr><td colSpan={7} className={t.empty}>Nenhum produto encontrado.</td></tr>
+                    ) : filteredItems.map(item => {
+                      const isLow = item.quantity <= item.min_quantity
+                      return (
+                        <tr key={item.id} className={styles.row}>
+                          <td>
+                            <div className={styles.who}>
+                              <span className={styles.name}>{item.name}</span>
+                              {item.supplier && <span className={styles.sub}>{item.supplier}</span>}
+                            </div>
+                          </td>
+                          <td data-label="Categoria" className={t.muted}>{item.category ? stockCategoryLabel(item.category) : '-'}</td>
+                          <td data-label="Quantidade" className={`${t.num} ${styles.qty}`}>{item.quantity} {item.unit}</td>
+                          <td data-label="Mínimo" className={`${t.num} ${t.muted}`}>{item.min_quantity}</td>
+                          <td data-label="Preço de custo" className={`${t.num} ${t.muted}`}>{item.cost_price != null ? formatCurrency(item.cost_price) : '-'}</td>
+                          <td data-label="Situação"><StatusDot tone={isLow ? 'warn' : 'ok'}>{isLow ? 'Estoque baixo' : 'Em dia'}</StatusDot></td>
+                          <td className={styles.actionsCell}>
+                            <div className={t.rowActions}>
+                              <span className={`${t.hoverOnly} ${styles.shortcuts}`}>
+                                <button type="button" className={styles.shortcut} onClick={() => openMovModal(item, 'entrada')}>Entrada</button>
+                                <button type="button" className={styles.shortcut} onClick={() => openMovModal(item, 'saida')}>Saída</button>
+                              </span>
+                              <MoreMenu label={`Mais ações de ${item.name}`} items={itemMenu(item)} />
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {tab === 'movimentacoes' && (
+              <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+                <table className={`${t.table} resp-table`}>
+                  <thead>
+                    <tr>
+                      <th>Produto</th>
+                      <th>Data</th>
+                      <th>Tipo</th>
+                      <th className={t.num}>Quantidade</th>
+                      <th>Motivo</th>
+                      <th>Responsável</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredMovements.length === 0 ? (
+                      <tr><td colSpan={6} className={t.empty}>Nenhuma movimentação encontrada.</td></tr>
+                    ) : filteredMovements.map(m => (
+                      <tr key={m.id}>
+                        <td className={t.strong}>{m.stock_items?.name ?? '-'}</td>
+                        <td data-label="Data" className={t.muted}>{formatDate(m.created_at, true)}</td>
+                        <td data-label="Tipo">
+                          <StatusDot tone={m.type === 'entrada' ? 'ok' : m.type === 'saida' ? 'warn' : 'idle'}>
+                            {m.type === 'entrada' ? 'Entrada' : m.type === 'saida' ? 'Saída' : 'Ajuste'}
+                          </StatusDot>
+                        </td>
+                        <td data-label="Quantidade" className={t.num}>{m.quantity} {m.stock_items?.unit ?? ''}</td>
+                        <td data-label="Motivo" className={`${t.muted} ${styles.capitalize}`}>{m.reason ?? '-'}</td>
+                        <td data-label="Responsável" className={t.muted}>{m.user_name ?? '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
 
       {/* Modal Produto */}
-      {modal === 'item' && (
-        <Portal>
-        <div className={styles.overlay} onClick={closeModal}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>{editingItem ? 'Editar Produto' : 'Novo Produto'}</h2>
-              <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
-            </div>
-            <div className={styles.modalBody}>
-              {error && <p className={styles.error}>{error}</p>}
-              <div className={styles.fieldRow}>
-                <div className={styles.field}>
-                  <label>Nome *</label>
-                  <input value={itemForm.name} onChange={e => setItemForm(p => ({ ...p, name: e.target.value }))} placeholder="Ex: Luva de procedimento" />
-                </div>
-                <div className={styles.field}>
-                  <label>Categoria</label>
-                  <select value={itemForm.category} onChange={e => setItemForm(p => ({ ...p, category: e.target.value }))}>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{stockCategoryLabel(c)}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className={styles.fieldRow}>
-                <div className={styles.field}>
-                  <label>Qtd {!editingItem && 'Inicial'} *</label>
-                  <IntegerInput value={itemForm.quantity} max={999999} onChange={v => setItemForm(p => ({ ...p, quantity: v === '' ? 0 : Number(v) }))} />
-                </div>
-                <div className={styles.field}>
-                  <label>Qtd Mínima</label>
-                  <IntegerInput value={itemForm.min_quantity} max={999999} onChange={v => setItemForm(p => ({ ...p, min_quantity: v === '' ? 0 : Number(v) }))} />
-                </div>
-                <div className={styles.field}>
-                  <label>Unidade</label>
-                  <select value={itemForm.unit} onChange={e => setItemForm(p => ({ ...p, unit: e.target.value }))}>
-                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className={styles.fieldRow}>
-                <div className={styles.field}>
-                  <label>Preço de Custo (R$)</label>
-                  <MoneyInput value={itemForm.cost_price} onChange={v => setItemForm(p => ({ ...p, cost_price: v }))} />
-                </div>
-                <div className={styles.field}>
-                  <label>Fornecedor</label>
-                  <input value={itemForm.supplier} onChange={e => setItemForm(p => ({ ...p, supplier: e.target.value }))} placeholder="Nome do fornecedor" />
-                </div>
-              </div>
-              <div className={styles.field}>
-                <label>Observações</label>
-                <input value={itemForm.notes} onChange={e => setItemForm(p => ({ ...p, notes: e.target.value }))} placeholder="Informações adicionais..." />
-              </div>
-            </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.btnCancel} onClick={closeModal}>Cancelar</button>
-              <button className={styles.btnSave} onClick={handleSaveItem} disabled={saving || !itemForm.name.trim()}>
-                {saving ? 'Salvando...' : editingItem ? 'Salvar alterações' : 'Cadastrar produto'}
-              </button>
-            </div>
+      <Modal
+        open={modal === 'item'}
+        onClose={closeModal}
+        title={editingItem ? 'Editar Produto' : 'Novo Produto'}
+        footer={
+          <>
+            <button type="button" className={btn.secondary} onClick={closeModal}>Cancelar</button>
+            <button type="button" className={btn.primary} onClick={handleSaveItem} disabled={saving || !itemForm.name.trim()}>
+              {saving ? 'Salvando...' : editingItem ? 'Salvar alterações' : 'Cadastrar produto'}
+            </button>
+          </>
+        }
+      >
+        {error && <p className={f.error}>{error}</p>}
+        <div className={f.row2}>
+          <div className={f.field}>
+            <label>Nome *</label>
+            <input value={itemForm.name} onChange={e => setItemForm(p => ({ ...p, name: e.target.value }))} placeholder="Ex: Luva de procedimento" />
+          </div>
+          <div className={f.field}>
+            <label>Categoria</label>
+            <SelectMenu variant="field" ariaLabel="Categoria" value={itemForm.category}
+              onChange={v => setItemForm(p => ({ ...p, category: v }))}
+              options={CATEGORIES.map(c => ({ value: c, label: stockCategoryLabel(c) }))} />
           </div>
         </div>
-        </Portal>
-      )}
+        <div className={f.row2}>
+          <div className={f.field}>
+            <label>Qtd {!editingItem && 'Inicial'} *</label>
+            <IntegerInput value={itemForm.quantity} max={999999} onChange={v => setItemForm(p => ({ ...p, quantity: v === '' ? 0 : Number(v) }))} />
+          </div>
+          <div className={f.field}>
+            <label>Qtd Mínima</label>
+            <IntegerInput value={itemForm.min_quantity} max={999999} onChange={v => setItemForm(p => ({ ...p, min_quantity: v === '' ? 0 : Number(v) }))} />
+          </div>
+          <div className={f.field}>
+            <label>Unidade</label>
+            <SelectMenu variant="field" ariaLabel="Unidade" value={itemForm.unit}
+              onChange={v => setItemForm(p => ({ ...p, unit: v }))}
+              options={UNITS.map(u => ({ value: u, label: u }))} />
+          </div>
+        </div>
+        <div className={f.row2}>
+          <div className={f.field}>
+            <label>Preço de Custo (R$)</label>
+            <MoneyInput value={itemForm.cost_price} onChange={v => setItemForm(p => ({ ...p, cost_price: v }))} />
+          </div>
+          <div className={f.field}>
+            <label>Fornecedor</label>
+            <input value={itemForm.supplier} onChange={e => setItemForm(p => ({ ...p, supplier: e.target.value }))} placeholder="Nome do fornecedor" />
+          </div>
+        </div>
+        <div className={f.field}>
+          <label>Observações</label>
+          <input value={itemForm.notes} onChange={e => setItemForm(p => ({ ...p, notes: e.target.value }))} placeholder="Informações adicionais..." />
+        </div>
+      </Modal>
 
       {/* Modal Entrada / Saída */}
-      {(modal === 'entrada' || modal === 'saida') && selectedItem && (
-        <Portal>
-        <div className={styles.overlay} onClick={closeModal}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>{modal === 'entrada' ? 'Entrada de Estoque' : 'Saída de Estoque'}</h2>
-              <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
-            </div>
-            <div className={styles.modalBody}>
-              {error && <p className={styles.error}>{error}</p>}
-              <div className={styles.field}>
-                <label>Produto</label>
-                <input value={`${selectedItem.name} (${selectedItem.quantity} ${selectedItem.unit} em estoque)`} disabled />
-              </div>
-              <div className={styles.field}>
-                <label>Quantidade *</label>
-                <IntegerInput min={1} max={999999} value={movForm.quantity} onChange={v => setMovForm(p => ({ ...p, quantity: v }))} placeholder="0" autoFocus />
-              </div>
-              <div className={styles.field}>
-                <label>Motivo</label>
-                <select value={movForm.reason} onChange={e => setMovForm(p => ({ ...p, reason: e.target.value }))}>
-                  <option value="">Selecione...</option>
-                  {modal === 'entrada'
-                    ? ['compra', 'devolução', 'ajuste', 'outro'].map(r => <option key={r} value={r}>{r}</option>)
-                    : ['uso em procedimento', 'vencimento', 'perda', 'ajuste', 'outro'].map(r => <option key={r} value={r}>{r}</option>)
-                  }
-                </select>
-              </div>
-            </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.btnCancel} onClick={closeModal}>Cancelar</button>
-              <button
-                className={modal === 'entrada' ? styles.btnSaveEntrada : styles.btnSaveSaida}
-                onClick={handleSaveMovement}
-                disabled={saving || !movForm.quantity}
-              >
-                {saving ? 'Salvando...' : modal === 'entrada' ? 'Registrar entrada' : 'Registrar saída'}
-              </button>
-            </div>
-          </div>
+      <Modal
+        open={(modal === 'entrada' || modal === 'saida') && !!selectedItem}
+        onClose={closeModal}
+        size="sm"
+        title={modal === 'entrada' ? 'Entrada de Estoque' : 'Saída de Estoque'}
+        subtitle={selectedItem ? `${selectedItem.name} · ${selectedItem.quantity} ${selectedItem.unit} em estoque` : undefined}
+        footer={
+          <>
+            <button type="button" className={btn.secondary} onClick={closeModal}>Cancelar</button>
+            <button type="button" className={btn.primary} onClick={handleSaveMovement} disabled={saving || !movForm.quantity}>
+              {saving ? 'Salvando...' : modal === 'entrada' ? 'Registrar entrada' : 'Registrar saída'}
+            </button>
+          </>
+        }
+      >
+        {error && <p className={f.error}>{error}</p>}
+        <div className={f.field}>
+          <label>Quantidade *</label>
+          <IntegerInput min={1} max={999999} value={movForm.quantity} onChange={v => setMovForm(p => ({ ...p, quantity: v }))} placeholder="0" autoFocus />
         </div>
-        </Portal>
-      )}
+        <div className={f.field}>
+          <label>Motivo</label>
+          <SelectMenu variant="field" ariaLabel="Motivo" value={movForm.reason}
+            onChange={v => setMovForm(p => ({ ...p, reason: v }))}
+            options={[
+              { value: '', label: 'Selecione...' },
+              ...(modal === 'entrada'
+                ? ['compra', 'devolução', 'ajuste', 'outro']
+                : ['uso em procedimento', 'vencimento', 'perda', 'ajuste', 'outro']
+              ).map(r => ({ value: r, label: r })),
+            ]} />
+        </div>
+      </Modal>
     </div>
   )
 }

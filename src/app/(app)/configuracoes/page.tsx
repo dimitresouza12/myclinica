@@ -14,14 +14,16 @@ import { audit } from '@/lib/audit'
 import styles from './configuracoes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { showToast } from '@/components/ui/Toast'
-import { Portal } from '@/components/ui/Portal'
+import { Modal } from '@/components/ui/Modal'
+import f from '@/components/ui/modalForm.module.css'
+import btn from '@/components/ui/button.module.css'
 import { CredentialsConfirmModal } from '@/components/ui/CredentialsConfirmModal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon, type IconName } from '@/components/ui/Icon'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { phoneInputError, previousPhoneNote, toInputValue } from '@/lib/phoneFormat'
-import { PageTitle } from '@/components/layout/PageTitle'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { DocumentFieldCalibrator } from '@/components/configuracoes/DocumentFieldCalibrator'
 import { WhatsAppTab } from '@/components/configuracoes/WhatsAppTab'
 import { useWhatsAppState } from '@/hooks/useClinicData'
@@ -111,7 +113,7 @@ function ConfiguracoesContent() {
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab')
   const [tab, setTab] = useState<'geral' | 'equipe' | 'plano' | 'documentos' | 'integracoes' | 'whatsapp' | 'conta' | 'auditoria'>(
-    initialTab === 'equipe' ? 'equipe' : initialTab === 'whatsapp' ? 'whatsapp' : initialTab === 'integracoes' ? 'integracoes' : initialTab === 'conta' ? 'conta' : 'geral'
+    (['geral', 'equipe', 'plano', 'documentos', 'integracoes', 'whatsapp', 'conta', 'auditoria'] as const).find(k => k === initialTab) ?? 'geral'
   )
   const [name, setName] = useState(clinic?.name ?? '')
   const [address, setAddress] = useState(clinic?.address ?? '')
@@ -760,7 +762,7 @@ function ConfiguracoesContent() {
 
   return (
     <div className={styles.page}>
-      <PageTitle title="Configurações" />
+      <PageHeader title="Configurações" />
 
       <div className={styles.shell}>
         <nav className={styles.nav} aria-label="Seções das configurações" ref={navRef} data-hscroll>
@@ -1316,62 +1318,50 @@ function ConfiguracoesContent() {
       </div>
       </div>
 
-      {/* ── Modal de confirmação (desativar/reativar/excluir) ── */}
-      {confirmModal && (
-        <Portal>
-        <div className={styles.overlay} onClick={() => !confirmLoading && setConfirmModal(null)}>
-          <div className={styles.modal} style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                {confirmModal.type === 'delete' ? <><Icon name="trash" size={16} /> Excluir usuário</> :
-                 confirmModal.type === 'deactivate' ? <><Icon name="pause" size={16} /> Desativar usuário</> :
-                 <><Icon name="play" size={16} /> Reativar usuário</>}
-              </h2>
-              <button className={styles.btnClose} onClick={() => setConfirmModal(null)} disabled={confirmLoading}><Icon name="close" size={18} /></button>
-            </div>
-            <div className={styles.modalBody}>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: 1.6 }}>
-                {confirmModal.type === 'delete' && <>
-                  Tem certeza que deseja <strong>excluir permanentemente</strong> o usuário <strong>{confirmModal.user.display_name}</strong>?
-                  <br /><br />
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#DC2626', fontSize: '0.82rem' }}>
-                    <Icon name="alert" size={13} /> Esta ação não pode ser desfeita. O acesso ao sistema será removido imediatamente.
-                  </span>
-                </>}
-                {confirmModal.type === 'deactivate' && <>
-                  Tem certeza que deseja <strong>desativar</strong> o usuário <strong>{confirmModal.user.display_name}</strong>?
-                  <br /><br />
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                    O usuário não conseguirá mais fazer login. Os dados serão preservados e você poderá reativar depois.
-                  </span>
-                </>}
-                {confirmModal.type === 'reactivate' && <>
-                  Deseja <strong>reativar</strong> o usuário <strong>{confirmModal.user.display_name}</strong>?
-                  <br /><br />
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                    O usuário voltará a ter acesso ao sistema com as permissões anteriores.
-                  </span>
-                </>}
+      {/* ── Confirmação de desativar, reativar e excluir ── */}
+      <Modal
+        open={!!confirmModal}
+        onClose={() => { if (!confirmLoading) setConfirmModal(null) }}
+        size="sm"
+        title={confirmModal?.type === 'delete' ? 'Excluir usuário' : confirmModal?.type === 'deactivate' ? 'Desativar usuário' : 'Reativar usuário'}
+        footer={
+          <>
+            <button type="button" className={btn.secondary} onClick={() => setConfirmModal(null)} disabled={confirmLoading}>Cancelar</button>
+            <button
+              type="button"
+              className={confirmModal?.type === 'delete' ? btn.danger : btn.primary}
+              onClick={handleConfirmAction}
+              disabled={confirmLoading}
+            >
+              {confirmLoading ? 'Aguarde...' :
+                confirmModal?.type === 'delete'     ? 'Sim, excluir'   :
+                confirmModal?.type === 'deactivate' ? 'Sim, desativar' :
+                                                      'Sim, reativar'}
+            </button>
+          </>
+        }
+      >
+        {confirmModal && (
+          <>
+            <p className={f.lead}>
+              {confirmModal.type === 'delete' && <>Tem certeza que deseja <strong>excluir permanentemente</strong> o usuário <strong>{confirmModal.user.display_name}</strong>?</>}
+              {confirmModal.type === 'deactivate' && <>Tem certeza que deseja <strong>desativar</strong> o usuário <strong>{confirmModal.user.display_name}</strong>?</>}
+              {confirmModal.type === 'reactivate' && <>Deseja <strong>reativar</strong> o usuário <strong>{confirmModal.user.display_name}</strong>?</>}
+            </p>
+            {confirmModal.type === 'delete' && (
+              <p className={`${f.note} ${f.noteDanger}`}>
+                <Icon name="alert" size={14} /> Esta ação não pode ser desfeita. O acesso ao sistema será removido imediatamente.
               </p>
-            </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.btnCancel} onClick={() => setConfirmModal(null)} disabled={confirmLoading}>Cancelar</button>
-              <button
-                className={confirmModal.type === 'delete' ? styles.btnDelete : confirmModal.type === 'reactivate' ? styles.btnReactivate : styles.btnDeactivate}
-                onClick={handleConfirmAction}
-                disabled={confirmLoading}
-                style={{ minWidth: 100 }}
-              >
-                {confirmLoading ? 'Aguarde...' :
-                  confirmModal.type === 'delete'     ? 'Sim, excluir'   :
-                  confirmModal.type === 'deactivate' ? 'Sim, desativar' :
-                                                       'Sim, reativar'}
-              </button>
-            </div>
-          </div>
-        </div>
-        </Portal>
-      )}
+            )}
+            {confirmModal.type === 'deactivate' && (
+              <p className={f.note}>O usuário não conseguirá mais fazer login. Os dados serão preservados e você poderá reativar depois.</p>
+            )}
+            {confirmModal.type === 'reactivate' && (
+              <p className={f.note}>O usuário voltará a ter acesso ao sistema com as permissões anteriores.</p>
+            )}
+          </>
+        )}
+      </Modal>
 
       {createdCredentials && (
         <CredentialsConfirmModal
@@ -1384,234 +1374,242 @@ function ConfiguracoesContent() {
       )}
 
       {/* ── Modal de criação/edição de usuário ──────────────── */}
-      {showUserModal && (
-        <Portal>
-        <div className={styles.overlay} onClick={closeUserModal}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>{editingUser ? 'Editar Usuário' : '+ Novo Usuário'}</h2>
-              <button className={styles.btnClose} onClick={closeUserModal}><Icon name="close" size={18} /></button>
-            </div>
-            <div className={styles.modalBody}>
-              <div className={styles.field}>
-                <label>Nome completo *</label>
-                <input
-                  value={userForm.display_name}
-                  onChange={e => setUserForm(p => ({ ...p, display_name: e.target.value }))}
-                  placeholder="Ex: Ana Paula"
-                />
-              </div>
-              <div className={styles.field}>
-                <label>Nome de usuário (login) *</label>
-                <input
-                  value={userForm.username}
-                  onChange={e => setUserForm(p => ({ ...p, username: normalizeUsername(e.target.value) }))}
-                  placeholder="ex: anapaula"
-                  disabled={!!editingUser}
-                />
-                {!editingUser && (
-                  <span className={styles.hint}>3-30 caracteres: letras minúsculas, números, _ . -</span>
-                )}
-              </div>
-              {!editingUser && (
-                <>
-                  <div className={styles.field}>
-                    <label>E-mail *</label>
-                    <input
-                      type="email"
-                      value={userForm.email}
-                      onChange={e => setUserForm(p => ({ ...p, email: e.target.value }))}
-                      placeholder="atendente@clinica.com"
-                    />
-                  </div>
-                  <div className={styles.field}>
-                    <label>Senha *</label>
-                    <input
-                      type="password"
-                      value={userForm.password}
-                      onChange={e => setUserForm(p => ({ ...p, password: e.target.value }))}
-                      placeholder="mín. 6 caracteres"
-                    />
-                  </div>
-                </>
-              )}
-              <div className={styles.field}>
-                <label>{clinic?.isMultiSpecialty ? 'Função / Área de atuação' : 'Função'}</label>
-                {clinic?.isMultiSpecialty ? (
-                  // Clínica multi-área: a área ESCOLHE o cargo sozinha
-                  // (roleForSpecialty) — evita "Esteticista" e "Nutricionista"
-                  // aparecerem como a mesma opção genérica "Profissional".
-                  <select
-                    value={userForm.specialty_type || userForm.role}
-                    onChange={e => {
-                      const v = e.target.value
-                      const isArea = CLINIC_TYPE_OPTIONS.some(o => o.value === v)
-                      const role = isArea ? roleForSpecialty(v as ClinicType) : (v as UserRole)
-                      const specialty_type = isArea ? (v as ClinicType) : ''
-                      setUserForm(p => ({ ...p, role, specialty_type }))
-                      if (!editingUser) { setPermissionsForm(presetPermissions(role)); setCreateProfessional(isClinicalRole(role)) }
-                    }}
-                  >
-                    <option value="recepcao">Recepção</option>
-                    <option value="auxiliar">Auxiliar</option>
-                    <option value="admin">Admin (acesso total)</option>
-                    <optgroup label="Área de atuação">
-                      {clinicAreaOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </optgroup>
-                  </select>
-                ) : (
-                  <select
-                    value={userForm.role}
-                    onChange={e => {
-                      const role = e.target.value as UserRole
-                      setUserForm(p => ({ ...p, role }))
-                      // Preset de permissões só é reaplicado ao criar um usuário
-                      // novo — em edição, trocar o cargo não deve descartar
-                      // permissões já salvas e customizadas pelo admin.
-                      if (!editingUser) { setPermissionsForm(presetPermissions(role)); setCreateProfessional(isClinicalRole(role)) }
-                    }}
-                  >
-                    {specialty.roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                  </select>
-                )}
-                {!editingUser && userForm.role !== 'admin' && (
-                  <span className={styles.hint}>Permissões abaixo já vêm pré-marcadas pro cargo — ajuste se precisar.</span>
-                )}
-              </div>
-
-              {!editingUser && !['recepcao', 'auxiliar', 'admin'].includes(userForm.role) && (
-                <div className={styles.field}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, cursor: !professionalLimitReached || createProfessional ? 'pointer' : 'not-allowed' }}>
-                    <input
-                      type="checkbox"
-                      checked={createProfessional}
-                      onChange={e => setCreateProfessional(e.target.checked)}
-                      disabled={professionalLimitReached && !createProfessional}
-                      style={{ width: 18, height: 18, accentColor: '#4DD9C0' }}
-                    />
-                    Também cadastrar na agenda (deixa esse cargo agendável)
-                  </label>
-                  {professionalLimitReached && !createProfessional && (
-                    <span className={styles.hint}>Limite de profissionais do plano atingido ({professionalCount}/{professionalLimit}). Só dá pra cadastrar sem vincular na agenda agora.</span>
-                  )}
-                  {createProfessional && (
-                    <input
-                      value={professionalSpecialty}
-                      onChange={e => setProfessionalSpecialty(e.target.value)}
-                      placeholder="Especialidade (opcional)"
-                      style={{ marginTop: '0.5rem' }}
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* Permissões por módulo — só para não-admins */}
-              {userForm.role !== 'admin' && (
-                <div>
-                  <p style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '0.625rem' }}>
-                    Permissões por módulo
-                  </p>
-                  <div className={styles.permTable}>
-                    <div className={styles.permHeader}>
-                      <span className={styles.permModuleCol}>Módulo</span>
-                      <span className={styles.permCheckCol}>Ver</span>
-                      <span className={styles.permCheckCol}>Editar</span>
-                    </div>
-                    {MODULES.filter(m => !m.plusOnly || hasWhatsAppAI(clinic?.plan)).map(m => {
-                      const perm = permissionsForm[m.key] ?? { can_view: false, can_edit: false, metadata: {} }
-                      const extras = MODULE_EXTRAS[m.key] ?? []
-                      return (
-                        <div key={m.key}>
-                          <div className={styles.permRow}>
-                            <span className={styles.permModuleCol}>
-                              <span className={styles.permIcon}>{m.icon}</span>
-                              {m.label}
-                            </span>
-                            <span className={styles.permCheckCol}>
-                              <input
-                                type="checkbox"
-                                className={styles.permCheck}
-                                checked={perm.can_view}
-                                onChange={e => setPermissionsForm(prev => ({
-                                  ...prev,
-                                  [m.key]: { ...prev[m.key], can_view: e.target.checked, can_edit: e.target.checked ? prev[m.key].can_edit : false }
-                                }))}
-                              />
-                            </span>
-                            <span className={styles.permCheckCol}>
-                              <input
-                                type="checkbox"
-                                className={styles.permCheck}
-                                checked={perm.can_edit}
-                                disabled={!perm.can_view}
-                                onChange={e => setPermissionsForm(prev => ({
-                                  ...prev,
-                                  [m.key]: { ...prev[m.key], can_edit: e.target.checked }
-                                }))}
-                              />
-                            </span>
-                          </div>
-                          {/* Opções extras do módulo (ex: Ver totais no Financeiro) */}
-                          {perm.can_view && extras.map(extra => (
-                            <label key={extra.key} className={styles.permExtra}>
-                              <input
-                                type="checkbox"
-                                className={styles.permCheck}
-                                checked={(perm.metadata?.[extra.key] as boolean) ?? true}
-                                onChange={e => setPermissionsForm(prev => ({
-                                  ...prev,
-                                  [m.key]: {
-                                    ...prev[m.key],
-                                    metadata: { ...prev[m.key].metadata, [extra.key]: e.target.checked }
-                                  }
-                                }))}
-                              />
-                              <span>{extra.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <p className={styles.permHint}>
-                    Admin tem acesso total e não precisa de permissões individuais.
-                    Desmarcar &quot;Ver&quot; também remove o &quot;Editar&quot;.
-                  </p>
-                </div>
-              )}
-
-              {editingUser && editingUser.user_id !== user?.id && (
-                <div className={styles.toggleRow}>
-                  <span className={styles.toggleLabel}>Usuário ativo</span>
-                  <label className={styles.toggleSwitch}>
-                    <input
-                      type="checkbox"
-                      checked={editIsActive}
-                      onChange={e => setEditIsActive(e.target.checked)}
-                    />
-                    <span className={styles.toggleSlider} />
-                  </label>
-                </div>
-              )}
-            </div>
-            <div className={styles.modalFooter}>
-              {editingUser && editingUser.user_id !== user?.id && (
-                <button
-                  className={styles.btnDelete}
-                  onClick={() => { closeUserModal(); setConfirmModal({ type: 'delete', user: editingUser }) }}
-                >
-                  <Icon name="trash" size={13} /> Excluir
-                </button>
-              )}
-              <button className={styles.btnCancel} onClick={closeUserModal}>Cancelar</button>
-              <button className={styles.btnSave} onClick={handleSaveUser} disabled={userSaving}>
-                {userSaving ? 'Salvando...' : (editingUser ? 'Salvar alterações' : 'Criar usuário')}
+      <Modal
+        open={showUserModal}
+        onClose={closeUserModal}
+        title={editingUser ? 'Editar usuário' : 'Novo usuário'}
+        footer={
+          <>
+            {editingUser && editingUser.user_id !== user?.id && (
+              <button
+                type="button"
+                className={styles.btnDelete}
+                onClick={() => { closeUserModal(); setConfirmModal({ type: 'delete', user: editingUser }) }}
+              >
+                <Icon name="trash" size={13} /> Excluir
               </button>
-            </div>
-          </div>
+            )}
+            <button type="button" className={btn.secondary} onClick={closeUserModal}>Cancelar</button>
+            <button type="button" className={btn.primary} onClick={handleSaveUser} disabled={userSaving}>
+              {userSaving ? 'Salvando...' : (editingUser ? 'Salvar' : 'Criar usuário')}
+            </button>
+          </>
+        }
+      >
+        <div className={f.field}>
+          <label>Nome completo *</label>
+          <input
+            value={userForm.display_name}
+            onChange={e => setUserForm(p => ({ ...p, display_name: e.target.value }))}
+            placeholder="Ex: Ana Paula"
+          />
         </div>
-        </Portal>
-      )}
+        <div className={f.field}>
+          <label>Nome de usuário (login) *</label>
+          <input
+            value={userForm.username}
+            onChange={e => setUserForm(p => ({ ...p, username: normalizeUsername(e.target.value) }))}
+            placeholder="ex: anapaula"
+            disabled={!!editingUser}
+          />
+          {!editingUser && (
+            <span className={f.hint}>3-30 caracteres: letras minúsculas, números, _ . -</span>
+          )}
+        </div>
+        {!editingUser && (
+          <>
+            <div className={f.field}>
+              <label>E-mail *</label>
+              <input
+                type="email"
+                value={userForm.email}
+                onChange={e => setUserForm(p => ({ ...p, email: e.target.value }))}
+                placeholder="atendente@clinica.com"
+              />
+            </div>
+            <div className={f.field}>
+              <label>Senha *</label>
+              <input
+                type="password"
+                value={userForm.password}
+                onChange={e => setUserForm(p => ({ ...p, password: e.target.value }))}
+                placeholder="mín. 6 caracteres"
+              />
+            </div>
+          </>
+        )}
+        <div className={f.field}>
+          <label>{clinic?.isMultiSpecialty ? 'Função / Área de atuação' : 'Função'}</label>
+          {clinic?.isMultiSpecialty ? (
+            // Clínica multi-área: a área ESCOLHE o cargo sozinha
+            // (roleForSpecialty) — evita "Esteticista" e "Nutricionista"
+            // aparecerem como a mesma opção genérica "Profissional".
+            <SelectMenu
+              variant="field"
+              ariaLabel="Função ou área de atuação"
+              value={userForm.specialty_type || userForm.role}
+              onChange={v => {
+                const isArea = CLINIC_TYPE_OPTIONS.some(o => o.value === v)
+                const role = isArea ? roleForSpecialty(v as ClinicType) : (v as UserRole)
+                const specialty_type = isArea ? (v as ClinicType) : ''
+                setUserForm(p => ({ ...p, role, specialty_type }))
+                if (!editingUser) { setPermissionsForm(presetPermissions(role)); setCreateProfessional(isClinicalRole(role)) }
+              }}
+              options={[
+                { value: 'recepcao', label: 'Recepção' },
+                { value: 'auxiliar', label: 'Auxiliar' },
+                { value: 'admin', label: 'Admin (acesso total)' },
+                ...clinicAreaOptions.map(o => ({ value: o.value, label: o.label, group: 'Área de atuação' })),
+              ]}
+            />
+          ) : (
+            <SelectMenu
+              variant="field"
+              ariaLabel="Função"
+              value={userForm.role}
+              onChange={v => {
+                const role = v as UserRole
+                setUserForm(p => ({ ...p, role }))
+                // Preset de permissões só é reaplicado ao criar um usuário
+                // novo — em edição, trocar o cargo não deve descartar
+                // permissões já salvas e customizadas pelo admin.
+                if (!editingUser) { setPermissionsForm(presetPermissions(role)); setCreateProfessional(isClinicalRole(role)) }
+              }}
+              options={specialty.roles.map(r => ({ value: r.value, label: r.label }))}
+            />
+          )}
+          {!editingUser && userForm.role !== 'admin' && (
+            <span className={f.hint}>Permissões abaixo já vêm pré-marcadas pro cargo — ajuste se precisar.</span>
+          )}
+        </div>
+
+        {!editingUser && !['recepcao', 'auxiliar', 'admin'].includes(userForm.role) && (
+          <>
+            <div className={f.switches}>
+              <label className={f.switchRow}>
+                <span className={f.switchText}>
+                  <b>Também cadastrar na agenda</b>
+                  <small>Deixa esse cargo agendável.</small>
+                </span>
+                <span className={f.toggle}>
+                  <input
+                    type="checkbox"
+                    checked={createProfessional}
+                    onChange={e => setCreateProfessional(e.target.checked)}
+                    disabled={professionalLimitReached && !createProfessional}
+                  />
+                  <span />
+                </span>
+              </label>
+            </div>
+            {professionalLimitReached && !createProfessional && (
+              <span className={f.hint}>Limite de profissionais do plano atingido ({professionalCount}/{professionalLimit}). Só dá pra cadastrar sem vincular na agenda agora.</span>
+            )}
+            {createProfessional && (
+              <div className={f.field}>
+                <label>Especialidade (opcional)</label>
+                <input
+                  value={professionalSpecialty}
+                  onChange={e => setProfessionalSpecialty(e.target.value)}
+                  placeholder="Ex: Ortodontia"
+                />
+              </div>
+            )}
+          </>
+        )}
+
+            {/* Permissões por módulo — só para não-admins */}
+            {userForm.role !== 'admin' && (
+              <div>
+                <p className={styles.permTitle}>Permissões por módulo</p>
+                <div className={styles.permTable}>
+                  <div className={styles.permHeader}>
+                    <span className={styles.permModuleCol}>Módulo</span>
+                    <span className={styles.permCheckCol}>Ver</span>
+                    <span className={styles.permCheckCol}>Editar</span>
+                  </div>
+                  {MODULES.filter(m => !m.plusOnly || hasWhatsAppAI(clinic?.plan)).map(m => {
+                    const perm = permissionsForm[m.key] ?? { can_view: false, can_edit: false, metadata: {} }
+                    const extras = MODULE_EXTRAS[m.key] ?? []
+                    return (
+                      <div key={m.key}>
+                        <div className={styles.permRow}>
+                          <span className={styles.permModuleCol}>
+                            <span className={styles.permIcon}>{m.icon}</span>
+                            {m.label}
+                          </span>
+                          <span className={styles.permCheckCol}>
+                            <input
+                              type="checkbox"
+                              className={styles.permCheck}
+                              checked={perm.can_view}
+                              onChange={e => setPermissionsForm(prev => ({
+                                ...prev,
+                                [m.key]: { ...prev[m.key], can_view: e.target.checked, can_edit: e.target.checked ? prev[m.key].can_edit : false }
+                              }))}
+                            />
+                          </span>
+                          <span className={styles.permCheckCol}>
+                            <input
+                              type="checkbox"
+                              className={styles.permCheck}
+                              checked={perm.can_edit}
+                              disabled={!perm.can_view}
+                              onChange={e => setPermissionsForm(prev => ({
+                                ...prev,
+                                [m.key]: { ...prev[m.key], can_edit: e.target.checked }
+                              }))}
+                            />
+                          </span>
+                        </div>
+                        {/* Opções extras do módulo (ex: Ver totais no Financeiro) */}
+                        {perm.can_view && extras.map(extra => (
+                          <label key={extra.key} className={styles.permExtra}>
+                            <input
+                              type="checkbox"
+                              className={styles.permCheck}
+                              checked={(perm.metadata?.[extra.key] as boolean) ?? true}
+                              onChange={e => setPermissionsForm(prev => ({
+                                ...prev,
+                                [m.key]: {
+                                  ...prev[m.key],
+                                  metadata: { ...prev[m.key].metadata, [extra.key]: e.target.checked }
+                                }
+                              }))}
+                            />
+                            <span>{extra.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+                <p className={styles.permHint}>
+                  Admin tem acesso total e não precisa de permissões individuais.
+                  Desmarcar &quot;Ver&quot; também remove o &quot;Editar&quot;.
+                </p>
+              </div>
+            )}
+
+        {editingUser && editingUser.user_id !== user?.id && (
+          <div className={f.switches}>
+            <label className={f.switchRow}>
+              <span className={f.switchText}>
+                <b>Usuário ativo</b>
+                <small>Desativado, não consegue entrar no sistema.</small>
+              </span>
+              <span className={f.toggle}>
+                <input
+                  type="checkbox"
+                  checked={editIsActive}
+                  onChange={e => setEditIsActive(e.target.checked)}
+                />
+                <span />
+              </span>
+            </label>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

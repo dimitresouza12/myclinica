@@ -1,0 +1,48 @@
+.pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-line);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.pills::-webkit-scrollbar { display: none; }
+
+.pill {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.pill:hover { color: var(--text-primary); }
+.pill:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
+.on, .on:hover { background: var(--ink); color: var(--on-ink); }
+
+.count { font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.on .count { color: inherit; opacity: 0.65; }
+
+@media (max-width: 768px) {
+  /* 44px de toque: a pílula cresce sem o grupo ficar pesado */
+  .pill { height: 38px; padding: 0 14px; }
+  .pills { padding: 3px; }
+  .pill::after { content: ''; position: absolute; inset: -3px 0; }
+}

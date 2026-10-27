@@ -1,0 +1,35 @@
+.menu {
+  position: fixed;
+  z-index: 1300; /* acima das gavetas e janelas (até 1200), abaixo dos avisos */
+  min-width: 176px;
+  padding: 6px;
+  border-radius: var(--radius-inner);
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  animation: pop 0.14s ease both;
+}
+@keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.item svg { color: var(--text-tertiary); flex-shrink: 0; }
+.item:hover, .item:focus-visible { background: var(--surface-2); outline: none; }
+.danger, .danger svg { color: #DC2626; }

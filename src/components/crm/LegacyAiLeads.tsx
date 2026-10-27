@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation'
 import { callN8n } from '@/lib/supabase-n8n'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { Portal } from '@/components/ui/Portal'
-import { useScrollLock } from '@/hooks/useScrollLock'
+import { Modal } from '@/components/ui/Modal'
+import btn from '@/components/ui/button.module.css'
 import { formatDate, cleanPhone } from '@/lib/utils'
 import styles from './LegacyAiLeads.module.css'
 import { Icon } from '@/components/ui/Icon'
@@ -85,7 +85,6 @@ export function LegacyAiLeads() {
   const [existingPatients, setExistingPatients] = useState<Set<string>>(new Set())
   const [patientIdMap, setPatientIdMap] = useState<Record<string, string>>({})
 
-  useScrollLock(!!selected)
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -319,85 +318,78 @@ export function LegacyAiLeads() {
         </div>
       )}
 
-      {/* Detail panel */}
-      {selected && (
-        <Portal>
-          <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && setSelected(null)}>
-            <div className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <div className={styles.panelAvatarWrap}>
-                  <div className={styles.panelAvatar}>{initials(selected.nome, selected.phone)}</div>
-                  <div>
-                    <h2 className={styles.panelName}>{selected.nome || 'Sem nome'}</h2>
-                    <p className={styles.panelPhone}>{fmtPhone(selected.phone)}</p>
-                  </div>
-                </div>
-                <button className={styles.btnClose} onClick={() => setSelected(null)}><Icon name="close" size={18} /></button>
-              </div>
+      {/* Detalhe do lead */}
+      <Modal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected?.nome || 'Sem nome'}
+        subtitle={selected ? fmtPhone(selected.phone) : undefined}
+        leading={selected ? <div className={styles.panelAvatar}>{initials(selected.nome, selected.phone)}</div> : undefined}
+        footer={selected ? (
+          existingPatients.has(cleanPhone(selected.phone)) ? (
+            <>
+              <button type="button" className={btn.secondary} disabled><Icon name="check" size={14} /> Já é paciente</button>
+              {patientIdMap[cleanPhone(selected.phone)] && (
+                <button
+                  type="button"
+                  className={btn.primary}
+                  onClick={() => router.push(`/pacientes?patient=${patientIdMap[cleanPhone(selected.phone)]}`)}
+                >
+                  Ver atendimento
+                </button>
+              )}
+            </>
+          ) : (
+            <button type="button" className={btn.primary} onClick={convertToPatient} disabled={converting}>
+              {converting ? 'Convertendo...' : 'Converter em paciente'}
+            </button>
+          )
+        ) : undefined}
+      >
+        {selected && (
+          <>
+            <div className={styles.panelMeta}>
+              {selected.procedimento && <MetaRow label="Procedimento" value={selected.procedimento} />}
+              {selected.status && <MetaRow label="Status" value={selected.status} />}
+              {selected.data_agendamento && <MetaRow label="Agendamento" value={formatDate(selected.data_agendamento, true)} />}
+              {selected.ai_service && <MetaRow label="Serviço IA" value={selected.ai_service} />}
+              {selected.created_at && <MetaRow label="Primeiro contato" value={formatDate(selected.created_at, true)} />}
+            </div>
 
-              <div className={styles.panelMeta}>
-                {selected.procedimento && <MetaRow label="Procedimento" value={selected.procedimento} />}
-                {selected.status && <MetaRow label="Status" value={selected.status} />}
-                {selected.data_agendamento && <MetaRow label="Agendamento" value={formatDate(selected.data_agendamento, true)} />}
-                {selected.ai_service && <MetaRow label="Serviço IA" value={selected.ai_service} />}
-                {selected.created_at && <MetaRow label="Primeiro contato" value={formatDate(selected.created_at, true)} />}
-              </div>
-
-              {/* Conversation */}
-              <div className={styles.chatSection}>
-                <p className={styles.chatTitle}>Histórico WhatsApp</p>
-                <div className={styles.chatBox}>
-                  {msgLoading && <p className={styles.chatInfo}>Carregando...</p>}
-                  {!msgLoading && messages.length === 0 && <p className={styles.chatInfo}>Nenhuma mensagem encontrada.</p>}
-                  {messages.map(m => {
-                    const userText = cleanUserMsg(m.user_message)
-                    const botText = cleanBotMsg(m.bot_message)
-                    const time = m.created_at ? new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
-                    const msgs = []
-                    if (userText) msgs.push(
-                      <div key={`u-${m.id}`} className={`${styles.bubble} ${styles.user}`}>
-                        <span>{userText}</span>
-                        {time && <span className={styles.bubbleTime}>{time}</span>}
-                      </div>
-                    )
-                    if (botText) msgs.push(
-                      <div key={`b-${m.id}`} className={`${styles.bubble} ${styles.bot}`}>
-                        <span>{botText}</span>
-                        {time && <span className={styles.bubbleTime}>{time}</span>}
-                      </div>
-                    )
-                    return msgs
-                  })}
-                </div>
-              </div>
-
-              {/* Convert action */}
-              <div className={styles.panelFooter}>
-                {convertMsg === 'ok' && <p className={styles.msgOk}><Icon name="check" size={14} /> Paciente criado com sucesso!</p>}
-                {convertMsg === 'already' && <p className={styles.msgWarn}>Telefone já cadastrado como paciente.</p>}
-                {convertMsg === 'error' && <p className={styles.msgErr}>Erro ao criar paciente.</p>}
-                {existingPatients.has(cleanPhone(selected.phone)) ? (
-                  <>
-                    <button className={styles.btnPatientExists} disabled><Icon name="check" size={14} /> Já é paciente</button>
-                    {patientIdMap[cleanPhone(selected.phone)] && (
-                      <button
-                        className={styles.btnAtendimento}
-                        onClick={() => router.push(`/pacientes?patient=${patientIdMap[cleanPhone(selected.phone)]}`)}
-                      >
-                        Ver Atendimento
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <button className={styles.btnConvert} onClick={convertToPatient} disabled={converting}>
-                    {converting ? 'Convertendo...' : '+ Converter em Paciente'}
-                  </button>
-                )}
+            {/* Conversation */}
+            <div className={styles.chatSection}>
+              <p className={styles.chatTitle}>Histórico WhatsApp</p>
+              <div className={styles.chatBox}>
+                {msgLoading && <p className={styles.chatInfo}>Carregando...</p>}
+                {!msgLoading && messages.length === 0 && <p className={styles.chatInfo}>Nenhuma mensagem encontrada.</p>}
+                {messages.map(m => {
+                  const userText = cleanUserMsg(m.user_message)
+                  const botText = cleanBotMsg(m.bot_message)
+                  const time = m.created_at ? new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
+                  const msgs = []
+                  if (userText) msgs.push(
+                    <div key={`u-${m.id}`} className={`${styles.bubble} ${styles.user}`}>
+                      <span>{userText}</span>
+                      {time && <span className={styles.bubbleTime}>{time}</span>}
+                    </div>
+                  )
+                  if (botText) msgs.push(
+                    <div key={`b-${m.id}`} className={`${styles.bubble} ${styles.bot}`}>
+                      <span>{botText}</span>
+                      {time && <span className={styles.bubbleTime}>{time}</span>}
+                    </div>
+                  )
+                  return msgs
+                })}
               </div>
             </div>
-          </div>
-        </Portal>
-      )}
+
+            {convertMsg === 'ok' && <p className={styles.msgOk} role="status"><Icon name="check" size={14} /> Paciente criado com sucesso!</p>}
+            {convertMsg === 'already' && <p className={styles.msgWarn} role="status">Telefone já cadastrado como paciente.</p>}
+            {convertMsg === 'error' && <p className={styles.msgErr} role="alert">Erro ao criar paciente.</p>}
+          </>
+        )}
+      </Modal>
     </div>
   )
 }

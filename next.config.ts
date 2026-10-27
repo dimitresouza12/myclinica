@@ -22,7 +22,8 @@ const CSP = [
   `object-src 'none'`,
   `base-uri 'self'`,
   `form-action 'self' https://accounts.google.com`,
-  `upgrade-insecure-requests`,
+  // só em produção: o Safari também força https em http://localhost e os arquivos de /_next deixam de carregar
+  ...(process.env.NODE_ENV === 'production' ? [`upgrade-insecure-requests`] : []),
 ].join('; ');
 
 const nextConfig: NextConfig = {

@@ -13,7 +13,9 @@ export interface CalendarEvent {
   title: string
   start: string
   end?: string
-  color: string
+  /** cor sólida (eventos do Google Calendar); consultas usam `classNames` e as cores do tema */
+  color?: string
+  classNames?: string[]
   extendedProps: Record<string, unknown>
 }
 
@@ -35,6 +37,8 @@ interface Props {
   onEventClick: (id: string) => void
   onDateSelect: (dateStr: string) => void
   onTitleChange?: (title: string) => void
+  /** período visível (fim exclusivo), a cada navegação, para o mini calendário e a contagem da agenda */
+  onRangeChange?: (start: Date, end: Date) => void
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -50,7 +54,7 @@ export function statusColor(status: string) {
 }
 
 const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullCalendarWrapper(
-  { events, view, googleCalendarId, onEventClick, onDateSelect, onTitleChange },
+  { events, view, googleCalendarId, onEventClick, onDateSelect, onTitleChange, onRangeChange },
   ref
 ) {
   const GAPI_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
@@ -90,7 +94,19 @@ const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullC
         const id = arg.event.id
         if (id) onEventClick(id)
       }}
-      datesSet={(arg: DatesSetArg) => onTitleChange?.(arg.view.title)}
+      datesSet={(arg: DatesSetArg) => {
+        onTitleChange?.(arg.view.title)
+        onRangeChange?.(arg.view.currentStart, arg.view.currentEnd)
+      }}
+      // Cabeçalho da coluna: dia da semana em letras minúsculas; na Semana o número do dia vai grande embaixo
+      // (hoje fica num círculo escuro, ver fullcalendar.css).
+      dayHeaderContent={arg => {
+        // no Mês a data do cabeçalho é um marcador em UTC (no Brasil cairia um dia antes): usa o texto pronto do FullCalendar
+        if (arg.view.type !== 'timeGridWeek') return arg.text.replace('.', '').toLowerCase()
+        const dow = arg.date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
+        // html (e não JSX): o conteúdo em React do FullCalendar chama flushSync durante a renderização e o React reclama
+        return { html: `<span class="fc-dh"><span class="fc-dh-dow">${dow}</span><span class="fc-dh-num">${arg.date.getDate()}</span></span>` }
+      }}
       height="auto"
       // Quem rola é o .calendarWrap (div externo), não o FullCalendar. O
       // sticky é feito por CSS puro ancorado no .calendarWrap (ver
@@ -113,8 +129,9 @@ const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullC
       // dele, menor — texto ilegível quando dois profissionais têm horário
       // colidindo. Com false, divide a largura entre os dois lado a lado.
       slotEventOverlap={false}
-      dayMaxEvents={7}
+      dayMaxEvents={4}
       moreLinkText={n => `+${n} mais`}
+      slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
       slotMinTime="06:00:00"
       slotMaxTime="21:00:00"
       allDaySlot={false}

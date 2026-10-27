@@ -1,0 +1,5 @@
+.spark { display: block; overflow: visible; flex-shrink: 0; }
+.line { fill: none; stroke: var(--text-primary); stroke-width: 1.6; stroke-linecap: round; }
+.start { fill: var(--surface); stroke: var(--text-primary); stroke-width: 1.5; }
+.end { fill: var(--brand-accent); }
+:global([data-theme="dark"]) .end { fill: var(--brand-primary); }

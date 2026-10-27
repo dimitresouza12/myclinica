@@ -1,0 +1,44 @@
+/* Botões do padrão premium: pílula de 40px, um primário (teal) por tela, secundários brancos.
+   Vermelho só em confirmação de exclusão. Uso: className={btn.primary} etc. */
+.base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+.base:active { transform: scale(0.98); }
+.base:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.base:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+/* primário desabilitado: cinza legível em vez de teal apagado */
+.primary:disabled, .danger:disabled { opacity: 1; background: var(--track); color: var(--text-tertiary); }
+.base svg { flex-shrink: 0; }
+
+.primary { composes: base; background: var(--brand-primary); color: #0D2421; }
+.primary:hover:not(:disabled) { background: var(--brand-secondary); }
+
+.secondary { composes: base; background: var(--surface); border-color: var(--border-color); color: var(--text-primary); }
+.secondary:hover:not(:disabled) { border-color: var(--text-tertiary); }
+
+.ghost { composes: base; background: transparent; color: var(--text-secondary); padding: 0 12px; }
+.ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text-primary); }
+
+.danger { composes: base; background: #DC2626; color: #FFFFFF; }
+.danger:hover:not(:disabled) { background: #B91C1C; }
+
+.icon { composes: base; width: 40px; padding: 0; background: var(--surface); border-color: var(--border-color); color: var(--text-secondary); }
+.icon:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-tertiary); }
+
+@media (max-width: 768px) {
+  .base { height: 44px; }
+  .icon { width: 44px; }
+}

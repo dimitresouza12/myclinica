@@ -4,13 +4,17 @@ import { supabase } from '@/lib/supabase'
 import type { Clinic } from '@/types'
 import { computeClinicStatus } from '@/lib/clinicStatus'
 import { PLAN_CATALOG, professionalLimitFor, type SellablePlan } from '@/lib/planCatalog'
-import { Portal } from '@/components/ui/Portal'
+import { Modal } from '@/components/ui/Modal'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import f from '@/components/ui/modalForm.module.css'
+import btn from '@/components/ui/button.module.css'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { isCompleteBrPhone, phoneInputError, toInputValue, waMeNumber } from '@/lib/phoneFormat'
 import { StatusBadge } from './StatusBadge'
 import styles from './admin.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { IntegerInput } from '@/components/ui/NumericInput'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 function planHint(value: SellablePlan): string {
   const entry = PLAN_CATALOG[value]
@@ -111,7 +115,6 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   }
 
   // Exclusão
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   async function handleDelete() {
@@ -128,6 +131,16 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
     setDeleting(false)
     onSaved()
     onClose()
+  }
+
+  async function confirmAndDelete() {
+    const ok = await confirmDialog({
+      title: `Excluir ${clinic.name}?`,
+      message: 'Esta ação é irreversível. Todos os dados da clínica e o login do responsável serão apagados.',
+      confirmText: 'Excluir clínica',
+      danger: true,
+    })
+    if (ok) await handleDelete()
   }
 
   async function handleSave() {
@@ -205,241 +218,200 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
   }
 
   return (
-    <Portal>
-    <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalHeader}>
-          <h2>Editar clínica: {clinic.name}</h2>
-          <button className={styles.btnClose} onClick={onClose}><Icon name="close" size={18} /></button>
-        </div>
-        <div className={styles.modalBody}>
-
-          {/* — Plano — */}
-          <div className={styles.field}>
-            <label>Plano</label>
-            <div className={styles.planGrid}>
-              {PLANS.map((p) => (
-                <button
-                  key={p.value}
-                  type="button"
-                  className={`${styles.planBtn} ${plan === p.value ? styles.planBtnActive : ''}`}
-                  onClick={() => setPlan(p.value)}
-                  title={p.hint}
-                >
-                  <span>{p.label}</span>
-                  <span className={styles.planHint}>{p.hint}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* — Limite de pacientes — */}
-          <div className={styles.field}>
-            <label>Limite de pacientes</label>
-            <IntegerInput
-              min={10}
-              max={1000000}
-              value={maxPatients}
-              onChange={(v) => setMaxPatients(v === '' ? 0 : Number(v))}
-              className={styles.fieldInput}
-            />
-          </div>
-
-          {/* — Limite de profissionais — */}
-          <div className={styles.field}>
-            <label>Limite de profissionais</label>
-            <IntegerInput
-              min={1}
-              max={1000}
-              placeholder={`Padrão do plano (${professionalLimitFor(plan, null) ?? 'ilimitado'})`}
-              value={maxUsers}
-              onChange={(v) => setMaxUsers(v === '' ? '' : Number(v))}
-              className={styles.fieldInput}
-            />
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Vazio = usa o padrão do plano. Preencha para dar uma exceção a essa clínica sem trocar o plano. Conta profissionais cadastrados (com ou sem login) — recepção/auxiliar não entram.
-            </p>
-          </div>
-
-          {/* — Trial — */}
-          <div className={styles.field}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-              <label>Período de teste</label>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Status resultante: <StatusBadge clinic={previewClinic} />
-              </span>
-            </div>
-            <div className={styles.statusBtnGroup}>
-              <button
-                type="button"
-                className={`${styles.statusChoiceBtn} ${trialMode === 'trial' ? styles.statusChoiceBtnActive : ''}`}
-                onClick={() => setTrialMode('trial')}
-              >
-                ⏳ Trial com data limite
-              </button>
-              <button
-                type="button"
-                className={`${styles.statusChoiceBtn} ${trialMode === 'permanente' ? styles.statusChoiceBtnActive : ''}`}
-                onClick={() => setTrialMode('permanente')}
-              >
-                Acesso permanente
-              </button>
-            </div>
-            {trialMode === 'trial' && (
-              <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Data de expiração do trial</span>
-                <input
-                  type="date"
-                  className={styles.fieldInput}
-                  value={trialDate}
-                  onChange={(e) => setTrialDate(e.target.value)}
-                />
-              </div>
-            )}
-            {trialMode === 'permanente' && (
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-                A clínica não será bloqueada por expiração de trial.
-              </p>
-            )}
-          </div>
-
-          {/* — Cobrança — */}
-          <div className={styles.billingSection}>
-            <p className={styles.billingSectionTitle}>Cobrança de mensalidade</p>
-
-            <div className={styles.billingRow}>
-              <div className={styles.field} style={{ flex: 1 }}>
-                <label>WhatsApp do responsável</label>
-                <PhoneInput
-                  className={styles.fieldInput}
-                  value={billingPhone}
-                  onChange={setBillingPhone}
-                />
-              </div>
-              <div className={styles.field} style={{ width: '110px' }}>
-                <label>Dia de vencimento</label>
-                <IntegerInput
-                  min={1}
-                  max={28}
-                  className={styles.fieldInput}
-                  placeholder="Ex: 10"
-                  value={billingDueDay}
-                  onChange={setBillingDueDay}
-                />
-              </div>
-            </div>
-
-            <div className={styles.billingPaidRow}>
-              <label className={styles.billingPaidLabel}>
-                <input
-                  type="checkbox"
-                  checked={billingPaid}
-                  onChange={(e) => setBillingPaid(e.target.checked)}
-                  className={styles.billingPaidCheck}
-                />
-                <span>Mensalidade paga</span>
-                <span className={billingPaid ? styles.paidBadge : styles.unpaidBadge}>
-                  {billingPaid ? <><Icon name="check" size={11} /> Pago</> : <><Icon name="alert" size={11} /> Pendente</>}
-                </span>
-              </label>
-
-              {canCharge && (
-                <a
-                  href={buildWhatsAppUrl(billingPhone, clinic.name, billingDueDay ? Number(billingDueDay) : null)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.btnWhatsApp}
-                >
-                  <Icon name="phone" size={13} /> Cobrar via WhatsApp
-                </a>
-              )}
-            </div>
-
-            {/* — Link de cobrança — */}
-            <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-color, #e5e7eb)' }}>
-              {!generatedLink ? (
-                <button
-                  type="button"
-                  onClick={handleGenerateLink}
-                  disabled={generatingLink}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'none', border: '1px solid var(--teal, #0D9488)', color: 'var(--teal, #0D9488)', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600, cursor: generatingLink ? 'not-allowed' : 'pointer', opacity: generatingLink ? 0.6 : 1 }}
-                >
-                  {generatingLink ? 'Gerando...' : 'Gerar link de cobrança'}
-                </button>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                  <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary, #94a3b8)', margin: 0 }}>
-                    Pagamentos feitos por este link marcam a mensalidade como paga automaticamente.
-                  </p>
-                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <code style={{ flex: 1, minWidth: '180px', padding: '0.4rem 0.6rem', background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '6px', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {generatedLink}
-                    </code>
-                    <button type="button" onClick={handleCopyLink} className={styles.btnCancel} style={{ padding: '0.4rem 0.7rem', fontSize: '0.78rem' }}>
-                      {linkCopied ? 'Copiado!' : 'Copiar'}
-                    </button>
-                    {canCharge && (
-                      <a
-                        href={buildPaymentLinkWhatsAppUrl(billingPhone, generatedLink)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.btnWhatsApp}
-                      >
-                        <Icon name="phone" size={13} /> Enviar no WhatsApp
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-              {linkError && <p className={styles.fieldError} style={{ marginTop: '0.4rem' }}>{linkError}</p>}
-            </div>
-          </div>
-
-          {error && <p className={styles.fieldError}>{error}</p>}
-        </div>
-        <div className={styles.modalFooter}>
-          <button
-            style={{ padding: '0.55rem 1rem', background: 'none', border: '1px solid #FECACA', color: '#DC2626', borderRadius: 'var(--radius-md)', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', marginRight: 'auto' }}
-            onClick={() => setShowDeleteConfirm(true)}
-          >
-            Excluir clínica
+    <Modal
+      open
+      onClose={onClose}
+      title={`Editar clínica: ${clinic.name}`}
+      footer={
+        <>
+          <button type="button" className={styles.btnDeleteClinic} onClick={confirmAndDelete} disabled={deleting || saving}>
+            {deleting ? 'Excluindo...' : 'Excluir clínica'}
           </button>
-          <button className={styles.btnCancel} onClick={onClose}>Cancelar</button>
-          <button className={styles.btnSave} onClick={handleSave} disabled={saving}>
+          <button type="button" className={btn.secondary} onClick={onClose}>Cancelar</button>
+          <button type="button" className={btn.primary} onClick={handleSave} disabled={saving || deleting}>
             {saving ? 'Salvando...' : 'Salvar'}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
 
-    {showDeleteConfirm && (
-      <div className={styles.overlay} onClick={() => setShowDeleteConfirm(false)} style={{ zIndex: 1100 }}>
-        <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
-          <div className={styles.modalHeader}>
-            <h2>Excluir clínica</h2>
-            <button className={styles.btnClose} onClick={() => setShowDeleteConfirm(false)}><Icon name="close" size={18} /></button>
-          </div>
-          <div className={styles.modalBody}>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: 1.6 }}>
-              Tem certeza que deseja excluir permanentemente a clínica <strong>{clinic.name}</strong>?
-            </p>
-            <p style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--radius-md)', padding: '0.6rem 0.75rem', marginTop: '0.5rem' }}>
-              <Icon name="alert" size={13} /> Esta ação é irreversível. Todos os dados da clínica e o login do responsável serão apagados.
-            </p>
-          </div>
-          <div className={styles.modalFooter}>
-            <button className={styles.btnCancel} onClick={() => setShowDeleteConfirm(false)}>Cancelar</button>
+      {/* — Plano — */}
+      <div className={f.field}>
+        <label>Plano</label>
+        <div className={styles.planGrid}>
+          {PLANS.map((p) => (
             <button
-              style={{ padding: '0.55rem 1.25rem', background: '#DC2626', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', opacity: deleting ? 0.6 : 1 }}
-              onClick={handleDelete}
-              disabled={deleting}
+              key={p.value}
+              type="button"
+              className={`${styles.planBtn} ${plan === p.value ? styles.planBtnActive : ''}`}
+              onClick={() => setPlan(p.value)}
+              title={p.hint}
             >
-              {deleting ? 'Excluindo...' : 'Sim, excluir'}
+              <span>{p.label}</span>
+              <span className={styles.planHint}>{p.hint}</span>
             </button>
-          </div>
+          ))}
         </div>
       </div>
-    )}
-    </Portal>
+
+      {/* — Limite de pacientes — */}
+      <div className={f.field}>
+        <label>Limite de pacientes</label>
+        <IntegerInput
+          min={10}
+          max={1000000}
+          value={maxPatients}
+          onChange={(v) => setMaxPatients(v === '' ? 0 : Number(v))}
+          className={styles.fieldInput}
+        />
+      </div>
+
+      {/* — Limite de profissionais — */}
+      <div className={f.field}>
+        <label>Limite de profissionais</label>
+        <IntegerInput
+          min={1}
+          max={1000}
+          placeholder={`Padrão do plano (${professionalLimitFor(plan, null) ?? 'ilimitado'})`}
+          value={maxUsers}
+          onChange={(v) => setMaxUsers(v === '' ? '' : Number(v))}
+          className={styles.fieldInput}
+        />
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+          Vazio = usa o padrão do plano. Preencha para dar uma exceção a essa clínica sem trocar o plano. Conta profissionais cadastrados (com ou sem login) — recepção/auxiliar não entram.
+        </p>
+      </div>
+
+      {/* — Trial — */}
+      <div className={f.field}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+          <label>Período de teste</label>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            Status resultante: <StatusBadge clinic={previewClinic} />
+          </span>
+        </div>
+        <div className={styles.statusBtnGroup}>
+          <button
+            type="button"
+            className={`${styles.statusChoiceBtn} ${trialMode === 'trial' ? styles.statusChoiceBtnActive : ''}`}
+            onClick={() => setTrialMode('trial')}
+          >
+            Trial com data limite
+          </button>
+          <button
+            type="button"
+            className={`${styles.statusChoiceBtn} ${trialMode === 'permanente' ? styles.statusChoiceBtnActive : ''}`}
+            onClick={() => setTrialMode('permanente')}
+          >
+            Acesso permanente
+          </button>
+        </div>
+        {trialMode === 'trial' && (
+          <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Data de expiração do trial</span>
+            <DatePicker ariaLabel="Data de expiração do trial" value={trialDate} onChange={setTrialDate} />
+          </div>
+        )}
+        {trialMode === 'permanente' && (
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+            A clínica não será bloqueada por expiração de trial.
+          </p>
+        )}
+      </div>
+
+      {/* — Cobrança — */}
+      <div className={styles.billingSection}>
+        <p className={styles.billingSectionTitle}>Cobrança de mensalidade</p>
+
+        <div className={styles.billingRow}>
+          <div className={f.field} style={{ flex: 1 }}>
+            <label>WhatsApp do responsável</label>
+            <PhoneInput
+              className={styles.fieldInput}
+              value={billingPhone}
+              onChange={setBillingPhone}
+            />
+          </div>
+          <div className={f.field} style={{ width: '110px' }}>
+            <label>Dia de vencimento</label>
+            <IntegerInput
+              min={1}
+              max={28}
+              className={styles.fieldInput}
+              placeholder="Ex: 10"
+              value={billingDueDay}
+              onChange={setBillingDueDay}
+            />
+          </div>
+        </div>
+
+        <div className={styles.billingPaidRow}>
+          <label className={styles.billingPaidLabel}>
+            <input
+              type="checkbox"
+              checked={billingPaid}
+              onChange={(e) => setBillingPaid(e.target.checked)}
+              className={styles.billingPaidCheck}
+            />
+            <span>Mensalidade paga</span>
+            <span className={billingPaid ? styles.paidBadge : styles.unpaidBadge}>
+              {billingPaid ? <><Icon name="check" size={11} /> Pago</> : <><Icon name="alert" size={11} /> Pendente</>}
+            </span>
+          </label>
+
+          {canCharge && (
+            <a
+              href={buildWhatsAppUrl(billingPhone, clinic.name, billingDueDay ? Number(billingDueDay) : null)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.btnWhatsApp}
+            >
+              <Icon name="phone" size={13} /> Cobrar via WhatsApp
+            </a>
+          )}
+        </div>
+
+        {/* — Link de cobrança — */}
+        <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-color, #e5e7eb)' }}>
+          {!generatedLink ? (
+            <button
+              type="button"
+              onClick={handleGenerateLink}
+              disabled={generatingLink}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'none', border: '1px solid var(--teal, #0D9488)', color: 'var(--teal, #0D9488)', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600, cursor: generatingLink ? 'not-allowed' : 'pointer', opacity: generatingLink ? 0.6 : 1 }}
+            >
+              {generatingLink ? 'Gerando...' : 'Gerar link de cobrança'}
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary, #94a3b8)', margin: 0 }}>
+                Pagamentos feitos por este link marcam a mensalidade como paga automaticamente.
+              </p>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <code style={{ flex: 1, minWidth: '180px', padding: '0.4rem 0.6rem', background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '6px', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {generatedLink}
+                </code>
+                <button type="button" onClick={handleCopyLink} className={btn.secondary}>
+                  {linkCopied ? 'Copiado!' : 'Copiar'}
+                </button>
+                {canCharge && (
+                  <a
+                    href={buildPaymentLinkWhatsAppUrl(billingPhone, generatedLink)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.btnWhatsApp}
+                  >
+                    <Icon name="phone" size={13} /> Enviar no WhatsApp
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+          {linkError && <p className={styles.fieldError} style={{ marginTop: '0.4rem' }}>{linkError}</p>}
+        </div>
+      </div>
+
+      {error && <p className={f.error} role="alert">{error}</p>}
+    </Modal>
   )
 }

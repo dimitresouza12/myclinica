@@ -1,0 +1,50 @@
+/* Campos e linhas de formulário dentro de <Modal>. Uso: import f from '@/components/ui/modalForm.module.css' */
+.field { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field label { font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
+.field input, .field select, .field textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.6rem 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-field);
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.field textarea { min-height: 88px; resize: vertical; }
+.field input::placeholder, .field textarea::placeholder { color: var(--text-tertiary); }
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--brand-primary); box-shadow: 0 0 0 3px var(--brand-light); }
+.field input:disabled { background: var(--surface-2); color: var(--text-secondary); cursor: not-allowed; }
+.hint { font-size: 0.76rem; color: var(--text-secondary); }
+.error { padding: 0.55rem 0.75rem; border-radius: var(--radius-field); background: color-mix(in srgb, var(--st-bad) 9%, transparent); color: var(--st-bad); font-size: 0.84rem; }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 480px) { .row2 { grid-template-columns: 1fr; } }
+
+/* Interruptores agrupados num bloco, com divisória fina entre eles */
+.switches { display: flex; flex-direction: column; border: 1px solid var(--surface-line); border-radius: var(--radius-inner); background: var(--surface-2); }
+.switchRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 52px; padding: 8px 14px; cursor: pointer; }
+.switchRow + .switchRow { border-top: 1px solid var(--surface-line); }
+.switchText { display: flex; flex-direction: column; min-width: 0; }
+.switchText b { font-size: 0.88rem; font-weight: 500; color: var(--text-primary); }
+.switchText small { font-size: 0.76rem; color: var(--text-secondary-strong); }
+
+.toggle { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+.toggle input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.toggle span { position: absolute; inset: 0; border-radius: 999px; background: var(--border-color); transition: background .2s; pointer-events: none; }
+.toggle span::before { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.18); transition: transform .2s; }
+.toggle input:checked + span { background: var(--brand-primary); }
+.toggle input:checked + span::before { transform: translateX(18px); }
+.toggle input:focus-visible + span { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.toggle input:disabled { cursor: not-allowed; }
+.toggle input:disabled + span { opacity: 0.45; }
+.switchRow:has(input:disabled) { cursor: not-allowed; }
+
+/* Texto de confirmação: pergunta e nota de consequência */
+.lead { margin: 0; font-size: 0.92rem; line-height: 1.55; color: var(--text-primary); }
+.note { margin: 0; font-size: 0.84rem; line-height: 1.5; color: var(--text-secondary); }
+.noteDanger { display: flex; align-items: flex-start; gap: 6px; color: var(--st-bad); }
+.noteDanger svg { flex-shrink: 0; margin-top: 3px; }

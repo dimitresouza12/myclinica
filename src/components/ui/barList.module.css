@@ -1,0 +1,8 @@
+.list { list-style: none; display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+.row { display: flex; justify-content: space-between; gap: 12px; font-size: 0.8125rem; color: var(--text-secondary); }
+.row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row b { font-weight: 500; color: var(--text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.track { height: 4px; margin-top: 7px; border-radius: 2px; background: var(--track); overflow: hidden; }
+.track i { display: block; height: 100%; border-radius: 2px; background: var(--brand-accent); }
+:global([data-theme="dark"]) .track i { background: var(--brand-primary); }
+.empty { margin-top: 12px; font-size: 0.8125rem; color: var(--text-secondary); }

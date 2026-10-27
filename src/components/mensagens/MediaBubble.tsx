@@ -1,12 +1,13 @@
 'use client'
 import { useState } from 'react'
 import { Icon } from '@/components/ui/Icon'
-import { MAX_STORED_BYTES, formatBytes, formatDuration } from '@/lib/whatsapp/media'
+import { MAX_STORED_BYTES, formatDuration } from '@/lib/whatsapp/media'
 import { VoicePlayer } from './VoicePlayer'
+import { FileCard } from './FileCard'
 import type { WaMessage } from '@/hooks/useWhatsAppInbox'
 import styles from './Inbox.module.css'
 
-const KIND_TITLE: Record<WaMessage['kind'], string> = {
+const KIND_LABEL: Record<WaMessage['kind'], string> = {
   text: '', image: 'Imagem', audio: 'Áudio', video: 'Vídeo', document: 'Documento', sticker: 'Figurinha', other: 'Mensagem',
 }
 
@@ -24,7 +25,6 @@ export function MediaBubble({ m, url, onOpenMedia, onRetry, onDownload }: Props)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const thumb = m.media_thumb ? `data:image/jpeg;base64,${m.media_thumb}` : null
-  const title = KIND_TITLE[m.kind]
   const tooBig = m.media_size != null && m.media_size > MAX_STORED_BYTES
 
   async function run(fn: (id: string) => Promise<string | null>) {
@@ -35,24 +35,38 @@ export function MediaBubble({ m, url, onOpenMedia, onRetry, onDownload }: Props)
   // ainda baixando, não disponível ou removido: mostra a miniatura (se houver) e o estado
   if (m.media_status !== 'ready' || !url) {
     const state =
-      m.media_status === 'pending' ? 'Carregando o arquivo…'
-      : m.media_status === 'expired' ? 'Arquivo removido. A cópia fica guardada por poucos dias.'
-      : tooBig ? 'Arquivo grande demais para abrir por aqui. Veja no WhatsApp do celular.'
+      m.media_status === 'pending' ? 'Carregando…'
+      : m.media_status === 'expired' ? 'Removido. Veja no WhatsApp do celular.'
+      : tooBig ? 'Grande demais para abrir aqui. Veja no WhatsApp do celular.'
       : m.media_status === 'failed' ? 'Não foi possível carregar o arquivo.'
       : m.media_status === 'ready' ? 'Preparando o arquivo…'
-      : 'O arquivo não está disponível por aqui. Veja no WhatsApp do celular.'
+      : 'Indisponível aqui. Veja no WhatsApp do celular.'
     // arquivo enviado pelo sistema não tem como baixar de novo do WhatsApp (não guardamos a chave dele)
     const canRetry = (m.media_status === 'failed' || m.media_status === 'expired') && !tooBig && m.origin !== 'sistema'
+    if (m.kind === 'document') {
+      return (
+        <FileCard
+          name={m.media_name ?? 'Documento'}
+          size={m.media_size}
+          mime={m.media_mime}
+          state={m.media_status === 'pending' ? 'loading' : 'unavailable'}
+          hint={state}
+          busy={busy}
+          error={error}
+          onRetry={canRetry ? () => void run(onRetry) : undefined}
+        />
+      )
+    }
     return (
       <div className={styles.mediaBox}>
         {thumb && (m.kind === 'image' || m.kind === 'video' || m.kind === 'sticker') && (
           // eslint-disable-next-line @next/next/no-img-element
           <img className={styles.thumbBlur} src={thumb} alt="" />
         )}
-        <span className={styles.mediaTitle}>{title}{m.media_name ? `: ${m.media_name}` : ''}</span>
-        <span className={styles.media}>{state}</span>
+        <span className={styles.mediaKind}>{KIND_LABEL[m.kind]}{m.media_name ? `: ${m.media_name}` : ''}</span>
+        <span className={styles.mediaState}>{state}</span>
         {canRetry && (
-          <button type="button" className={styles.mediaBtn} disabled={busy} onClick={() => void run(onRetry)}>
+          <button type="button" className={styles.fileRetry} disabled={busy} onClick={() => void run(onRetry)}>
             {busy ? 'Baixando…' : 'Baixar de novo'}
           </button>
         )}
@@ -91,17 +105,15 @@ export function MediaBubble({ m, url, onOpenMedia, onRetry, onDownload }: Props)
   // documento
   const isPdf = m.media_mime === 'application/pdf'
   return (
-    <div className={styles.docCard}>
-      <span className={styles.docIcon} aria-hidden="true"><Icon name="paperclip" size={20} /></span>
-      <span className={styles.docInfo}>
-        <b>{m.media_name ?? 'Documento'}</b>
-        <span>{formatBytes(m.media_size)}</span>
-      </span>
-      <span className={styles.docActions}>
-        {isPdf && <a className={styles.mediaBtn} href={url} target="_blank" rel="noopener noreferrer">Abrir</a>}
-        <button type="button" className={styles.mediaBtn} disabled={busy} onClick={() => void run(onDownload)}>{busy ? 'Preparando…' : 'Baixar'}</button>
-      </span>
-      {error && <span className={styles.mediaError} role="alert">{error}</span>}
-    </div>
+    <FileCard
+      name={m.media_name ?? 'Documento'}
+      size={m.media_size}
+      mime={m.media_mime}
+      state="ready"
+      href={isPdf ? url : undefined}
+      onDownload={() => void run(onDownload)}
+      busy={busy}
+      error={error}
+    />
   )
 }

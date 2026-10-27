@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
 import type { AuditLog, Clinic } from '@/types'
 import styles from './admin.module.css'
+import { SelectMenu } from '@/components/ui/SelectMenu'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 const ACTION_COLORS: Record<string, string> = {
   create: '#10B981',
@@ -78,14 +80,12 @@ export function AdminLogs({ clinics }: { clinics: Clinic[] }) {
   return (
     <div className={styles.logsWrap}>
       <div className={styles.logsFilters}>
-        <select className={styles.selectFilter} value={filterClinic} onChange={(e) => setFilterClinic(e.target.value)}>
-          <option value="">Todas as clínicas</option>
-          {clinics.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <SelectMenu ariaLabel="Filtrar por clínica" value={filterClinic} onChange={setFilterClinic}
+          options={[{ value: '', label: 'Todas as clínicas' }, ...clinics.map((c) => ({ value: c.id, label: c.name }))]} />
         <input className={styles.searchInput} placeholder="Filtrar módulo..." value={filterModule} onChange={(e) => setFilterModule(e.target.value)} />
         <input className={styles.searchInput} placeholder="Filtrar ação..." value={filterAction} onChange={(e) => setFilterAction(e.target.value)} />
-        <input type="date" className={styles.selectFilter} value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} />
-        <input type="date" className={styles.selectFilter} value={filterTo} onChange={(e) => setFilterTo(e.target.value)} />
+        <div className={styles.dateFilter}><DatePicker ariaLabel="Data inicial" placeholder="De" value={filterFrom} onChange={setFilterFrom} /></div>
+        <div className={styles.dateFilter}><DatePicker ariaLabel="Data final" placeholder="Até" value={filterTo} onChange={setFilterTo} /></div>
         {(filterClinic || filterModule || filterAction || filterFrom || filterTo) && (
           <button className={styles.btnClear} onClick={() => { setFilterClinic(''); setFilterModule(''); setFilterAction(''); setFilterFrom(''); setFilterTo('') }}>
             Limpar

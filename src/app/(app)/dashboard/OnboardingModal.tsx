@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { Portal } from '@/components/ui/Portal'
-import { Icon } from '@/components/ui/Icon'
+import { Modal } from '@/components/ui/Modal'
+import btn from '@/components/ui/button.module.css'
 import type { Procedure } from '@/types'
 import { useOnboardingItems } from './useOnboardingItems'
 import styles from './dashboard.module.css'
@@ -42,45 +42,35 @@ export function OnboardingModal({ procedures, patientsCount }: Props) {
   }
 
   return (
-    <Portal>
-      <div className={styles.onbOverlay} onClick={handleClose}>
-        <div className={styles.onbModal} onClick={(e) => e.stopPropagation()}>
-          <div className={styles.onbModalHeader}>
-            <div>
-              <h2 className={styles.onbModalTitle}>Bem-vindo(a) à MyClínica! 🎉</h2>
-              <p className={styles.onbModalSubtitle}>Alguns passos rápidos para deixar sua clínica pronta</p>
-            </div>
-            <button className={styles.onbModalCloseX} onClick={handleClose}><Icon name="close" size={18} /></button>
-          </div>
-          <div className={styles.onbModalBody}>
-            <div className={styles.roleInfoBox}>
-              <p className={styles.roleInfoTitle}>Como funciona o acesso por cargo</p>
-              <p className={styles.roleInfoText}>
-                Cada pessoa que você cadastrar em Equipe recebe um cargo — Recepção, Auxiliar, o cargo clínico da especialidade ou Admin — e já vem com um conjunto de permissões pronto (dá pra ajustar depois). Você, como admin, sempre enxerga tudo.
-                {clinic.founderIsProfessional && ' Isso inclui a agenda e o prontuário — não precisa de um preset separado pra você.'}
-              </p>
-            </div>
-            {visible.map(item => (
-              <div key={item.key} className={styles.onboardingItem}>
-                <span className={styles.onboardingItemLabel}>{item.label}</span>
-                <div className={styles.onboardingItemActions}>
-                  <Link href={item.href} className={styles.onboardingBtnPrimary} onClick={handleClose}>{item.cta}</Link>
-                  <button
-                    className={styles.onboardingBtnDone}
-                    onClick={() => dismiss(item.key)}
-                    disabled={savingKey === item.key}
-                  >
-                    {savingKey === item.key ? 'Salvando...' : 'Já feito'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className={styles.onbModalFooter}>
-            <button className={styles.onbModalFooterBtn} onClick={handleClose}>Configurar depois</button>
+    <Modal
+      open
+      onClose={handleClose}
+      title="Bem-vindo(a) à MyClínica"
+      subtitle="Alguns passos rápidos para deixar sua clínica pronta"
+      footer={<button type="button" className={btn.secondary} onClick={handleClose}>Configurar depois</button>}
+    >
+      <div className={styles.roleInfoBox}>
+        <p className={styles.roleInfoTitle}>Como funciona o acesso por cargo</p>
+        <p className={styles.roleInfoText}>
+          Cada pessoa que você cadastrar em Equipe recebe um cargo — Recepção, Auxiliar, o cargo clínico da especialidade ou Admin — e já vem com um conjunto de permissões pronto (dá pra ajustar depois). Você, como admin, sempre enxerga tudo.
+          {clinic.founderIsProfessional && ' Isso inclui a agenda e o prontuário — não precisa de um preset separado pra você.'}
+        </p>
+      </div>
+      {visible.map(item => (
+        <div key={item.key} className={styles.onboardingItem}>
+          <span className={styles.onboardingItemLabel}>{item.label}</span>
+          <div className={styles.onboardingItemActions}>
+            <Link href={item.href} className={styles.onboardingBtnPrimary} onClick={handleClose}>{item.cta}</Link>
+            <button
+              className={styles.onboardingBtnDone}
+              onClick={() => dismiss(item.key)}
+              disabled={savingKey === item.key}
+            >
+              {savingKey === item.key ? 'Salvando...' : 'Já feito'}
+            </button>
           </div>
         </div>
-      </div>
-    </Portal>
+      ))}
+    </Modal>
   )
 }

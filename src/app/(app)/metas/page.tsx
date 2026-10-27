@@ -7,14 +7,21 @@ import { formatCurrency } from '@/lib/utils'
 import { Icon } from '@/components/ui/Icon'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { useDashboardData } from '@/hooks/useClinicData'
-import { PageTitle } from '@/components/layout/PageTitle'
+import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
+import { Gauge } from '@/components/ui/Gauge'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { BarList } from '@/components/ui/BarList'
+import btn from '@/components/ui/button.module.css'
 import styles from './metas.module.css'
 import { MoneyInput } from '@/components/ui/NumericInput'
+import { moneyShort, axisMoney, statMoney } from '@/lib/ui/money'
 
-const MetasHistoryChart = dynamic(() => import('./MetasHistoryChart'), {
+const AreaTrendChart = dynamic(() => import('@/components/ui/AreaTrendChart').then(m => m.AreaTrendChart), {
   ssr: false,
-  loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div>,
+  loading: () => <div className={styles.chartLoading} />,
 })
+
 
 function MetasContent() {
   const { clinic, user, setSession } = useAuthStore()
@@ -49,102 +56,96 @@ function MetasContent() {
     setTimeout(() => setSaved(false), 3000)
   }
 
+  const monthLabel = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  const remaining = goal ? Math.max(0, goal - currentMonthRevenue) : 0
+  const trend = monthlyData.map(m => ({ label: m.month, value: m.receita, compare: goal ?? null }))
+
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <PageTitle title="Metas" subtitle="Acompanhe e defina a meta de faturamento mensal da clínica" />
-      </div>
+      <PageHeader title="Metas" subtitle="Acompanhe e defina a meta de faturamento mensal da clínica" />
 
       {loading ? (
         <p className={styles.loading}>Carregando...</p>
       ) : (
         <>
-          <div className={styles.card}>
-            <div className={styles.cardHeader}>
-              <span className={styles.cardIcon}><Icon name="target" size={18} /></span>
-              <h2 className={styles.cardTitle}>Meta de faturamento — {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2>
-            </div>
-
-            {goal ? (
-              <div className={styles.progress}>
-                <div className={styles.progressHeader}>
-                  <span className={styles.progressValue}>{formatCurrency(currentMonthRevenue)}</span>
-                  <span className={styles.progressGoal}>de {formatCurrency(goal)}</span>
-                </div>
-                <div className={styles.progressTrack}>
-                  <div
-                    className={styles.progressFill}
-                    style={{ width: `${goalProgressPct}%`, background: goalProgressPct >= 100 ? '#10B981' : goalProgressPct >= 60 ? '#4DD9C0' : '#F59E0B' }}
-                  />
-                </div>
-                <span className={styles.progressPct}>
-                  {goalProgressPct}% da meta atingida
-                  {currentMonthRevenue < goal && ` · faltam ${formatCurrency(goal - currentMonthRevenue)}`}
-                </span>
-              </div>
-            ) : (
-              <p className={styles.empty}>Nenhuma meta definida ainda. {isAdmin ? 'Defina abaixo para começar a acompanhar o progresso.' : 'Peça para um administrador definir uma meta.'}</p>
-            )}
-
-            {isAdmin && (
-              <div className={styles.editRow}>
-                <div className={styles.field}>
-                  <label>Meta de faturamento mensal (R$)</label>
-                  <MoneyInput
-                    placeholder="Ex: 30.000,00"
-                    value={goalInput}
-                    onChange={setGoalInput}
-                    className={styles.goalInput}
-                  />
-                </div>
-                <button className={styles.btnSave} onClick={handleSaveGoal} disabled={savingGoal}>
-                  {savingGoal ? 'Salvando...' : 'Salvar meta'}
-                </button>
-                {saved && <span className={styles.savedMsg}><Icon name="check" size={12} /> Meta salva</span>}
-              </div>
-            )}
-            {goalError && <p className={styles.goalErrorMsg}>{goalError}</p>}
-
-            <p className={styles.hint}>A meta aparece no Dashboard como linha de referência no gráfico e no resumo do mês.</p>
+          <div className={styles.stats}>
+            <StatCard title="Faturamento do mês" value={statMoney(currentMonthRevenue)} compact hint={monthLabel} />
+            <StatCard title="Meta do mês" value={goal ? statMoney(goal) : '-'} compact hint={goal ? 'definida pela administração' : 'ainda não definida'} />
+            <StatCard
+              title="Falta para a meta"
+              value={goal ? statMoney(remaining) : '-'}
+              compact
+              hint={goal ? (remaining === 0 ? 'meta atingida' : `${goalProgressPct}% já atingido`) : 'defina uma meta para acompanhar'}
+            />
           </div>
 
-          <div className={styles.card}>
-            <div className={styles.cardHeader}>
-              <span className={styles.cardIcon}><Icon name="reports" size={18} /></span>
-              <h2 className={styles.cardTitle}>Evolução da receita</h2>
-            </div>
+          <div className={styles.split}>
+            <Card title={`Meta de faturamento, ${monthLabel}`}>
+              {goal ? (
+                <div className={styles.gaugeWrap}>
+                  <Gauge value={goalProgressPct / 100} label={`Meta do mês: ${goalProgressPct}% atingida`}>
+                    <span className={styles.gaugeNum}>{goalProgressPct}<small>%</small></span>
+                  </Gauge>
+                  <p className={styles.gaugeText}>
+                    {formatCurrency(currentMonthRevenue)} de {formatCurrency(goal)}
+                    {currentMonthRevenue < goal && `, faltam ${formatCurrency(goal - currentMonthRevenue)}`}
+                  </p>
+                </div>
+              ) : (
+                <p className={styles.empty}>Nenhuma meta definida ainda. {isAdmin ? 'Defina abaixo para começar a acompanhar o progresso.' : 'Peça para um administrador definir uma meta.'}</p>
+              )}
+
+              {isAdmin && (
+                <div className={styles.editRow}>
+                  <div className={styles.field}>
+                    <label>Meta de faturamento mensal (R$)</label>
+                    <MoneyInput
+                      placeholder="Ex: 30.000,00"
+                      value={goalInput}
+                      onChange={setGoalInput}
+                      className={styles.goalInput}
+                    />
+                  </div>
+                  <button type="button" className={btn.primary} onClick={handleSaveGoal} disabled={savingGoal}>
+                    {savingGoal ? 'Salvando...' : 'Salvar meta'}
+                  </button>
+                  {saved && <span className={styles.savedMsg} role="status"><Icon name="check" size={12} /> Meta salva</span>}
+                </div>
+              )}
+              {goalError && <p className={styles.goalErrorMsg} role="alert">{goalError}</p>}
+
+              <p className={styles.hint}><Icon name="info" size={14} /> A meta aparece no Dashboard, no medidor e no resumo do mês.</p>
+            </Card>
+
+            <Card title="Evolução da receita" actions={<span className={styles.cardMeta}>últimos 6 meses</span>}>
+              {monthlyData.length === 0 ? (
+                <p className={styles.empty}>Sem dados suficientes ainda.</p>
+              ) : (
+                <AreaTrendChart
+                  data={trend}
+                  highlightIndex={trend.length - 1}
+                  valueName="Receita"
+                  compareName={goal ? 'Meta' : undefined}
+                  formatValue={moneyShort}
+                  formatAxis={axisMoney}
+                  height={250}
+                  label="Receita dos últimos 6 meses comparada com a meta"
+                />
+              )}
+            </Card>
+          </div>
+
+          <Card title="Histórico, últimos 6 meses" actions={goal ? <span className={styles.cardMeta}>barra = parcela da meta</span> : undefined}>
             {monthlyData.length === 0 ? (
               <p className={styles.empty}>Sem dados suficientes ainda.</p>
             ) : (
-              <MetasHistoryChart data={monthlyData} goal={goal} />
+              <BarList
+                items={monthlyData.map((m, i) => ({ label: `${m.month}${i === monthlyData.length - 1 ? ' (atual)' : ''}`, value: m.receita }))}
+                format={v => (goal ? `${formatCurrency(v)}, ${Math.round((v / goal) * 100)}%` : formatCurrency(v))}
+                total={goal ?? Math.max(...monthlyData.map(m => m.receita), 1)}
+              />
             )}
-          </div>
-
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>Histórico — últimos 6 meses</h2>
-            {monthlyData.length === 0 ? (
-              <p className={styles.empty}>Sem dados suficientes ainda.</p>
-            ) : (
-              <div className={styles.historyList}>
-                {monthlyData.map((m, i) => {
-                  const pct = goal ? Math.min(100, Math.round((m.receita / goal) * 100)) : null
-                  const isCurrent = i === monthlyData.length - 1
-                  return (
-                    <div key={`${m.month}-${i}`} className={styles.historyRow}>
-                      <span className={styles.historyMonth}>{m.month}{isCurrent && <span className={styles.historyNow}>atual</span>}</span>
-                      <div className={styles.historyBarTrack}>
-                        {goal && (
-                          <div className={styles.historyBarFill} style={{ width: `${pct}%`, background: (pct ?? 0) >= 100 ? '#10B981' : '#4DD9C0' }} />
-                        )}
-                      </div>
-                      <span className={styles.historyValue}>{formatCurrency(m.receita)}</span>
-                      {goal && <span className={styles.historyPct}>{pct}%</span>}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+          </Card>
         </>
       )}
     </div>

@@ -18,7 +18,7 @@
 .trigger:hover { border-color: #4DD9C0; }
 .trigger:focus-visible { border-color: #4DD9C0; box-shadow: 0 0 0 3px rgba(77,217,192,.15); outline: none; }
 .trigger span { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; }
-.placeholder { color: var(--text-tertiary); font-weight: 400; }
+.placeholder { color: var(--text-secondary); font-weight: 400; }
 .chevron { color: var(--text-tertiary); flex-shrink: 0; }
 
 .popover {
@@ -35,7 +35,7 @@
 .monthLabel { font-size: .85rem; font-weight: 700; color: var(--text-primary); text-transform: capitalize; }
 
 .weekdaysRow { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: .3rem; }
-.weekdaysRow span { text-align: center; font-size: .68rem; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; }
+.weekdaysRow span { text-align: center; font-size: .68rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; }
 
 .daysGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .2rem; }
 .dayBtn {
@@ -46,3 +46,6 @@
 .dayBtn:hover { background: var(--bg-secondary); }
 .dayBtnToday { border-color: var(--border-color); color: #0B9B85; }
 .dayBtnActive, .dayBtnActive:hover { background: #4DD9C0; color: #0D2421; }
+
+.dayBtn:disabled { color: var(--text-tertiary); opacity: .45; cursor: not-allowed; }
+.trigger:disabled { background: var(--surface-2); color: var(--text-secondary); cursor: not-allowed; }

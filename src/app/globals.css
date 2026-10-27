@@ -55,25 +55,36 @@ a {
   overflow-y: hidden;
 }
 
-/* ─── Status badges ──────────────────────────────── */
+/* ─── Status: ponto colorido com texto ───────────────
+   Mesmos nomes de classe de antes (status-badge + status-*), agora sem caixa,
+   sem borda lateral e sem caixa alta: a cor fica só no ponto e o texto
+   continua visível (a cor nunca carrega o significado sozinha). */
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px 2px 6px;
-  border-radius: 4px;
-  border-left: 2px solid currentColor;
-  font-size: 0.695rem;
-  font-weight: 600;
+  gap: 7px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.3;
   white-space: nowrap;
-  letter-spacing: 0.04em;
-  text-transform: capitalize;
+  color: var(--text-secondary);
+  --dot: var(--st-idle);
 }
-.status-agendado   { background: #EEF2FF; color: #4338CA; }
-.status-confirmado { background: #ECFDF5; color: #065F46; }
-.status-concluido  { background: #F0FDF4; color: #166534; }
-.status-cancelado  { background: #FEF2F2; color: #B91C1C; }
-.status-pendente   { background: #FFFBEB; color: #92400E; }
-.status-faltou     { background: #FFF7ED; color: #C2410C; }
+.status-badge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--dot);
+}
+.status-badge::first-letter { text-transform: uppercase; }
+.status-agendado   { --dot: var(--st-wait); }
+.status-confirmado { --dot: var(--st-ok); }
+.status-concluido  { --dot: var(--st-now); }
+.status-cancelado  { --dot: var(--st-bad); }
+.status-pendente   { --dot: var(--st-wait); }
+.status-faltou     { --dot: var(--st-warn); }
 
 /* ─── Scrollbar ──────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -130,12 +141,12 @@ a {
   }
 
   .resp-table tr {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-subtle);
-    border-radius: 12px;
-    box-shadow: var(--shadow-sm);
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.625rem;
+    background: var(--surface);
+    border: 1px solid var(--surface-edge);
+    border-radius: 18px;
+    box-shadow: var(--shadow-card);
+    padding: 0.875rem 1rem;
+    margin-bottom: 0.75rem;
   }
   .resp-table tr:last-child { margin-bottom: 0; }
 
@@ -163,10 +174,8 @@ a {
   .resp-table td::before {
     content: attr(data-label);
     flex-shrink: 0;
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-size: 0.78rem;
+    font-weight: 500;
     color: var(--text-secondary);
     text-align: left;
   }
@@ -175,12 +184,12 @@ a {
   .resp-table td:first-child {
     display: block;
     text-align: left;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.9rem;
     color: var(--text-primary);
-    padding: 0 0 0.5rem !important;
+    padding: 0 0 0.625rem !important;
     margin-bottom: 0.25rem;
-    border-bottom: 1px solid var(--border-subtle) !important;
+    border-bottom: 1px solid var(--surface-line) !important;
   }
   .resp-table td:first-child::before { content: none; }
 }

@@ -1,0 +1,7 @@
+.header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; width: 100%; min-width: 0; padding: 14px 0 22px; }
+.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+
+@media (max-width: 768px) {
+  .header { padding: 4px 0 16px; }
+  .actions { width: 100%; }
+}

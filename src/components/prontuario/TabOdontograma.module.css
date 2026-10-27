@@ -22,7 +22,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   align-self: flex-start;
   padding: 0 0.25rem;
 }
@@ -149,7 +149,7 @@
 }
 .selPanelHint {
   font-size: 0.68rem;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   text-align: center;
 }
 

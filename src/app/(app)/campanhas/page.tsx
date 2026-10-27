@@ -9,6 +9,7 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import styles from './campanhas.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { PageTitle } from '@/components/layout/PageTitle'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 interface Patient { id: string; name: string; phone: string | null; created_at: string }
 
@@ -237,15 +238,9 @@ function CampanhasContent() {
 
             <div className={styles.field}>
               <label className={styles.label}>Público-alvo</label>
-              <select
-                className={styles.select}
-                value={form.audienceType}
-                onChange={e => handleAudienceChange(e.target.value)}
-              >
-                {AUDIENCE_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+              <SelectMenu variant="field" ariaLabel="Público-alvo" value={form.audienceType}
+                onChange={handleAudienceChange}
+                options={AUDIENCE_OPTIONS.map(o => ({ value: o.value, label: o.label }))} />
             </div>
 
             {/* Preview da audiência */}

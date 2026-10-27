@@ -1,0 +1,54 @@
+/* Estilo único de lista das abas (Pacientes, Financeiro, Relatórios...).
+   Use junto com as classes globais de celular: <div className={`${t.wrap} resp-table-wrap`}>
+   e <table className={`${t.table} resp-table`}>; abaixo de 768px vira lista de cartões (globals.css). */
+.wrap { min-width: 0; overflow-x: auto; }
+
+.table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
+
+.table th {
+  height: 40px;
+  padding: 0 14px;
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--surface-line);
+}
+
+.table td {
+  height: 60px;
+  padding: 0 14px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--surface-line);
+  vertical-align: middle;
+}
+.table tbody tr:last-child td { border-bottom: 0; }
+
+@media (min-width: 769px) {
+  /* linha em destaque ao passar o mouse: fundo suave com cantos de 14px */
+  .table tbody tr { transition: background 0.12s; }
+  .table tbody tr:hover td { background: var(--surface-2); }
+  .table tbody tr:hover td:first-child { border-top-left-radius: var(--radius-inner); border-bottom-left-radius: var(--radius-inner); }
+  .table tbody tr:hover td:last-child { border-top-right-radius: var(--radius-inner); border-bottom-right-radius: var(--radius-inner); }
+}
+.clickable { cursor: pointer; }
+
+/* números e valores à direita, com algarismos tabulares */
+.num { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--text-secondary); }
+.strong { font-weight: 600; }
+
+/* atalhos que só aparecem ao passar o mouse (no toque ficam sempre visíveis) */
+.rowActions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+@media (hover: hover) {
+  .hoverOnly { opacity: 0; transition: opacity 0.12s; }
+  .table tbody tr:hover .hoverOnly, .table tbody tr:focus-within .hoverOnly { opacity: 1; }
+}
+
+.empty { padding: 40px 16px; text-align: center; color: var(--text-secondary); font-size: 0.875rem; }
+
+/* celular: cada linha vira cartão (globals.css); a altura fixa do desktop não vale mais */
+@media (max-width: 768px) {
+  .table td { height: auto; }
+}

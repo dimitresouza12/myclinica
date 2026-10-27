@@ -1,0 +1,11 @@
+.gauge { position: relative; min-width: 0; }
+.gauge svg { display: block; width: 100%; height: auto; overflow: visible; }
+.track, .arc { fill: none; stroke-width: 10; stroke-linecap: round; }
+.track { stroke: var(--track); }
+.stopA { stop-color: var(--brand-primary); stop-opacity: 0.35; }
+.stopB { stop-color: var(--brand-accent); }
+.knob { fill: var(--surface); stroke: var(--brand-accent); stroke-width: 3; }
+:global([data-theme="dark"]) .stopB { stop-color: var(--brand-primary); }
+:global([data-theme="dark"]) .knob { stroke: var(--brand-primary); }
+/* o número senta dentro da meia-lua */
+.value { position: absolute; left: 0; right: 0; bottom: 4%; text-align: center; }

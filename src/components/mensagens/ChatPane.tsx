@@ -2,12 +2,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/components/ui/Icon'
 import { clockLabel, contactDisplayName, formatJidPhone, withDaySeparators } from '@/lib/whatsapp/inbox'
-import { Avatar } from '@/components/ui/Avatar'
-import { conversationPhoto } from '@/hooks/useWhatsAppInbox'
+import { ContactAvatar } from './ConversationList'
+import { ContextChip } from './ContextChip'
 import type { WaConversation, WaMessage } from '@/hooks/useWhatsAppInbox'
 import { MediaBubble } from './MediaBubble'
+import { FileCard } from './FileCard'
+import { DeliveryTicks } from './DeliveryTicks'
+import { startsAuthorRun, type RunInfo } from '@/lib/whatsapp/bubble'
 import { QuickReplyManager, QuickReplyMenu } from './QuickReplies'
-import { STATUS_LABEL, canDeleteForEveryone, canEditMessage } from '@/lib/whatsapp/message-events'
+import { canDeleteForEveryone, canEditMessage } from '@/lib/whatsapp/message-events'
 import { fillQuickReply, filterQuickReplies, slashQuery } from '@/lib/whatsapp/quick-replies'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import type { QuickReplyRow, OutboxItem } from '@/hooks/useWhatsAppInbox'
@@ -34,10 +37,16 @@ function originLabel(m: WaMessage): string | null {
   return null
 }
 
+function runInfo(m: WaMessage): RunInfo {
+  return { direction: m.direction, author: originLabel(m), created_at: m.created_at }
+}
+
 const HAS_FILE: ReadonlySet<WaMessage['kind']> = new Set(['image', 'audio', 'video', 'document', 'sticker'])
 
-function Bubble({ m, timezone, now, media, canAct, onEdit, onDelete }: {
+function Bubble({ m, timezone, now, media, canAct, showAuthor, onEdit, onDelete }: {
   m: WaMessage; timezone: string; now: Date; media: MediaHandlers; canAct: boolean
+  /** primeira bolha de uma sequência da mesma pessoa: mostra o autor e abre um espaço maior */
+  showAuthor: boolean
   onEdit: (id: string, text: string) => Promise<string | null>
   onDelete: (id: string) => Promise<string | null>
 }) {
@@ -74,8 +83,8 @@ function Bubble({ m, timezone, now, media, canAct, onEdit, onDelete }: {
   }
 
   return (
-    <div className={`${styles.b} ${m.direction === 'in' ? styles.in : styles.out}`}>
-      {by && <span className={styles.by}>{by}</span>}
+    <div className={`${styles.b} ${m.direction === 'in' ? styles.in : styles.out} ${showAuthor ? styles.runStart : ''}`}>
+      {by && showAuthor && <span className={styles.by}>{by}</span>}
       {deleted ? <span className={styles.deleted}>Mensagem apagada</span> : (
         <>
           {hasFile
@@ -89,7 +98,7 @@ function Bubble({ m, timezone, now, media, canAct, onEdit, onDelete }: {
                 <button type="button" className={styles.mediaBtn} onClick={() => void saveEdit()} disabled={busy || !draft.trim()}>{busy ? 'Salvando…' : 'Salvar'}</button>
               </span>
             </span>
-          ) : m.body}
+          ) : hasFile && m.body ? <span className={styles.caption}>{m.body}</span> : m.body}
           {isMedia && !hasFile && (
             <span className={styles.media}>
               {m.direction === 'in' ? 'O arquivo não está disponível por aqui. Veja no WhatsApp do celular.' : 'Enviada pelo celular da clínica.'}
@@ -101,7 +110,7 @@ function Bubble({ m, timezone, now, media, canAct, onEdit, onDelete }: {
       {reactions.length > 0 && !deleted && <span className={styles.reactions} aria-label="Reações">{reactions.join(' ')}</span>}
       <span className={styles.time}>
         {m.edited_at && !deleted ? 'editada · ' : ''}{clockLabel(new Date(m.created_at), timezone)}
-        {status && <span className={`${styles.statusTxt} ${status === 'read' ? styles.statusRead : ''}`}>{STATUS_LABEL[status]}</span>}
+        {status && <DeliveryTicks status={status} />}
       </span>
       {(canEdit || canDelete) && !editing && (
         <>
@@ -128,10 +137,7 @@ function OutboxBubble({ item, onRetry, onDiscard }: { item: OutboxItem; onRetry:
         <img className={styles.img} src={item.previewUrl} alt="Imagem sendo enviada" />
       )}
       {item.kind === 'document' && (
-        <span className={styles.docCard}>
-          <span className={styles.docIcon} aria-hidden="true"><Icon name="paperclip" size={20} /></span>
-          <span className={styles.docInfo}><b>{item.name}</b><span>{formatBytes(item.size)}</span></span>
-        </span>
+        <FileCard name={item.name} size={item.size} mime={null} state="loading" hint={failed ? 'Não enviado' : 'Enviando…'} />
       )}
       {item.kind === 'audio' && (
         <span className={`${styles.vp} ${styles.vpOut}`}>
@@ -191,6 +197,8 @@ interface Props {
   onQuickChanged: () => void
   onBack: () => void
   onToggleInfo: () => void
+  /** conversas com mensagens não lidas (tela vazia) */
+  waitingCount: number
 }
 
 export function ChatPane(p: Props) {
@@ -215,6 +223,12 @@ export function ChatPane(p: Props) {
   }, [convId, p.messages.length, p.outbox.length])
 
   const items = useMemo(() => withDaySeparators(p.messages, p.now, p.timezone), [p.messages, p.now, p.timezone])
+  // mensagem anterior de cada uma, para saber onde começa uma nova sequência do mesmo autor
+  const prevOf = useMemo(() => {
+    const map = new Map<string, RunInfo>()
+    p.messages.forEach((m, i) => { if (i > 0) map.set(m.id, runInfo(p.messages[i - 1])) })
+    return map
+  }, [p.messages])
 
   function resize() {
     const ta = taRef.current
@@ -271,7 +285,13 @@ export function ChatPane(p: Props) {
     return (
       <div className={`${styles.pane} ${styles.chat}`}>
         <div className={styles.placeholder}>
-          <div><strong>Selecione uma conversa</strong>Escolha um contato na lista para ver as mensagens e responder.</div>
+          <div>
+            <span className={styles.placeholderIcon} aria-hidden="true"><Icon name="chat" size={40} /></span>
+            <strong>Selecione uma conversa</strong>
+            {p.waitingCount > 0
+              ? `${p.waitingCount} ${p.waitingCount === 1 ? 'conversa aguardando' : 'conversas aguardando'} resposta`
+              : 'Escolha um contato na lista para ver as mensagens e responder.'}
+          </div>
         </div>
       </div>
     )
@@ -284,11 +304,13 @@ export function ChatPane(p: Props) {
     <div className={`${styles.pane} ${styles.chat}`}>
       <div className={styles.chatHead}>
         <button className={`${styles.iconBtn} ${styles.narrowOnly}`} onClick={p.onBack} aria-label="Voltar para a lista"><Icon name="chevronLeft" size={20} /></button>
-        <Avatar url={conversationPhoto(c)} name={name} size={40} className={styles.avatar} />
+        <ContactAvatar c={c} name={name} />
         <div className={styles.who}>
           <b>{name}</b>
-          <span>{formatJidPhone(c.jid)} · {c.patient_id ? 'Paciente' : 'Lead'}</span>
+          <span>{formatJidPhone(c.jid)}</span>
+          <ContextChip conversation={c} timezone={p.timezone} className={styles.ctxNarrow} />
         </div>
+        <ContextChip conversation={c} timezone={p.timezone} className={styles.ctxWide} />
         <button className={`${styles.iconBtn} ${styles.mediumOnly}`} onClick={p.onToggleInfo} aria-label="Ver ficha do contato"><Icon name="info" size={20} /></button>
       </div>
 
@@ -296,7 +318,7 @@ export function ChatPane(p: Props) {
         {p.loading && p.messages.length === 0 && <div className={styles.day}>Carregando mensagens…</div>}
         {items.map(i => i.type === 'day'
           ? <div key={`d-${i.key}`} className={styles.day}>{i.label}</div>
-          : <Bubble key={i.msg.id} m={i.msg} timezone={p.timezone} now={p.now} canAct={p.canSend} onEdit={p.onEditMessage} onDelete={p.onDeleteMessage} media={{ urls: p.mediaUrls, onOpenMedia: (url, name, kind) => setLightbox({ url, name, kind }), onRetry: p.onRetryMedia, onDownload: p.onDownloadMedia }} />)}
+          : <Bubble key={i.msg.id} m={i.msg} timezone={p.timezone} now={p.now} canAct={p.canSend} showAuthor={startsAuthorRun(prevOf.get(i.msg.id) ?? null, runInfo(i.msg), p.timezone)} onEdit={p.onEditMessage} onDelete={p.onDeleteMessage} media={{ urls: p.mediaUrls, onOpenMedia: (url, name, kind) => setLightbox({ url, name, kind }), onRetry: p.onRetryMedia, onDownload: p.onDownloadMedia }} />)}
         {p.outbox.map(o => <OutboxBubble key={o.id} item={o} onRetry={() => p.onRetryOutbox(o.id)} onDiscard={() => p.onDiscardOutbox(o.id)} />)}
       </div>
 
@@ -310,7 +332,6 @@ export function ChatPane(p: Props) {
         </div>
       )}
 
-      {p.sendBlockedReason && <div className={styles.notice}>{p.sendBlockedReason}</div>}
       {(fileError || recorder.error || p.sendError) && <div className={styles.sendError} role="alert">{fileError || recorder.error || p.sendError}</div>}
       {file && (
         <div className={styles.pending}>
@@ -334,15 +355,17 @@ export function ChatPane(p: Props) {
       {manageOpen && <QuickReplyManager clinicId={p.clinicId} items={p.quickReplies} onChanged={p.onQuickChanged} onClose={() => setManageOpen(false)} />}
       {recorder.recording && (
         <div className={styles.composer} role="group" aria-label="Gravando mensagem de voz">
-          <button type="button" className={styles.attachBtn} onClick={recorder.cancel} aria-label="Descartar a gravação"><Icon name="trash" size={20} /></button>
-          <span className={styles.recInfo}>
-            <span className={styles.recDot} aria-hidden="true" />
-            <span className={styles.recTime}>{formatDuration(recorder.seconds)}</span>
-            <span className={styles.recBars} aria-hidden="true">
-              {recorder.levels.map((l, i) => <span key={i} className={styles.recBar} style={{ height: `${Math.round(12 + l * 88)}%` }} />)}
+          <div className={styles.composerBox}>
+            <button type="button" className={styles.attachBtn} onClick={recorder.cancel} aria-label="Descartar a gravação"><Icon name="trash" size={20} /></button>
+            <span className={styles.recInfo}>
+              <span className={styles.recDot} aria-hidden="true" />
+              <span className={styles.recTime}>{formatDuration(recorder.seconds)}</span>
+              <span className={styles.recBars} aria-hidden="true">
+                {recorder.levels.map((l, i) => <span key={i} className={styles.recBar} style={{ height: `${Math.round(12 + l * 88)}%` }} />)}
+              </span>
             </span>
-          </span>
-          <button className={styles.send} onClick={() => void sendRecording()} disabled={p.sending} aria-label="Enviar a gravação"><Icon name="send" size={18} /></button>
+            <button className={styles.send} onClick={() => void sendRecording()} disabled={p.sending} aria-label="Enviar a gravação"><Icon name="send" size={18} /></button>
+          </div>
         </div>
       )}
       <div className={`${styles.composer} ${recorder.recording ? styles.composerHidden : ''}`}>
@@ -353,32 +376,34 @@ export function ChatPane(p: Props) {
           accept={UPLOAD_ACCEPT}
           onChange={e => { void pickFile(e.target.files?.[0]); e.target.value = '' }}
         />
-        <button type="button" className={styles.attachBtn} onClick={() => fileRef.current?.click()} disabled={!p.canSend || p.sending} aria-label="Anexar foto ou documento">
-          <Icon name="paperclip" size={20} />
-        </button>
-        <button type="button" className={styles.attachBtn} onClick={() => setQuickOpen(o => !o)} disabled={!p.canSend || p.sending} aria-label="Respostas rápidas" aria-expanded={showQuick}>
-          <Icon name="chat" size={20} />
-        </button>
-        <textarea
-          ref={taRef}
-          rows={1}
-          value={text}
-          disabled={!p.canSend}
-          placeholder={p.canSend ? (file ? 'Legenda (opcional)' : 'Escreva uma mensagem') : 'Envio indisponível'}
-          aria-label="Mensagem"
-          maxLength={4000}
-          onChange={e => { setText(e.target.value); resize() }}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submit() } }}
-        />
-        {text.trim() || file ? (
-          <button className={styles.send} onClick={() => void submit()} disabled={!p.canSend || p.sending} aria-label="Enviar mensagem">
-            <Icon name="send" size={18} />
+        <div className={`${styles.composerBox} ${!p.canSend ? styles.composerOff : ''}`}>
+          <button type="button" className={styles.attachBtn} onClick={() => fileRef.current?.click()} disabled={!p.canSend || p.sending} aria-label="Anexar foto ou documento">
+            <Icon name="paperclip" size={20} />
           </button>
-        ) : (
-          <button className={styles.send} onClick={() => void recorder.start()} disabled={!p.canSend || p.sending} aria-label="Gravar mensagem de voz">
-            <Icon name="mic" size={18} />
+          <button type="button" className={styles.attachBtn} onClick={() => setQuickOpen(o => !o)} disabled={!p.canSend || p.sending} aria-label="Respostas rápidas" aria-expanded={showQuick}>
+            <Icon name="chat" size={20} />
           </button>
-        )}
+          <textarea
+            ref={taRef}
+            rows={1}
+            value={text}
+            disabled={!p.canSend}
+            placeholder={p.canSend ? (file ? 'Legenda (opcional)' : 'Escreva uma mensagem') : (p.sendBlockedReason ?? 'Envio indisponível')}
+            aria-label="Mensagem"
+            maxLength={4000}
+            onChange={e => { setText(e.target.value); resize() }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submit() } }}
+          />
+          {text.trim() || file ? (
+            <button className={styles.send} onClick={() => void submit()} disabled={!p.canSend || p.sending} aria-label="Enviar mensagem">
+              <Icon name="send" size={18} />
+            </button>
+          ) : (
+            <button className={`${styles.send} ${styles.sendMic}`} onClick={() => void recorder.start()} disabled={!p.canSend || p.sending} aria-label="Gravar mensagem de voz">
+              <Icon name="mic" size={20} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

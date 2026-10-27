@@ -4,8 +4,7 @@
   gap: 1rem;
   height: 56px;
   padding: 0 2.25rem;
-  background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-page);
   flex-shrink: 0;
   position: relative;
   z-index: 20;
@@ -27,8 +26,8 @@
 .pageSearch input::placeholder { color: var(--text-secondary); }
 
 /* ações necessárias */
-.iconBtn.alertBtn { position: relative; color: #D97706; }
-.iconBtn.alertBtn:hover, .iconBtn.alertBtn.iconBtnOn { color: #B45309; }
+.iconBtn.alertBtn { position: relative; color: #B45309; }
+.iconBtn.alertBtn:hover, .iconBtn.alertBtn.iconBtnOn { color: #92400E; }
 /* o número fica ao lado e acima do ícone, como expoente, sem cobrir o triângulo */
 .iconBtn.alertBtn { width: auto; min-width: 40px; padding: 0 8px 0 10px; gap: 1px; }
 .alertCount { align-self: flex-start; margin-top: 6px; font-size: 0.74rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; vertical-align: baseline; color: inherit; }
@@ -40,7 +39,7 @@
 .alertBadge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; white-space: nowrap; }
 .alertWho { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
 .alertWho b { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.alertWho small { font-size: 0.72rem; color: var(--text-tertiary); }
+.alertWho small { font-size: 0.72rem; color: var(--text-secondary); }
 .alertAct { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 0.74rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .alertAct:hover { background: var(--bg-tertiary); }
 .alertActions { display: flex; align-items: center; gap: 6px; }
@@ -63,11 +62,11 @@
 .iconBtn:hover, .profileBtn:hover, .iconBtnOn { background: var(--bg-tertiary); color: var(--text-primary); }
 .iconBtn:focus-visible, .profileBtn:focus-visible, .item:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
 
-.avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--brand-light); color: var(--brand-accent); font-size: .72rem; font-weight: 800; flex-shrink: 0; }
+.avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--brand-light); color: var(--brand-text); font-size: .72rem; font-weight: 800; flex-shrink: 0; }
 .avatarLg { width: 40px; height: 40px; font-size: .82rem; }
 .who { display: none; flex-direction: column; align-items: flex-start; line-height: 1.2; min-width: 0; text-align: left; }
 .who b { font-size: .82rem; font-weight: 600; color: var(--text-primary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.who small { font-size: .7rem; color: var(--text-tertiary); }
+.who small { font-size: .7rem; color: var(--text-secondary); }
 @media (min-width: 1100px) { .who { display: flex; } }
 
 .popover {
@@ -79,7 +78,7 @@
 @media (prefers-reduced-motion: reduce) { .popover { animation: none; } }
 .popHelp { width: 280px; }
 .popProfile { width: 272px; }
-.popTitle { margin: 6px 10px 6px; font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-tertiary); }
+.popTitle { margin: 6px 10px 6px; font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); }
 .popHead { display: flex; align-items: center; gap: 10px; padding: 8px 10px 12px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 6px; }
 
 .item {
@@ -91,7 +90,7 @@
 .itemIcon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--bg-tertiary); color: var(--text-secondary); flex-shrink: 0; }
 .itemText { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
 .itemText b { font-size: .85rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.itemText small { font-size: .74rem; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itemText small { font-size: .74rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sep { height: 1px; background: var(--border-subtle); margin: 6px 4px; }
 .itemDanger .itemText b { color: #DC2626; }
 .itemDanger:hover { background: rgba(220, 38, 38, .08); }

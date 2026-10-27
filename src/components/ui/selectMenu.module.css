@@ -14,9 +14,26 @@
   white-space: nowrap;
   font-family: inherit;
 }
-.trigger:hover { border-color: #4DD9C0; }
+.trigger:hover:not(:disabled) { border-color: #4DD9C0; }
 .trigger:focus-visible { border-color: #4DD9C0; box-shadow: 0 0 0 3px rgba(77,217,192,.15); outline: none; }
+.trigger:disabled { background: var(--surface-2); color: var(--text-secondary); cursor: not-allowed; }
+.trigger span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.placeholder { color: var(--text-secondary); font-weight: 400; }
 .chevron { color: var(--text-tertiary); flex-shrink: 0; }
+
+/* Variante de formulário: largura toda, no padrão de modalForm.module.css (.field input) */
+.field { display: flex; width: 100%; }
+.field .trigger {
+  width: 100%;
+  justify-content: space-between;
+  padding: 0.6rem 0.875rem;
+  border-radius: var(--radius-field);
+  background: var(--surface);
+  font-size: 0.9rem; font-weight: 400;
+  text-align: left;
+}
+.field .trigger:focus-visible { border-color: var(--brand-primary); box-shadow: 0 0 0 3px var(--brand-light); }
+.field .trigger:hover:not(:disabled) { border-color: var(--text-tertiary); }
 
 .popover {
   position: fixed; z-index: 1300; /* acima das gavetas e janelas (até 1200), abaixo dos avisos */
@@ -25,16 +42,21 @@
   animation: popIn .15s ease both;
 }
 @keyframes popIn { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .popover { animation: none; } }
+
+.groupLabel { padding: .5rem .7rem .2rem; font-size: .74rem; font-weight: 600; color: var(--text-secondary); }
 
 .option {
   display: flex; align-items: center; justify-content: space-between; gap: .75rem;
   width: 100%; padding: .55rem .7rem;
   min-height: 44px;
-  border: none; border-radius: 8px; background: none;
+  border-radius: 8px;
   color: var(--text-primary); font-size: .84rem; font-weight: 500;
   text-align: left; cursor: pointer; white-space: nowrap;
   transition: background .12s;
 }
-.option:hover { background: var(--bg-secondary); }
-.optionActive { font-weight: 700; color: #0B9B85; }
-.optionActive svg { flex-shrink: 0; color: #0B9B85; }
+.option:hover, .optionHover { background: var(--bg-secondary); }
+.optionActive { font-weight: 700; color: var(--brand-text); }
+.optionActive svg { flex-shrink: 0; color: var(--brand-text); }
+.optionDisabled { color: var(--text-tertiary); cursor: not-allowed; }
+.optionDisabled:hover { background: none; }

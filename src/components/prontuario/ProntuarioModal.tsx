@@ -12,7 +12,10 @@ import { TabCorpograma } from './TabCorpograma'
 import { TabTimeline } from './TabTimeline'
 import { TabChatIA } from './TabChatIA'
 import { TabDocumentos } from './TabDocumentos'
-import { Portal } from '@/components/ui/Portal'
+import { Modal } from '@/components/ui/Modal'
+import { PillTabs } from '@/components/ui/PillTabs'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import btn from '@/components/ui/button.module.css'
 import { printProntuario } from '@/lib/print'
 import styles from './ProntuarioModal.module.css'
 import { Icon } from '@/components/ui/Icon'
@@ -45,14 +48,17 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [timelinePending, setTimelinePending] = useState(false)
-  const [showPendingWarning, setShowPendingWarning] = useState(false)
 
-  function tryClose() {
-    if (timelinePending) {
-      setShowPendingWarning(true)
-    } else {
-      onClose()
-    }
+  async function tryClose() {
+    if (!timelinePending) return onClose()
+    const ok = await confirmDialog({
+      title: 'Fechar sem salvar?',
+      message: 'Você tem uma anotação não salva. Se fechar agora ela será perdida.',
+      confirmText: 'Descartar e fechar',
+      cancelText: 'Voltar e salvar',
+      danger: true,
+    })
+    if (ok) onClose()
   }
 
   useEffect(() => {
@@ -150,68 +156,48 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
   const initials = patient.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
 
   return (
-    <Portal>
-    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && tryClose()}>
-      <div className={styles.modal}>
-
-        {/* Aviso de anotação não salva */}
-        {showPendingWarning && (
-          <div className={styles.pendingOverlay}>
-            <div className={styles.pendingDialog}>
-              <p className={styles.pendingText}><Icon name="alert" size={14} /> Você tem uma anotação não salva. Se fechar agora ela será perdida.</p>
-              <div className={styles.pendingActions}>
-                <button className={styles.btnPendingDiscard} onClick={onClose}>Descartar e fechar</button>
-                <button className={styles.btnPendingKeep} onClick={() => setShowPendingWarning(false)}>Voltar e salvar</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className={styles.header}>
-          <div className={styles.headerLeft}>
-            <div className={styles.avatarWrap} onClick={() => avatarInputRef.current?.click()} title="Clique para trocar foto">
-              {avatarUrl
-                ? <img src={avatarUrl} alt={patient.name} className={styles.avatar} />
-                : <div className={styles.avatarInitials}>{initials}</div>
-              }
-              <div className={styles.avatarOverlay}>{uploadingAvatar ? <Icon name="refresh" size={16} className={styles.spinIcon} /> : <Icon name="camera" size={16} />}</div>
-              <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
-            </div>
-            <div>
-              <h2 className={styles.title}>Prontuário</h2>
-              <p className={styles.patientName}>{patient.name}</p>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {/* A aba Documentos tem seu próprio botão de impressão (imprime só o documento).
-                Ocultamos o do cabeçalho ali para não imprimir o prontuário inteiro por engano. */}
-            {tab !== 'documentos' && (
-              <button
-                className={styles.btnPrint}
-                onClick={() => printProntuario({ name: clinicName, logo: clinic.logo, address: clinic.address, phone: clinic.phone }, patient, record, entries, user?.specialtyType ?? clinicSpecialties[0])}
-                title={entriesLoading ? 'Carregando dados...' : 'Imprimir / Salvar PDF'}
-                disabled={entriesLoading}
-              >
-                {entriesLoading ? 'Carregando...' : 'Imprimir'}
-              </button>
-            )}
-            <button className={styles.btnClose} onClick={tryClose}><Icon name="close" size={18} /></button>
-          </div>
-        </div>
-
-        <div className={styles.tabs} data-hscroll>
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              className={`${styles.tabBtn} ${tab === t.key ? styles.tabActive : ''}`}
-              onClick={() => goToTab(t.key)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div className={styles.body}>
+    <Modal
+      open
+      onClose={tryClose}
+      size="xl"
+      title={patient.name}
+      subtitle="Prontuário"
+      leading={
+        <button type="button" className={styles.avatarWrap} onClick={() => avatarInputRef.current?.click()} aria-label="Trocar a foto do paciente" title="Trocar a foto">
+          {avatarUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={avatarUrl} alt="" className={styles.avatar} />
+            : <span className={styles.avatarInitials}>{initials}</span>
+          }
+          <span className={styles.avatarOverlay}>{uploadingAvatar ? <Icon name="refresh" size={16} className={styles.spinIcon} /> : <Icon name="camera" size={16} />}</span>
+        </button>
+      }
+      actions={
+        /* A aba Documentos tem seu próprio botão de impressão (imprime só o documento).
+           Ocultamos o do cabeçalho ali para não imprimir o prontuário inteiro por engano. */
+        tab !== 'documentos' ? (
+          <button
+            type="button"
+            className={btn.secondary}
+            onClick={() => printProntuario({ name: clinicName, logo: clinic.logo, address: clinic.address, phone: clinic.phone }, patient, record, entries, user?.specialtyType ?? clinicSpecialties[0])}
+            title={entriesLoading ? 'Carregando dados...' : 'Imprimir / Salvar PDF'}
+            disabled={entriesLoading}
+          >
+            {entriesLoading ? 'Carregando...' : 'Imprimir'}
+          </button>
+        ) : undefined
+      }
+      toolbar={
+        <PillTabs
+          label="Seções do prontuário"
+          options={tabs.map(x => ({ value: x.key, label: x.label }))}
+          value={tab}
+          onChange={goToTab}
+        />
+      }
+    >
+      <input ref={avatarInputRef} type="file" accept="image/*" hidden onChange={handleAvatarChange} />
+      <div className={styles.sections}>
           <>
             {/* Ficha: always mounted (default tab) */}
             <div style={{ display: tab === 'ficha' ? undefined : 'none' }}>
@@ -283,9 +269,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
               </div>
             )}
           </>
-        </div>
       </div>
-    </div>
-    </Portal>
+    </Modal>
   )
 }

@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { useAuthStore } from '@/store/auth'
 import styles from './PaymentLateBanner.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { Modal } from '@/components/ui/Modal'
+import btn from '@/components/ui/button.module.css'
 import { PLAN_CATALOG, type SellablePlan } from '@/lib/planCatalog'
 
 const WHATSAPP = 'https://wa.me/5588920020570?text=Olá!%20Quero%20mais%20tempo%20para%20testar%20o%20MyClinica.'
@@ -68,49 +70,48 @@ export function PaymentLateBanner() {
     const planInfo   = PLANS.find(p => p.value === activePlan) ?? PLANS[0]
 
     return (
-      <div className={styles.overlay}>
-        <div className={styles.modal}>
-          <div className={styles.modalIcon}>⏰</div>
-          <h2 className={styles.modalTitle}>Seu período de teste encerrou</h2>
-          <p className={styles.modalDesc}>
-            Seus dados estão salvos. Escolha um plano e continue usando o MyClinica sem perder nada.
-          </p>
+      <Modal open onClose={() => {}} dismissible={false} title="Seu período de teste encerrou">
+        <p className={styles.desc}>
+          Seus dados estão salvos. Escolha um plano e continue usando o MyClinica sem perder nada.
+        </p>
 
-          <div className={styles.planSelector}>
-            {PLANS.map(p => (
-              <button
-                key={p.value}
-                className={`${styles.planOption} ${activePlan === p.value ? styles.planOptionActive : ''}`}
-                onClick={() => setSelectedPlan(p.value)}
-              >
-                <span className={styles.planOptionLabel}>{p.label}</span>
-                <span className={styles.planOptionPrice}>{p.price}</span>
-                <span className={styles.planOptionDesc}>{p.desc}</span>
-              </button>
-            ))}
-          </div>
-
-          {portalError && <p className={styles.errMsg}>{portalError}</p>}
-
-          <div className={styles.modalActions}>
+        <div className={styles.planSelector}>
+          {PLANS.map(p => (
             <button
-              className={styles.btnPrimary}
-              onClick={() => void handlePortal(activePlan)}
-              disabled={loadingPortal}
+              key={p.value}
+              type="button"
+              className={`${styles.planOption} ${activePlan === p.value ? styles.planOptionActive : ''}`}
+              aria-pressed={activePlan === p.value}
+              onClick={() => setSelectedPlan(p.value)}
             >
-              {loadingPortal ? 'Aguarde...' : `Assinar plano ${planInfo.label} — ${planInfo.price}`}
+              <span className={styles.planOptionLabel}>{p.label}</span>
+              <span className={styles.planOptionPrice}>{p.price}</span>
+              <span className={styles.planOptionDesc}>{p.desc}</span>
             </button>
-            <a
-              href={WHATSAPP}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.btnSecondary}
-            >
-              Não testei o suficiente — falar com suporte
-            </a>
-          </div>
+          ))}
         </div>
-      </div>
+
+        {portalError && <p className={styles.errMsg} role="alert">{portalError}</p>}
+
+        <div className={styles.modalActions}>
+          <button
+            type="button"
+            className={`${btn.primary} ${styles.block}`}
+            onClick={() => void handlePortal(activePlan)}
+            disabled={loadingPortal}
+          >
+            {loadingPortal ? 'Aguarde...' : `Assinar plano ${planInfo.label} — ${planInfo.price}`}
+          </button>
+          <a
+            href={WHATSAPP}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${btn.secondary} ${styles.block}`}
+          >
+            Não testei o suficiente — falar com suporte
+          </a>
+        </div>
+      </Modal>
     )
   }
 

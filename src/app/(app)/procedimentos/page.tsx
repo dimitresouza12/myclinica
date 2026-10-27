@@ -3,16 +3,22 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency } from '@/lib/utils'
-import { useScrollLock } from '@/hooks/useScrollLock'
 import type { Procedure } from '@/types'
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import styles from './procedimentos.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
-import { PageTitle } from '@/components/layout/PageTitle'
-import { Portal } from '@/components/ui/Portal'
+import { Modal } from '@/components/ui/Modal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon } from '@/components/ui/Icon'
 import { MoneyInput } from '@/components/ui/NumericInput'
+import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { StatusDot } from '@/components/ui/StatusDot'
+import { MoreMenu } from '@/components/ui/MoreMenu'
+import btn from '@/components/ui/button.module.css'
+import f from '@/components/ui/modalForm.module.css'
+import t from '@/components/ui/table.module.css'
 
 interface FormData { name: string; price: string; is_free: boolean; category: string; is_active: boolean }
 const BLANK: FormData = { name: '', price: '', is_free: false, category: '', is_active: true }
@@ -42,7 +48,6 @@ function ProcedimentosContent() {
   const [showNameSuggestions, setShowNameSuggestions] = useState(false)
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false)
 
-  useScrollLock(showModal)
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -116,6 +121,8 @@ function ProcedimentosContent() {
 
   const active = procedures.filter(p => p.is_active).length
   const pendingPrice = procedures.filter(p => p.is_active && p.price === 0 && !p.is_free).length
+  const priced = procedures.filter(p => p.is_active && p.price > 0)
+  const avgPrice = priced.length > 0 ? priced.reduce((sum, p) => sum + p.price, 0) / priced.length : 0
 
   const filteredNameSuggestions = nameSuggestions.filter(s =>
     s.name.toLowerCase().includes(form.name.trim().toLowerCase())
@@ -136,169 +143,183 @@ function ProcedimentosContent() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <PageTitle title="Procedimentos" subtitle={
-          <>
-            {procedures.length} procedimentos · {active} ativos
-            {pendingPrice > 0 && <> · <span className={styles.warnText}>{pendingPrice} sem preço definido</span></>}
-          </>
-        } />
-        <div className={styles.headerActions}>
-          <button className={styles.btnPrimary} onClick={openNew}>+ Novo Procedimento</button>
-        </div>
+      <PageHeader
+        title="Procedimentos"
+        subtitle={`${procedures.length} ${procedures.length === 1 ? 'procedimento' : 'procedimentos'}, ${active} ${active === 1 ? 'ativo' : 'ativos'}`}
+        actions={<button type="button" className={btn.primary} onClick={openNew}><Icon name="plus" size={15} /> Novo procedimento</button>}
+      />
+
+      <div className={styles.stats}>
+        <StatCard title="Procedimentos" value={procedures.length} hint={`${procedures.length - active} inativos`} />
+        <StatCard title="Ativos" value={active} hint="aparecem na agenda" />
+        <StatCard title="Sem preço definido" value={pendingPrice} hint={pendingPrice > 0 ? 'receita sai sem valor sugerido' : 'todos com valor ou gratuitos'} delta={pendingPrice > 0 ? { label: 'atenção', bad: true } : undefined} />
+        <StatCard title="Valor médio" value={formatCurrency(avgPrice)} compact hint="entre os ativos com preço" />
       </div>
 
-      {loading ? (
-        <p className={styles.loading}>Carregando...</p>
-      ) : (
-        <div className={`${styles.tableWrap} resp-table-wrap`}>
-          <table className={`${styles.table} resp-table`}>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Categoria</th>
-                <th>Valor</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {procedures.length === 0 ? (
-                <tr><td colSpan={5} className={styles.empty}>Nenhum procedimento cadastrado. Clique em "+ Novo Procedimento" para começar.</td></tr>
-              ) : procedures.map((p) => (
-                <tr key={p.id}>
-                  <td className={styles.bold}>{p.name}</td>
-                  <td data-label="Categoria">{p.category ?? '—'}</td>
-                  <td data-label="Valor">
-                    {p.price > 0
-                      ? <span className={styles.price}>{formatCurrency(p.price)}</span>
-                      : p.is_free
-                        ? <span className={styles.tagFree}>Gratuito</span>
-                        : <span className={styles.tagInactive}>A definir</span>}
-                  </td>
-                  <td data-label="Status">
-                    {p.is_active
-                      ? <span className={styles.tagActive}>Ativo</span>
-                      : <span className={styles.tagInactive}>Inativo</span>}
-                  </td>
-                  <td data-label="Ações">
-                    <div className={styles.actions}>
-                      <button className={styles.btnEdit} onClick={() => openEdit(p)}>Editar</button>
-                      <button className={styles.btnDelete} onClick={() => handleDelete(p)}>Excluir</button>
-                    </div>
-                  </td>
+      <Card flush title="Lista de procedimentos">
+        {loading ? (
+          <p className={styles.loading}>Carregando...</p>
+        ) : (
+          <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+            <table className={`${t.table} resp-table`}>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Categoria</th>
+                  <th className={t.num}>Valor</th>
+                  <th>Status</th>
+                  <th aria-label="Ações" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {procedures.length === 0 ? (
+                  <tr><td colSpan={5} className={t.empty}>Nenhum procedimento cadastrado. Clique em &quot;Novo procedimento&quot; para começar.</td></tr>
+                ) : procedures.map(p => (
+                  <tr key={p.id} className={`${t.clickable} ${styles.row}`} onClick={() => openEdit(p)}>
+                    <td className={t.strong}>{p.name}</td>
+                    <td data-label="Categoria" className={t.muted}>{p.category ?? '-'}</td>
+                    <td data-label="Valor" className={t.num}>
+                      {p.price > 0
+                        ? formatCurrency(p.price)
+                        : p.is_free
+                          ? <span className={t.muted}>Gratuito</span>
+                          : <StatusDot tone="warn">A definir</StatusDot>}
+                    </td>
+                    <td data-label="Status">
+                      <StatusDot tone={p.is_active ? 'ok' : 'idle'}>{p.is_active ? 'Ativo' : 'Inativo'}</StatusDot>
+                    </td>
+                    <td className={styles.actionsCell}>
+                      <div className={t.rowActions} onClick={e => e.stopPropagation()}>
+                        <MoreMenu
+                          label={`Mais ações de ${p.name}`}
+                          items={[
+                            { label: 'Editar', icon: 'edit', onClick: () => openEdit(p) },
+                            { label: 'Excluir', icon: 'trash', danger: true, onClick: () => handleDelete(p) },
+                          ]}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
-      {showModal && (
-        <Portal>
-        <div className={styles.overlay} onClick={closeModal}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>{editingId ? 'Editar Procedimento' : 'Novo Procedimento'}</h2>
-              <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
+      <Modal
+        open={showModal}
+        onClose={closeModal}
+        title={editingId ? 'Editar procedimento' : 'Novo procedimento'}
+        subtitle={editingId && form.name.trim() ? form.name.trim() : undefined}
+        size="sm"
+        footer={
+          <>
+            <button type="button" className={btn.secondary} onClick={closeModal}>Cancelar</button>
+            <button type="button" className={btn.primary} onClick={handleSave} disabled={saving || !form.name.trim()}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+          </>
+        }
+      >
+        <div className={f.field}>
+          <label htmlFor="proc-name">Nome</label>
+          <input
+            id="proc-name"
+            value={form.name}
+            onChange={(e) => { setForm(p => ({ ...p, name: e.target.value })); setShowNameSuggestions(true) }}
+            onClick={() => setShowNameSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowNameSuggestions(false), 150)}
+            placeholder="Ex: Limpeza, Extração, Clareamento..."
+            autoComplete="off"
+            autoFocus
+          />
+          {showNameSuggestions && filteredNameSuggestions.length > 0 && (
+            <div className={styles.suggestionsDropdown}>
+              {filteredNameSuggestions.map(s => (
+                <button
+                  key={s.name}
+                  type="button"
+                  className={styles.suggestionItem}
+                  tabIndex={-1}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => selectNameSuggestion(s)}
+                >
+                  {s.name}
+                </button>
+              ))}
             </div>
-            <div className={styles.modalBody}>
-              <div className={styles.field}>
-                <label>Nome *</label>
-                <input
-                  value={form.name}
-                  onChange={(e) => { setForm(p => ({ ...p, name: e.target.value })); setShowNameSuggestions(true) }}
-                  onFocus={() => setShowNameSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowNameSuggestions(false), 150)}
-                  placeholder="Ex: Limpeza, Extração, Clareamento..."
-                  autoComplete="off"
-                  autoFocus
-                />
-                {showNameSuggestions && filteredNameSuggestions.length > 0 && (
-                  <div className={styles.suggestionsDropdown}>
-                    {filteredNameSuggestions.map(s => (
-                      <button
-                        key={s.name}
-                        type="button"
-                        className={styles.suggestionItem}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => selectNameSuggestion(s)}
-                      >
-                        {s.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
+          )}
+        </div>
+        <div className={f.row2}>
+          <div className={f.field}>
+            <label>Valor (R$)</label>
+            <MoneyInput
+              value={form.is_free ? 0 : form.price}
+              onChange={(v) => setForm(p => ({ ...p, price: v }))}
+              disabled={form.is_free}
+            />
+          </div>
+          <div className={f.field}>
+            <label htmlFor="proc-cat">Categoria</label>
+            <input
+              id="proc-cat"
+              value={form.category}
+              onChange={(e) => { setForm(p => ({ ...p, category: e.target.value })); setShowCategorySuggestions(true) }}
+              onClick={() => setShowCategorySuggestions(true)}
+              onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 150)}
+              placeholder="Sem categoria"
+              autoComplete="off"
+            />
+            {showCategorySuggestions && filteredCategorySuggestions.length > 0 && (
+              <div className={styles.suggestionsDropdown}>
+                {filteredCategorySuggestions.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={styles.suggestionItem}
+                  tabIndex={-1}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => selectCategorySuggestion(c)}
+                  >
+                    {c}
+                  </button>
+                ))}
               </div>
-              <div className={styles.row2}>
-                <div className={styles.field}>
-                  <label>Valor (R$)</label>
-                  <MoneyInput
-                    value={form.is_free ? 0 : form.price}
-                    onChange={(v) => setForm(p => ({ ...p, price: v }))}
-                    disabled={form.is_free}
-                  />
-                </div>
-                <div className={styles.field}>
-                  <label>Categoria</label>
-                  <input
-                    value={form.category}
-                    onChange={(e) => { setForm(p => ({ ...p, category: e.target.value })); setShowCategorySuggestions(true) }}
-                    onFocus={() => setShowCategorySuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 150)}
-                    placeholder="Sem categoria"
-                    autoComplete="off"
-                  />
-                  {showCategorySuggestions && filteredCategorySuggestions.length > 0 && (
-                    <div className={styles.suggestionsDropdown}>
-                      {filteredCategorySuggestions.map(c => (
-                        <button
-                          key={c}
-                          type="button"
-                          className={styles.suggestionItem}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => selectCategorySuggestion(c)}
-                        >
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className={styles.toggleRow}>
-                <span className={styles.toggleLabel}>Procedimento gratuito (ex: avaliação)</span>
-                <label className={styles.toggle}>
-                  <input
-                    type="checkbox"
-                    checked={form.is_free}
-                    onChange={(e) => setForm(p => ({ ...p, is_free: e.target.checked }))}
-                  />
-                  <span className={styles.toggleSlider} />
-                </label>
-              </div>
-              <div className={styles.toggleRow}>
-                <span className={styles.toggleLabel}>Procedimento ativo</span>
-                <label className={styles.toggle}>
-                  <input
-                    type="checkbox"
-                    checked={form.is_active}
-                    onChange={(e) => setForm(p => ({ ...p, is_active: e.target.checked }))}
-                  />
-                  <span className={styles.toggleSlider} />
-                </label>
-              </div>
-            </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.btnCancel} onClick={closeModal}>Cancelar</button>
-              <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.name.trim()}>
-                {saving ? 'Salvando...' : 'Salvar'}
-              </button>
-            </div>
+            )}
           </div>
         </div>
-        </Portal>
-      )}
+        <div className={f.switches}>
+          <label className={f.switchRow}>
+            <span className={f.switchText}>
+              <b>Procedimento gratuito</b>
+              <small>Ex.: avaliação. O valor fica em zero.</small>
+            </span>
+            <span className={f.toggle}>
+              <input
+                type="checkbox"
+                checked={form.is_free}
+                onChange={(e) => setForm(p => ({ ...p, is_free: e.target.checked }))}
+              />
+              <span />
+            </span>
+          </label>
+          <label className={f.switchRow}>
+            <span className={f.switchText}>
+              <b>Procedimento ativo</b>
+              <small>Desativado, deixa de aparecer ao agendar.</small>
+            </span>
+            <span className={f.toggle}>
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(e) => setForm(p => ({ ...p, is_active: e.target.checked }))}
+              />
+              <span />
+            </span>
+          </label>
+        </div>
+      </Modal>
     </div>
   )
 }

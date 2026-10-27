@@ -4,6 +4,7 @@ import { formatDate } from '@/lib/utils'
 import { getSpecialtyConfig, specialtyRoleLabel } from '@/lib/specialtyConfig'
 import type { ClinicUser, Clinic } from '@/types'
 import styles from './admin.module.css'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 type UserWithClinic = ClinicUser & { clinics?: { name: string } | null }
 
@@ -46,10 +47,8 @@ export function AdminUsuarios({ users, clinics }: Props) {
     <div className={styles.usuariosWrap}>
       <div className={styles.logsFilters}>
         <input className={styles.searchInput} placeholder="Buscar por nome ou usuário..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select className={styles.selectFilter} value={filterClinic} onChange={(e) => setFilterClinic(e.target.value)}>
-          <option value="">Todas as clínicas</option>
-          {clinics.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <SelectMenu ariaLabel="Filtrar por clínica" value={filterClinic} onChange={setFilterClinic}
+          options={[{ value: '', label: 'Todas as clínicas' }, ...clinics.map((c) => ({ value: c.id, label: c.name }))]} />
       </div>
 
       <div className={`${styles.richTable} resp-table-wrap`}>

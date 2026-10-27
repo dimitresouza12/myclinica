@@ -7,6 +7,7 @@ import { SelectMenu } from '@/components/ui/SelectMenu'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { PHONE_HINT, toInputValue } from '@/lib/phoneFormat'
 import { useScrollLock } from '@/hooks/useScrollLock'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 import type { CrmMember } from '@/hooks/useCrmLeads'
 import {
   LOST_REASONS, SOURCES, STAGES, dateInputToIso, isoToDateInput, leadPhoneLabel, leadTitle, stageLabel,
@@ -70,10 +71,14 @@ export function LeadDrawer({
   const [errors, setErrors] = useState<Partial<Record<keyof LeadFormInput, string>>>({})
   const firstRef = useRef<HTMLInputElement>(null)
 
+  const [panelEl, setPanelEl] = useState<HTMLFormElement | null>(null)
   useScrollLock(true)
-  useEffect(() => { firstRef.current?.focus() }, [])
+  useDialogFocus(panelEl, firstRef)
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    function onKey(e: KeyboardEvent) {
+      // uma confirmação aberta por cima é quem responde ao Esc
+      if (e.key === 'Escape' && !document.querySelector('[role="alertdialog"]')) onClose()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
@@ -102,7 +107,7 @@ export function LeadDrawer({
   return (
     <Portal>
       <div className={styles.drawerOverlay} onClick={e => e.target === e.currentTarget && onClose()}>
-        <form className={styles.drawer} role="dialog" aria-modal="true" aria-labelledby="lead-title" onSubmit={submit} noValidate>
+        <form ref={setPanelEl} tabIndex={-1} className={styles.drawer} role="dialog" aria-modal="true" aria-labelledby="lead-title" onSubmit={submit} noValidate>
           <header className={styles.drawerHead}>
             {!creating && <Avatar url={photoUrl} name={title} size={52} className={styles.drawerAvatar} />}
             <div className={styles.drawerWho}>

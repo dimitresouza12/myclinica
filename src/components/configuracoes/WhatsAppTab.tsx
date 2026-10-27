@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
-import { Portal } from '@/components/ui/Portal'
+import { Modal } from '@/components/ui/Modal'
+import btn from '@/components/ui/button.module.css'
 import styles from './WhatsAppTab.module.css'
 import { whatsappApi } from './whatsappApi'
 import { WhatsAppSettingsForm } from './WhatsAppSettingsForm'
@@ -179,28 +180,30 @@ export function WhatsAppTab() {
         </>
       )}
 
-      {status === 'aguardando_qr' && (
-        <Portal>
-          <div className={styles.qrOverlay}>
-            <div className={styles.qrDialog} role="dialog" aria-modal="true" aria-labelledby="qr-title">
-              <h2 id="qr-title" className={styles.qrTitle}>Conectar o WhatsApp da clínica</h2>
-              <div className={styles.qrBox}>
-                {qr
-                  ? /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={qr} alt="QR code para conectar o WhatsApp da clínica" className={styles.qrImg} />
-                  : <span className={styles.muted}>Gerando o QR code…</span>}
-              </div>
-              <ol className={styles.qrSteps}>
-                <li>Abra o WhatsApp no celular da clínica.</li>
-                <li>Toque em <strong>Configurações</strong> e depois em <strong>Aparelhos conectados</strong>.</li>
-                <li>Toque em <strong>Conectar um aparelho</strong> e aponte a câmera para este QR code.</li>
-              </ol>
-              <p className={styles.hint}>O QR code se renova sozinho. Esta janela fecha quando a conexão for feita.</p>
-              <button className={styles.btnGhost} onClick={handleDisconnect} disabled={busy}>Cancelar</button>
-            </div>
+      {/* Sem X, Esc nem clique no fundo: só "Cancelar" desfaz o pareamento */}
+      <Modal
+        open={status === 'aguardando_qr'}
+        onClose={handleDisconnect}
+        dismissible={false}
+        size="sm"
+        title="Conectar o WhatsApp da clínica"
+        footer={<button type="button" className={btn.secondary} onClick={handleDisconnect} disabled={busy}>Cancelar</button>}
+      >
+        <div className={styles.qrBody}>
+          <div className={styles.qrBox}>
+            {qr
+              ? /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={qr} alt="QR code para conectar o WhatsApp da clínica" className={styles.qrImg} />
+              : <span className={styles.muted}>Gerando o QR code…</span>}
           </div>
-        </Portal>
-      )}
+          <ol className={styles.qrSteps}>
+            <li>Abra o WhatsApp no celular da clínica.</li>
+            <li>Toque em <strong>Configurações</strong> e depois em <strong>Aparelhos conectados</strong>.</li>
+            <li>Toque em <strong>Conectar um aparelho</strong> e aponte a câmera para este QR code.</li>
+          </ol>
+          <p className={styles.hint}>O QR code se renova sozinho. Esta janela fecha quando a conexão for feita.</p>
+        </div>
+      </Modal>
 
       {status === 'desconectado' && (
         <div className={styles.disconnected}>

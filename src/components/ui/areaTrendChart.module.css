@@ -1,0 +1,24 @@
+.wrap { margin: 0; min-width: 0; }
+.legend { display: flex; gap: 16px; margin: 2px 0 2px; font-size: 0.78rem; color: var(--text-secondary); }
+.legend span { display: inline-flex; align-items: center; }
+.keyMain, .keyDash { display: inline-block; width: 14px; height: 0; margin-right: 6px; border-top: 2px solid var(--brand-accent); }
+.keyDash { border-top: 2px dashed var(--text-tertiary); }
+
+.areaTop { stop-color: var(--brand-primary); stop-opacity: 0.32; }
+.areaBottom { stop-color: var(--brand-primary); stop-opacity: 0.02; }
+.hatch { fill: var(--brand-accent); fill-opacity: 0.35; }
+.dot { fill: var(--surface); stroke: var(--brand-accent); stroke-width: 2.5; }
+.pill { fill: var(--ink); }
+.pillText { fill: var(--on-ink); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+:global([data-theme="dark"]) .areaTop { stop-opacity: 0.18; }
+:global([data-theme="dark"]) .keyMain { border-top-color: var(--brand-primary); }
+:global([data-theme="dark"]) .hatch { fill: var(--brand-primary); }
+:global([data-theme="dark"]) .dot { stroke: var(--brand-primary); }
+:global([data-theme="dark"]) .main :global(.recharts-curve) { stroke: var(--brand-primary); }
+
+.tip { min-width: 150px; padding: 10px 12px; border-radius: 12px; background: var(--ink); color: var(--on-ink); font-size: 0.78rem; box-shadow: var(--shadow-md); }
+.tipLabel { margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
+.tipRow { display: flex; align-items: center; gap: 0; margin-top: 2px; }
+.tipRow b { margin-left: auto; padding-left: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tip .keyDash { border-top-color: currentColor; opacity: 0.6; }

@@ -4,15 +4,13 @@
 .adminPage { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) backwards; }
 @keyframes fadeUp { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
 .adminHeader { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; }
-.adminTitle { font-size:1.55rem; font-weight:750; color:var(--text-primary); letter-spacing:-0.4px; display:flex; align-items:center; gap:0.5rem; }
-.adminSub { font-size:0.8rem; color:var(--text-secondary); margin-top:0.15rem; }
 
 /* ========== Tabs ========== */
 .tabNav { display:flex; gap:0.25rem; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:0.3rem; overflow-x:auto; -webkit-overflow-scrolling:touch; }
 .tabNav::-webkit-scrollbar { height:0; }
 .tabBtn { padding:0.5rem 1rem; border:none; background:none; border-radius:var(--radius-md); font-size:0.85rem; font-weight:500; color:var(--text-secondary); cursor:pointer; transition:all 0.15s; white-space:nowrap; }
 .tabBtn:hover { color:var(--text-primary); background:var(--bg-tertiary); }
-.tabBtnActive { background:var(--bg-primary) !important; color:var(--brand-primary) !important; font-weight:600; box-shadow:var(--shadow-sm); }
+.tabBtnActive { background:var(--bg-primary) !important; color:var(--brand-text) !important; font-weight:600; box-shadow:var(--shadow-sm); }
 
 /* ========== KPI Overview ========== */
 .overviewWrap { display:flex; flex-direction:column; gap:1.5rem; }
@@ -50,7 +48,7 @@
 .clinicRow:hover td, .logRow:hover td { background:var(--bg-secondary); }
 .empty { text-align:center; color:var(--text-secondary); padding:3rem !important; }
 .loading { color:var(--text-secondary); padding:2rem; text-align:center; }
-.dimText { color:var(--text-tertiary); font-size:0.8rem; }
+.dimText { color:var(--text-secondary); font-size:0.8rem; }
 .dateCell { font-size:0.8rem; color:var(--text-secondary); white-space:nowrap; }
 
 /* ========== Clinic row cells ========== */
@@ -59,33 +57,21 @@
 .logoThumb { width:36px; height:36px; border-radius:8px; object-fit:cover; border:1px solid var(--border-color); }
 .logoInitials { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:1rem; }
 .clinicName { font-weight:600; font-size:0.875rem; color:var(--text-primary); margin:0; }
-.clinicSlug { font-size:0.72rem; color:var(--text-tertiary); background:var(--bg-secondary); padding:1px 5px; border-radius:4px; }
+.clinicSlug { font-size:0.72rem; color:var(--text-secondary); background:var(--bg-secondary); padding:1px 5px; border-radius:4px; }
 .typeChip { font-size:0.72rem; padding:2px 8px; border-radius:999px; background:var(--bg-secondary); color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em; }
 .planPill { font-size:0.75rem; font-weight:600; padding:3px 10px; border-radius:999px; border:1px solid; text-transform:capitalize; }
-.planPillPending { font-size:0.72rem; font-weight:700; padding:3px 10px; border-radius:999px; border:1px solid; text-transform:capitalize; white-space:nowrap; }
 .patientCount { font-weight:600; font-size:0.875rem; }
 
 /* ========== Row actions ========== */
 .rowActions { display:flex; gap:0.5rem; flex-wrap:wrap; }
-.actionBtn { padding:0.3rem 0.6rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; font-size:0.78rem; border:1px solid var(--border-color); background:none; border-radius:var(--radius-sm); cursor:pointer; color:var(--text-secondary); transition:all 0.15s; }
-.actionBtn:hover { background:var(--bg-secondary); }
-.actionBtnSecondary { padding:0.3rem 0.75rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; font-size:0.78rem; border:1px solid var(--brand-primary); background:none; border-radius:var(--radius-sm); cursor:pointer; color:var(--brand-primary); transition:all 0.15s; }
+.actionBtnSecondary { padding:0.3rem 0.75rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; font-size:0.78rem; border:1px solid var(--brand-primary); background:none; border-radius:var(--radius-sm); cursor:pointer; color:var(--brand-text); transition:all 0.15s; }
 .actionBtnSecondary:hover { background:var(--brand-primary); color:#fff; }
-.actionBtnImpersonate { display:inline-flex; align-items:center; gap:0.3rem; padding:0.3rem 0.75rem; min-height:44px; font-size:0.78rem; border:1px solid #F59E0B; background:none; border-radius:var(--radius-sm); cursor:pointer; color:#D97706; transition:all 0.15s; }
-.actionBtnImpersonate:hover { background:#FEF3C7; }
-.actionBtnApprove { display:inline-flex; align-items:center; gap:0.3rem; padding:0.3rem 0.85rem; min-height:44px; font-size:0.78rem; font-weight:600; border:none; background:linear-gradient(135deg,#10B981,#34D399); color:#fff; border-radius:var(--radius-sm); cursor:pointer; transition:all 0.15s; box-shadow:0 2px 6px rgba(16,185,129,0.3); }
-.actionBtnApprove:hover { transform:translateY(-1px); opacity:0.92; }
-.actionBtnReject { display:inline-flex; align-items:center; gap:0.3rem; padding:0.3rem 0.75rem; min-height:44px; font-size:0.78rem; border:1px solid #FCA5A5; background:none; border-radius:var(--radius-sm); cursor:pointer; color:#DC2626; transition:all 0.15s; }
-.actionBtnReject:hover { background:#FEE2E2; }
-.pendingAlert { padding:0.5rem 0.85rem; background:#FEF3C7; border:1px solid #FCD34D; border-radius:var(--radius-md); font-size:0.82rem; color:#92400E; font-weight:600; cursor:pointer; transition:all 0.15s; }
-.pendingAlert:hover { background:#FDE68A; }
 
 /* ========== Status pills ========== */
 .statusPill { font-size:0.75rem; font-weight:600; padding:3px 10px; border-radius:999px; display:inline-block; }
 .statusActive { background:#D1FAE5; color:#065F46; }
 .statusInactive { background:#F3F4F6; color:#6B7280; }
 .statusSuspended { background:#FEE2E2; color:#991B1B; }
-.statusPending { background:#FEF3C7; color:#92400E; }
 .statusTrial   { background:#EDE9FE; color:#5B21B6; }
 .statusTrialExpired { background:#FFEDD5; color:#9A3412; }
 
@@ -93,14 +79,11 @@
 .statusBtnGroup { display:flex; gap:0.5rem; flex-wrap:wrap; }
 .statusChoiceBtn { padding:0.4rem 0.85rem; border:1px solid var(--border-color); background:none; border-radius:var(--radius-md); font-size:0.82rem; cursor:pointer; color:var(--text-secondary); transition:all 0.15s; }
 .statusChoiceBtnActive { font-weight:600; }
-.statusChoice_active.statusChoiceBtnActive  { background:#D1FAE5; color:#065F46; border-color:#6EE7B7; }
-.statusChoice_inactive.statusChoiceBtnActive { background:#F3F4F6; color:#374151; border-color:#D1D5DB; }
-.statusChoice_suspended.statusChoiceBtnActive { background:#FEE2E2; color:#991B1B; border-color:#FECACA; }
 
 /* ========== Plan grid (in edit modal) ========== */
 .planGrid { display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; }
 .planBtn { display:flex; flex-direction:column; gap:0.2rem; padding:0.85rem 1rem; border:1px solid var(--border-color); background:none; border-radius:var(--radius-md); font-size:0.95rem; font-weight:600; cursor:pointer; color:var(--text-secondary); transition:all 0.15s; text-align:left; }
-.planBtn:hover { border-color:var(--brand-primary); color:var(--brand-primary); }
+.planBtn:hover { border-color:var(--brand-primary); color:var(--brand-text); }
 .planBtnActive { background:var(--brand-primary); color:#fff !important; border-color:var(--brand-primary) !important; }
 .planHint { font-size:0.7rem; font-weight:400; opacity:0.85; text-transform:none; }
 
@@ -109,7 +92,7 @@
 .logsFilters { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; }
 .moduleChip { font-size:0.72rem; padding:2px 8px; border-radius:4px; background:var(--bg-secondary); color:var(--text-secondary); }
 .actionBadge { font-size:0.72rem; font-weight:600; padding:2px 8px; border-radius:999px; border:1px solid; }
-.detailsEl summary { font-size:0.75rem; color:var(--brand-primary); cursor:pointer; }
+.detailsEl summary { font-size:0.75rem; color:var(--brand-text); cursor:pointer; }
 .detailsSummary { list-style:none; }
 .detailsPre { font-size:0.68rem; margin-top:0.4rem; padding:0.5rem; background:var(--bg-secondary); border-radius:6px; max-width:300px; overflow:auto; }
 
@@ -153,16 +136,13 @@
 .toolbarLeft { display:flex; gap:0.5rem; flex-wrap:wrap; }
 .searchInput { padding:0.5rem 0.75rem; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-primary); color:var(--text-primary); font-size:0.875rem; outline:none; min-width:200px; }
 .searchInput:focus { border-color:var(--brand-primary); }
-.selectFilter { padding:0.5rem 0.75rem; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-primary); color:var(--text-primary); font-size:0.875rem; outline:none; cursor:pointer; }
+.dateFilter { flex: 0 0 auto; width: 190px; }
 .btnClear { padding:0.5rem 0.75rem; border:1px solid var(--border-color); background:none; border-radius:var(--radius-md); font-size:0.875rem; color:var(--text-secondary); cursor:pointer; }
 
 /* ========== Buttons ========== */
 .btnPrimary { padding:0.55rem 1.15rem; background:linear-gradient(135deg,#0D9488,#5EEAD4); color:#fff; border:none; border-radius:var(--radius-md); font-size:0.875rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:opacity 0.15s,transform 0.1s; box-shadow:0 2px 8px rgba(13,148,136,0.25); }
 .btnPrimary:hover { opacity:0.9; transform:translateY(-1px); }
 .btnPrimary:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
-.btnSave { padding:0.55rem 1.25rem; min-height:44px; background:var(--brand-primary); color:#fff; border:none; border-radius:var(--radius-md); font-size:0.875rem; font-weight:600; cursor:pointer; }
-.btnSave:disabled { opacity:0.5; cursor:not-allowed; }
-.btnCancel { padding:0.55rem 1rem; min-height:44px; border:1px solid var(--border-color); background:none; border-radius:var(--radius-md); font-size:0.875rem; font-weight:500; color:var(--text-secondary); cursor:pointer; }
 .btnDeactivate { padding:0.3rem 0.75rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #FECACA; background:none; border-radius:var(--radius-sm); font-size:0.78rem; cursor:pointer; color:#EF4444; transition:all 0.15s; }
 .btnDeactivate:hover { background:#FEE2E2; }
 .btnActivate { padding:0.3rem 0.75rem; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #6EE7B7; background:none; border-radius:var(--radius-sm); font-size:0.78rem; cursor:pointer; color:#059669; transition:all 0.15s; }
@@ -173,23 +153,12 @@
 .btnLoadMore:hover { background:var(--bg-secondary); }
 
 /* ========== Modal ========== */
-.overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:200; padding:1rem; backdrop-filter:blur(4px); overflow:hidden; overscroll-behavior:contain; touch-action:none; }
-.modal { background:var(--bg-primary); border-radius:var(--radius-lg); width:100%; max-width:480px; max-height:90vh; max-height:90dvh; display:flex; flex-direction:column; overflow:hidden; animation:slideUp 0.2s cubic-bezier(0.22,1,0.36,1); }
-@keyframes slideUp { from { opacity:0; transform:translateY(16px) scale(0.98); } to { opacity:1; transform:none; } }
-.modalHeader { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:1.25rem 1.5rem; border-bottom:1px solid var(--border-color); background:var(--bg-primary); }
-.modalHeader h2 { font-size:1rem; font-weight:700; color:var(--text-primary); }
-.modalBody { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; touch-action:pan-y; padding:1.5rem; display:flex; flex-direction:column; gap:1rem; }
-.modalFooter { flex:0 0 auto; padding:1rem 1.5rem; border-top:1px solid var(--border-color); display:flex; justify-content:flex-end; gap:0.75rem; background:var(--bg-primary); }
-.btnClose { background:none; border:none; font-size:1.1rem; min-width:44px; min-height:44px; cursor:pointer; color:var(--text-secondary); padding:0.25rem; }
-@media (max-width:1024px) and (min-width:601px) {
-  .modal { max-width:92%; max-height:85vh; max-height:85dvh; }
-}
-@media (max-width:600px) {
-  .overlay { padding:0; align-items:stretch; }
-  .modal { max-width:100%; max-height:100vh; max-height:100dvh; height:100vh; height:100dvh; border-radius:0; }
-  .modalHeader, .modalFooter { padding:1rem; }
-  .modalBody { padding:1rem; }
-}
+/* A casca vem de <Modal>; aqui só o botão de excluir do rodapé do ClinicEditModal */
+.btnDeleteClinic { margin-right:auto; display:inline-flex; align-items:center; justify-content:center; height:40px; padding:0 18px; border:1px solid #FCA5A5; border-radius:999px; background:none; color:#DC2626; font:inherit; font-size:0.875rem; font-weight:600; white-space:nowrap; cursor:pointer; transition:background .15s; }
+.btnDeleteClinic:hover:not(:disabled) { background:color-mix(in srgb, var(--st-bad) 9%, transparent); }
+.btnDeleteClinic:focus-visible { outline:2px solid var(--brand-primary); outline-offset:2px; }
+.btnDeleteClinic:disabled { opacity:0.45; cursor:not-allowed; }
+@media (max-width:768px) { .btnDeleteClinic { height:44px; } }
 
 /* ========== Messages ========== */
 .msgOk { font-size:0.78rem; color:#059669; margin:0.3rem 0 0; }

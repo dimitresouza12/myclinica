@@ -5,31 +5,38 @@ import dynamic from 'next/dynamic'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { supabase } from '@/lib/supabase'
-import { formatCurrency, formatCurrencyCompact, formatDate } from '@/lib/utils'
+import { formatCurrency, formatCurrencyCompact } from '@/lib/utils'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsAppAI } from '@/lib/planGates'
+import { nextAppointment } from '@/lib/dashboard/metrics'
 import { Icon } from '@/components/ui/Icon'
+import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
+import { Gauge } from '@/components/ui/Gauge'
+import { PillTabs } from '@/components/ui/PillTabs'
+import { StatusDot, type StatusTone } from '@/components/ui/StatusDot'
+import type { TrendPoint } from '@/components/ui/AreaTrendChart'
 import { useDashboardData, useProcedures, useWhatsAppState } from '@/hooks/useClinicData'
-import type { DashboardAlert, RevenueByCategory } from '@/hooks/useClinicData'
+import type { DashboardAlert, DashboardInsights, RevenueByCategory } from '@/hooks/useClinicData'
 import { usePermissions } from '@/hooks/usePermissions'
 import { showToast } from '@/components/ui/Toast'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { STATUS_LABELS } from '@/lib/appointmentStatus'
 import { ensureRevenueForAppointment, notifyRevenuePending, promptCreditUsage } from '@/lib/appointmentRevenue'
-import type { Appointment } from '@/types'
+import type { Appointment, AppointmentStatus } from '@/types'
 import type { ComponentProps } from 'react'
 import styles from './dashboard.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { OnboardingChecklist } from './OnboardingChecklist'
 import { OnboardingModal } from './OnboardingModal'
 import { WelcomeModal } from './WelcomeModal'
+import { moneyShort, axisMoney, statMoney } from '@/lib/ui/money'
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-const DashboardChart = dynamic(() => import('./DashboardChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
-const RevenueByCategoryChart = dynamic(() => import('./RevenueByCategoryChart'), { ssr: false, loading: () => <div className={styles.chartLoading}>Carregando gráfico...</div> })
+const AreaTrendChart = dynamic(() => import('@/components/ui/AreaTrendChart').then(m => m.AreaTrendChart), { ssr: false, loading: () => <div className={styles.chartLoading} /> })
 
 type IconName = ComponentProps<typeof Icon>['name']
 
@@ -47,13 +54,47 @@ interface Stats {
   avgTicket: number
 }
 
-function Money({ value, hide }: { value: number; hide: boolean }) {
-  if (hide) return <>••••</>
+const STATUS_TONE: Record<AppointmentStatus, StatusTone> = {
+  agendado: 'wait', confirmado: 'ok', concluido: 'idle', faltou: 'warn', cancelado: 'bad', bloqueado: 'idle',
+}
+
+type Period = 'semana' | 'mes' | 'seis'
+const PERIODS: { value: Period; label: string }[] = [
+  { value: 'semana', label: 'Semana' }, { value: 'mes', label: 'Mês' }, { value: 'seis', label: '6 meses' },
+]
+
+/** "R$ 2.150" sem centavos, para etiquetas e eixos */
+/** porcentagem com o sinal pequeno; sem dado, só o traço */
+function Pct({ value }: { value: number | null }) {
+  if (value == null) return <>–</>
+  return <>{Math.round(value * 100)}<small>%</small></>
+}
+const pct = (v: number) => String(Math.round(v * 100))
+
+function trendData(period: Period, insights: DashboardInsights | undefined, monthly: MonthlyData[]): { data: TrendPoint[]; highlight: number; valueName: string; compareName: string; title: string } {
+  if (period === 'seis' || !insights) {
+    return {
+      data: monthly.map(m => ({ label: m.month, value: m.receita, compare: m.despesa })),
+      highlight: monthly.length - 1, valueName: 'Receitas', compareName: 'Despesas', title: 'Receita por mês',
+    }
+  }
+  const t = period === 'semana' ? insights.trend.week : insights.trend.month
+  return {
+    // dias que ainda não chegaram ficam sem ponto (a curva para em hoje)
+    data: t.labels.map((label, i) => ({ label, value: i <= t.todayIndex ? t.current[i] : null, compare: t.previous[i] })),
+    highlight: t.todayIndex,
+    valueName: period === 'semana' ? 'Esta semana' : 'Este mês',
+    compareName: period === 'semana' ? 'Semana passada' : 'Mês passado',
+    title: 'Receita por dia',
+  }
+}
+
+/** Barras finas do comparecimento: uma por dia, altura pela quantidade do dia. */
+function DayBars({ values, max }: { values: number[]; max: number }) {
   return (
-    <>
-      <span className={styles.valueDesktop}>{formatCurrency(value)}</span>
-      <span className={styles.valueMobile}>{formatCurrencyCompact(value)}</span>
-    </>
+    <div className={styles.dayBars} aria-hidden="true">
+      {values.map((v, i) => <i key={i} style={{ height: `${v > 0 ? Math.max(18, Math.round((v / max) * 100)) : 6}%` }} className={v > 0 ? undefined : styles.dayBarZero} />)}
+    </div>
   )
 }
 
@@ -156,6 +197,7 @@ function DashboardContent() {
   const { clinic, user } = useAuthStore()
   const [hideValues, setHideValues] = useState(false)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [period, setPeriod] = useState<Period>('semana')
 
   const queryClient = useQueryClient()
   const { canEdit: canEditAgenda } = usePermissions('agenda')
@@ -178,40 +220,33 @@ function DashboardContent() {
     pendingAppointments: 0, newPatientsMonth: 0, treatmentsCompleted: 0, treatmentsOpen: 0, avgTicket: 0,
   }
   const todayAppts: Appointment[] = data?.todayAppts ?? []
-  const needsConfirm = todayAppts.filter(a => a.status === 'agendado')
-  const restOfDay = todayAppts.filter(a => a.status !== 'agendado')
+  const needsConfirm = todayAppts.filter(a => a.status === 'agendado').length
+  const confirmedToday = todayAppts.filter(a => a.status === 'confirmado').length
   const todayCash = data?.todayCash ?? { recebido: 0, aReceber: 0, aReceberRecords: [], previsto: 0 }
   const monthlyData: MonthlyData[] = data?.monthlyData ?? []
   const revenueByCategory = data?.revenueByCategory ?? []
   // as pendências em si ficam na barra de cima; aqui só entram nas conclusões e dicas
   const alerts: DashboardAlert[] = data?.alerts ?? []
-
-  const revenueTrendPct = (() => {
-    if (monthlyData.length < 2) return null
-    const prev = monthlyData[monthlyData.length - 2].receita
-    const cur = monthlyData[monthlyData.length - 1].receita
-    if (prev <= 0) return null
-    return Math.round(((cur - prev) / prev) * 100)
-  })()
+  const ins = data?.insights
 
   const insights = data ? buildInsights({ stats, monthlyData, revenueByCategory, alerts, monthlyRevenueGoal: clinic?.monthlyRevenueGoal ?? null }) : []
 
   const monthProfit = stats.monthRevenue - stats.monthExpense
   const goal = clinic?.monthlyRevenueGoal ?? null
-  const goalPct = goal ? Math.min(100, Math.round((stats.monthRevenue / goal) * 100)) : 0
   const pace = getGoalPace(stats.monthRevenue, goal)
-  const RING_R = 54
-  const RING_C = 2 * Math.PI * RING_R
-  const ringOffset = RING_C * (1 - goalPct / 100)
-
-  const maxReceita = Math.max(...monthlyData.map((m) => m.receita), 1)
+  const next = nextAppointment(todayAppts, new Date())
+  const att = ins?.attendance
+  const attMax = att ? Math.max(1, ...att.perDay.done, ...att.perDay.noShow, ...att.perDay.cancelled) : 1
+  const trend = trendData(period, ins, monthlyData)
+  const catTotal = revenueByCategory.reduce((s, c) => s + c.value, 0)
+  const mtdPct = ins?.monthToDate.pct ?? null
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
 
-  function mask(value: string | number): string | number {
-    return hideValues ? '••••' : value
-  }
+  const money = (v: number) => (hideValues ? '••••' : formatCurrency(v))
+  const moneyCompact = (v: number) => (hideValues ? '••••' : statMoney(v))
+  const trendEmpty = trend.data.every(d => !d.value && !d.compare)
 
   async function handleConfirm(apptId: string) {
     if (!canEditAgenda || confirmingId || !clinic) return
@@ -281,308 +316,264 @@ function DashboardContent() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageHeader}>
-        <div>
-          <h1 className={styles.title}>{greeting}, {user?.displayName?.split(' ')[0]}</h1>
-          <p className={styles.subtitle}>
-            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </p>
+      {whatsappDown && (
+        <div className={styles.waDown} role="alert">
+          <Icon name="alert" size={16} />
+          <span className={styles.waDownText}><strong>O WhatsApp da clínica está desconectado.</strong> As confirmações automáticas de consulta pararam de sair.</span>
+          {isClinicAdmin
+            ? <Link className={styles.waDownLink} href="/configuracoes?tab=whatsapp">Reconectar</Link>
+            : <span>Peça ao administrador para reconectar em Configurações.</span>}
         </div>
-        <button
-          className={styles.btnHide}
-          onClick={() => setHideValues((v) => !v)}
-          title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
-        >
-          {hideValues ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-              <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-              <line x1="1" y1="1" x2="23" y2="23"/>
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-          )}
-        </button>
-      </div>
-
-      {loading ? (
-        <p className={styles.loading}>Carregando...</p>
-      ) : (
-        <>
-          {whatsappDown && (
-            <div className={styles.waDown} role="alert">
-              <strong>O WhatsApp da clínica está desconectado.</strong>
-              <span>As confirmações automáticas de consulta pararam de sair.</span>
-              {isClinicAdmin
-                ? <Link className={styles.waDownLink} href="/configuracoes?tab=whatsapp">Reconectar</Link>
-                : <span>Peça ao administrador para reconectar em Configurações.</span>}
-            </div>
-          )}
-          <OnboardingModal procedures={procedures} patientsCount={stats.totalPatients} />
-          <OnboardingChecklist procedures={procedures} patientsCount={stats.totalPatients} />
-          <WelcomeModal />
-
-          <div className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>Agenda de hoje</h2>
-            </div>
-
-            {todayAppts.length === 0 ? (
-              <p className={styles.todayApptEmpty}>Nenhum agendamento para hoje.</p>
-            ) : (
-              <div className={styles.todayApptBody}>
-                <div className={styles.todayApptGroup}>
-                  <h3 className={styles.todayApptGroupTitle}>Precisam confirmar</h3>
-                  {needsConfirm.length === 0 ? (
-                    <p className={styles.todayApptAllDone}>Tudo confirmado</p>
-                  ) : (
-                    <div className={styles.todayApptCards}>
-                      {needsConfirm.map((a) => (
-                        <div key={a.id} className={styles.apptCard}>
-                          <div className={styles.apptCardTop}>
-                            <strong className={styles.apptCardName}>{a.patients?.name ?? '-'}</strong>
-                            <div className={styles.apptCardActions}>
-                              <span className={`status-badge status-${a.status}`}>{STATUS_LABELS[a.status]}</span>
-                              {canEditAgenda && (
-                                <button
-                                  className={styles.confirmBtn}
-                                  disabled={confirmingId === a.id}
-                                  onClick={() => handleConfirm(a.id)}
-                                >
-                                  {confirmingId === a.id ? 'Confirmando...' : 'Confirmar'}
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <span className={styles.apptCardProc}>{a.procedure_name ?? '-'}</span>
-                          <span className={styles.apptCardDate}>{fmtTime(a.scheduled_at)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {restOfDay.length > 0 && (
-                  <div className={styles.todayApptGroup}>
-                    <h3 className={styles.todayApptGroupTitle}>Restante do dia</h3>
-                    <div className={styles.todayApptCards}>
-                      {restOfDay.map((a) => (
-                        <div key={a.id} className={styles.apptCard}>
-                          <div className={styles.apptCardTop}>
-                            <strong className={styles.apptCardName}>{a.patients?.name ?? '-'}</strong>
-                            <div className={styles.apptCardActions}>
-                              <span className={`status-badge status-${a.status}`}>{STATUS_LABELS[a.status]}</span>
-                              {a.status === 'confirmado' && canEditAgenda && (
-                                <button
-                                  className={styles.confirmBtn}
-                                  disabled={confirmingId === a.id}
-                                  onClick={() => handleConclude(a.id)}
-                                >
-                                  {confirmingId === a.id ? 'Concluindo...' : 'Concluir'}
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <span className={styles.apptCardProc}>{a.procedure_name ?? '-'}</span>
-                          <span className={styles.apptCardDate}>{fmtTime(a.scheduled_at)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>Caixa de hoje</h2>
-            </div>
-            <div className={styles.cashStrip}>
-              <div className={styles.opsCell}>
-                <span className={styles.cellVal}><Money value={todayCash.recebido} hide={hideValues} /></span>
-                <span className={styles.cellLabel}>Recebido</span>
-              </div>
-              <div className={styles.opsCell}>
-                <span className={styles.cellVal}><Money value={todayCash.aReceber} hide={hideValues} /></span>
-                <span className={styles.cellLabel}>A receber</span>
-                {todayCash.aReceberRecords.length > 0 && (
-                  <div className={styles.cashPendingList}>
-                    {todayCash.aReceberRecords.map((r) => (
-                      <Link key={r.id} href={`/financeiro?record=${r.id}`} className={styles.cashPendingChip}>
-                        <Money value={r.total_amount} hide={hideValues} />
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className={styles.opsCell}>
-                <span className={styles.cellVal}><Money value={todayCash.previsto} hide={hideValues} /></span>
-                <span className={styles.cellLabel}>Previsto</span>
-              </div>
-            </div>
-          </div>
-
-          <div className={styles.bento}>
-            <article className={styles.heroCard}>
-              <div className={styles.cardHead}>
-                <span className={styles.eyebrow}>Financeiro do mês</span>
-              </div>
-              <div className={styles.heroRow}>
-                <span className={styles.heroValue}><Money value={stats.monthRevenue} hide={hideValues} /></span>
-                {revenueTrendPct !== null && !hideValues && (
-                  <span className={`${styles.delta} ${revenueTrendPct >= 0 ? styles.deltaUp : styles.deltaDown}`}>
-                    {revenueTrendPct >= 0 ? '▲' : '▼'} {Math.abs(revenueTrendPct)}%
-                    <span className={styles.deltaRef}>vs. mês anterior</span>
-                  </span>
-                )}
-              </div>
-
-              {monthlyData.length > 1 && (
-                <>
-                  <div className={styles.spark}>
-                    {monthlyData.map((m, i) => (
-                      <span
-                        key={i}
-                        className={i === monthlyData.length - 1 ? styles.sparkOn : ''}
-                        style={{ height: `${Math.max(6, Math.round((m.receita / maxReceita) * 100))}%` }}
-                      />
-                    ))}
-                  </div>
-                  <div className={styles.sparkAxis}>
-                    {monthlyData.map((m, i) => <span key={i}>{m.month}</span>)}
-                  </div>
-                </>
-              )}
-
-              <div className={styles.subGrid}>
-                <div>
-                  <div className={styles.subMetric}><Money value={stats.monthExpense} hide={hideValues} /></div>
-                  <div className={styles.subLabel}>Despesas</div>
-                </div>
-                <div>
-                  <div className={`${styles.subMetric} ${styles.subAccent}`}><Money value={monthProfit} hide={hideValues} /></div>
-                  <div className={styles.subLabel}>Lucro líquido</div>
-                </div>
-                <div>
-                  <div className={styles.subMetric}><Money value={stats.avgTicket} hide={hideValues} /></div>
-                  <div className={styles.subLabel}>Ticket médio</div>
-                </div>
-              </div>
-            </article>
-
-            {goal ? (
-              <Link href="/metas" className={styles.metaCard}>
-                <div className={styles.cardHead}>
-                  <span className={styles.eyebrow}>Meta do mês</span>
-                  <span className={styles.metaEdit}>Editar <Icon name="chevronRight" size={12} /></span>
-                </div>
-                <div className={styles.ring}>
-                  <svg width="128" height="128" viewBox="0 0 128 128">
-                    <circle className={styles.ringTrack} cx="64" cy="64" r={RING_R} fill="none" strokeWidth="12" />
-                    <circle
-                      className={styles.ringFill}
-                      cx="64" cy="64" r={RING_R} fill="none" strokeWidth="12"
-                      strokeDasharray={RING_C} strokeDashoffset={ringOffset} strokeLinecap="round"
-                      transform="rotate(-90 64 64)"
-                      stroke={goalPct >= 100 ? '#10B981' : 'url(#dashboardGoalGrad)'}
-                    />
-                    <defs>
-                      <linearGradient id="dashboardGoalGrad" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0" stopColor="#4DD9C0" />
-                        <stop offset="1" stopColor="#0B9B85" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                  <div className={styles.ringPct}>
-                    <b>{hideValues ? '••' : `${goalPct}%`}</b>
-                    <small>da meta</small>
-                  </div>
-                </div>
-                <div className={styles.metaFig}>
-                  <Money value={stats.monthRevenue} hide={hideValues} /> <span className={styles.metaOf}>de {hideValues ? '••••' : formatCurrency(goal)}</span>
-                </div>
-                {pace && (
-                  <div className={styles.metaPace}>
-                    <span className={styles.pacePill} style={{ background: pace.status === 'behind' ? '#EF4444' : '#10B981' }} />
-                    {pace.status === 'done'
-                      ? 'Meta batida'
-                      : `${pace.status === 'ahead' ? 'No ritmo' : 'Abaixo do ritmo'} — faltam ${hideValues ? '••••' : formatCurrency(pace.remaining)} em ${pace.daysLeft} dia(s)`}
-                  </div>
-                )}
-              </Link>
-            ) : (
-              <Link href="/metas" className={styles.metaCardEmpty}>
-                <span className={styles.metaEmptyIcon}><Icon name="target" size={20} /></span>
-                <p>Defina uma meta de faturamento mensal para acompanhar seu progresso aqui.</p>
-                <span className={styles.metaEdit}>Definir meta <Icon name="chevronRight" size={12} /></span>
-              </Link>
-            )}
-          </div>
-
-          <div className={styles.opsStrip}>
-            <div className={styles.opsCell}>
-              <span className={styles.cellVal}>{mask(stats.totalPatients)}</span>
-              <span className={styles.cellLabel}>Pacientes ativos</span>
-            </div>
-            <div className={styles.opsCell}>
-              <span className={styles.cellVal}>{mask(stats.appointmentsToday)}</span>
-              <span className={styles.cellLabel}>Consultas hoje</span>
-            </div>
-            <div className={styles.opsCell}>
-              <span className={styles.cellVal}>{mask(stats.newPatientsMonth)}</span>
-              <span className={styles.cellLabel}>Novos este mês</span>
-            </div>
-            <div className={styles.opsCell}>
-              <span className={styles.cellSplit}>
-                <b>{mask(stats.treatmentsCompleted)}</b>
-                <span className={styles.cellSep}>/</span>
-                <b className={styles.cellWarn}>{mask(stats.treatmentsOpen)}</b>
-              </span>
-              <span className={styles.cellLabel}>Concluídos / em aberto</span>
-            </div>
-          </div>
-
-          <div className={styles.chartsGrid}>
-            <div className={styles.section}>
-              <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>Receitas vs Despesas — últimos 6 meses</h2>
-              </div>
-              <div className={styles.chartWrap}>
-                <DashboardChart data={monthlyData} goal={clinic?.monthlyRevenueGoal} />
-              </div>
-            </div>
-
-            <div className={styles.section}>
-              <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>Receita por categoria — mês atual</h2>
-              </div>
-              <div className={styles.chartWrap}>
-                <RevenueByCategoryChart data={revenueByCategory} />
-              </div>
-            </div>
-          </div>
-
-          {insights.length > 0 && (
-            <div className={styles.insightsCard}>
-              <h2 className={styles.insightsTitle}>Conclusões & Dicas</h2>
-              <div className={styles.insightsList}>
-                {insights.map((ins, i) => (
-                  <div key={i} className={styles.insightItem}>
-                    <span className={styles.insightIcon} style={{ background: `${ins.color}1a`, color: ins.color }}>
-                      <Icon name={ins.icon} size={14} />
-                    </span>
-                    <p className={styles.insightText}>{ins.text}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
       )}
+      <OnboardingModal procedures={procedures} patientsCount={stats.totalPatients} />
+      {!loading && <OnboardingChecklist procedures={procedures} patientsCount={stats.totalPatients} />}
+      <WelcomeModal />
+
+      <div className={styles.grid} aria-busy={loading}>
+        <section className={styles.hero}>
+          <div className={styles.heroTop}>
+            <div>
+              <h1 className={styles.hello}>{greeting}, {user?.displayName?.split(' ')[0]}</h1>
+              <p className={styles.helloSub}>
+                {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </p>
+            </div>
+            <button
+              type="button"
+              className={styles.btnHide}
+              onClick={() => setHideValues((v) => !v)}
+              aria-pressed={hideValues}
+              aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+              title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+            >
+              {hideValues ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              )}
+            </button>
+          </div>
+
+          <div className={styles.gauges}>
+            <div className={styles.gaugeBox}>
+              <h2 className={styles.gaugeTitle}>Meta do mês</h2>
+              <Gauge value={goal && !hideValues ? stats.monthRevenue / goal : 0} label={goal ? `Meta do mês: ${Math.round((stats.monthRevenue / goal) * 100)}% atingido` : 'Meta do mês não definida'}>
+                <span className={styles.gaugeNum}><Pct value={goal && !hideValues ? stats.monthRevenue / goal : null} /></span>
+              </Gauge>
+              {goal ? (
+                <p className={styles.gaugeHint}>
+                  {pace?.status === 'done' ? 'Meta batida' : `${hideValues ? '••••' : formatCurrencyCompact(pace?.remaining ?? 0)} para a meta em ${pace?.daysLeft ?? 0} dia(s)`}
+                  <Link href="/metas" className={styles.gaugeLink}>Editar</Link>
+                </p>
+              ) : (
+                <p className={styles.gaugeHint}><Link href="/metas" className={styles.gaugeLink}>Definir meta</Link></p>
+              )}
+            </div>
+            <div className={styles.gaugeBox}>
+              <h2 className={styles.gaugeTitle}>Confirmação da semana</h2>
+              <Gauge value={ins?.confirmation.rate ?? 0} label={ins?.confirmation.rate != null ? `Confirmação da semana: ${pct(ins.confirmation.rate)}%` : 'Sem consultas nesta semana'}>
+                <span className={styles.gaugeNum}><Pct value={ins?.confirmation.rate ?? null} /></span>
+              </Gauge>
+              <p className={styles.gaugeHint}>
+                {ins && ins.confirmation.total > 0 ? `${ins.confirmation.confirmed} de ${ins.confirmation.total} consultas confirmadas` : 'Nenhuma consulta nesta semana'}
+              </p>
+            </div>
+          </div>
+
+          <div className={styles.next}>
+            {next ? (
+              <>
+                <span className={styles.nextTime}>{fmtTime(next.scheduled_at)}</span>
+                <div className={styles.nextWho}>
+                  <small>Próximo atendimento</small>
+                  <b>{next.patients?.name ?? '-'}</b>
+                  {next.procedure_name && <span>{next.procedure_name}</span>}
+                </div>
+                {next.patient_id && <Link className={styles.nextGo} href={`/pacientes?patient=${next.patient_id}`}>Abrir</Link>}
+              </>
+            ) : (
+              <div className={styles.nextWho}>
+                <small>Próximo atendimento</small>
+                <b>{todayAppts.length ? 'Nenhum outro atendimento hoje' : 'Nenhum atendimento hoje'}</b>
+              </div>
+            )}
+          </div>
+
+          <div className={styles.attend}>
+            <div className={styles.attendHead}>
+              <h2>Comparecimento</h2>
+              <span>últimos 7 dias</span>
+            </div>
+            <div className={styles.attendBig}>
+              <span className={styles.num}><Pct value={att?.rate ?? null} /></span>
+              <small>{att && att.done + att.noShow > 0 ? `${att.done} de ${att.done + att.noShow} pacientes vieram` : 'Sem atendimentos passados'}</small>
+            </div>
+            <div className={styles.segs}>
+              <div className={styles.seg}>
+                <p>Compareceram <b>{att?.done ?? 0}</b></p>
+                <DayBars values={att?.perDay.done ?? []} max={attMax} />
+              </div>
+              <div className={`${styles.seg} ${styles.segWarn}`}>
+                <p>Faltaram <b>{att?.noShow ?? 0}</b></p>
+                <DayBars values={att?.perDay.noShow ?? []} max={attMax} />
+              </div>
+              <div className={`${styles.seg} ${styles.segDim}`}>
+                <p>Cancelaram <b>{att?.cancelled ?? 0}</b></p>
+                <DayBars values={att?.perDay.cancelled ?? []} max={attMax} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className={styles.minis}>
+          <StatCard
+            title="Pacientes ativos"
+            value={stats.totalPatients}
+            delta={stats.newPatientsMonth > 0 ? { label: `+${stats.newPatientsMonth}` } : undefined}
+            hint={stats.newPatientsMonth === 1 ? '1 novo neste mês' : `${stats.newPatientsMonth} novos neste mês`}
+            spark={ins ? { values: ins.sparks.patients, label: `Pacientes ativos nos últimos 7 dias: de ${ins.sparks.patients[0]} para ${stats.totalPatients}` } : undefined}
+          />
+          <StatCard
+            title="Consultas hoje"
+            value={stats.appointmentsToday}
+            hint={needsConfirm > 0 ? `${needsConfirm} para confirmar` : `${confirmedToday} confirmada(s)`}
+            spark={ins ? { values: ins.sparks.appointments, label: `Consultas por dia nos últimos 7 dias: ${ins.sparks.appointments.join(', ')}` } : undefined}
+          />
+          <StatCard
+            title="Receita do mês"
+            value={moneyCompact(stats.monthRevenue)}
+            compact
+            delta={mtdPct != null && !hideValues ? { label: `${mtdPct > 0 ? '+' : ''}${mtdPct}%`, bad: mtdPct < 0 } : undefined}
+            hint={mtdPct != null ? 'comparado ao mês passado' : `lucro de ${moneyCompact(monthProfit)}`}
+          />
+          <StatCard
+            title="Ticket médio"
+            value={moneyCompact(stats.avgTicket)}
+            compact
+            hint={stats.treatmentsCompleted === 1 ? '1 atendimento concluído' : `${stats.treatmentsCompleted} atendimentos concluídos`}
+          />
+        </div>
+
+        <Card
+          className={styles.chartCard}
+          title={trend.title}
+          actions={<PillTabs label="Período do gráfico" value={period} onChange={setPeriod} options={PERIODS} />}
+        >
+          {hideValues || trendEmpty ? (
+            <div className={styles.chartHidden}>{hideValues ? 'Valores ocultos' : 'Nenhuma receita neste período'}</div>
+          ) : (
+            <AreaTrendChart
+              data={trend.data}
+              highlightIndex={trend.highlight}
+              valueName={trend.valueName}
+              compareName={trend.compareName}
+              formatValue={moneyShort}
+              formatAxis={axisMoney}
+              height={236}
+              label={`${trend.title}: ${trend.valueName.toLowerCase()} comparada com ${trend.compareName.toLowerCase()}`}
+            />
+          )}
+        </Card>
+
+        <div className={styles.bottom}>
+          <Card
+            title="Agenda de hoje"
+            actions={<Link href="/agenda" className={styles.cardLink}>Ver agenda <Icon name="chevronRight" size={13} /></Link>}
+          >
+            {todayAppts.length === 0 ? (
+              <p className={styles.empty}>Nenhum agendamento para hoje.</p>
+            ) : (
+              <ul className={styles.apptList}>
+                {todayAppts.map((a) => (
+                  <li key={a.id} className={styles.appt}>
+                    <time className={styles.apptTime}>{fmtTime(a.scheduled_at)}</time>
+                    <div className={styles.apptWho}>
+                      <b>{a.patients?.name ?? '-'}</b>
+                      <span>{a.procedure_name ?? '-'}</span>
+                    </div>
+                    <div className={styles.apptEnd}>
+                      <StatusDot tone={next?.id === a.id ? 'now' : STATUS_TONE[a.status]}>{STATUS_LABELS[a.status]}</StatusDot>
+                      {canEditAgenda && a.status === 'agendado' && (
+                        <button type="button" className={styles.apptBtn} disabled={confirmingId === a.id} onClick={() => handleConfirm(a.id)}>
+                          {confirmingId === a.id ? 'Confirmando...' : 'Confirmar'}
+                        </button>
+                      )}
+                      {canEditAgenda && a.status === 'confirmado' && (
+                        <button type="button" className={styles.apptBtn} disabled={confirmingId === a.id} onClick={() => handleConclude(a.id)}>
+                          {confirmingId === a.id ? 'Concluindo...' : 'Concluir'}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card title="Caixa de hoje">
+            <div className={styles.cash}>
+              <div className={styles.cashRow}>
+                <span>Recebido</span>
+                <span className={styles.cashNum}>{money(todayCash.recebido)}</span>
+              </div>
+              <div className={styles.cashRow}>
+                <span>A receber</span>
+                <span className={styles.cashNum}>{money(todayCash.aReceber)}</span>
+              </div>
+              {todayCash.aReceberRecords.length > 0 && (
+                <div className={styles.cashPendingList}>
+                  {todayCash.aReceberRecords.map((r) => (
+                    <Link key={r.id} href={`/financeiro?record=${r.id}`} className={styles.cashPendingChip}>{money(r.total_amount)}</Link>
+                  ))}
+                </div>
+              )}
+              <div className={`${styles.cashRow} ${styles.cashTotal}`}>
+                <span>Previsto</span>
+                <span className={styles.cashNum}>{money(todayCash.previsto)}</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {(revenueByCategory.length > 0 || insights.length > 0) && (
+          <div className={styles.bottom}>
+            <Card title="Receita por categoria" actions={<span className={styles.cardMeta}>mês atual</span>}>
+              {revenueByCategory.length === 0 ? (
+                <p className={styles.empty}>Nenhuma receita neste mês.</p>
+              ) : (
+                <ul className={styles.cats}>
+                  {revenueByCategory.slice(0, 5).map(c => (
+                    <li key={c.category}>
+                      <div className={styles.catRow}><span>{c.category}</span><b>{money(c.value)}</b></div>
+                      <div className={styles.catTrack}><i style={{ width: `${catTotal > 0 ? Math.max(2, (c.value / catTotal) * 100) : 0}%` }} /></div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            {insights.length > 0 && (
+              <Card title="Conclusões e dicas">
+                <ul className={styles.insightsList}>
+                  {insights.map((it, i) => (
+                    <li key={i} className={styles.insightItem}>
+                      <span className={styles.insightIcon} style={{ color: it.color }}><Icon name={it.icon} size={14} /></span>
+                      <p className={styles.insightText}>{it.text}</p>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

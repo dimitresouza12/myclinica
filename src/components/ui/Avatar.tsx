@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { initialsOf } from '@/lib/whatsapp/inbox'
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   name: string
   size?: number
   className?: string
+  /** no lugar das iniciais quando o nome não tem letras (contato só com número); sem isso, aparece "#" */
+  empty?: ReactNode
 }
 
 /**
@@ -15,7 +17,7 @@ interface Props {
  * o navegador não consegue carregá-la, mostra as iniciais em vez de uma imagem quebrada.
  * `className` traz o visual do círculo de iniciais de cada tela (cor, fonte); o tamanho vem de `size`.
  */
-export function Avatar({ url, name, size = 40, className }: Props) {
+export function Avatar({ url, name, size = 40, className, empty }: Props) {
   // qual URL já falhou; trocar de URL (foto renovada) tenta de novo sem precisar de efeito
   const [failed, setFailed] = useState<string | null>(null)
   const show = !!url && failed !== url
@@ -37,5 +39,6 @@ export function Avatar({ url, name, size = 40, className }: Props) {
       />
     )
   }
-  return <div className={className} style={box} aria-hidden="true">{initialsOf(name)}</div>
+  const initials = initialsOf(name)
+  return <div className={className} style={box} aria-hidden="true">{empty && initials === '#' ? empty : initials}</div>
 }

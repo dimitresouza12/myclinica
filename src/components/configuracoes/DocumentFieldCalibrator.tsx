@@ -5,7 +5,9 @@ import { getTemplateCanvasSize } from '@/lib/templateCanvasSize'
 import { TemplateFieldCanvas } from '@/components/documentos/TemplateFieldCanvas'
 import { getFieldCatalog, defaultFieldPosition, type FieldCatalogEntry } from '@/lib/documentFieldCatalog'
 import { resolveFontPt } from '@/lib/templateCanvasSize'
-import { Portal } from '@/components/ui/Portal'
+import { Modal } from '@/components/ui/Modal'
+import f from '@/components/ui/modalForm.module.css'
+import btn from '@/components/ui/button.module.css'
 import type { DocumentTemplateType, FieldPosition } from '@/types'
 import styles from './DocumentFieldCalibrator.module.css'
 import { IntegerInput } from '@/components/ui/NumericInput'
@@ -78,107 +80,103 @@ export function DocumentFieldCalibrator({ type, pdfUrl, initialFields, onSave, o
   }
 
   return (
-    <Portal>
-      <div className={styles.overlay} onClick={onClose}>
-        <div className={styles.modal} onClick={e => e.stopPropagation()}>
-          <div className={styles.header}>
-            <h2 className={styles.title}>Calibrar campos</h2>
-            <button className={styles.closeBtn} onClick={onClose} aria-label="Fechar">
-              <span aria-hidden>×</span>
-            </button>
-          </div>
-          <p className={styles.subtitle}>Marque onde cada dado aparece no seu modelo — feito uma vez, vale pra todo documento deste tipo daqui pra frente.</p>
+    <Modal
+      open
+      onClose={onClose}
+      size="wide"
+      title="Calibrar campos"
+      footer={
+        <>
+          <button type="button" className={btn.secondary} onClick={onClose}>Cancelar</button>
+          <button type="button" className={btn.primary} onClick={() => onSave(fields)}>Salvar calibração</button>
+        </>
+      }
+    >
+      <p className={f.note}>Marque onde cada dado aparece no seu modelo — feito uma vez, vale pra todo documento deste tipo daqui pra frente.</p>
 
-          <div className={styles.body}>
-            <div className={styles.palette}>
-              <p className={styles.paletteHint}>Clique num campo pra adicionar, arraste sobre o modelo pra posicionar. A alça no canto ajusta a largura.</p>
-              <div className={styles.paletteList}>
-                {catalog.map(entry => {
-                  const active = fields.some(f => f.key === entry.key)
-                  const isSelected = selectedKey === entry.key
-                  return (
-                    <div key={entry.key} className={`${styles.paletteItem} ${active ? styles.paletteItemActive : ''} ${isSelected ? styles.paletteItemSelected : ''}`}>
-                      <button className={styles.paletteItemBtn} onClick={() => active ? setSelectedKey(entry.key) : addField(entry)}>
-                        {entry.label}
-                      </button>
-                      {active && (
-                        <button className={styles.removeFieldBtn} onClick={() => removeField(entry.key)} title="Remover deste modelo" aria-label="Remover">
-                          <span aria-hidden>×</span>
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              <label className={styles.previewToggle}>
-                <input type="checkbox" checked={preview} onChange={e => setPreview(e.target.checked)} />
-                Prévia com dados de exemplo
-              </label>
-
-              {selected && (
-                <div className={styles.fieldOptions}>
-                  <h3 className={styles.fieldOptionsTitle}>{selected.label}</h3>
-                  <label className={styles.optionRow}>
-                    Tamanho da fonte (pt)
-                    <IntegerInput
-                      min={6} max={36} value={resolveFontPt(selected)}
-                      onChange={v => patchField(selected.key, { fontPt: Number(v) || resolveFontPt(selected) })}
-                    />
-                  </label>
-                  {selected.kind === 'body' && (
-                    <label className={styles.optionRow}>
-                      Altura mínima
-                      <IntegerInput
-                        min={5} max={90} value={selected.heightPct ?? 30}
-                        onChange={v => patchField(selected.key, { heightPct: Number(v) || 30 })}
-                      />
-                    </label>
+      <div className={styles.work}>
+        <div className={styles.palette}>
+          <p className={styles.paletteHint}>Clique num campo pra adicionar, arraste sobre o modelo pra posicionar. A alça no canto ajusta a largura.</p>
+          <div className={styles.paletteList}>
+            {catalog.map(entry => {
+              const active = fields.some(f => f.key === entry.key)
+              const isSelected = selectedKey === entry.key
+              return (
+                <div key={entry.key} className={`${styles.paletteItem} ${active ? styles.paletteItemActive : ''} ${isSelected ? styles.paletteItemSelected : ''}`}>
+                  <button className={styles.paletteItemBtn} onClick={() => active ? setSelectedKey(entry.key) : addField(entry)}>
+                    {entry.label}
+                  </button>
+                  {active && (
+                    <button className={styles.removeFieldBtn} onClick={() => removeField(entry.key)} title="Remover deste modelo" aria-label="Remover">
+                      <span aria-hidden>×</span>
+                    </button>
                   )}
-                  <div className={styles.alignRow}>
-                    {(['left', 'center', 'right'] as const).map(a => (
-                      <button
-                        key={a}
-                        className={`${styles.alignBtn} ${selected.align === a ? styles.alignBtnActive : ''}`}
-                        onClick={() => patchField(selected.key, { align: a })}
-                      >
-                        {a === 'left' ? 'Esquerda' : a === 'center' ? 'Centro' : 'Direita'}
-                      </button>
-                    ))}
-                  </div>
-                  <label className={styles.boldToggle}>
-                    <input type="checkbox" checked={selected.bold} onChange={e => patchField(selected.key, { bold: e.target.checked })} />
-                    Negrito
-                  </label>
                 </div>
-              )}
-            </div>
+              )
+            })}
+          </div>
 
-            <div className={styles.canvasArea} ref={setContainerEl}>
-              {loading && <p className={styles.loadingHint}>Carregando modelo...</p>}
-              {!loading && bg && size.width > 0 && (
-                <TemplateFieldCanvas
-                  bgUrl={bg.url}
-                  width={size.width}
-                  height={size.height}
-                  fields={fields}
-                  mode="calibrate"
-                  previewText={preview ? SAMPLE_VALUES : undefined}
-                  selectedKey={selectedKey}
-                  onSelectField={setSelectedKey}
-                  onFieldChange={patchField}
+          <label className={styles.previewToggle}>
+            <input type="checkbox" checked={preview} onChange={e => setPreview(e.target.checked)} />
+            Prévia com dados de exemplo
+          </label>
+
+          {selected && (
+            <div className={styles.fieldOptions}>
+              <h3 className={styles.fieldOptionsTitle}>{selected.label}</h3>
+              <label className={styles.optionRow}>
+                Tamanho da fonte (pt)
+                <IntegerInput
+                  min={6} max={36} value={resolveFontPt(selected)}
+                  onChange={v => patchField(selected.key, { fontPt: Number(v) || resolveFontPt(selected) })}
                 />
+              </label>
+              {selected.kind === 'body' && (
+                <label className={styles.optionRow}>
+                  Altura mínima
+                  <IntegerInput
+                    min={5} max={90} value={selected.heightPct ?? 30}
+                    onChange={v => patchField(selected.key, { heightPct: Number(v) || 30 })}
+                  />
+                </label>
               )}
-              {!loading && !bg && <p className={styles.loadingHint}>Não foi possível carregar o modelo.</p>}
+              <div className={styles.alignRow}>
+                {(['left', 'center', 'right'] as const).map(a => (
+                  <button
+                    key={a}
+                    className={`${styles.alignBtn} ${selected.align === a ? styles.alignBtnActive : ''}`}
+                    onClick={() => patchField(selected.key, { align: a })}
+                  >
+                    {a === 'left' ? 'Esquerda' : a === 'center' ? 'Centro' : 'Direita'}
+                  </button>
+                ))}
+              </div>
+              <label className={styles.boldToggle}>
+                <input type="checkbox" checked={selected.bold} onChange={e => patchField(selected.key, { bold: e.target.checked })} />
+                Negrito
+              </label>
             </div>
-          </div>
+          )}
+        </div>
 
-          <div className={styles.footer}>
-            <button className={styles.btnCancel} onClick={onClose}>Cancelar</button>
-            <button className={styles.btnSave} onClick={() => onSave(fields)}>Salvar calibração</button>
-          </div>
+        <div className={styles.canvasArea} ref={setContainerEl}>
+          {loading && <p className={styles.loadingHint}>Carregando modelo...</p>}
+          {!loading && bg && size.width > 0 && (
+            <TemplateFieldCanvas
+              bgUrl={bg.url}
+              width={size.width}
+              height={size.height}
+              fields={fields}
+              mode="calibrate"
+              previewText={preview ? SAMPLE_VALUES : undefined}
+              selectedKey={selectedKey}
+              onSelectField={setSelectedKey}
+              onFieldChange={patchField}
+            />
+          )}
+          {!loading && !bg && <p className={styles.loadingHint}>Não foi possível carregar o modelo.</p>}
         </div>
       </div>
-    </Portal>
+    </Modal>
   )
 }

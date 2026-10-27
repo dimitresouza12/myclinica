@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatDate } from '@/lib/utils'
-import { useScrollLock } from '@/hooks/useScrollLock'
 import { getSpecialtyConfig, mergeSpecialtyConfigs, specialtyRoleLabel, roleForSpecialty, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { presetPermissions } from '@/lib/permissionPresets'
 import { normalizeUsername } from '@/lib/username'
@@ -11,13 +10,23 @@ import { professionalLimitFor } from '@/lib/planCatalog'
 import type { Professional, UserRole, ClinicType } from '@/types'
 import styles from './equipe.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
-import { PageTitle } from '@/components/layout/PageTitle'
-import { Portal } from '@/components/ui/Portal'
+import { Modal } from '@/components/ui/Modal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { CredentialsConfirmModal } from '@/components/ui/CredentialsConfirmModal'
 import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
 import { IntegerInput } from '@/components/ui/NumericInput'
+import { Avatar } from '@/components/ui/Avatar'
+import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { StatusDot } from '@/components/ui/StatusDot'
+import { MoreMenu } from '@/components/ui/MoreMenu'
+import { avatarTone } from '@/lib/ui/avatarTone'
+import btn from '@/components/ui/button.module.css'
+import f from '@/components/ui/modalForm.module.css'
+import t from '@/components/ui/table.module.css'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 interface ProfessionalRow extends Professional {
   clinic_users: { role: UserRole; is_active: boolean; specialty_type: ClinicType | null } | null
@@ -92,8 +101,6 @@ function EquipeContent() {
   const filteredSpecialtySuggestions = specialtySuggestions.filter(s =>
     s.toLowerCase().includes(form.specialty.trim().toLowerCase())
   )
-
-  useScrollLock(showModal)
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -283,7 +290,7 @@ function EquipeContent() {
 
   async function handleDelete(p: ProfessionalRow) {
     if (!p.clinic_user_id) {
-      if (!(await confirmDialog({ message: 'Remover profissional?', confirmText: 'Remover', danger: true }))) return
+      if (!(await confirmDialog({ title: `Remover ${p.name}?`, message: 'O profissional é removido da equipe. Os agendamentos e registros passados são mantidos, mas ficam sem profissional atribuído. Esta ação não pode ser desfeita.', confirmText: 'Remover', danger: true }))) return
       await supabase.from('professionals').delete().eq('id', p.id).eq('clinic_id', clinic!.id)
       loadData()
       return
@@ -316,241 +323,253 @@ function EquipeContent() {
     loadUserCount()
   }
 
+  const withAccess = professionals.filter(p => p.clinic_user_id).length
+  const agendaOnly = professionals.length - withAccess
+
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <PageTitle title="Equipe" subtitle={
-          <>
-            {professionalLimit === null
-              ? `${professionals.length} ${professionals.length === 1 ? 'profissional' : 'profissionais'} (plano sem limite)`
-              : `${professionals.length} de ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'} do plano`}
-            {isAdmin && ` · ${activeUserCount} login${activeUserCount !== 1 ? 's' : ''} ativo${activeUserCount !== 1 ? 's' : ''} (sem limite)`}
-          </>
-        } />
-        <button className={styles.btnPrimary} onClick={openNewModal}>+ Novo Profissional</button>
+      <PageHeader
+        title="Equipe"
+        subtitle={professionalLimit === null
+          ? `${professionals.length} ${professionals.length === 1 ? 'profissional' : 'profissionais'} (plano sem limite)`
+          : `${professionals.length} de ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'} do plano`}
+        actions={<button type="button" className={btn.primary} onClick={openNewModal}><Icon name="plus" size={15} /> Novo profissional</button>}
+      />
+
+      <div className={styles.stats}>
+        <StatCard
+          title="Profissionais"
+          value={professionals.length}
+          hint={professionalLimit === null ? 'plano sem limite' : `limite do plano: ${professionalLimit}`}
+          delta={professionalLimitReached ? { label: 'limite', bad: true } : undefined}
+        />
+        <StatCard title="Com acesso ao sistema" value={withAccess} hint="têm login próprio" />
+        <StatCard title="Só na agenda" value={agendaOnly} hint="aparecem na agenda, sem login" />
+        {isAdmin && <StatCard title="Logins ativos" value={activeUserCount} hint="inclui recepção e auxiliar, sem limite" />}
       </div>
 
-      {loading ? <p className={styles.loading}>Carregando...</p> : (
-        <div className={`${styles.tableWrap} resp-table-wrap`} data-hscroll>
-          <table className={`${styles.table} resp-table`}>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Especialidade</th>
-                <th>Acesso</th>
-                <th>Cadastrado em</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {professionals.length === 0 ? (
-                <tr><td colSpan={5} className={styles.empty}>Nenhum profissional cadastrado.</td></tr>
-              ) : professionals.map((p) => (
-                <tr key={p.id}>
-                  <td className={styles.bold}>{p.name}</td>
-                  <td data-label="Especialidade">{p.specialty ?? '-'}</td>
-                  <td data-label="Acesso">
-                    {p.clinic_user_id ? (
-                      <span className={styles.badgeAccess}>
-                        <Icon name="check" size={11} /> Tem acesso{p.clinic_users?.role ? ` · ${p.clinic_users.specialty_type ? specialtyRoleLabel(p.clinic_users.specialty_type) : (ROLE_LABELS_FALLBACK[p.clinic_users.role] ?? p.clinic_users.role)}` : ''}
-                        {p.clinic_users && !p.clinic_users.is_active && <em className={styles.badgeInactive}> (desativado)</em>}
-                      </span>
-                    ) : (
-                      <span className={styles.badgeNoAccess}>Só agenda</span>
-                    )}
-                  </td>
-                  <td data-label="Cadastrado em">{formatDate(p.created_at, true)}</td>
-                  <td data-label="Ações">
-                    <div className={styles.rowActions}>
-                      <button className={styles.btnEdit} onClick={() => openEditModal(p)}>Editar</button>
-                      <button className={styles.btnDelete} onClick={() => handleDelete(p)}>Remover</button>
-                    </div>
-                  </td>
+      <Card flush title="Profissionais">
+        {loading ? <p className={styles.loading}>Carregando...</p> : (
+          <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+            <table className={`${t.table} resp-table`}>
+              <thead>
+                <tr>
+                  <th>Profissional</th>
+                  <th>Acesso</th>
+                  <th>Cadastrado em</th>
+                  <th aria-label="Ações" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {professionals.length === 0 ? (
+                  <tr><td colSpan={4} className={t.empty}>Nenhum profissional cadastrado.</td></tr>
+                ) : professionals.map(p => (
+                  <tr key={p.id} className={`${t.clickable} ${styles.row}`} onClick={() => openEditModal(p)}>
+                    <td>
+                      <div className={styles.person}>
+                        <Avatar name={p.name} size={36} className={`${styles.avatar} ${styles[`tone${avatarTone(p.name)}`]}`} />
+                        <div className={styles.who}>
+                          <span className={styles.name}>{p.name}</span>
+                          <span className={styles.sub}>{p.specialty ?? 'Sem especialidade'}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td data-label="Acesso">
+                      {p.clinic_user_id ? (
+                        p.clinic_users && !p.clinic_users.is_active
+                          ? <StatusDot tone="bad">Acesso desativado</StatusDot>
+                          : <StatusDot tone="ok">
+                              Tem acesso{p.clinic_users?.role ? `, ${p.clinic_users.specialty_type ? specialtyRoleLabel(p.clinic_users.specialty_type) : (ROLE_LABELS_FALLBACK[p.clinic_users.role] ?? p.clinic_users.role)}` : ''}
+                            </StatusDot>
+                      ) : (
+                        <StatusDot tone="idle">Só agenda</StatusDot>
+                      )}
+                    </td>
+                    <td data-label="Cadastrado em" className={t.muted}>{formatDate(p.created_at, true)}</td>
+                    <td className={styles.actionsCell}>
+                      <div className={t.rowActions} onClick={e => e.stopPropagation()}>
+                        <MoreMenu
+                          label={`Mais ações de ${p.name}`}
+                          items={[
+                            { label: 'Editar', icon: 'edit', onClick: () => openEditModal(p) },
+                            { label: 'Remover', icon: 'trash', danger: true, onClick: () => handleDelete(p) },
+                          ]}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Modal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        title={editingProf ? 'Editar Profissional' : 'Novo Profissional'}
+        footer={
+          <>
+            <button type="button" className={btn.secondary} onClick={() => setShowModal(false)}>Cancelar</button>
+            <button type="button" className={btn.primary} onClick={handleSave} disabled={saving || !form.name.trim() || (!editingProf && blockedByProfessionalLimit)}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+          </>
+        }
+      >
+        {!editingProf && blockedByProfessionalLimit && (
+          <p className={f.hint}>
+            Limite de profissionais do plano atingido ({professionals.length}/{professionalLimit}). Fale com o suporte para migrar de plano ou liberar uma exceção
+            {!form.hasAccess ? '' : ' — recepção e auxiliar continuam sem limite, mude o cargo acima'}.
+          </p>
+        )}
+        <div className={f.field}>
+          <label>Nome *</label>
+          <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
         </div>
-      )}
-
-      {showModal && (
-        <Portal>
-        <div className={styles.overlay} onClick={() => setShowModal(false)}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>{editingProf ? 'Editar Profissional' : 'Novo Profissional'}</h2>
-              <button className={styles.btnClose} onClick={() => setShowModal(false)}><Icon name="close" size={18} /></button>
+        <div className={f.field}>
+          <label>Especialidade</label>
+          <input
+            value={form.specialty}
+            onChange={(e) => { setForm((p) => ({ ...p, specialty: e.target.value })); setShowSpecialtySuggestions(true) }}
+            onFocus={() => setShowSpecialtySuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSpecialtySuggestions(false), 150)}
+            placeholder="Ex: Ortodontia, Clínico Geral..."
+            autoComplete="off"
+          />
+          {showSpecialtySuggestions && filteredSpecialtySuggestions.length > 0 && (
+            <div className={styles.suggestionsDropdown}>
+              {filteredSpecialtySuggestions.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  className={styles.suggestionItem}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { setForm(p => ({ ...p, specialty: s })); setShowSpecialtySuggestions(false) }}
+                >
+                  {s}
+                </button>
+              ))}
             </div>
-            <div className={styles.modalBody}>
-              {!editingProf && blockedByProfessionalLimit && (
-                <p className={styles.hint}>
-                  Limite de profissionais do plano atingido ({professionals.length}/{professionalLimit}). Fale com o suporte para migrar de plano ou liberar uma exceção
-                  {!form.hasAccess ? '' : ' — recepção e auxiliar continuam sem limite, mude o cargo acima'}.
-                </p>
-              )}
-              <div className={styles.field}>
-                <label>Nome *</label>
-                <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
-              </div>
-              <div className={styles.field}>
-                <label>Especialidade</label>
-                <input
-                  value={form.specialty}
-                  onChange={(e) => { setForm((p) => ({ ...p, specialty: e.target.value })); setShowSpecialtySuggestions(true) }}
-                  onFocus={() => setShowSpecialtySuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowSpecialtySuggestions(false), 150)}
-                  placeholder="Ex: Ortodontia, Clínico Geral..."
-                  autoComplete="off"
-                />
-                {showSpecialtySuggestions && filteredSpecialtySuggestions.length > 0 && (
-                  <div className={styles.suggestionsDropdown}>
-                    {filteredSpecialtySuggestions.map(s => (
-                      <button
-                        key={s}
-                        type="button"
-                        className={styles.suggestionItem}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => { setForm(p => ({ ...p, specialty: s })); setShowSpecialtySuggestions(false) }}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+          )}
+        </div>
 
-              <div className={styles.field}>
-                <label>Duração padrão do atendimento (min)</label>
-                <IntegerInput
-                  min={5}
-                  max={720}
-                  value={form.defaultDuration}
-                  onChange={(v) => setForm((p) => ({ ...p, defaultDuration: v }))}
-                  placeholder={`Padrão da área (${getSpecialtyConfig(form.specialty_type || clinic?.type).defaultDurationMinutes} min)`}
-                />
-              </div>
+        <div className={f.field}>
+          <label>Duração padrão do atendimento (min)</label>
+          <IntegerInput
+            min={5}
+            max={720}
+            value={form.defaultDuration}
+            onChange={(v) => setForm((p) => ({ ...p, defaultDuration: v }))}
+            placeholder={`Padrão da área (${getSpecialtyConfig(form.specialty_type || clinic?.type).defaultDurationMinutes} min)`}
+          />
+        </div>
 
-              <div className={styles.field}>
-                <label>Registro profissional (CRO/CRM/CRMV...)</label>
-                <input
-                  value={form.registrationNumber}
-                  onChange={(e) => setForm((p) => ({ ...p, registrationNumber: e.target.value }))}
-                  placeholder="Ex: CRO-SP 12345"
-                />
-                <p className={styles.hint}>Preenche automaticamente documentos como a Receita de Controle Especial.</p>
-              </div>
+        <div className={f.field}>
+          <label>Registro profissional (CRO/CRM/CRMV...)</label>
+          <input
+            value={form.registrationNumber}
+            onChange={(e) => setForm((p) => ({ ...p, registrationNumber: e.target.value }))}
+            placeholder="Ex: CRO-SP 12345"
+          />
+          <p className={f.hint}>Preenche automaticamente documentos como a Receita de Controle Especial.</p>
+        </div>
 
-              {!editingProf && isAdmin && (
-                <div className={styles.accessSection}>
-                  <label className={styles.checkboxRow}>
-                    <input
-                      type="checkbox"
-                      checked={form.hasAccess}
-                      onChange={(e) => setForm(p => ({ ...p, hasAccess: e.target.checked }))}
+        {!editingProf && isAdmin && (
+          <div className={styles.accessSection}>
+            <label className={styles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={form.hasAccess}
+                onChange={(e) => setForm(p => ({ ...p, hasAccess: e.target.checked }))}
+              />
+              <span>Este profissional vai acessar o sistema?</span>
+            </label>
+
+            {form.hasAccess && (
+              <>
+                <div className={f.field}>
+                  <label>{clinic?.isMultiSpecialty ? 'Cargo / Área de atuação' : 'Cargo'}</label>
+                  {clinic?.isMultiSpecialty ? (
+                    <SelectMenu
+                      variant="field"
+                      ariaLabel="Cargo ou área de atuação"
+                      value={form.specialty_type || form.role}
+                      onChange={v => {
+                        const isArea = CLINIC_TYPE_OPTIONS.some(o => o.value === v)
+                        setForm(p => ({
+                          ...p,
+                          role: isArea ? roleForSpecialty(v as ClinicType) : (v as UserRole),
+                          specialty_type: isArea ? (v as ClinicType) : '',
+                        }))
+                      }}
+                      options={[
+                        { value: 'recepcao', label: 'Recepção' },
+                        { value: 'auxiliar', label: 'Auxiliar' },
+                        ...clinicAreaOptions.map(o => ({ value: o.value, label: o.label, group: 'Área de atuação' })),
+                      ]}
                     />
-                    <span>Este profissional vai acessar o sistema?</span>
-                  </label>
-
-                  {form.hasAccess && (
-                    <>
-                      <div className={styles.field}>
-                        <label>{clinic?.isMultiSpecialty ? 'Cargo / Área de atuação' : 'Cargo'}</label>
-                        {clinic?.isMultiSpecialty ? (
-                          <select
-                            value={form.specialty_type || form.role}
-                            onChange={(e) => {
-                              const v = e.target.value
-                              const isArea = CLINIC_TYPE_OPTIONS.some(o => o.value === v)
-                              setForm(p => ({
-                                ...p,
-                                role: isArea ? roleForSpecialty(v as ClinicType) : (v as UserRole),
-                                specialty_type: isArea ? (v as ClinicType) : '',
-                              }))
-                            }}
-                          >
-                            <option value="recepcao">Recepção</option>
-                            <option value="auxiliar">Auxiliar</option>
-                            <optgroup label="Área de atuação">
-                              {clinicAreaOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                            </optgroup>
-                          </select>
-                        ) : (
-                          <select value={form.role} onChange={(e) => setForm(p => ({ ...p, role: e.target.value as UserRole }))}>
-                            {specialtyRoles.filter(r => r.value !== 'admin').map(r => (
-                              <option key={r.value} value={r.value}>{r.label}</option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                      <div className={styles.field}>
-                        <label>Nome de usuário (login) *</label>
-                        <input
-                          value={form.username}
-                          onChange={(e) => setForm(p => ({ ...p, username: normalizeUsername(e.target.value) }))}
-                          placeholder="ex: mariasilva"
-                        />
-                      </div>
-                      <div className={styles.field}>
-                        <label>E-mail *</label>
-                        <input
-                          type="email"
-                          value={form.email}
-                          onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))}
-                          placeholder="profissional@clinica.com"
-                        />
-                      </div>
-                      <div className={styles.field}>
-                        <label>Senha *</label>
-                        <input
-                          type="password"
-                          value={form.password}
-                          onChange={(e) => setForm(p => ({ ...p, password: e.target.value }))}
-                          placeholder="mín. 6 caracteres"
-                        />
-                      </div>
-                      <p className={styles.hint}>As permissões vêm pré-marcadas pro cargo — dá pra ajustar depois em Configurações → Equipe.</p>
-                    </>
+                  ) : (
+                    <SelectMenu variant="field" ariaLabel="Cargo" value={form.role}
+                      onChange={v => setForm(p => ({ ...p, role: v as UserRole }))}
+                      options={specialtyRoles.filter(r => r.value !== 'admin').map(r => ({ value: r.value, label: r.label }))} />
                   )}
                 </div>
-              )}
-
-              {errorMsg && <p className={styles.fieldError}>{errorMsg}</p>}
-            </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.btnCancel} onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.name.trim() || (!editingProf && blockedByProfessionalLimit)}>
-                {saving ? 'Salvando...' : 'Salvar'}
-              </button>
-            </div>
+                <div className={f.field}>
+                  <label>Nome de usuário (login) *</label>
+                  <input
+                    value={form.username}
+                    onChange={(e) => setForm(p => ({ ...p, username: normalizeUsername(e.target.value) }))}
+                    placeholder="ex: mariasilva"
+                  />
+                </div>
+                <div className={f.field}>
+                  <label>E-mail *</label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))}
+                    placeholder="profissional@clinica.com"
+                  />
+                </div>
+                <div className={f.field}>
+                  <label>Senha *</label>
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => setForm(p => ({ ...p, password: e.target.value }))}
+                    placeholder="mín. 6 caracteres"
+                  />
+                </div>
+                <p className={f.hint}>As permissões vêm pré-marcadas pro cargo — dá pra ajustar depois em Configurações → Equipe.</p>
+              </>
+            )}
           </div>
-        </div>
-        </Portal>
-      )}
+        )}
 
-      {deleteTarget && (
-        <Portal>
-        <div className={styles.overlay} onClick={() => !deleteLoading && setDeleteTarget(null)}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-            <div className={styles.modalHeader}>
-              <h2>Remover {deleteTarget.name}</h2>
-              <button className={styles.btnClose} onClick={() => setDeleteTarget(null)}><Icon name="close" size={18} /></button>
-            </div>
-            <div className={styles.modalBody}>
-              <p>Esse profissional também tem login no sistema. O que você quer fazer?</p>
-            </div>
-            <div className={styles.modalFooter} style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.6rem' }}>
-              <button className={styles.btnSave} onClick={removeOnlyFromAgenda} disabled={deleteLoading}>
-                Remover só da agenda (mantém o login)
-              </button>
-              <button className={styles.btnDelete} onClick={removeAndDeactivateAccess} disabled={deleteLoading} style={{ width: '100%', justifyContent: 'center' }}>
-                Remover da agenda e desativar o acesso
-              </button>
-              <button className={styles.btnCancel} onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>Cancelar</button>
-            </div>
+        {errorMsg && <p className={f.error}>{errorMsg}</p>}
+      </Modal>
+
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => { if (!deleteLoading) setDeleteTarget(null) }}
+        size="sm"
+        title={`Remover ${deleteTarget?.name ?? ''}`}
+        footer={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+            <button type="button" className={btn.primary} onClick={removeOnlyFromAgenda} disabled={deleteLoading}>
+              Remover só da agenda (mantém o login)
+            </button>
+            <button type="button" className={btn.danger} onClick={removeAndDeactivateAccess} disabled={deleteLoading}>
+              Remover da agenda e desativar o acesso
+            </button>
+            <button type="button" className={btn.secondary} onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>Cancelar</button>
           </div>
-        </div>
-        </Portal>
-      )}
+        }
+      >
+        <p>Esse profissional também tem login no sistema. O que você quer fazer?</p>
+      </Modal>
 
       {createdCredentials && (
         <CredentialsConfirmModal

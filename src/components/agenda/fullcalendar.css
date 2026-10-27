@@ -5,93 +5,16 @@
   font-size: 0.875rem;
 }
 
-/* ── Toolbar ── */
-.fc .fc-toolbar.fc-header-toolbar {
-  margin-bottom: 1.25rem;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.fc .fc-toolbar-title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.2px;
-}
-
-/* Botões de navegação (prev/next/today) */
-.fc .fc-button {
-  background: none;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-weight: 500;
-  padding: 0.35rem 0.75rem;
-  border-radius: 8px;
-  box-shadow: none;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  font-family: inherit;
-}
-.fc .fc-button:hover {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border-color: var(--text-secondary);
-}
-.fc .fc-button:focus {
-  box-shadow: none;
-  outline: none;
-}
-
-/* Botão "today" */
-.fc .fc-today-button {
-  background: var(--brand-primary);
-  border-color: var(--brand-primary);
-  color: #fff;
-  font-weight: 600;
-}
-.fc .fc-today-button:hover {
-  background: var(--brand-primary);
-  border-color: var(--brand-primary);
-  opacity: 0.88;
-  color: #fff;
-}
-.fc .fc-today-button:disabled {
-  opacity: 0.45;
-}
-
-/* Botões de view (Mês/Semana/Dia) */
-.fc .fc-button-group .fc-button {
-  border-radius: 0;
-}
-.fc .fc-button-group .fc-button:first-child { border-radius: 8px 0 0 8px; }
-.fc .fc-button-group .fc-button:last-child  { border-radius: 0 8px 8px 0; }
-
-.fc .fc-button-active,
-.fc .fc-button-group .fc-button-active {
-  background: var(--brand-primary) !important;
-  border-color: var(--brand-primary) !important;
-  color: #fff !important;
-  font-weight: 600;
-}
-.fc .fc-button:not(:disabled):active {
-  background: var(--bg-secondary) !important;
-  border-color: var(--border-color) !important;
-  color: var(--text-primary) !important;
-}
-
 /* ── Grid / borders ──
-   Sem moldura própria: a grade vive dentro do cartão único da página
-   (TopBar = header do cartão), então aqui só as linhas internas. */
+   Sem moldura própria: a grade vive dentro do cartão único da página, então aqui só as linhas internas. */
 .fc-theme-standard .fc-scrollgrid { border: none; }
 .fc-theme-standard td,
-.fc-theme-standard th { border-color: var(--border-subtle); }
+.fc-theme-standard th { border-color: var(--surface-line); }
 
-/* Visão Mês: só a linha horizontal entre semanas — sem as verticais entre
-   dias, que junto com as horizontais formavam uma malha bem carregada.
-   A coluna já fica implícita pelo espaçamento e pelo cabeçalho (dom/seg/…). */
+/* Visão Mês: só a linha horizontal entre semanas — sem as verticais entre dias. */
 .fc-daygrid .fc-theme-standard td { border-left: none; border-right: none; }
 
-.fc .fc-scrollgrid-section-header th { background: var(--bg-secondary); }
+.fc .fc-scrollgrid-section-header th { background: var(--surface); border-top: 0; }
 
 /* Sticky puro-CSS: .calendarWrap (externo) é quem rola de fato, não o
    FullCalendar (height:auto). Ancorar aqui em vez de usar o
@@ -108,68 +31,99 @@
 /* ── Column headers (dom, seg…) ── */
 .fc .fc-col-header-cell-cushion {
   color: var(--text-secondary);
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.78rem;
+  font-weight: 500;
   padding: 0.6rem 0.5rem;
 }
+.fc .fc-col-header-cell { border-bottom-color: var(--surface-line); }
 
-/* ── Day number ── */
+/* Semana: dia da semana pequeno, número grande; hoje no círculo escuro */
+.fc .fc-dh { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0 6px; }
+.fc .fc-dh-dow { font-size: 0.78rem; font-weight: 500; color: var(--text-secondary); }
+.fc .fc-dh-num {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 1.125rem;
+  font-weight: 400;
+  letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.fc .fc-day-today .fc-dh-num { background: var(--ink); color: var(--on-ink); }
+.fc .fc-day-today .fc-dh-dow { color: var(--text-primary); }
+
+/* ── Day number (Mês) ── */
 .fc .fc-daygrid-day-number {
   color: var(--text-secondary);
   font-size: 0.8rem;
   font-weight: 500;
   padding: 0.4rem 0.5rem;
-  border-radius: 6px;
+  border-radius: 999px;
   transition: background 0.1s, color 0.1s;
+  font-variant-numeric: tabular-nums;
 }
-.fc .fc-daygrid-day-number:hover {
-  color: var(--text-primary);
-  background: var(--bg-secondary);
-}
+.fc .fc-daygrid-day-number:hover { color: var(--text-primary); background: var(--surface-2); }
 
 /* ── Today highlight ── */
-.fc .fc-day-today {
-  background: rgba(13, 148, 136, 0.06) !important;
-}
-.fc .fc-day-today .fc-daygrid-day-number {
-  background: var(--brand-primary);
-  color: #fff;
-  font-weight: 700;
+.fc .fc-day-today { background: color-mix(in srgb, var(--brand-light) 55%, transparent) !important; }
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background: var(--ink);
+  color: var(--on-ink);
+  font-weight: 600;
+  margin: 4px 4px 0;
+  padding: 0;
+  min-width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
 }
 
 /* ── Day cell background ── */
 .fc .fc-daygrid-body,
 .fc .fc-scrollgrid-sync-table,
-.fc .fc-view-harness {
-  background: var(--bg-primary);
-}
+.fc .fc-view-harness { background: var(--surface); }
 
 .fc .fc-daygrid-day.fc-day-other { opacity: 0.45; }
 
-/* ── Events ── */
+/* ── Eventos ──
+   Fundo suave com a cor do status e traço lateral; o texto segue o tema. As cores vêm dos tokens --st-*
+   (as consultas não passam `color`, só uma classe ev-<status>; ver FullCalendarWrapper e a Agenda). */
 .fc .fc-event {
+  --ev: var(--st-idle);
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 0.75rem;
   font-weight: 500;
   padding: 2px 6px;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-  transition: filter 0.12s, transform 0.1s, box-shadow 0.12s;
+  box-shadow: none;
+  transition: filter 0.12s, background 0.12s;
   line-height: 1.45;
 }
-.fc .fc-event:hover {
-  filter: brightness(0.92);
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+.fc .fc-event.ev-agendado   { --ev: var(--st-wait); }
+.fc .fc-event.ev-confirmado { --ev: var(--st-ok); }
+.fc .fc-event.ev-concluido  { --ev: var(--st-idle); }
+.fc .fc-event.ev-cancelado  { --ev: var(--st-bad); }
+.fc .fc-event.ev-faltou     { --ev: var(--st-warn); }
+.fc .fc-event.ev-bloqueado  { --ev: var(--st-idle); }
+.fc .fc-event[class*="ev-"] {
+  --fc-event-bg-color: color-mix(in srgb, var(--ev) 13%, var(--surface));
+  --fc-event-border-color: var(--ev);
+  --fc-event-text-color: var(--text-primary);
+  background: color-mix(in srgb, var(--ev) 13%, var(--surface));
+  color: var(--text-primary);
 }
+.fc .fc-event.ev-cancelado .fc-event-title { text-decoration: line-through; opacity: 0.7; }
+.fc .fc-event:hover { filter: brightness(0.97); }
+[data-theme="dark"] .fc .fc-event:hover { filter: brightness(1.15); }
 .fc .fc-event .fc-event-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fc .fc-event .fc-event-time  { font-weight: 700; font-size: 0.7rem; opacity: 0.85; }
+.fc .fc-event .fc-event-time  { font-weight: 600; font-size: 0.7rem; opacity: 0.75; font-variant-numeric: tabular-nums; }
 
-/* Eventos "list-item" da visão Mês (bolinha + hora + título) — a linha
-   inteira nunca deve vazar da célula. */
+/* Mês: a linha de cada consulta é uma pílula curta (bolinha + hora + título) */
 .fc .fc-daygrid-event-harness { max-width: 100%; }
 .fc .fc-daygrid-event.fc-event-start,
 .fc .fc-daygrid-event.fc-event-end {
@@ -178,61 +132,65 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.fc .fc-daygrid-block-event,
+.fc .fc-daygrid-dot-event { border-radius: 8px; }
+.fc .fc-daygrid-dot-event[class*="ev-"] { background: transparent; }
+.fc .fc-daygrid-dot-event[class*="ev-"]:hover { background: var(--surface-2); }
+.fc .fc-daygrid-dot-event .fc-event-title { color: var(--text-primary); }
+.fc .fc-daygrid-event-dot { border-color: var(--ev); }
 
-/* Time grid event (semana/dia) */
+/* Semana: bloco com traço lateral de 3px na cor do status */
 .fc .fc-timegrid-event {
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 3px 6px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  border-left: 3px solid var(--ev);
 }
-.fc .fc-timegrid-event .fc-event-main { padding: 2px; }
+.fc .fc-timegrid-event[class*="ev-"] { border-left: 3px solid var(--ev); }
+.fc .fc-timegrid-event .fc-event-main { padding: 2px; color: var(--text-primary); }
 
-/* Slot time labels */
+/* Hora no eixo */
 .fc .fc-timegrid-slot-label-cushion {
   font-size: 0.72rem;
   color: var(--text-secondary);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 .fc .fc-timegrid-axis-cushion { font-size: 0.72rem; color: var(--text-secondary); }
+.fc .fc-timegrid-slot { height: 2em; }
+.fc .fc-timegrid-slot-minor { border-top-style: none; }
 
 /* More link */
 .fc .fc-daygrid-more-link {
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--brand-primary);
-  padding: 1px 4px;
-  border-radius: 4px;
+  color: var(--brand-text);
+  padding: 1px 6px;
+  border-radius: 999px;
   transition: background 0.12s;
 }
-.fc .fc-daygrid-more-link:hover { background: rgba(13,148,136,0.1); }
+.fc .fc-daygrid-more-link:hover { background: var(--brand-light); }
 
 /* Selection highlight */
 .fc .fc-highlight {
-  background: rgba(13, 148, 136, 0.12);
-  border-radius: 6px;
+  background: var(--brand-glow);
+  border-radius: 10px;
 }
 
 /* ── Linha de "agora" (visões Semana/Dia) ── */
 .fc .fc-timegrid-now-indicator-line {
-  border-color: #EF4444;
+  border-color: var(--brand-accent);
   border-width: 2px;
 }
 .fc .fc-timegrid-now-indicator-arrow {
-  border-color: #EF4444;
-  color: #EF4444;
+  border-color: var(--brand-accent);
+  color: var(--brand-text);
 }
+[data-theme="dark"] .fc .fc-timegrid-now-indicator-line { border-color: var(--brand-primary); }
+[data-theme="dark"] .fc .fc-timegrid-now-indicator-arrow { border-color: var(--brand-primary); color: var(--brand-primary); }
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
   .fc { font-size: 0.78rem; }
-  .fc .fc-toolbar.fc-header-toolbar {
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-  .fc .fc-toolbar-chunk { display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: center; }
-  .fc .fc-toolbar-title { font-size: 0.9rem; }
-  .fc .fc-button { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
   .fc .fc-col-header-cell-cushion { font-size: 0.62rem; padding: 4px 2px; }
   .fc .fc-daygrid-day-number { font-size: 0.7rem; padding: 2px 4px; }
   .fc .fc-event { font-size: 0.65rem; padding: 1px 3px; }
@@ -243,7 +201,9 @@
   /* Mês no celular: coluna cabe ~50px — só bolinha + hora, sem título
      (nome do paciente), senão a hora fica espremida/cortada. */
   .fc .fc-daygrid-event .fc-event-title { display: none; }
-  .fc .fc-daygrid-event .fc-event-time { font-size: 0.62rem; }
+  .fc .fc-daygrid-event .fc-event-time { font-size: 0.58rem; }
+  .fc .fc-daygrid-dot-event { padding: 0 1px; }
+  .fc .fc-daygrid-event-dot { margin: 0 3px 0 1px; border-width: 3px; }
 
   /* Semana no celular: 7 colunas de tempo ficam ilegíveis — some a linha
      "dia inteiro" (raramente usada), encolhe o eixo de horas e mostra só

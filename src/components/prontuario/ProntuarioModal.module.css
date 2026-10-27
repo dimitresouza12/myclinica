@@ -1,294 +1,50 @@
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(13,17,23,0.65);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 1rem;
-  overflow: hidden;
-  overscroll-behavior: contain;
-  touch-action: none;
-}
-
-.modal {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  width: 100%;
-  max-width: 900px;
-  max-height: 92vh;
-  max-height: 92dvh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-xl);
-  overflow: hidden;
-  animation: slideUp 0.25s cubic-bezier(0.22,1,0.36,1) both;
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(16px) scale(0.98); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.375rem 1.75rem 0;
-  flex-shrink: 0;
-  gap: 1rem;
-}
-
-.headerLeft {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-}
-
+/* A casca (véu, painel, cabeçalho, rolagem, rodapé) vem de <Modal size="xl">; aqui só avatar e conteúdo */
 .avatarWrap {
   position: relative;
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
+  background: none;
   cursor: pointer;
   flex-shrink: 0;
   overflow: hidden;
 }
-.avatarWrap:hover .avatarOverlay { opacity: 1; }
+.avatarWrap:hover .avatarOverlay, .avatarWrap:focus-visible .avatarOverlay { opacity: 1; }
+.avatarWrap:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
 
-.avatar {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 50%;
-}
+.avatar { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
 
 .avatarInitials {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: var(--brand-primary);
-  color: #fff;
+  background: var(--ink);
+  color: var(--on-ink);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
-  font-weight: 700;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .avatarOverlay {
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.5);
   border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
   opacity: 0;
   transition: opacity 0.15s;
 }
 
-.title {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--brand-primary);
-}
-
-.patientName {
-  font-size: 1.3rem;
-  font-weight: 750;
-  color: var(--text-primary);
-  margin-top: 0.15rem;
-  letter-spacing: -0.3px;
-}
-
-.btnPrint {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.35rem 0.75rem;
-  min-height: 44px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background 0.15s;
-  white-space: nowrap;
-}
-.btnPrint:hover { background: var(--bg-tertiary); color: var(--text-primary); }
-
-.btnClose {
-  width: 30px; height: 30px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--bg-tertiary);
-  border: none;
-  border-radius: var(--radius-full);
-  font-size: 0.9rem;
-  cursor: pointer;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-}
-.btnClose:hover { background: var(--border-color); color: var(--text-primary); }
-
-.tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--border-color);
-  padding: 0 1.75rem;
-  margin-top: 1rem;
-  flex-shrink: 0;
-  overflow-x: auto;
-}
-
-.tabBtn {
-  padding: 0.6rem 1rem;
-  min-height: 44px;
-  border: none;
-  background: none;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
-  white-space: nowrap;
-  margin-bottom: -1px;
-}
-.tabBtn:hover { color: var(--text-primary); }
-.tabActive {
-  color: var(--brand-primary);
-  border-bottom-color: var(--brand-primary);
-  font-weight: 600;
-}
-
-.body {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-  padding: 1.75rem;
-}
-
-.loading {
-  color: var(--text-secondary);
-  text-align: center;
-  padding: 3rem;
-}
-
-@media (max-width: 1024px) and (min-width: 769px) {
-  .modal { max-width: 95%; max-height: 92dvh; }
-}
-
-@media (max-width: 768px) {
-  .overlay {
-    padding: 0;
-    align-items: flex-end;
-    /* Sem blur no mobile: o modal cobre 100% da tela, então o overlay
-       nunca fica visível — o blur só reamostrava a página atrás durante
-       a animação da toolbar do navegador, dando um efeito de "fundo mexendo". */
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-
-  .modal {
-    max-width: 100%;
-    /* height: 100% (não 100dvh) para herdar exatamente a caixa do .overlay
-       (que usa inset:0, ancorado ao layout viewport). Com 100dvh o modal
-       encolhia/crescia sozinho conforme a toolbar do navegador animava
-       durante o scroll, abrindo uma faixa do overlay escuro no topo. */
-    max-height: 100%;
-    height: 100%;
-    border-radius: 0;
-  }
-
-  .tabs {
-    padding: 0 1rem;
-  }
-
-  .body {
-    padding: 1rem;
-  }
-
-  .header {
-    padding: max(1.125rem, env(safe-area-inset-top)) 1.25rem 0;
-  }
-  /* Touch targets mínimos 44px */
-  .btnClose { width: 44px; height: 44px; }
-}
-
-/* Aviso de anotação pendente */
-.pendingOverlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  border-radius: inherit;
-  padding: 1.5rem;
-}
-.pendingDialog {
-  background: var(--bg-primary);
-  border-radius: 12px;
-  padding: 1.5rem;
-  max-width: 360px;
-  width: 100%;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-.pendingText {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  line-height: 1.5;
-}
-.pendingText svg { flex-shrink: 0; margin-top: 0.15rem; }
+.sections { display: flex; flex-direction: column; min-width: 0; }
+.loading { color: var(--text-secondary); text-align: center; padding: 3rem; }
 
 .spinIcon { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.pendingActions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.btnPendingDiscard {
-  padding: 0.55rem 1rem;
-  background: #dc2626;
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  width: 100%;
-}
-.btnPendingDiscard:hover { opacity: 0.88; }
-.btnPendingKeep {
-  padding: 0.55rem 1rem;
-  background: var(--brand-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  width: 100%;
-}
-.btnPendingKeep:hover { opacity: 0.88; }
+@media (prefers-reduced-motion: reduce) { .spinIcon { animation: none; } }

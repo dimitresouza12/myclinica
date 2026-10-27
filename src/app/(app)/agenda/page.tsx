@@ -8,9 +8,7 @@ import { formatDate, formatCurrency } from '@/lib/utils'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { formatBrPhone, isCompleteBrPhone, waMeNumber, PHONE_INCOMPLETE } from '@/lib/phoneFormat'
 import { getGCalToken, isGCalConnected, silentRefreshGCal, fetchGCalEvents, createGCalEvent, updateGCalEvent, deleteGCalEvent, connectGoogleCalendar, disconnectGoogleCalendar, type GCalEvent } from '@/lib/googleCalendar'
-import { Portal } from '@/components/ui/Portal'
 import { DatePicker } from '@/components/ui/DatePicker'
-import { useScrollLock } from '@/hooks/useScrollLock'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { useProfessionals, useProcedures, useAgendaData, useWhatsAppState } from '@/hooks/useClinicData'
 import { confirmationLabel, type ConfirmationInfo } from '@/lib/whatsapp/labels'
@@ -21,10 +19,20 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Appointment, Patient, Professional, Procedure } from '@/types'
 import { type CalendarEvent, type FullCalendarHandle } from '@/components/agenda/FullCalendarWrapper'
 import styles from './agenda.module.css'
+import btn from '@/components/ui/button.module.css'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { PillTabs, type PillOption } from '@/components/ui/PillTabs'
+import { SelectMenu } from '@/components/ui/SelectMenu'
+import { StatusDot, type StatusTone } from '@/components/ui/StatusDot'
+import { MiniCalendar } from '@/components/agenda/MiniCalendar'
+import { AgendaSidebar } from '@/components/agenda/AgendaSidebar'
+import { rangeFor, daysWithAppointments, inRange, countByProfessional, daySummary } from '@/lib/agenda/view'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
+import { Modal } from '@/components/ui/Modal'
+import f from '@/components/ui/modalForm.module.css'
 import { ensureRevenueForAppointment, notifyRevenuePending, removeRevenueForAppointment, promptCreditUsage } from '@/lib/appointmentRevenue'
 import { IntegerInput, MoneyInput } from '@/components/ui/NumericInput'
 import { usePageSearch } from '@/store/pageSearch'
@@ -66,6 +74,10 @@ const PROF_COLORS = [
   '#CF4B8B', '#5A9E5C',
 ]
 
+const STATUS_TONE: Record<string, StatusTone> = {
+  agendado: 'wait', confirmado: 'ok', concluido: 'idle', faltou: 'warn', cancelado: 'bad', bloqueado: 'idle',
+}
+
 function profColor(profId: string | null, profIndex: Record<string, number>): string {
   if (!profId) return '#9BB5B3'
   const idx = profIndex[profId] ?? 0
@@ -81,13 +93,8 @@ const STATUS_LABELS: Record<string, string> = {
   concluido: 'Concluído', cancelado: 'Cancelado', faltou: 'Faltou', bloqueado: 'Bloqueado',
 }
 const STATUS_DOTS: Record<string, string> = {
-  agendado: '#94A3B8', confirmado: '#4DD9C0', concluido: '#10B981', cancelado: '#EF4444', faltou: '#F59E0B', bloqueado: '#6B7280',
+  agendado: 'var(--st-wait)', confirmado: 'var(--st-ok)', concluido: 'var(--st-idle)', cancelado: 'var(--st-bad)', faltou: 'var(--st-warn)', bloqueado: 'var(--st-idle)',
 }
-// Cores mais distintas para o FullCalendar (evita coincidência com profColor teal)
-const STATUS_CAL: Record<string, string> = {
-  agendado: '#3B82F6', confirmado: '#10B981', concluido: '#6B7280', cancelado: '#EF4444', faltou: '#F59E0B', bloqueado: '#9CA3AF',
-}
-
 interface BlockForm {
   professional_id: string
   scheduled_at: string
@@ -231,7 +238,7 @@ function ApptDetailContent({
             </span>
           </div>
         </div>
-        <button className={styles.btnClose} onClick={onClose}><Icon name="close" size={18} /></button>
+        <button type="button" className={styles.btnClose} onClick={onClose} aria-label="Fechar"><Icon name="close" size={18} /></button>
       </div>
 
       <div className={styles.detailBody}>
@@ -340,13 +347,13 @@ function BlockDetailContent({ appt, onClose, onDelete }: {
     <>
       <div className={styles.detailHeader}>
         <div className={styles.detailPatientInfo}>
-          <div className={styles.detailAvatar} style={{ background: '#9CA3AF' }}>🚫</div>
+          <div className={styles.detailAvatar} style={{ background: '#9CA3AF', color: '#fff' }}><Icon name="ban" size={18} /></div>
           <div>
             <div className={styles.detailName}>Horário bloqueado</div>
             <span className={`${styles.detailStatusBadge} ${styles.badge_bloqueado}`}>Bloqueado</span>
           </div>
         </div>
-        <button className={styles.btnClose} onClick={onClose}><Icon name="close" size={18} /></button>
+        <button type="button" className={styles.btnClose} onClick={onClose} aria-label="Fechar"><Icon name="close" size={18} /></button>
       </div>
       <div className={styles.detailBody}>
         <div className={styles.detailInfoGrid}>
@@ -400,6 +407,7 @@ function AgendaContent() {
   const [viewMode, setViewMode] = useState<ViewMode>('dia')
   const calRef = useRef<FullCalendarHandle>(null)
   const [calendarTitle, setCalendarTitle] = useState('')
+  const [calRange, setCalRange] = useState<{ start: Date; end: Date } | null>(null)
   const [hiddenProfIds, setHiddenProfIds] = useState<Set<string>>(new Set())
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -447,7 +455,11 @@ function AgendaContent() {
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  useScrollLock(showModal || !!selectedGcal || (isMobile && !!selected))
+    // o erro de salvar aparece no fim do formulário: leva a vista até ele
+  const saveErrorRef = useRef<HTMLParagraphElement>(null)
+  const blockErrorRef = useRef<HTMLParagraphElement>(null)
+  useEffect(() => { if (saveError) saveErrorRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [saveError])
+  useEffect(() => { if (blockError) blockErrorRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [blockError])
 
   // Sync hook cache → local state (enables optimistic mutations while keeping cache benefit)
   useEffect(() => {
@@ -577,9 +589,9 @@ function AgendaContent() {
       }
       return {
         id: a.id,
-        title: a.status === 'bloqueado' ? `🚫 ${a.notes || 'Bloqueado'}` : `${a.patients?.name ?? 'Paciente'} — ${a.procedure_name ?? 'Consulta'}`,
+        title: a.status === 'bloqueado' ? `Bloqueado: ${a.notes || 'horário indisponível'}` : `${a.patients?.name ?? 'Paciente'} — ${a.procedure_name ?? 'Consulta'}`,
         start, end,
-        color: STATUS_CAL[a.status ?? 'agendado'] ?? STATUS_CAL.agendado,
+        classNames: [`ev-${a.status ?? 'agendado'}`],
         extendedProps: { appt: a },
       }
     })
@@ -650,6 +662,38 @@ function AgendaContent() {
   // Navegação unificada da TopBar — dirige o FullCalendar (Mês/Semana) ou currentDate (Dia/Lista)
   function handlePrev() { isCalendarView ? calRef.current?.prev() : prevDay() }
   function handleNext() { isCalendarView ? calRef.current?.next() : nextDay() }
+
+  function goToday() {
+    if (isCalendarView) calRef.current?.today()
+    setCurrentDate(new Date())
+  }
+
+  // Período em foco (Dia: o dia; Semana/Mês: o que o FullCalendar está mostrando) e o que a barra lateral conta nele
+  const range = useMemo(
+    () => (isCalendarView && calRange ? calRange : rangeFor(viewMode, currentDate)),
+    [isCalendarView, calRange, viewMode, currentDate],
+  )
+  const rangeAppts = useMemo(() => inRange(visibleAppointments, range.start, range.end), [visibleAppointments, range])
+  const rangeCount = rangeAppts.filter(a => a.status !== 'bloqueado' && a.status !== 'cancelado').length
+  const markedDays = useMemo(() => daysWithAppointments(visibleAppointments), [visibleAppointments])
+  const profCounts = useMemo(() => countByProfessional(inRange(appointments, range.start, range.end)), [appointments, range])
+  const todayStats = useMemo(() => daySummary(visibleAppointments, new Date()), [visibleAppointments])
+  // mês do mini calendário: o do meio da semana (uma semana de 29/out a 4/nov mostra outubro ou novembro conforme o dia do meio)
+  const miniFocus = viewMode === 'semana' ? new Date(range.start.getFullYear(), range.start.getMonth(), range.start.getDate() + 3) : range.start
+  const miniMonth = new Date(miniFocus.getFullYear(), miniFocus.getMonth(), 1)
+  const rangeLabel = viewMode === 'dia'
+    ? currentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+    : calendarTitle
+  const viewOptions: PillOption<ViewMode>[] = [
+    { value: 'dia', label: 'Dia' },
+    ...(isNarrow ? [] : [{ value: 'semana' as const, label: 'Semana' }]),
+    { value: 'mes', label: 'Mês' },
+  ]
+
+  function pickDay(d: Date) {
+    setCurrentDate(d)
+    if (isCalendarView) calRef.current?.gotoDate(d)
+  }
 
   // Faixa de 7 dias (3 antes / 3 depois do dia atual) para o date-picker deslizante do mobile
   const dateStripDays = useMemo(() => {
@@ -1012,89 +1056,66 @@ function AgendaContent() {
 
   // ── Render ──────────────────────────────────────────────────
   return (
-    <div className={styles.page}>
-      {/* ── Topbar ── */}
+    <div className={styles.shell}>
+      <PageHeader
+        title="Agenda"
+        subtitle={`${rangeCount} ${rangeCount === 1 ? 'consulta' : 'consultas'}${rangeLabel ? ` · ${rangeLabel}` : ''}`}
+        actions={<>
+          <PillTabs label="Visão da agenda" options={viewOptions} value={viewMode} onChange={switchView} />
+          <button className={`${btn.primary} ${styles.headerCta}`} onClick={() => setShowModal(true)}>
+            <Icon name="plus" size={16} />
+            Novo agendamento
+          </button>
+        </>}
+      />
+      <div className={styles.layout}>
+        <aside className={styles.side} aria-label="Resumo da agenda">
+          <div className={styles.miniCard}>
+            <MiniCalendar
+              key={`${miniMonth.getFullYear()}-${miniMonth.getMonth()}`}
+              month={miniMonth}
+              highlight={viewMode === 'mes' ? null : range}
+              marked={markedDays}
+              onPick={pickDay}
+            />
+          </div>
+          <AgendaSidebar
+            professionals={professionals.map((p, i) => ({ id: p.id, name: p.name, initials: initials(p.name), color: PROF_COLORS[i % PROF_COLORS.length], count: profCounts[p.id] ?? 0 }))}
+            unassignedCount={profCounts[''] ?? 0}
+            hiddenIds={hiddenProfIds}
+            onToggle={toggleProfFilter}
+            scopeLabel={viewMode === 'dia' ? 'no dia' : viewMode === 'semana' ? 'na semana' : 'no mês'}
+            today={todayStats}
+          />
+        </aside>
+        <div className={styles.page}>
       <div className={styles.topbar}>
         <div className={styles.topbarRow}>
           <div className={styles.tbLeft}>
-            <button className={styles.navBtn} onClick={handlePrev} title="Anterior"><ChevronLeft /></button>
-            <button className={styles.navBtn} onClick={handleNext} title="Próximo"><ChevronRight /></button>
+            <button className={styles.navBtn} onClick={handlePrev} aria-label="Anterior"><ChevronLeft /></button>
+            <button className={styles.navBtn} onClick={handleNext} aria-label="Próximo"><ChevronRight /></button>
             <div className={styles.tbDate}>
-              {isCalendarView ? (
-                <h1>{calendarTitle}</h1>
-              ) : (
-                <>
-                  <h1>{fmtTopbarDate(currentDate)}</h1>
-                  <span>{fmtTopbarWeekday(currentDate)}</span>
-                </>
-              )}
+              <h2>{isCalendarView ? calendarTitle : fmtTopbarDate(currentDate)}</h2>
+              {!isCalendarView && <span>{fmtTopbarWeekday(currentDate)}</span>}
             </div>
-            <button className={styles.btnSecondaryAction} onClick={openBlockModal} title="Bloquear um horário na agenda">
-              <BanIcon />
-            </button>
+            <button className={styles.btnToday} onClick={goToday}>Hoje</button>
           </div>
 
-          <div className={styles.seg}>
-            <button
-              className={`${styles.segBtn} ${viewMode === 'mes' ? styles.segBtnActive : ''}`}
-              onClick={() => switchView('mes')}
-            >Mês</button>
-            <button
-              className={`${styles.segBtn} ${styles.segBtnWeek} ${viewMode === 'semana' ? styles.segBtnActive : ''}`}
-              onClick={() => switchView('semana')}
-            >Semana</button>
-            <button
-              className={`${styles.segBtn} ${viewMode === 'dia' ? styles.segBtnActive : ''}`}
-              onClick={() => switchView('dia')}
-            >Dia</button>
-          </div>
-        </div>
-
-        <div className={styles.topbarRow}>
-          <div className={styles.tbRight}>
+          <div className={styles.tbActions}>
             {viewMode === 'dia' && (
               <div className={`${styles.search} ${styles.localSearch}`}>
                 <SearchIcon />
                 <input
                   placeholder="Buscar paciente..."
+                  aria-label="Buscar paciente"
                   value={searchQ}
                   onChange={e => setSearchQ(e.target.value)}
                 />
               </div>
             )}
-
-            {professionals.length > 1 && (
-              <div className={styles.profFilters}>
-                {professionals.map((p, i) => {
-                  const color = PROF_COLORS[i % PROF_COLORS.length]
-                  const active = !hiddenProfIds.has(p.id)
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className={styles.profFilterBtn}
-                      data-active={active}
-                      title={`${active ? 'Ocultar' : 'Mostrar'} ${p.name}`}
-                      onClick={() => toggleProfFilter(p.id)}
-                    >
-                      <span className={styles.profAvatar} style={{ background: color }}>{initials(p.name)}</span>
-                    </button>
-                  )
-                })}
-                <button
-                  type="button"
-                  className={styles.profFilterBtn}
-                  data-active={!hiddenProfIds.has('')}
-                  title={`${!hiddenProfIds.has('') ? 'Ocultar' : 'Mostrar'} agendamentos sem profissional`}
-                  onClick={() => toggleProfFilter('')}
-                >
-                  <span className={`${styles.profAvatar} ${styles.profAvatarNone}`}>—</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className={styles.tbActions}>
+            <button className={styles.btnSecondaryAction} onClick={openBlockModal} title="Bloquear um horário na agenda" aria-label="Bloquear horário">
+              <BanIcon />
+            </button>
             {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
               gcalConnected ? (
                 <div className={styles.gcalStatus} title={`${gcalEvents.length} evento(s) sincronizado(s)`}>
@@ -1113,11 +1134,6 @@ function AgendaContent() {
                 <span>Google Calendar</span>
               </div>
             )}
-
-            <button className={styles.btnPrimary} onClick={() => setShowModal(true)}>
-              <PlusIcon />
-              Novo Agendamento
-            </button>
           </div>
         </div>
       </div>
@@ -1145,7 +1161,7 @@ function AgendaContent() {
         </div>
       )}
 
-      {/* ── Filtro de profissionais (mobile): só avatares, igual ao desktop ── */}
+      {/* ── Filtro de profissionais: só avatares, nas telas sem a barra lateral ── */}
       {professionals.length > 1 && (
         <div className={styles.profFiltersMobile} data-hscroll>
           {professionals.map((p, i) => {
@@ -1179,14 +1195,19 @@ function AgendaContent() {
       {/* ── Filters (visão Dia) ── */}
       {viewMode === 'dia' && (
         <div className={styles.filters}>
-          <select className={styles.filterInput} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="">Todos os status</option>
-            <option value="agendado">Agendado</option>
-            <option value="confirmado">Confirmado</option>
-            <option value="concluido">Concluído</option>
-            <option value="cancelado">Cancelado</option>
-            <option value="faltou">Faltou</option>
-          </select>
+          <SelectMenu
+            className={styles.statusSelect}
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={[
+              { value: '', label: 'Todos os status' },
+              { value: 'agendado', label: 'Agendado' },
+              { value: 'confirmado', label: 'Confirmado' },
+              { value: 'concluido', label: 'Concluído' },
+              { value: 'cancelado', label: 'Cancelado' },
+              { value: 'faltou', label: 'Faltou' },
+            ]}
+          />
           {filterStatus && (
             <button className={styles.btnClear} onClick={() => setFilterStatus('')}>Limpar</button>
           )}
@@ -1211,6 +1232,7 @@ function AgendaContent() {
                   onEventClick={handleEventClick}
                   onDateSelect={handleDateSelect}
                   onTitleChange={setCalendarTitle}
+                  onRangeChange={(start, end) => setCalRange({ start, end })}
                 />
                 <p className={styles.calHint}>Clique num evento para ver detalhes • Clique numa data para criar agendamento</p>
               </div>
@@ -1252,7 +1274,7 @@ function AgendaContent() {
                               onClick={() => setSelected(a)}
                               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(a) } }}
                             >
-                              <strong className={styles.lrCardName}>🚫 Bloqueado</strong>
+                              <strong className={styles.lrCardName}>Horário bloqueado</strong>
                               <span className={styles.lrCardProc}>{a.notes || 'Horário indisponível'}</span>
                               <div className={styles.lrCardFoot}>
                                 {a.professionals?.name && (
@@ -1303,8 +1325,8 @@ function AgendaContent() {
                                 const l = confirmationLabel(confirmations[a.id])
                                 return <span className={`${styles.lrWa} ${styles[`waTone_${l.tone}`]}`} title={l.text}>{l.short}</span>
                               })()}
-                              <span className={`${styles.lrStatus} ${styles[`badge_${a.status ?? 'agendado'}`]}`}>
-                                {STATUS_LABELS[a.status ?? ''] ?? a.status}
+                              <span className={styles.lrStatusWrap}>
+                                <StatusDot tone={STATUS_TONE[a.status ?? 'agendado'] ?? 'idle'}>{STATUS_LABELS[a.status ?? ''] ?? a.status}</StatusDot>
                               </span>
                             </div>
                           </div>
@@ -1360,378 +1382,369 @@ function AgendaContent() {
         </div>
       )}
 
-      {/* ── Mobile detail overlay ── */}
-      {isMobile && selected && (
-        <Portal>
-          <div className={styles.overlay} onClick={() => setSelected(null)}>
-            <div className={styles.detailPanel} onClick={e => e.stopPropagation()}>
-              {selected.status === 'bloqueado' ? (
-                <BlockDetailContent appt={selected} onClose={() => setSelected(null)} onDelete={handleDeleteBlock} />
-              ) : (
-              <ApptDetailContent
-                appt={selected}
-                profColorIdx={profColorIndex}
-                onUpdateStatus={updateStatus}
-                  confirmation={confirmations[selected.id]}
-                  whatsappConnected={whatsappConnected}
-                  onWhatsAppSent={() => queryClient.invalidateQueries({ queryKey: ['agenda', clinic?.id] })}
-                onGCal={openGCal}
-                onClose={() => setSelected(null)}
-                onEdit={openEdit}
-                onDelete={handleDelete}
-                onPhoneAdded={(patientId, phone) => {
-                  setAppointments(prev => prev.map(a =>
-                    a.patient_id === patientId && a.patients
-                      ? { ...a, patients: { ...a.patients, phone } }
-                      : a
-                  ))
-                  setSelected(prev => prev && prev.patient_id === patientId && prev.patients
-                    ? { ...prev, patients: { ...prev.patients, phone } }
-                    : prev
-                  )
-                }}
-              />
+      {/* ── Detalhe do agendamento no celular ── */}
+      <Modal open={isMobile && !!selected} onClose={() => setSelected(null)} bare title="Detalhes do agendamento">
+        {selected && (
+          <>
+          {selected.status === 'bloqueado' ? (
+            <BlockDetailContent appt={selected} onClose={() => setSelected(null)} onDelete={handleDeleteBlock} />
+          ) : (
+          <ApptDetailContent
+            appt={selected}
+            profColorIdx={profColorIndex}
+            onUpdateStatus={updateStatus}
+              confirmation={confirmations[selected.id]}
+              whatsappConnected={whatsappConnected}
+              onWhatsAppSent={() => queryClient.invalidateQueries({ queryKey: ['agenda', clinic?.id] })}
+            onGCal={openGCal}
+            onClose={() => setSelected(null)}
+            onEdit={openEdit}
+            onDelete={handleDelete}
+            onPhoneAdded={(patientId, phone) => {
+              setAppointments(prev => prev.map(a =>
+                a.patient_id === patientId && a.patients
+                  ? { ...a, patients: { ...a.patients, phone } }
+                  : a
+              ))
+              setSelected(prev => prev && prev.patient_id === patientId && prev.patients
+                ? { ...prev, patients: { ...prev.patients, phone } }
+                : prev
+              )
+            }}
+          />
+          )}
+          </>
+        )}
+      </Modal>
+
+      {/* ── Evento do Google Calendar ── */}
+      <Modal open={!!selectedGcal} onClose={() => setSelectedGcal(null)} bare title="Evento do Google Calendar">
+        {selectedGcal && (
+          <>
+          <div className={styles.detailHeader}>
+            <div className={styles.detailPatientInfo}>
+              <div className={styles.detailAvatar} style={{ background: '#4285F4', color: '#fff' }}><Icon name="calendar" size={18} /></div>
+              <div>
+                <div className={styles.detailName}>{selectedGcal.summary}</div>
+                <span className={`${styles.detailStatusBadge} ${styles.badge_confirmado}`}>Google Calendar</span>
+              </div>
+            </div>
+            <button type="button" className={styles.btnClose} onClick={() => setSelectedGcal(null)} aria-label="Fechar"><Icon name="close" size={18} /></button>
+          </div>
+          <div className={styles.detailBody}>
+            <div className={styles.detailInfoGrid}>
+              {selectedGcal.start.dateTime && (
+                <InfoCard label="Início" value={new Date(selectedGcal.start.dateTime).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} />
+              )}
+              {selectedGcal.end.dateTime && (
+                <InfoCard label="Término" value={new Date(selectedGcal.end.dateTime).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} />
+              )}
+              {selectedGcal.description && (
+                <InfoCard label="Descrição" value={selectedGcal.description} fullWidth />
               )}
             </div>
           </div>
-        </Portal>
-      )}
-
-      {/* ── GCal event detail ── */}
-      {selectedGcal && (
-        <Portal>
-          <div className={styles.overlay} onClick={() => setSelectedGcal(null)}>
-            <div className={styles.detailPanel} onClick={e => e.stopPropagation()}>
-              <div className={styles.detailHeader}>
-                <div className={styles.detailPatientInfo}>
-                  <div className={styles.detailAvatar} style={{ background: '#4285F4', color: '#fff' }}><Icon name="calendar" size={18} /></div>
-                  <div>
-                    <div className={styles.detailName}>{selectedGcal.summary}</div>
-                    <span className={`${styles.detailStatusBadge} ${styles.badge_confirmado}`}>Google Calendar</span>
-                  </div>
-                </div>
-                <button className={styles.btnClose} onClick={() => setSelectedGcal(null)}><Icon name="close" size={18} /></button>
-              </div>
-              <div className={styles.detailBody}>
-                <div className={styles.detailInfoGrid}>
-                  {selectedGcal.start.dateTime && (
-                    <InfoCard label="Início" value={new Date(selectedGcal.start.dateTime).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} />
-                  )}
-                  {selectedGcal.end.dateTime && (
-                    <InfoCard label="Término" value={new Date(selectedGcal.end.dateTime).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} />
-                  )}
-                  {selectedGcal.description && (
-                    <InfoCard label="Descrição" value={selectedGcal.description} fullWidth />
-                  )}
-                </div>
-              </div>
-              <div className={styles.detailFooter}>
-                {selectedGcal.htmlLink && (
-                  <a href={selectedGcal.htmlLink} target="_blank" rel="noopener noreferrer" className={styles.btnGcalLarge}>
-                    Abrir no Google Calendar
-                  </a>
-                )}
-              </div>
-            </div>
+          <div className={styles.detailFooter}>
+            {selectedGcal.htmlLink && (
+              <a href={selectedGcal.htmlLink} target="_blank" rel="noopener noreferrer" className={styles.btnGcalLarge}>
+                Abrir no Google Calendar
+              </a>
+            )}
           </div>
-        </Portal>
-      )}
+          </>
+        )}
+      </Modal>
 
-      {/* ── New appointment modal ── */}
-      {showModal && (
-        <Portal>
-          <div className={styles.overlay} onClick={closeModal}>
-            <div className={styles.modal} onClick={e => e.stopPropagation()}>
-              <div className={styles.modalHeader}>
-                <h2>{editingId ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
-                <button className={styles.btnClose} onClick={closeModal}><Icon name="close" size={18} /></button>
-              </div>
-              <div className={styles.modalBody}>
-                {/* ── Paciente ── */}
-                <div className={styles.field}>
-                  <div className={styles.fieldLabelRow}>
-                    <label>Paciente *</label>
-                    <button
-                      type="button"
-                      className={styles.btnNewPatient}
-                      onClick={() => { setShowNewPatient(p => !p); setPatientSearch('') }}
-                    >
-                      {showNewPatient ? <><Icon name="chevronLeft" size={12} /> Voltar à lista</> : '+ Novo paciente'}
-                    </button>
-                  </div>
-                  {showNewPatient ? (
-                    <div className={styles.newPatientForm}>
-                      <input
-                        placeholder="Nome completo *"
-                        value={npName}
-                        onChange={e => setNpName(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') createPatient() }}
-                        autoFocus
-                      />
-                      <PhoneInput value={npPhone} onChange={setNpPhone} aria-label="Telefone / WhatsApp" />
+      {/* ── Novo e editar agendamento ── */}
+      <Modal
+        open={showModal}
+        onClose={closeModal}
+        title={editingId ? 'Editar agendamento' : 'Novo agendamento'}
+        footer={
+          <>
+            <button type="button" className={btn.secondary} onClick={closeModal}>Cancelar</button>
+            <button type="button" className={btn.primary} onClick={handleSave} disabled={saving || !form.patient_id || !form.scheduled_at}>
+              {saving ? 'Salvando...' : editingId ? 'Salvar alterações' : 'Salvar agendamento'}
+            </button>
+          </>
+        }
+      >
+        {/* ── Paciente ── */}
+        <div className={f.field}>
+          <div className={styles.fieldLabelRow}>
+            <label>Paciente *</label>
+            <button
+              type="button"
+              className={styles.btnNewPatient}
+              onClick={() => { setShowNewPatient(p => !p); setPatientSearch('') }}
+            >
+              {showNewPatient ? <><Icon name="chevronLeft" size={12} /> Voltar à lista</> : '+ Novo paciente'}
+            </button>
+          </div>
+          {showNewPatient ? (
+            <div className={styles.newPatientForm}>
+              <input
+                placeholder="Nome completo *"
+                value={npName}
+                onChange={e => setNpName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') createPatient() }}
+                autoFocus
+              />
+              <PhoneInput value={npPhone} onChange={setNpPhone} aria-label="Telefone / WhatsApp" />
+              <button
+                type="button"
+                className={styles.btnCreatePatient}
+                onClick={createPatient}
+                disabled={savingPatient || !npName.trim()}
+              >
+                {savingPatient ? 'Criando...' : 'Criar e selecionar'}
+              </button>
+            </div>
+          ) : (
+            <div className={styles.patientCombo}>
+              <input
+                className={`${styles.patientSearch}${form.patient_id ? ` ${styles.patientSearchSelected}` : ''}`}
+                placeholder="Digite o nome do paciente..."
+                value={patientSearch}
+                autoComplete="off"
+                onChange={e => {
+                  setPatientSearch(e.target.value)
+                  setForm(p => ({ ...p, patient_id: '' }))
+                  setShowPatientDrop(true)
+                }}
+                onFocus={() => setShowPatientDrop(true)}
+                onBlur={() => setTimeout(() => setShowPatientDrop(false), 150)}
+              />
+              {form.patient_id && (
+                <span className={styles.patientComboCheck}><Icon name="check" size={12} /></span>
+              )}
+              {showPatientDrop && (
+                <div className={styles.patientDrop}>
+                  {patients
+                    .filter(p => !patientSearch || p.name.toLowerCase().includes(patientSearch.toLowerCase()))
+                    .slice(0, 8)
+                    .map(p => (
                       <button
+                        key={p.id}
                         type="button"
-                        className={styles.btnCreatePatient}
-                        onClick={createPatient}
-                        disabled={savingPatient || !npName.trim()}
-                      >
-                        {savingPatient ? 'Criando...' : 'Criar e selecionar'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className={styles.patientCombo}>
-                      <input
-                        className={`${styles.patientSearch}${form.patient_id ? ` ${styles.patientSearchSelected}` : ''}`}
-                        placeholder="Digite o nome do paciente..."
-                        value={patientSearch}
-                        autoComplete="off"
-                        onChange={e => {
-                          setPatientSearch(e.target.value)
-                          setForm(p => ({ ...p, patient_id: '' }))
-                          setShowPatientDrop(true)
+                        className={`${styles.patientDropItem}${form.patient_id === p.id ? ` ${styles.patientDropItemActive}` : ''}`}
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => {
+                          setForm(prev => ({ ...prev, patient_id: p.id }))
+                          setPatientSearch(p.name)
+                          setShowPatientDrop(false)
                         }}
-                        onFocus={() => setShowPatientDrop(true)}
-                        onBlur={() => setTimeout(() => setShowPatientDrop(false), 150)}
-                      />
-                      {form.patient_id && (
-                        <span className={styles.patientComboCheck}><Icon name="check" size={12} /></span>
-                      )}
-                      {showPatientDrop && (
-                        <div className={styles.patientDrop}>
-                          {patients
-                            .filter(p => !patientSearch || p.name.toLowerCase().includes(patientSearch.toLowerCase()))
-                            .slice(0, 8)
-                            .map(p => (
-                              <button
-                                key={p.id}
-                                type="button"
-                                className={`${styles.patientDropItem}${form.patient_id === p.id ? ` ${styles.patientDropItemActive}` : ''}`}
-                                onMouseDown={e => e.preventDefault()}
-                                onClick={() => {
-                                  setForm(prev => ({ ...prev, patient_id: p.id }))
-                                  setPatientSearch(p.name)
-                                  setShowPatientDrop(false)
-                                }}
-                              >
-                                <span className={styles.patientDropInitial}>
-                                  {p.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
-                                </span>
-                                {p.name}
-                              </button>
-                            ))}
-                          {patients.filter(p => !patientSearch || p.name.toLowerCase().includes(patientSearch.toLowerCase())).length === 0 && (
-                            <div className={styles.patientDropEmpty}>Nenhum paciente encontrado</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Profissional ── */}
-                <div className={styles.field}>
-                  <label>Profissional</label>
-                  <select
-                    value={form.professional_id}
-                    onChange={e => {
-                      const pid = e.target.value
-                      setForm(p => ({ ...p, professional_id: pid, duration_minutes: resolveProfessionalDuration(pid) }))
-                    }}
-                  >
-                    {canSeeAllProfessionals && <option value="">Sem profissional</option>}
-                    {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-
-                {/* ── Procedimento ── */}
-                <div className={styles.field}>
-                  <label>Procedimento</label>
-                  <select
-                    value={form.procedure_id}
-                    onChange={e => {
-                      const proc = procedures.find(p => p.id === e.target.value)
-                      setForm(prev => ({
-                        ...prev,
-                        procedure_id: e.target.value,
-                        procedure_name: proc ? proc.name : (e.target.value === 'outro' ? '' : prev.procedure_name),
-                        procedure_price: proc ? String(proc.price) : (e.target.value === '' ? '' : prev.procedure_price),
-                      }))
-                    }}
-                  >
-                    <option value="">Sem procedimento</option>
-                    {procedures.filter(p => p.is_active).map(p => (
-                      <option key={p.id} value={p.id}>{p.name} — {formatCurrency(p.price)}</option>
+                      >
+                        <span className={styles.patientDropInitial}>
+                          {p.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+                        </span>
+                        {p.name}
+                      </button>
                     ))}
-                    <option value="outro">Outro (digitar)</option>
-                  </select>
-                </div>
-                {form.procedure_id === 'outro' && (
-                  <div className={styles.field}>
-                    <input
-                      value={form.procedure_name}
-                      onChange={e => setForm(p => ({ ...p, procedure_name: e.target.value }))}
-                      placeholder="Nome do procedimento..."
-                      autoFocus
-                    />
-                  </div>
-                )}
-                {form.procedure_id && form.procedure_id !== 'outro' && (
-                  <div className={styles.field}>
-                    <label>Valor (R$)</label>
-                    <MoneyInput
-                      value={form.procedure_price}
-                      onChange={v => setForm(p => ({ ...p, procedure_price: v }))}
-                    />
-                  </div>
-                )}
-
-                {/* ── Data ── */}
-                <div className={styles.field}>
-                  <label>Data *</label>
-                  <DatePicker
-                    value={form.scheduled_at.slice(0, 10)}
-                    onChange={date => {
-                      const prevTime = form.scheduled_at.slice(11, 16) || '09:00'
-                      setForm(p => ({ ...p, scheduled_at: date ? `${date}T${prevTime}` : '' }))
-                    }}
-                  />
-                </div>
-
-                {/* ── Grade de horários ── */}
-                <div className={styles.field}>
-                  <div className={styles.fieldLabelRow}>
-                    <label>Horário *</label>
-                    {form.scheduled_at.slice(11, 16) && (
-                      <span className={styles.selectedTimeLabel}>
-                        {form.scheduled_at.slice(11, 16)} selecionado
-                      </span>
-                    )}
-                  </div>
-                  <div className={`${styles.timeGridWrap}${!form.scheduled_at.slice(0, 10) ? ` ${styles.timeGridLocked}` : ''}`}>
-                    <div className={styles.timeGrid}>
-                      {TIME_SLOTS.map(slot => {
-                        const hasDate = !!form.scheduled_at.slice(0, 10)
-                        const busyName = hasDate ? slotBusyMap.get(slot) : undefined
-                        const isBusy = !!busyName
-                        const isSelected = form.scheduled_at.slice(11, 16) === slot
-                        return (
-                          <button
-                            key={slot}
-                            type="button"
-                            disabled={!hasDate || isBusy}
-                            title={!hasDate ? 'Selecione a data primeiro' : isBusy ? `Ocupado — ${busyName}` : `Selecionar ${slot}`}
-                            className={`${styles.timeSlot}${isSelected ? ` ${styles.timeSlotSelected}` : ''}${isBusy ? ` ${styles.timeSlotBusy}` : ''}`}
-                            onClick={() => setForm(p => ({ ...p, scheduled_at: `${p.scheduled_at.slice(0, 10)}T${slot}` }))}
-                          >
-                            {slot}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    {!form.scheduled_at.slice(0, 10) && (
-                      <div className={styles.timeGridOverlay}>
-                        <span>Escolha a data primeiro</span>
-                      </div>
-                    )}
-                  </div>
-                  {form.professional_id && slotBusyMap.size > 0 && (
-                    <p className={styles.timeGridHint}>Horários em cinza já estão ocupados para este profissional</p>
+                  {patients.filter(p => !patientSearch || p.name.toLowerCase().includes(patientSearch.toLowerCase())).length === 0 && (
+                    <div className={styles.patientDropEmpty}>Nenhum paciente encontrado</div>
                   )}
                 </div>
-
-                {/* ── Duração / Status / Notas ── */}
-                <div className={styles.field}>
-                  <label>Duração (min)</label>
-                  <IntegerInput value={form.duration_minutes || ''} onChange={v => setForm(p => ({ ...p, duration_minutes: v === '' ? 0 : Number(v) }))} min={5} max={720} placeholder="60" />
-                </div>
-                <div className={styles.field}>
-                  <label>Status</label>
-                  <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
-                    <option value="agendado">Agendado</option>
-                    <option value="confirmado">Confirmado</option>
-                  </select>
-                </div>
-                <div className={styles.field}>
-                  <label>Observações</label>
-                  <textarea rows={3} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Informações adicionais..." />
-                </div>
-                {gcalConnected && (
-                  <label className={styles.gcalCheck}>
-                    <input type="checkbox" checked={syncToGCal} onChange={e => setSyncToGCal(e.target.checked)} />
-                    Sincronizar com Google Calendar
-                  </label>
-                )}
-              </div>
-              {saveError && <div className={styles.saveErrorMsg}>{saveError}</div>}
-              <div className={styles.modalFooter}>
-                <button className={styles.btnCancel} onClick={closeModal}>Cancelar</button>
-                <button className={styles.btnSave} onClick={handleSave} disabled={saving || !form.patient_id || !form.scheduled_at}>
-                  {saving ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Salvar Agendamento'}
-                </button>
-              </div>
+              )}
             </div>
-          </div>
-        </Portal>
-      )}
+          )}
+        </div>
 
-      {/* ── Block modal (bloqueio de horário) ── */}
-      {showBlockModal && (
-        <Portal>
-          <div className={styles.overlay} onClick={closeBlockModal}>
-            <div className={styles.modal} onClick={e => e.stopPropagation()}>
-              <div className={styles.modalHeader}>
-                <h2>🚫 Bloquear Horário</h2>
-                <button className={styles.btnClose} onClick={closeBlockModal}><Icon name="close" size={18} /></button>
-              </div>
-              <div className={styles.modalBody}>
-                <div className={styles.field}>
-                  <label>Profissional</label>
-                  <select value={blockForm.professional_id} onChange={e => setBlockForm(p => ({ ...p, professional_id: e.target.value }))}>
-                    {canSeeAllProfessionals && <option value="">Toda a clínica</option>}
-                    {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div className={styles.field}>
-                  <label>Data *</label>
-                  <DatePicker
-                    value={blockForm.scheduled_at.slice(0, 10)}
-                    onChange={date => {
-                      const prevTime = blockForm.scheduled_at.slice(11, 16) || '09:00'
-                      setBlockForm(p => ({ ...p, scheduled_at: date ? `${date}T${prevTime}` : '' }))
-                    }}
-                  />
-                </div>
-                <div className={styles.field}>
-                  <label>Horário início *</label>
-                  <select
-                    value={blockForm.scheduled_at.slice(11, 16)}
-                    onChange={e => setBlockForm(p => ({ ...p, scheduled_at: `${p.scheduled_at.slice(0, 10)}T${e.target.value}` }))}
-                    disabled={!blockForm.scheduled_at.slice(0, 10)}
+        {/* ── Profissional ── */}
+        <div className={f.field}>
+          <label>Profissional</label>
+          <SelectMenu
+            variant="field"
+            ariaLabel="Profissional"
+            value={form.professional_id}
+            onChange={pid => setForm(p => ({ ...p, professional_id: pid, duration_minutes: resolveProfessionalDuration(pid) }))}
+            options={[
+              ...(canSeeAllProfessionals ? [{ value: '', label: 'Sem profissional' }] : []),
+              ...professionals.map(p => ({ value: p.id, label: p.name })),
+            ]}
+          />
+        </div>
+
+        {/* ── Procedimento ── */}
+        <div className={f.field}>
+          <label>Procedimento</label>
+          <SelectMenu
+            variant="field"
+            ariaLabel="Procedimento"
+            value={form.procedure_id}
+            onChange={v => {
+              const proc = procedures.find(p => p.id === v)
+              setForm(prev => ({
+                ...prev,
+                procedure_id: v,
+                procedure_name: proc ? proc.name : (v === 'outro' ? '' : prev.procedure_name),
+                procedure_price: proc ? String(proc.price) : (v === '' ? '' : prev.procedure_price),
+              }))
+            }}
+            options={[
+              { value: '', label: 'Sem procedimento' },
+              ...procedures.filter(p => p.is_active).map(p => ({ value: p.id, label: `${p.name} — ${formatCurrency(p.price)}` })),
+              { value: 'outro', label: 'Outro (digitar)' },
+            ]}
+          />
+        </div>
+        {form.procedure_id === 'outro' && (
+          <div className={f.field}>
+            <input
+              value={form.procedure_name}
+              onChange={e => setForm(p => ({ ...p, procedure_name: e.target.value }))}
+              placeholder="Nome do procedimento..."
+              autoFocus
+            />
+          </div>
+        )}
+        {form.procedure_id && form.procedure_id !== 'outro' && (
+          <div className={f.field}>
+            <label>Valor (R$)</label>
+            <MoneyInput
+              value={form.procedure_price}
+              onChange={v => setForm(p => ({ ...p, procedure_price: v }))}
+            />
+          </div>
+        )}
+
+        {/* ── Data ── */}
+        <div className={f.field}>
+          <label>Data *</label>
+          <DatePicker
+            ariaLabel="Data"
+            value={form.scheduled_at.slice(0, 10)}
+            onChange={date => {
+              const prevTime = form.scheduled_at.slice(11, 16) || '09:00'
+              setForm(p => ({ ...p, scheduled_at: date ? `${date}T${prevTime}` : '' }))
+            }}
+          />
+        </div>
+
+        {/* ── Grade de horários ── */}
+        <div className={f.field}>
+          <div className={styles.fieldLabelRow}>
+            <label>Horário *</label>
+            {form.scheduled_at.slice(11, 16) && (
+              <span className={styles.selectedTimeLabel}>
+                {form.scheduled_at.slice(11, 16)} selecionado
+              </span>
+            )}
+          </div>
+          <div className={`${styles.timeGridWrap}${!form.scheduled_at.slice(0, 10) ? ` ${styles.timeGridLocked}` : ''}`}>
+            <div className={styles.timeGrid}>
+              {TIME_SLOTS.map(slot => {
+                const hasDate = !!form.scheduled_at.slice(0, 10)
+                const busyName = hasDate ? slotBusyMap.get(slot) : undefined
+                const isBusy = !!busyName
+                const isSelected = form.scheduled_at.slice(11, 16) === slot
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    disabled={!hasDate || isBusy}
+                    title={!hasDate ? 'Selecione a data primeiro' : isBusy ? `Ocupado — ${busyName}` : `Selecionar ${slot}`}
+                    className={`${styles.timeSlot}${isSelected ? ` ${styles.timeSlotSelected}` : ''}${isBusy ? ` ${styles.timeSlotBusy}` : ''}`}
+                    onClick={() => setForm(p => ({ ...p, scheduled_at: `${p.scheduled_at.slice(0, 10)}T${slot}` }))}
                   >
-                    <option value="">Selecione...</option>
-                    {TIME_SLOTS.map(slot => <option key={slot} value={slot}>{slot}</option>)}
-                  </select>
-                </div>
-                <div className={styles.field}>
-                  <label>Duração (min)</label>
-                  <IntegerInput value={blockForm.duration_minutes || ''} onChange={v => setBlockForm(p => ({ ...p, duration_minutes: v === '' ? 0 : Number(v) }))} min={5} max={720} placeholder="60" />
-                </div>
-                <div className={styles.field}>
-                  <label>Motivo</label>
-                  <input value={blockForm.notes} onChange={e => setBlockForm(p => ({ ...p, notes: e.target.value }))} placeholder="Ex: Almoço, Férias, Indisponível..." />
-                </div>
-              </div>
-              {blockError && <div className={styles.saveErrorMsg}>{blockError}</div>}
-              <div className={styles.modalFooter}>
-                <button className={styles.btnCancel} onClick={closeBlockModal}>Cancelar</button>
-                <button className={styles.btnSave} onClick={handleSaveBlock} disabled={savingBlock || !blockForm.scheduled_at}>
-                  {savingBlock ? 'Salvando...' : 'Bloquear Horário'}
-                </button>
-              </div>
+                    {slot}
+                  </button>
+                )
+              })}
             </div>
+            {!form.scheduled_at.slice(0, 10) && (
+              <div className={styles.timeGridOverlay}>
+                <span>Escolha a data primeiro</span>
+              </div>
+            )}
           </div>
-        </Portal>
-      )}
+          {form.professional_id && slotBusyMap.size > 0 && (
+            <p className={styles.timeGridHint}>Horários em cinza já estão ocupados para este profissional</p>
+          )}
+        </div>
+
+        {/* ── Duração / Status / Notas ── */}
+        <div className={f.field}>
+          <label>Duração (min)</label>
+          <IntegerInput value={form.duration_minutes || ''} onChange={v => setForm(p => ({ ...p, duration_minutes: v === '' ? 0 : Number(v) }))} min={5} max={720} placeholder="60" />
+        </div>
+        <div className={f.field}>
+          <label>Status</label>
+          <SelectMenu variant="field" ariaLabel="Status" value={form.status}
+            onChange={v => setForm(p => ({ ...p, status: v }))}
+            options={[{ value: 'agendado', label: 'Agendado' }, { value: 'confirmado', label: 'Confirmado' }]} />
+        </div>
+        <div className={f.field}>
+          <label>Observações</label>
+          <textarea rows={3} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Informações adicionais..." />
+        </div>
+        {gcalConnected && (
+          <label className={styles.gcalCheck}>
+            <input type="checkbox" checked={syncToGCal} onChange={e => setSyncToGCal(e.target.checked)} />
+            Sincronizar com Google Calendar
+          </label>
+        )}
+        {saveError && <p ref={saveErrorRef} className={f.error} role="alert">{saveError}</p>}
+      </Modal>
+
+      {/* ── Bloqueio de horário ── */}
+      <Modal
+        open={showBlockModal}
+        onClose={closeBlockModal}
+        size="sm"
+        title="Bloquear horário"
+        footer={
+          <>
+            <button type="button" className={btn.secondary} onClick={closeBlockModal}>Cancelar</button>
+            <button type="button" className={btn.primary} onClick={handleSaveBlock} disabled={savingBlock || !blockForm.scheduled_at}>
+              {savingBlock ? 'Salvando...' : 'Bloquear horário'}
+            </button>
+          </>
+        }
+      >
+        <div className={f.field}>
+          <label>Profissional</label>
+          <SelectMenu variant="field" ariaLabel="Profissional" value={blockForm.professional_id}
+            onChange={v => setBlockForm(p => ({ ...p, professional_id: v }))}
+            options={[
+              ...(canSeeAllProfessionals ? [{ value: '', label: 'Toda a clínica' }] : []),
+              ...professionals.map(p => ({ value: p.id, label: p.name })),
+            ]} />
+        </div>
+        <div className={f.field}>
+          <label>Data *</label>
+          <DatePicker
+            ariaLabel="Data"
+            value={blockForm.scheduled_at.slice(0, 10)}
+            onChange={date => {
+              const prevTime = blockForm.scheduled_at.slice(11, 16) || '09:00'
+              setBlockForm(p => ({ ...p, scheduled_at: date ? `${date}T${prevTime}` : '' }))
+            }}
+          />
+        </div>
+        <div className={f.field}>
+          <label>Horário início *</label>
+          <SelectMenu
+            variant="field"
+            ariaLabel="Horário de início"
+            value={blockForm.scheduled_at.slice(11, 16)}
+            onChange={v => setBlockForm(p => ({ ...p, scheduled_at: `${p.scheduled_at.slice(0, 10)}T${v}` }))}
+            disabled={!blockForm.scheduled_at.slice(0, 10)}
+            options={[{ value: '', label: 'Selecione...' }, ...TIME_SLOTS.map(slot => ({ value: slot, label: slot }))]}
+          />
+        </div>
+        <div className={f.field}>
+          <label>Duração (min)</label>
+          <IntegerInput value={blockForm.duration_minutes || ''} onChange={v => setBlockForm(p => ({ ...p, duration_minutes: v === '' ? 0 : Number(v) }))} min={5} max={720} placeholder="60" />
+        </div>
+        <div className={f.field}>
+          <label>Motivo</label>
+          <input value={blockForm.notes} onChange={e => setBlockForm(p => ({ ...p, notes: e.target.value }))} placeholder="Ex: Almoço, Férias, Indisponível..." />
+        </div>
+        {blockError && <p ref={blockErrorRef} className={f.error} role="alert">{blockError}</p>}
+      </Modal>
+        </div>
+      </div>
     </div>
   )
 }

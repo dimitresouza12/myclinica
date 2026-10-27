@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { Icon } from '@/components/ui/Icon'
 import { contactDisplayName, listTimeLabel } from '@/lib/whatsapp/inbox'
+import { avatarTone } from '@/lib/whatsapp/bubble'
 import { Avatar } from '@/components/ui/Avatar'
 import { conversationPhoto } from '@/hooks/useWhatsAppInbox'
 import type { WaConversation } from '@/hooks/useWhatsAppInbox'
@@ -15,6 +16,15 @@ const TABS: { key: InboxFilter; label: string }[] = [
   { key: 'pacientes', label: 'Pacientes' },
   { key: 'leads', label: 'Leads' },
 ]
+
+/** Círculo do contato: foto ou iniciais (cor derivada do nome); lead ganha um contorno ao redor. */
+export function ContactAvatar({ c, name, size = 40 }: { c: WaConversation; name: string; size?: number }) {
+  return (
+    <span className={`${styles.avWrap} ${c.patient_id ? '' : styles.avLead}`}>
+      <Avatar url={conversationPhoto(c)} name={name} size={size} className={`${styles.avatar} ${styles[`tone${avatarTone(name)}`]}`} empty={<Icon name="patients" size={Math.round(size * 0.45)} />} />
+    </span>
+  )
+}
 
 export function conversationName(c: WaConversation): string {
   return contactDisplayName({ patientName: c.patients?.name, contactName: c.contact_name, jid: c.jid })
@@ -47,6 +57,7 @@ interface Props {
 
 export function ConversationList(p: Props) {
   const visible = filterConversations(p.conversations, p.filter, p.query)
+  const unread = p.conversations.filter(c => c.unread_count > 0).length
 
   return (
     <div className={`${styles.pane} ${styles.list}`}>
@@ -60,6 +71,7 @@ export function ConversationList(p: Props) {
           {TABS.map(t => (
             <button key={t.key} className={`${styles.tab} ${p.filter === t.key ? styles.tabOn : ''}`} aria-pressed={p.filter === t.key} onClick={() => p.onFilter(t.key)}>
               {t.label}
+              {t.key === 'naolidas' && unread > 0 && <span className={styles.tabCount}>{unread}</span>}
             </button>
           ))}
         </div>
@@ -90,13 +102,10 @@ export function ConversationList(p: Props) {
           const selected = c.id === p.selectedId
           return (
             <button key={c.id} className={`${styles.conv} ${selected ? styles.convOn : ''} ${c.unread_count > 0 ? styles.unreadRow : ''}`} aria-current={selected} onClick={() => p.onSelect(c)}>
-              <Avatar url={conversationPhoto(c)} name={name} size={40} className={styles.avatar} />
+              <ContactAvatar c={c} name={name} />
               <span className={styles.mid}>
                 <span className={styles.l1}>
-                  <span className={styles.nm}>
-                    {name}
-                    <span className={`${styles.kind} ${c.patient_id ? styles.kindPatient : styles.kindLead}`}>{c.patient_id ? 'Paciente' : 'Lead'}</span>
-                  </span>
+                  <span className={styles.nm}>{name}<span className={styles.srOnly}>{c.patient_id ? ', paciente' : ', lead'}</span></span>
                   <span className={styles.tm}>{listTimeLabel(new Date(c.last_message_at), p.now, p.timezone)}</span>
                 </span>
                 <span className={styles.l2}>

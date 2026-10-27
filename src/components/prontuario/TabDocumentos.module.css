@@ -15,14 +15,14 @@
 @media (max-width: 768px) {
   .toolBtn { min-width: 44px; min-height: 44px; font-size: 1rem; }
 }
-.toolBtn:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
+.toolBtn:hover { border-color: var(--brand-primary); color: var(--brand-text); }
 .toolSep { width: 1px; height: 20px; background: var(--border-color); margin: 0 2px; }
 .toolSelect { padding: 0.2rem 0.4rem; border: 1px solid var(--border-color); background: var(--bg-primary); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--text-primary); cursor: pointer; outline: none; }
 .btnPrint { margin-left: auto; padding: 0.35rem 0.9rem; min-height: 44px; background: linear-gradient(135deg, #059669, #10B981); color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
 .btnPrint:hover { opacity: .88; }
 
 .btnDownload { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.85rem; min-height: 44px; border: 1px solid var(--border-color); background: var(--bg-primary); border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all .15s; white-space: nowrap; }
-.btnDownload:hover:not(:disabled) { border-color: var(--brand-primary); color: var(--brand-primary); }
+.btnDownload:hover:not(:disabled) { border-color: var(--brand-primary); color: var(--brand-text); }
 .btnDownload:disabled { opacity: .6; cursor: not-allowed; }
 
 .downloadPopover { position: fixed; z-index: 1000; min-width: 200px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md); box-shadow: 0 8px 24px -8px rgba(0,0,0,.25); padding: 4px; display: flex; flex-direction: column; }
@@ -63,7 +63,7 @@
 .calibratedScroll { display: flex; justify-content: center; border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: auto; padding: 12px; background: var(--bg-secondary); }
 
 .noTemplateHint { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem; }
-.hintLink { color: var(--brand-primary); text-decoration: underline; }
+.hintLink { color: var(--brand-text); text-decoration: underline; }
 
 /* Impressão isolada via janela própria (lib/print.ts → printDocumento).
    Não há @media print aqui — a antiga regra `body > *` não funcionava porque

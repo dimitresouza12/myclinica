@@ -121,7 +121,7 @@
 
 .empty {
   font-size: 0.8rem;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   text-align: center;
   padding: 1.25rem 0;
 }
@@ -213,62 +213,10 @@
 
 .cardDate, .cardCreated {
   font-size: 0.7rem;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
-/* ─── Panel overlay ───────────────────────────── */
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(13,17,23,0.5);
-  backdrop-filter: blur(3px);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  z-index: 200;
-  overflow: hidden;
-  overscroll-behavior: contain;
-  touch-action: none;
-}
-
-.panel {
-  width: 100%;
-  max-width: 460px;
-  height: 100vh;
-  height: 100dvh;
-  background: var(--bg-primary);
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-xl);
-  animation: slideIn 0.22s cubic-bezier(0.22,1,0.36,1) both;
-  overflow: hidden;
-}
-@media (max-width: 600px) {
-  .panel { max-width: 100%; }
-  /* Touch targets mínimos 44px */
-  .btnClose { width: 44px; height: 44px; }
-}
-
-@keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to   { transform: translateX(0); opacity: 1; }
-}
-
-.panelHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-
-.panelAvatarWrap {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
+/* ─── Detalhe do lead: a casca vem de <Modal> ─── */
 .panelAvatar {
   width: 42px; height: 42px;
   border-radius: 999px;
@@ -278,23 +226,10 @@
   flex-shrink: 0;
 }
 
-.panelName  { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
-.panelPhone { font-size: 0.78rem; color: var(--text-secondary); font-family: monospace; }
 
-.btnClose {
-  background: var(--bg-secondary); border: none; cursor: pointer;
-  font-size: 1rem; color: var(--text-secondary);
-  width: 30px; height: 30px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  transition: background 0.15s;
-}
-.btnClose:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 
 /* ─── Meta info ───────────────────────────────── */
 .panelMeta {
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -306,13 +241,7 @@
 .metaValue { font-size: 0.855rem; color: var(--text-primary); }
 
 /* ─── Chat ────────────────────────────────────── */
-.chatSection {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 1rem 1.5rem 0;
-}
+.chatSection { display: flex; flex-direction: column; }
 
 .chatTitle {
   font-size: 0.78rem;
@@ -323,7 +252,7 @@
 }
 
 .chatBox {
-  flex: 1;
+  max-height: 340px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -331,7 +260,7 @@
   padding-bottom: 0.5rem;
 }
 
-.chatInfo { font-size: 0.82rem; color: var(--text-tertiary); text-align: center; padding: 1.5rem 0; }
+.chatInfo { font-size: 0.82rem; color: var(--text-secondary); text-align: center; padding: 1.5rem 0; }
 
 .bubble {
   display: flex;
@@ -360,61 +289,6 @@
 
 .bubbleTime { font-size: 0.65rem; opacity: 0.65; align-self: flex-end; }
 
-/* ─── Footer ──────────────────────────────────── */
-.panelFooter {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.btnConvert {
-  width: 100%;
-  padding: 0.7rem;
-  background: #4DD9C0;
-  color: #0D2421;
-  border: none;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
-}
-.btnConvert:hover:not(:disabled) { background: #3CCCB4; transform: translateY(-1px); }
-.btnConvert:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.btnPatientExists {
-  width: 100%;
-  padding: 0.7rem;
-  background: #ECFDF5;
-  color: #065F46;
-  border: 1px solid #A7F3D0;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: default;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-}
-
-.btnAtendimento {
-  width: 100%;
-  padding: 0.7rem;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.btnAtendimento:hover { background: var(--bg-tertiary); }
-
 .msgOk   { font-size: 0.8rem; color: #059669; text-align: center; display: flex; align-items: center; justify-content: center; gap: 0.35rem; }
 .msgWarn { font-size: 0.8rem; color: #D97706; text-align: center; }
 .msgErr  { font-size: 0.8rem; color: #EF4444; text-align: center; }
@@ -423,7 +297,6 @@
 @media (max-width: 768px) {
   .kanban { grid-template-columns: 1fr; }
   .stats  { grid-template-columns: repeat(2, 1fr); }
-  .panel  { max-width: 100%; }
 }
 
 /* Gate — automação não configurada */

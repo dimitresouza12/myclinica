@@ -2,6 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { pickLatest, type ConfirmationInfo } from '@/lib/whatsapp/labels'
 import { isPaused, PAUSE_WINDOW_MS, type FailureRow } from '@/lib/whatsapp/safety'
+import {
+  addDays, appointmentsByDay, attendance, lastDays, monthToDate, patientsSeries, revenueByDay,
+  weekConfirmation, weekDays, WEEKDAY_SHORT, type Attendance,
+} from '@/lib/dashboard/metrics'
 import type { Professional, Procedure, Appointment, Patient, StockItem, StockMovement, FinancialRecord, PatientCredit } from '@/types'
 
 // Busca TODOS (ativos + inativos) para que dados históricos sejam resolvidos.
@@ -70,6 +74,15 @@ export interface TodayCash {
   previsto: number
 }
 
+export interface TrendSeries { labels: string[]; current: number[]; previous: (number | null)[]; todayIndex: number }
+export interface DashboardInsights {
+  attendance: Attendance
+  confirmation: { confirmed: number; total: number; rate: number | null }
+  monthToDate: { current: number; previous: number; pct: number | null }
+  sparks: { patients: number[]; appointments: number[] }
+  trend: { week: TrendSeries; month: TrendSeries }
+}
+
 const OPEN_STATUSES = ['agendado', 'confirmado', 'em_atendimento']
 const NO_SHOW_WINDOW_MS = 30 * 24 * 60 * 60 * 1000   // faltas dos últimos 30 dias
 const NO_RETURN_WINDOW_MS = 45 * 24 * 60 * 60 * 1000 // sem retorno após 45 dias do último atendimento concluído
@@ -86,10 +99,13 @@ export function useDashboardData(clinicId: string | undefined) {
       const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59).toISOString()
       const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString()
       const twoHundredDaysAgo = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString()
+      const last7 = lastDays(today, 7)
+      const week = weekDays(today)
 
       const [
         patientsRes, todayApptRowsRes, pendingRes, allFinRes, newPatientsRes, todayFinRes,
         monthApptsRes, proceduresRes, alertApptsRes, birthdayPatientsRes, confRepliesRes, confFailuresRes,
+        recentApptsRes, recentPatientsRes,
       ] = await Promise.all([
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true),
         supabase.from('appointments').select('id, patient_id, professional_id, procedure_name, procedure_id, procedure_price, status, scheduled_at, duration_minutes, patients(id, name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', startOfDay).lte('scheduled_at', endOfDay).order('scheduled_at', { ascending: true }),
@@ -105,6 +121,9 @@ export function useDashboardData(clinicId: string | undefined) {
         supabase.from('appointment_confirmations').select('status, appointment_at, appointments(patient_id, status, patients(name, phone))').eq('clinic_id', clinicId).in('status', ['pediu_remarcacao', 'respondeu']).gt('appointment_at', new Date().toISOString()),
         // falhas recentes de envio: a rotina pausa as confirmações da clínica (ver whatsapp/safety.ts)
         supabase.from('appointment_confirmations').select('error, updated_at').eq('clinic_id', clinicId).eq('status', 'falhou').gte('updated_at', new Date(Date.now() - PAUSE_WINDOW_MS).toISOString()),
+        // últimos 7 dias até o fim desta semana: comparecimento, confirmação da semana e mini gráficos
+        supabase.from('appointments').select('status, scheduled_at').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', last7[0].toISOString()).lt('scheduled_at', addDays(week[6], 1).toISOString()),
+        supabase.from('patients').select('created_at').eq('clinic_id', clinicId).eq('is_active', true).gte('created_at', last7[0].toISOString()),
       ])
 
       const todayApptRows = (todayApptRowsRes.data ?? []) as unknown as Appointment[]
@@ -228,6 +247,29 @@ export function useDashboardData(clinicId: string | undefined) {
 
       const alerts: DashboardAlert[] = [...pauseAlerts, ...replyAlerts, ...noShowAlerts, ...birthdayAlerts, ...noReturnAlerts]
 
+      // Números do cartão grande e dos mini gráficos (ver lib/dashboard/metrics.ts)
+      const recentAppts = (recentApptsRes.data ?? []) as { status: string; scheduled_at: string }[]
+      const recentCreated = ((recentPatientsRes.data ?? []) as { created_at: string }[]).map(p => p.created_at)
+      const prevWeek = week.map(d => addDays(d, -7))
+      const monthDays = Array.from({ length: today.getDate() }, (_, i) => new Date(today.getFullYear(), today.getMonth(), i + 1))
+      const prevMonthLast = new Date(today.getFullYear(), today.getMonth(), 0).getDate()
+      // dia 31 de outubro não tem par em setembro: fica sem ponto de comparação
+      const prevMonthDays = monthDays.map(d => new Date(today.getFullYear(), today.getMonth() - 1, Math.min(d.getDate(), prevMonthLast)))
+      const prevMonthRevenue = revenueByDay(allFin, prevMonthDays).map((v, i) => (monthDays[i].getDate() <= prevMonthLast ? v : null))
+      const insightsData: DashboardInsights = {
+        attendance: attendance(recentAppts, last7, new Date()),
+        confirmation: weekConfirmation(recentAppts, week),
+        monthToDate: monthToDate(allFin, today),
+        sparks: {
+          patients: patientsSeries(patientsRes.count ?? 0, recentCreated, last7),
+          appointments: appointmentsByDay(recentAppts, last7),
+        },
+        trend: {
+          week: { labels: week.map(d => WEEKDAY_SHORT[d.getDay()]), current: revenueByDay(allFin, week), previous: revenueByDay(allFin, prevWeek), todayIndex: today.getDay() },
+          month: { labels: monthDays.map(d => String(d.getDate())), current: revenueByDay(allFin, monthDays), previous: prevMonthRevenue, todayIndex: monthDays.length - 1 },
+        },
+      }
+
       return {
         stats: {
           totalPatients: patientsRes.count ?? 0,
@@ -245,6 +287,7 @@ export function useDashboardData(clinicId: string | undefined) {
         monthlyData: Object.values(monthMap),
         revenueByCategory,
         alerts,
+        insights: insightsData,
       }
     },
     enabled: !!clinicId,

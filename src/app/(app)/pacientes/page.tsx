@@ -3,28 +3,49 @@ import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
-import { formatDate, formatCurrency } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import { formatBrPhone } from '@/lib/phoneFormat'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsAppAI } from '@/lib/planGates'
 import { usePacientesData, usePatientCreditsData } from '@/hooks/useClinicData'
+import { avatarTone } from '@/lib/ui/avatarTone'
+import { addDays, lastDays, patientsSeries, startOfDay } from '@/lib/dashboard/metrics'
+import { exportRows, filterPatients, matchesFilter, summarizePatients, toCsv, type PatientFilter } from '@/lib/pacientes/summary'
 import type { Patient } from '@/types'
 import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
 import { PetIcon } from '@/components/ui/PetIcon'
 import { Icon } from '@/components/ui/Icon'
+import { Avatar } from '@/components/ui/Avatar'
+import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
+import { PillTabs } from '@/components/ui/PillTabs'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { StatusDot } from '@/components/ui/StatusDot'
+import { MoreMenu } from '@/components/ui/MoreMenu'
+import btn from '@/components/ui/button.module.css'
+import t from '@/components/ui/table.module.css'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
-import { PageTitle } from '@/components/layout/PageTitle'
 import styles from './pacientes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+
+const dayShort = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+const nextFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+
+function nextLabel(iso: string): string {
+  const p: Record<string, string> = {}
+  for (const x of nextFmt.formatToParts(new Date(iso))) if (x.type !== 'literal') p[x.type] = x.value
+  return `${p.weekday.replace('.', '')}, ${p.day}/${p.month}, ${p.hour}h${p.minute === '00' ? '' : p.minute}`
+}
 
 function PacientesContent() {
   const { clinic } = useAuthStore()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const { data: pacientesData, isLoading: loading } = usePacientesData(clinic?.id)
-  const patients = pacientesData?.patients ?? []
+  const patients = useMemo(() => pacientesData?.patients ?? [], [pacientesData])
+  const appointments = useMemo(() => pacientesData?.appointments ?? [], [pacientesData])
   const { data: creditsData } = usePatientCreditsData(clinic?.id)
   // Saldo de pacote por paciente — soma do ledger, só entra no mapa quando ≠ 0
   // (a maioria dos pacientes não usa pacote, então não faz sentido guardar
@@ -41,6 +62,7 @@ function PacientesContent() {
   const [prontuarioPatient, setProntuarioPatient] = useState<Patient | null>(null)
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
+  const [filter, setFilter] = useState<PatientFilter>('todos')
 
   useScrollLock(!!prontuarioPatient || !!editPatient || showNewPatient)
 
@@ -62,80 +84,168 @@ function PacientesContent() {
     queryClient.invalidateQueries({ queryKey: ['pacientes', clinic?.id] })
   }
 
-  const filteredPatients = patients
-
   function handleSaved() {
     setEditPatient(null)
     setShowNewPatient(false)
     invalidate()
   }
 
+  // "agora" fixo por carga de dados: a lista não precisa se mexer a cada render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const now = useMemo(() => new Date(), [pacientesData])
+  const summary = useMemo(() => summarizePatients(appointments, now), [appointments, now])
+
+  const counts = useMemo(() => {
+    const c: Record<PatientFilter, number> = { todos: patients.length, agendados: 0, sem_retorno: 0, com_saldo: 0 }
+    for (const p of patients) {
+      if (matchesFilter(p.id, 'agendados', summary, creditBalances)) c.agendados++
+      if (matchesFilter(p.id, 'sem_retorno', summary, creditBalances)) c.sem_retorno++
+      if (matchesFilter(p.id, 'com_saldo', summary, creditBalances)) c.com_saldo++
+    }
+    return c
+  }, [patients, summary, creditBalances])
+
+  const visible = useMemo(() => filterPatients(patients, filter, summary, creditBalances), [patients, filter, summary, creditBalances])
+
+  const stats = useMemo(() => {
+    const today = startOfDay(now)
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).getTime()
+    const newThisMonth = patients.filter(p => new Date(p.created_at).getTime() >= monthStart).length
+    const days = lastDays(today, 7)
+    const recent = patients.filter(p => new Date(p.created_at).getTime() >= addDays(today, -7).getTime()).map(p => p.created_at)
+    let balance = 0
+    for (const v of creditBalances.values()) if (v > 0) balance += v
+    return { newThisMonth, series: patientsSeries(patients.length, recent, days), balance }
+  }, [patients, now, creditBalances])
+
+  function exportCsv() {
+    const csv = toCsv(exportRows(visible, summary, creditBalances))
+    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `pacientes-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const isVet = clinic?.type === 'vet'
+  const filterLabels: Record<PatientFilter, string> = { todos: 'Todos', agendados: 'Com consulta marcada', sem_retorno: 'Sem retorno', com_saldo: 'Com saldo' }
+
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <PageTitle title="Pacientes" subtitle={`${filteredPatients.length} pacientes`} />
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* no desktop a busca de pacientes fica na barra de cima */}
-          <div className={styles.mobileSearch}><GlobalSearch /></div>
-          <button className={styles.btnPrimary} onClick={() => setShowNewPatient(true)}>
-            + Novo Paciente
-          </button>
-        </div>
+      <PageHeader
+        title="Pacientes"
+        subtitle={`${patients.length} ${patients.length === 1 ? 'paciente ativo' : 'pacientes ativos'}`}
+        actions={
+          <>
+            {/* no desktop a busca de pacientes fica na barra de cima */}
+            <div className={styles.mobileSearch}><GlobalSearch /></div>
+            <button type="button" className={btn.secondary} onClick={exportCsv} disabled={visible.length === 0}>
+              <Icon name="download" size={15} /> Exportar
+            </button>
+            <button type="button" className={btn.primary} onClick={() => setShowNewPatient(true)}>
+              <Icon name="plus" size={15} /> Novo paciente
+            </button>
+          </>
+        }
+      />
+
+      <div className={styles.stats}>
+        <StatCard
+          title="Pacientes ativos"
+          value={patients.length}
+          hint={`${stats.newThisMonth} ${stats.newThisMonth === 1 ? 'novo' : 'novos'} neste mês`}
+          delta={stats.newThisMonth > 0 ? { label: `+${stats.newThisMonth}` } : undefined}
+          spark={{ values: stats.series, label: `Pacientes ativos nos últimos 7 dias: de ${stats.series[0]} para ${stats.series[stats.series.length - 1]}` }}
+        />
+        <StatCard title="Com consulta marcada" value={counts.agendados} hint={`de ${patients.length} no cadastro`} />
+        <StatCard title="Sem retorno" value={counts.sem_retorno} hint="45 dias ou mais sem voltar" />
+        <StatCard title="Saldo de pacotes" value={formatCurrency(stats.balance)} compact hint={`${counts.com_saldo} ${counts.com_saldo === 1 ? 'paciente com saldo' : 'pacientes com saldo'}`} />
       </div>
 
-      {loading ? (
-        <p className={styles.loading}>Carregando...</p>
-      ) : (
-        <div className={`${styles.tableWrap} resp-table-wrap`} data-hscroll>
-          <table className={`${styles.table} resp-table`}>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Telefone</th>
-                <th>Cadastro</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPatients.length === 0 ? (
-                <tr><td colSpan={4} className={styles.empty}>Nenhum paciente encontrado.</td></tr>
-              ) : filteredPatients.map((p) => (
-                <tr key={p.id}>
-                  <td className={styles.bold}>
-                    {clinic?.type === 'vet' ? (
-                      <div className={styles.patientCell}>
-                        <PetIcon species={p.pet_species} />
-                        <div>
-                          <div>{p.name}</div>
-                          {p.pet_name && <div className={styles.petName}>{p.pet_name}</div>}
-                          {creditBalances.has(p.id) && <div className={styles.creditBadge}>Saldo: {formatCurrency(creditBalances.get(p.id))}</div>}
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <div>{p.name}</div>
-                        {creditBalances.has(p.id) && <div className={styles.creditBadge}>Saldo: {formatCurrency(creditBalances.get(p.id))}</div>}
-                      </div>
-                    )}
-                  </td>
-                  <td data-label="Telefone">{formatBrPhone(p.phone) || '-'}</td>
-                  <td data-label="Cadastro">{formatDate(p.created_at, true)}</td>
-                  <td data-label="Ações">
-                    <div className={styles.actions}>
-                      <button className={styles.btnAction} onClick={() => setProntuarioPatient(p)}>
-                        <Icon name="procedures" size={13} /> Prontuário
-                      </button>
-                      <button className={`${styles.btnAction} ${styles.btnSecondary}`} onClick={() => setEditPatient(p)}>
-                        <Icon name="edit" size={13} /> Editar
-                      </button>
-                    </div>
-                  </td>
+      <Card
+        flush
+        title="Lista de pacientes"
+        actions={
+          <PillTabs
+            label="Filtrar pacientes"
+            value={filter}
+            onChange={setFilter}
+            options={(Object.keys(filterLabels) as PatientFilter[]).map(v => ({ value: v, label: filterLabels[v], count: counts[v] }))}
+          />
+        }
+      >
+        {loading ? (
+          <p className={styles.loading}>Carregando...</p>
+        ) : (
+          <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+            <table className={`${t.table} resp-table`}>
+              <thead>
+                <tr>
+                  <th>Paciente</th>
+                  <th>Procedimento principal</th>
+                  <th>Última consulta</th>
+                  <th>Próxima consulta</th>
+                  <th className={t.num}>Saldo</th>
+                  <th aria-label="Ações" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {visible.length === 0 ? (
+                  <tr><td colSpan={6} className={t.empty}>{filter === 'todos' ? 'Nenhum paciente cadastrado ainda.' : 'Nenhum paciente neste filtro.'}</td></tr>
+                ) : visible.map(p => {
+                  const s = summary.get(p.id)
+                  const balance = creditBalances.get(p.id)
+                  return (
+                    <tr key={p.id} className={`${t.clickable} ${styles.row}`} onClick={() => setProntuarioPatient(p)}>
+                      <td>
+                        <div className={styles.person}>
+                          {isVet ? (
+                            <span className={styles.petBadge}><PetIcon species={p.pet_species} size={20} /></span>
+                          ) : (
+                            <Avatar url={p.avatar_url} name={p.name} size={36} className={`${styles.avatar} ${styles[`tone${avatarTone(p.name)}`]}`} />
+                          )}
+                          <div className={styles.who}>
+                            <button type="button" className={styles.name} onClick={e => { e.stopPropagation(); setProntuarioPatient(p) }}>{p.name}</button>
+                            <span className={styles.sub}>
+                              {isVet && p.pet_name ? p.pet_name : formatBrPhone(p.phone) || 'Sem telefone'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="Procedimento" className={t.muted}>{s?.mainProcedure ?? '-'}</td>
+                      <td data-label="Última consulta" className={t.muted}>{s?.lastAt ? dayShort.format(new Date(s.lastAt)) : '-'}</td>
+                      <td data-label="Próxima consulta">
+                        {s?.nextAt ? nextLabel(s.nextAt) : s?.noReturn ? <StatusDot tone="warn">Sem retorno</StatusDot> : <span className={t.muted}>-</span>}
+                      </td>
+                      <td data-label="Saldo" className={`${t.num} ${balance ? styles.balance : t.muted}`}>{balance ? formatCurrency(balance) : '-'}</td>
+                      <td className={styles.actionsCell}>
+                        <div className={t.rowActions} onClick={e => e.stopPropagation()}>
+                          <span className={`${t.hoverOnly} ${styles.shortcuts}`}>
+                            <button type="button" className={styles.shortcut} title="Abrir prontuário" aria-label={`Abrir prontuário de ${p.name}`} onClick={() => setProntuarioPatient(p)}>
+                              <Icon name="procedures" size={15} />
+                            </button>
+                            <button type="button" className={styles.shortcut} title="Editar cadastro" aria-label={`Editar cadastro de ${p.name}`} onClick={() => setEditPatient(p)}>
+                              <Icon name="edit" size={15} />
+                            </button>
+                          </span>
+                          <MoreMenu
+                            label={`Mais ações de ${p.name}`}
+                            items={[
+                              { label: 'Abrir prontuário', icon: 'procedures', onClick: () => setProntuarioPatient(p) },
+                              { label: 'Editar cadastro', icon: 'edit', onClick: () => setEditPatient(p) },
+                            ]}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       {prontuarioPatient && (
         <ProntuarioModal

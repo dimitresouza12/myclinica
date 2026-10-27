@@ -15,6 +15,7 @@ import { TemplateFieldCanvas } from '@/components/documentos/TemplateFieldCanvas
 import { getTemplateCanvasSize } from '@/lib/templateCanvasSize'
 import type { Patient, ClinicDocumentTemplate, DocumentTemplateType, FieldPosition } from '@/types'
 import styles from './TabDocumentos.module.css'
+import { SelectMenu } from '@/components/ui/SelectMenu'
 
 interface Props {
   patient: Patient
@@ -440,13 +441,13 @@ export function TabDocumentos({ patient }: Props) {
       {needsProfessionalPicker && (
         <div className={styles.professionalPicker}>
           <label htmlFor="doc-professional-select">Profissional responsável</label>
-          <select
+          <SelectMenu
+            variant="field"
             id="doc-professional-select"
             value={manualProfessionalId}
-            onChange={e => setManualProfessionalId(e.target.value)}
-          >
-            {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+            onChange={setManualProfessionalId}
+            options={professionals.map(p => ({ value: p.id, label: p.name }))}
+          />
         </div>
       )}
 

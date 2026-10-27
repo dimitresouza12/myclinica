@@ -9,48 +9,13 @@ import { whatsappApi } from '@/components/configuracoes/whatsappApi'
 import { toInputValue } from '@/lib/phoneFormat'
 import { STAGES, SOURCES, formatMoney, followUpLabel } from '@/lib/crm/model'
 import { supabase } from '@/lib/supabase'
+import { useNextAppointment, useLeadFor } from '@/hooks/useContactContext'
 import { Icon } from '@/components/ui/Icon'
 import { showToast } from '@/components/ui/Toast'
 import { contactDisplayName, formatJidPhone } from '@/lib/whatsapp/inbox'
-import { Avatar } from '@/components/ui/Avatar'
-import { conversationPhoto } from '@/hooks/useWhatsAppInbox'
+import { ContactAvatar } from './ConversationList'
 import type { WaConversation } from '@/hooks/useWhatsAppInbox'
 import styles from './Inbox.module.css'
-
-function useNextAppointment(patientId: string | null) {
-  return useQuery({
-    queryKey: ['wa-next-appt', patientId],
-    queryFn: async () => {
-      if (!patientId) return null
-      const { data } = await supabase
-        .from('appointments')
-        .select('scheduled_at, procedure_name, status')
-        .eq('patient_id', patientId)
-        .in('status', ['agendado', 'confirmado'])
-        .gt('scheduled_at', new Date().toISOString())
-        .order('scheduled_at', { ascending: true })
-        .limit(1)
-      return (data?.[0] as { scheduled_at: string; procedure_name: string | null; status: string } | undefined) ?? null
-    },
-    enabled: !!patientId,
-    staleTime: 60_000,
-  })
-}
-
-function useLeadFor(clinicId: string | undefined, phoneKey: string | null, enabled: boolean) {
-  return useQuery({
-    queryKey: ['wa-lead', clinicId, phoneKey],
-    queryFn: async () => {
-      if (!clinicId || !phoneKey) return null
-      const { data } = await supabase.from('crm_leads')
-        .select('stage, stage_note, interest, estimated_value, source, next_contact_at, notes')
-        .eq('clinic_id', clinicId).eq('phone_key', phoneKey).maybeSingle()
-      return (data as { stage: string; stage_note: string | null; interest: string | null; estimated_value: number | null; source: string; next_contact_at: string | null; notes: string | null } | null) ?? null
-    },
-    enabled: !!clinicId && !!phoneKey && enabled,
-    staleTime: 30_000,
-  })
-}
 
 function usePatientInfo(patientId: string | null) {
   return useQuery({
@@ -112,11 +77,10 @@ export function ContactPanel({ conversation, open }: { conversation: WaConversat
   return (
     <aside className={`${styles.pane} ${styles.info} ${open ? styles.infoOpen : ''}`} aria-label="Ficha do contato">
       <div className={styles.idBox}>
-        <Avatar url={conversationPhoto(c)} name={name} size={56} className={styles.avatar} />
-        <b>{name}</b>
-        <span>{formatJidPhone(c.jid)}</span>
-        <span className={`${styles.kind} ${c.patient_id ? styles.kindPatient : styles.kindLead}`} style={{ margin: 0 }}>
-          {c.patient_id ? 'Paciente cadastrado' : 'Lead, ainda não é paciente'}
+        <ContactAvatar c={c} name={name} size={48} />
+        <span className={styles.idText}>
+          <b>{name}</b>
+          <span>{formatJidPhone(c.jid)}</span>
         </span>
       </div>
 
@@ -141,10 +105,9 @@ export function ContactPanel({ conversation, open }: { conversation: WaConversat
             {next?.procedure_name && <div><dt>Procedimento</dt><dd>{next.procedure_name}</dd></div>}
             {next && <div><dt>Situação</dt><dd>{next.status === 'confirmado' ? 'Confirmada' : 'Agendada'}</dd></div>}
           </dl>
-          <h4 className={styles.h4}>Ações</h4>
           <div className={styles.stack}>
             <Link className={`${styles.btn} ${styles.btnPrimary}`} href="/agenda"><Icon name="calendar" size={16} />Abrir a agenda</Link>
-            <Link className={styles.btn} href={`/pacientes?patient=${c.patient_id}`}><Icon name="patients" size={16} />Abrir prontuário</Link>
+            <Link className={styles.linkRow} href={`/pacientes?patient=${c.patient_id}`}><Icon name="patients" size={16} /><span>Abrir prontuário</span><Icon name="chevronRight" size={16} /></Link>
           </div>
         </>
       ) : (
@@ -163,14 +126,12 @@ export function ContactPanel({ conversation, open }: { conversation: WaConversat
               {lead.notes && <p className={styles.hint}>{lead.notes}</p>}
             </>
           )}
-          <p className={styles.hint}>
-            Esse contato ainda não está cadastrado. Quando você cadastrar o paciente com este telefone, a conversa passa a aparecer como paciente.
-          </p>
+          <p className={styles.hint}>Contato ainda não cadastrado. Ao cadastrar com este telefone, a conversa passa a ser do paciente.</p>
           <div className={styles.stack}>
             {canRegister && clinicId
               ? <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void startRegister()} disabled={checking}><Icon name="patients" size={16} />{checking ? 'Verificando…' : 'Cadastrar paciente'}</button>
               : <span className={styles.hint}>Você não tem permissão para cadastrar pacientes.</span>}
-            <Link className={styles.btn} href="/crm"><Icon name="crm" size={16} />Abrir no CRM</Link>
+            <Link className={styles.linkRow} href="/crm"><Icon name="crm" size={16} /><span>Abrir no CRM</span><Icon name="chevronRight" size={16} /></Link>
           </div>
           {registering && clinicId && (
             <PatientFormModal

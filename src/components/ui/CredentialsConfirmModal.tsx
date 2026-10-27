@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { Portal } from './Portal'
+import { Modal } from './Modal'
 import { Icon } from './Icon'
+import btn from './button.module.css'
 import styles from './credentialsConfirmModal.module.css'
 
 interface Props {
@@ -32,33 +33,30 @@ export function CredentialsConfirmModal({ displayName, username, email, password
   ]
 
   return (
-    <Portal>
-      <div className={styles.overlay} onClick={onClose}>
-        <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-          <div className={styles.header}>
-            <div className={styles.iconWrap}><Icon name="checkCircle" size={22} /></div>
-            <h2>Login criado para {displayName}</h2>
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      title={`Login criado para ${displayName}`}
+      footer={<button type="button" className={btn.primary} onClick={onClose}>Entendi</button>}
+    >
+      <p className={styles.desc}>
+        Compartilhe esses dados com segurança — a pessoa pode trocar a senha depois de entrar.
+      </p>
+      <div className={styles.rows}>
+        {rows.map(r => (
+          <div key={r.key} className={styles.row}>
+            <div className={styles.rowText}>
+              <div className={styles.rowLabel}>{r.label}</div>
+              <div className={styles.rowValue}>{r.value}</div>
+            </div>
+            <button className={styles.btnCopy} onClick={() => copy(r.key, r.value)} type="button">
+              <Icon name={copied === r.key ? 'check' : 'copy'} size={14} />
+              {copied === r.key ? 'Copiado' : 'Copiar'}
+            </button>
           </div>
-          <p className={styles.desc}>
-            Compartilhe esses dados com segurança — a pessoa pode trocar a senha depois de entrar.
-          </p>
-          <div className={styles.rows}>
-            {rows.map(r => (
-              <div key={r.key} className={styles.row}>
-                <div>
-                  <div className={styles.rowLabel}>{r.label}</div>
-                  <div className={styles.rowValue}>{r.value}</div>
-                </div>
-                <button className={styles.btnCopy} onClick={() => copy(r.key, r.value)} type="button">
-                  {copied === r.key ? <Icon name="check" size={14} /> : <Icon name="copy" size={14} />}
-                  {copied === r.key ? 'Copiado' : 'Copiar'}
-                </button>
-              </div>
-            ))}
-          </div>
-          <button className={styles.btnDone} onClick={onClose}>Entendi</button>
-        </div>
+        ))}
       </div>
-    </Portal>
+    </Modal>
   )
 }
