@@ -9,7 +9,7 @@ import { PageTitle } from '@/components/layout/PageTitle'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useWhatsAppState } from '@/hooks/useClinicData'
-import { useConversations, useMessages, useMediaUrls, useQuickReplies, type OutboxItem } from '@/hooks/useWhatsAppInbox'
+import { useConversations, useMessages, useMediaUrls, useQuickReplies, type OutboxItem, type WaMessage } from '@/hooks/useWhatsAppInbox'
 import { whatsappApi } from '@/components/configuracoes/whatsappApi'
 import { ConversationList, type InboxFilter } from '@/components/mensagens/ConversationList'
 import { ChatPane } from '@/components/mensagens/ChatPane'
@@ -94,10 +94,33 @@ function Inbox() {
       setOutbox(o => o.map(x => x.id === id ? { ...x, status: 'sending', error: '' } : x))
       try {
         await whatsappApi('/api/whatsapp/conversations/send-media', { method: 'POST', body: form })
-        // espera a mensagem de verdade chegar à conversa antes de tirar a provisória (sem piscar)
+        // Espera a mensagem real chegar ao cache antes de remover a bolha provisória
         await qc.invalidateQueries({ queryKey: ['wa-msgs', base.convId] })
         qc.invalidateQueries({ queryKey: ['wa-convs', clinicId] })
-        dispose()
+        // Semeia a pré-visualização local (blob) no cache de useMediaUrls para que a mensagem
+        // real apareça com imagem imediatamente, sem piscar em "Preparando o arquivo…".
+        // Só imagens têm previewUrl; documentos e áudio não têm e não precisam (sem blob a semear).
+        if (base.previewUrl) {
+          const msgs = qc.getQueryData<WaMessage[]>(['wa-msgs', base.convId]) ?? []
+          const ids = msgs.filter(m => m.media_status === 'ready').slice(-60).map(m => m.id)
+          // Última mensagem de saída com o mesmo tipo: é a que acabou de ser enviada
+          const justSent = [...msgs].reverse().find(
+            m => m.direction === 'out' && m.kind === base.kind && m.media_status === 'ready',
+          )
+          if (justSent) {
+            qc.setQueryData<Record<string, string>>(
+              ['wa-media', base.convId, ids.join(',')],
+              old => ({ ...(old ?? {}), [justSent.id]: base.previewUrl! }),
+            )
+            // Revoga o object URL após useMediaUrls ter recarregado com as URLs assinadas reais.
+            // staleTime do hook = 10 min; 12 min garantem margem.
+            setTimeout(() => URL.revokeObjectURL(base.previewUrl!), 12 * 60_000)
+          } else {
+            dispose()
+          }
+        } else {
+          dispose()
+        }
         setOutbox(o => o.filter(x => x.id !== id))
       } catch (e) {
         const error = e instanceof Error ? e.message : 'Não foi possível enviar. Tente de novo.'

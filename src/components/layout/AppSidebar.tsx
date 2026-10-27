@@ -23,10 +23,10 @@ const NAV = [
   { path: '/relatorios',    label: 'Relatórios',    icon: 'reports'    as const, plusOnly: false },
   { path: '/metas',         label: 'Metas',         icon: 'target'     as const, plusOnly: false },
   { path: '/estoque',       label: 'Estoque',       icon: 'stock'      as const, plusOnly: false },
-  { path: '/equipe',        label: 'Equipe',        icon: 'team'       as const, plusOnly: false },
   { path: '/mensagens',     label: 'Mensagens',     icon: 'chat'       as const, plusOnly: false, module: 'crm' as string | undefined },
   { path: '/crm',           label: 'CRM',           icon: 'crm'        as const, plusOnly: false },
   { path: '/campanhas',     label: 'Campanhas',     icon: 'campaigns'  as const, plusOnly: true  },
+  { path: '/equipe',        label: 'Equipe',        icon: 'team'       as const, plusOnly: false },
   { path: '/configuracoes', label: 'Configurações', icon: 'settings'   as const, plusOnly: false },
 ]
 

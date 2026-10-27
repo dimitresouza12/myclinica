@@ -21,7 +21,7 @@ const KIND_TITLE: Record<WaMessage['kind'], string> = {
 
 interface MediaHandlers {
   urls: Record<string, string>
-  onOpenImage: (url: string, name: string) => void
+  onOpenMedia: (url: string, name: string, kind: 'image' | 'video') => void
   onRetry: (messageId: string) => Promise<string | null>
   onDownload: (messageId: string) => Promise<string | null>
 }
@@ -79,7 +79,7 @@ function Bubble({ m, timezone, now, media, canAct, onEdit, onDelete }: {
       {deleted ? <span className={styles.deleted}>Mensagem apagada</span> : (
         <>
           {hasFile
-            ? <MediaBubble m={m} url={media.urls[m.id]} onOpenImage={media.onOpenImage} onRetry={media.onRetry} onDownload={media.onDownload} />
+            ? <MediaBubble m={m} url={media.urls[m.id]} onOpenMedia={media.onOpenMedia} onRetry={media.onRetry} onDownload={media.onDownload} />
             : isMedia && <span className={styles.mediaTitle}>{KIND_TITLE[m.kind]}</span>}
           {editing ? (
             <span className={styles.editBox}>
@@ -122,7 +122,7 @@ function Bubble({ m, timezone, now, media, canAct, onEdit, onDelete }: {
 function OutboxBubble({ item, onRetry, onDiscard }: { item: OutboxItem; onRetry: () => void; onDiscard: () => void }) {
   const failed = item.status === 'failed'
   return (
-    <div className={`${styles.b} ${styles.out} ${failed ? styles.outFailed : styles.outSending}`} aria-live="polite">
+    <div className={`${styles.b} ${styles.out} ${failed ? styles.outFailed : ''}`} aria-live="polite">
       {item.kind === 'image' && item.previewUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img className={styles.img} src={item.previewUrl} alt="Imagem sendo enviada" />
@@ -146,13 +146,11 @@ function OutboxBubble({ item, onRetry, onDiscard }: { item: OutboxItem; onRetry:
       )}
       {item.caption}
       {failed && <span className={styles.mediaError} role="alert">{item.error}</span>}
-      {failed ? (
+      {failed && (
         <span className={styles.editActions}>
           <button type="button" className={styles.mediaBtn} onClick={onDiscard}>Descartar</button>
           <button type="button" className={styles.mediaBtn} onClick={onRetry}>Tentar de novo</button>
         </span>
-      ) : (
-        <span className={styles.time}><span className={styles.sendingDots}>Enviando</span></span>
       )}
     </div>
   )
@@ -201,7 +199,7 @@ export function ChatPane(p: Props) {
   const [fileError, setFileError] = useState('')
   const file = attached?.file ?? null
   const preview = attached?.preview ?? null
-  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
+  const [lightbox, setLightbox] = useState<{ url: string; name: string; kind: 'image' | 'video' } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const recorder = useVoiceRecorder()
   const msgsRef = useRef<HTMLDivElement>(null)
@@ -298,15 +296,17 @@ export function ChatPane(p: Props) {
         {p.loading && p.messages.length === 0 && <div className={styles.day}>Carregando mensagens…</div>}
         {items.map(i => i.type === 'day'
           ? <div key={`d-${i.key}`} className={styles.day}>{i.label}</div>
-          : <Bubble key={i.msg.id} m={i.msg} timezone={p.timezone} now={p.now} canAct={p.canSend} onEdit={p.onEditMessage} onDelete={p.onDeleteMessage} media={{ urls: p.mediaUrls, onOpenImage: (url, name) => setLightbox({ url, name }), onRetry: p.onRetryMedia, onDownload: p.onDownloadMedia }} />)}
+          : <Bubble key={i.msg.id} m={i.msg} timezone={p.timezone} now={p.now} canAct={p.canSend} onEdit={p.onEditMessage} onDelete={p.onDeleteMessage} media={{ urls: p.mediaUrls, onOpenMedia: (url, name, kind) => setLightbox({ url, name, kind }), onRetry: p.onRetryMedia, onDownload: p.onDownloadMedia }} />)}
         {p.outbox.map(o => <OutboxBubble key={o.id} item={o} onRetry={() => p.onRetryOutbox(o.id)} onDiscard={() => p.onDiscardOutbox(o.id)} />)}
       </div>
 
       {lightbox && (
         <div className={styles.lightbox} role="dialog" aria-modal="true" aria-label={lightbox.name} onClick={() => setLightbox(null)}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className={styles.lightboxImg} src={lightbox.url} alt={lightbox.name} onClick={e => e.stopPropagation()} />
-          <button type="button" className={styles.lightboxClose} onClick={() => setLightbox(null)} aria-label="Fechar imagem" autoFocus><Icon name="close" size={20} /></button>
+          {lightbox.kind === 'video'
+            ? <video className={styles.lightboxVideo} src={lightbox.url} controls autoPlay playsInline onClick={e => e.stopPropagation()} />
+            // eslint-disable-next-line @next/next/no-img-element
+            : <img className={styles.lightboxImg} src={lightbox.url} alt={lightbox.name} onClick={e => e.stopPropagation()} />}
+          <button type="button" className={styles.lightboxClose} onClick={() => setLightbox(null)} aria-label="Fechar" autoFocus><Icon name="close" size={20} /></button>
         </div>
       )}
 

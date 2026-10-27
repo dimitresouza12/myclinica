@@ -10,7 +10,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Este projeto tem uma base de conhecimento persistente **fora do repo**, num vault Obsidian:
 
 ```
-/Users/dimitre/Library/CloudStorage/GoogleDrive-dimitresouza12@gmail.com/Meu Drive/Cérebro IA/MyClinica/
+/Users/dimitre/Library/CloudStorage/GoogleDrive-dimitresouza12@gmail.com/Meu Drive/Cérebro IA/03 Projetos/MyClinica/
 ```
 
 Ela existe para o contexto sobreviver entre ferramentas (Claude Code, Codex, o que vier depois) e entre sessões — nenhuma delas tem memória própria persistente do projeto, então essa pasta é a fonte combinada.

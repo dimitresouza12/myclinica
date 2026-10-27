@@ -14,13 +14,13 @@ interface Props {
   m: WaMessage
   /** link temporário do arquivo, quando já disponível */
   url: string | undefined
-  onOpenImage: (url: string, name: string) => void
+  onOpenMedia: (url: string, name: string, kind: 'image' | 'video') => void
   onRetry: (messageId: string) => Promise<string | null>
   onDownload: (messageId: string) => Promise<string | null>
 }
 
 /** O arquivo de uma mensagem: imagem, áudio, vídeo, documento ou figurinha, com o estado em que ele está. */
-export function MediaBubble({ m, url, onOpenImage, onRetry, onDownload }: Props) {
+export function MediaBubble({ m, url, onOpenMedia, onRetry, onDownload }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const thumb = m.media_thumb ? `data:image/jpeg;base64,${m.media_thumb}` : null
@@ -64,7 +64,7 @@ export function MediaBubble({ m, url, onOpenImage, onRetry, onDownload }: Props)
   if (m.kind === 'image' || m.kind === 'sticker') {
     const label = m.kind === 'sticker' ? 'Figurinha' : 'Imagem'
     return (
-      <button type="button" className={styles.imgBtn} onClick={() => onOpenImage(url, m.media_name ?? label)} aria-label={`Abrir ${label.toLowerCase()} em tamanho grande`}>
+      <button type="button" className={styles.imgBtn} onClick={() => onOpenMedia(url, m.media_name ?? label, 'image')} aria-label={`Abrir ${label.toLowerCase()} em tamanho grande`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className={m.kind === 'sticker' ? styles.sticker : styles.img} src={url} alt={label} loading="lazy" />
       </button>
@@ -77,10 +77,14 @@ export function MediaBubble({ m, url, onOpenImage, onRetry, onDownload }: Props)
 
   if (m.kind === 'video') {
     return (
-      <div className={styles.mediaBox}>
-        <video className={styles.video} controls preload="metadata" src={url} poster={thumb ?? undefined} />
-        {m.media_seconds ? <span className={styles.media}>Vídeo ({formatDuration(m.media_seconds)})</span> : null}
-      </div>
+      <button type="button" className={styles.videoBtn} onClick={() => onOpenMedia(url, m.media_name ?? 'Vídeo', 'video')} aria-label="Abrir vídeo">
+        {thumb
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img className={styles.video} src={thumb} alt="" />
+          : <video className={styles.video} src={url} muted preload="metadata" playsInline />}
+        <span className={styles.videoPlay} aria-hidden="true"><Icon name="play" size={22} /></span>
+        {m.media_seconds ? <span className={styles.videoDuration}>{formatDuration(m.media_seconds)}</span> : null}
+      </button>
     )
   }
 
