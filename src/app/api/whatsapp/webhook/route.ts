@@ -34,7 +34,8 @@ export async function POST(req: Request) {
       const u = extractStatusUpdate(data)
       if (u) await applyStatusUpdate(instance, u)
     } else if (event === 'connection.update') {
-      if (extractConnectionUpdate(data).state) await getConnectionByInstance(instance)
+      const { state: connState } = extractConnectionUpdate(data)
+      if (connState) await getConnectionByInstance(instance, connState)
     }
   } catch (e) {
     console.error('[whatsapp/webhook]', e instanceof Error ? e.message : e)
