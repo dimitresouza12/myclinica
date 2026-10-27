@@ -1,275 +1,67 @@
-/* ── Layout ── */
+/* ── Layout: branco com manchas de teal desfocadas atrás ── */
 .page {
+  position: relative;
+  isolation: isolate;
   min-height: 100dvh;
   display: flex;
   align-items: stretch;
-  background:
-    radial-gradient(120% 90% at 5% 0%,   #EAFBF6 0%, rgba(234,251,246,0) 62%),
-    radial-gradient(90% 80%  at 98% 96%, #E4F6F2 0%, rgba(228,246,242,0) 60%),
-    #FBFDFC;
+  overflow: hidden;
+  background: #FFFFFF;
+  color: #06312B;
 }
+.bg { position: absolute; inset: -14%; z-index: -2; filter: blur(90px); pointer-events: none; }
+.bg i { position: absolute; border-radius: 50%; opacity: 0.5; }
+.bg i:nth-child(1) { width: 58vw; height: 58vw; left: -10vw; top: -22vw; background: #4DD9C0; }
+.bg i:nth-child(2) { width: 62vw; height: 62vw; right: -14vw; bottom: -26vw; background: #4DD9C0; }
+.bg i:nth-child(3) { width: 34vw; height: 34vw; right: 8vw; top: 14vw; background: #8CF0E6; }
 
-/* Coluna esquerda — informações */
+/* Traço do batimento do logo: se desenha uma vez ao abrir; é o único movimento da tela */
+.ecg { position: absolute; left: 0; right: 0; top: 38%; width: 100%; height: 12vw; z-index: -1; opacity: 0.35; pointer-events: none; }
+.ecg path { stroke: #0FA891; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: 1; animation: ecgDraw 2.4s ease-out 0.2s forwards; }
+@keyframes ecgDraw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .ecg path { animation: none; stroke-dashoffset: 0; } }
+
+/* Marca e frase, à esquerda do cartão (só no computador) */
 .left {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 2.5rem 3rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.leftLogo {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  margin-bottom: 2rem;
-  position: relative;
-  z-index: 1;
-}
-
-.leftLogoImg {
-  border-radius: 8px;
-  flex-shrink: 0;
-}
-
-.leftLogoName {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: #0B1F1C;
-  letter-spacing: -0.3px;
-}
-.leftLogoName strong { color: #4DD9C0; }
-
-.leftKicker {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #0D9488;
-  margin-bottom: 1.1rem;
-  position: relative;
-  z-index: 1;
-}
-.leftKickerLine {
-  flex: 1;
-  max-width: 90px;
-  height: 1px;
-  background: linear-gradient(90deg, #DCEBE7, transparent);
-}
-
-.leftHeadline {
-  font-family: var(--font-newsreader), 'Georgia', serif;
-  font-size: clamp(1.85rem, 3vw, 2.6rem);
-  font-weight: 400;
-  color: #0B1F1C;
-  line-height: 1.1;
-  letter-spacing: -0.8px;
-  margin-bottom: 1rem;
-  position: relative;
-  z-index: 1;
-}
-.leftHeadline em {
-  font-style: italic;
-  color: #0F766E;
-}
-
-.leftSub {
-  font-size: 0.9rem;
-  color: #5F7C78;
-  line-height: 1.6;
-  max-width: 400px;
-  margin-bottom: 1.5rem;
-  position: relative;
-  z-index: 1;
-}
-
-.features {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.55rem;
-  max-width: 500px;
-  margin-bottom: 1.6rem;
-  position: relative;
-  z-index: 1;
-}
-
-.feature {
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: #0F766E;
-  background: rgba(77,217,192,0.12);
-  border: 1px solid rgba(13,148,136,0.14);
-  padding: 0.32rem 0.75rem;
-  border-radius: 100px;
-}
-
-.trust {
-  font-size: 0.83rem;
-  color: #5F7C78;
-  line-height: 1.5;
-  position: relative;
-  z-index: 1;
-}
-.trust strong { color: #0B1F1C; font-weight: 600; }
-
-.leftPulse {
-  display: block;
-  width: 100%;
-  max-width: 430px;
-  height: 34px;
-  margin: 1.4rem 0 1.1rem;
-  opacity: 0.5;
-  pointer-events: none;
-  position: relative;
-  z-index: 1;
-}
-
-/* ── Promoções ── */
-.promos {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-/* Card Copa */
-.promoCopa {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, #14532d 0%, #166534 100%);
-  border-radius: 14px;
-  box-shadow: 0 4px 16px rgba(21,128,61,0.3);
-}
-
-.promoCopaLeft {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  flex-shrink: 0;
-}
-
-.promoCopaEmoji {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #FFD700;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-}
-
-.promoCopaTag {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: #86efac;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 0.15rem;
-}
-
-.promoCopaHeadline {
-  font-size: 0.9rem;
-  color: #fff;
-  line-height: 1.2;
-}
-.promoCopaHeadline strong { font-weight: 800; font-size: 1.05rem; }
-
-.promoCopaRight {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-  flex-shrink: 0;
-}
-
-.promoCopaCouponLabel {
-  font-size: 0.6rem;
-  color: #86efac;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.promoCopaCoupon {
-  background: #fff;
-  color: #14532d;
-  font-weight: 900;
-  font-size: 0.88rem;
-  letter-spacing: 0.12em;
-  padding: 0.25rem 0.7rem;
-  border-radius: 7px;
-  font-family: 'Courier New', monospace;
-  border: 2px dashed #4ade80;
-}
-
-/* Card Indicação — discreto, dentro da paleta (não compete com o CTA principal) */
-.promoIndica {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.65rem 1rem;
-  background: rgba(77,217,192,0.07);
-  border: 1px solid rgba(13,148,136,0.16);
-  border-radius: 12px;
-}
-
-.promoIndicaBody {
-  flex: 1;
   min-width: 0;
-}
-
-.promoIndicaTag {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: #0F766E;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 0.2rem;
-}
-
-.promoIndicaDesc {
-  font-size: 0.76rem;
-  color: #5F7C78;
-  line-height: 1.45;
-}
-
-.promoIndicaBtn {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  flex-shrink: 0;
-  min-height: 44px;
-  background: #fff;
-  color: #0F766E;
-  font-size: 0.76rem;
-  font-weight: 600;
-  padding: 0.5rem 0.9rem;
-  border-radius: 9px;
-  border: 1px solid rgba(13,148,136,0.25);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: border-color 0.15s, color 0.15s;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2.5rem 3rem 3.5rem;
+  position: relative;
 }
-.promoIndicaBtn:hover {
-  border-color: #0D9488;
-  color: #0D9488;
+.leftLogo { display: flex; align-items: center; gap: 0.65rem; text-decoration: none; }
+.leftLogoImg { border-radius: 9px; }
+.leftLogoName { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.4px; color: #06312B; }
+.leftLogoName strong { font-weight: 800; color: #077A69; }
+.leftHeadline { margin: 0; font-size: clamp(2rem, 3.4vw, 3rem); line-height: 1.1; font-weight: 800; letter-spacing: -0.03em; max-width: 14ch; color: #06312B; text-wrap: balance; }
+
+/* "Teste grátis": demonstração do sistema, desfocada, atrás do quiz */
+.demoStage { position: absolute; inset: 0; z-index: -1; filter: blur(9px) saturate(1.1); transform: scale(1.03); }
+.demoStage::after { content: ''; position: absolute; inset: 0; background: rgba(255, 255, 255, 0.12); }
+.demoNote {
+  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 2;
+  font-size: 0.75rem; font-weight: 600; color: #06312B; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.75); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.9); padding: 4px 12px; border-radius: 999px;
 }
+.pageDemo .right { width: 100%; flex: 1; padding: 1.5rem; }
+.pageDemo .wrap { max-width: 460px; }
+.pageDemo .card { max-height: calc(100dvh - 3rem); overflow-y: auto; }
+
+.referral { display: block; margin-top: 1rem; text-align: center; font-size: 0.8rem; font-weight: 600; color: #077A69; text-decoration: none; }
+.referral:hover { text-decoration: underline; }
+.referral:focus-visible { outline: 2px solid #06312B; outline-offset: 3px; border-radius: 4px; }
 
 /* Divisor — oculto */
 .divider { display: none; }
 
 /* Coluna direita — formulário */
 .right {
-  width: 460px;
+  position: relative;
+  z-index: 1;
+  width: 520px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -288,12 +80,19 @@
 
 .card {
   width: 100%;
-  background: #ffffff;
-  border: 1px solid #e8edf2;
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
   padding: 2.5rem 2.25rem;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+  box-shadow: 0 0 0 1px rgba(6, 74, 66, 0.07), 0 24px 60px rgba(6, 74, 66, 0.16);
 }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card { background: rgba(255, 255, 255, 0.92); }
+}
+/* no computador a marca já está à esquerda do cartão */
+.cardLogin .brand { display: none; }
 
 .brand {
   text-align: center;
@@ -321,11 +120,11 @@
   letter-spacing: -0.4px;
   font-weight: 600;
 }
-.brandName strong { font-weight: 800; color: #4DD9C0; }
+.brandName strong { font-weight: 800; color: #077A69; }
 
 .brandSub {
   font-size: 0.8rem;
-  color: #94a3b8;
+  color: #4D6B69;
   margin-top: 0.15rem;
 }
 
@@ -350,19 +149,19 @@
 
 .field input {
   padding: 0.7rem 0.9rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #C9D9D7;
   border-radius: 9px;
-  background: #f8fafc;
+  background: rgba(255, 255, 255, 0.75);
   color: #0f172a;
   font-size: 0.9rem;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   outline: none;
 }
-.field input::placeholder { color: #cbd5e1; }
+.field input::placeholder { color: #5B7573; }
 .field input:focus {
-  border-color: #0D9488;
+  border-color: #077A69;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(13,148,136,0.10);
+  box-shadow: 0 0 0 3px rgba(7, 122, 105, 0.18);
 }
 
 .error {
@@ -381,29 +180,30 @@
   gap: 0.4rem;
   min-height: 44px;
   padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, #0D9488 0%, #0f9d8e 100%);
-  color: #fff;
+  background: #4DD9C0;
+  color: #06312B;
   border: none;
   border-radius: 9px;
   font-size: 0.92rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+  transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
   margin-top: 0.25rem;
   letter-spacing: 0.01em;
-  box-shadow: 0 4px 14px rgba(13,148,136,0.3);
+  box-shadow: 0 6px 18px rgba(77, 217, 192, 0.45);
 }
 .btn:hover:not(:disabled) {
-  opacity: 0.92;
+  background: #43CDB5;
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(13,148,136,0.35);
+  box-shadow: 0 8px 22px rgba(77, 217, 192, 0.55);
 }
+.btn:focus-visible { outline: 2px solid #06312B; outline-offset: 2px; }
 .btn:active:not(:disabled) { transform: translateY(0); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .step {
   font-size: 0.78rem;
-  color: #0D9488;
+  color: #077A69;
   text-align: center;
   font-weight: 500;
 }
@@ -434,8 +234,6 @@
 
 /* Mode tabs — não usados, mantidos para compatibilidade */
 .modeTabs { display: none; }
-.modeTab { display: none; }
-.modeTabActive { display: none; }
 
 /* Select */
 .field select {
@@ -450,14 +248,6 @@
 }
 .field select option { background: #fff; color: #0f172a; }
 .field select:focus { border-color: #0D9488; }
-
-/* Registration helpers */
-.regNote {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  text-align: center;
-  line-height: 1.5;
-}
 
 /* Success state */
 .successBox {
@@ -524,7 +314,7 @@
   box-shadow: 0 0 0 1px #0D9488;
 }
 .planLabel  { font-size: 0.82rem; font-weight: 700; color: #0f172a; }
-.planPrice  { font-size: 0.72rem; font-weight: 600; color: #0D9488; }
+.planPrice  { font-size: 0.72rem; font-weight: 600; color: #077A69; }
 .planDesc   { font-size: 0.62rem; color: #94a3b8; line-height: 1.4; margin-top: 0.15rem; }
 
 /* Clinic type grid */
@@ -623,7 +413,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #0D9488;
+  color: #077A69;
 }
 
 .quizQuestion {
@@ -668,26 +458,16 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #0D9488;
+  color: #077A69;
 }
 .quizOptionIcon svg {
   width: 18px;
   height: 18px;
 }
-
-.quizOptionText {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
 .quizOptionLabel {
   font-size: 0.88rem;
   font-weight: 600;
   color: #0f172a;
-}
-.quizOptionDesc {
-  font-size: 0.75rem;
-  color: #94a3b8;
 }
 
 /* Resultado */
@@ -737,7 +517,7 @@
 }
 .quizAltBtn:hover {
   border-color: #0D9488;
-  color: #0D9488;
+  color: #077A69;
   background: rgba(13,148,136,0.04);
 }
 
@@ -768,7 +548,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #0D9488;
+  color: #077A69;
   background: rgba(13,148,136,0.1);
   border-radius: 999px;
   padding: 0.12rem 0.55rem;
@@ -789,19 +569,19 @@
   gap: 0.2rem;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #0D9488;
+  color: #077A69;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .madeby {
   font-size: 0.72rem;
-  color: #cbd5e1;
+  color: #4D6B69;
   text-align: center;
   margin-top: 0;
 }
 .madebyLink {
-  color: #0D9488;
+  color: #077A69;
   text-decoration: none;
   font-weight: 500;
   transition: color 0.15s;
@@ -817,7 +597,7 @@
   min-width: 44px;
   background: none;
   border: none;
-  color: #0D9488;
+  color: #077A69;
   font-size: 0.8rem;
   cursor: pointer;
   text-align: center;
@@ -835,7 +615,7 @@
 
 .slugHint {
   font-size: 0.7rem;
-  color: #0D9488;
+  color: #077A69;
   margin-top: 0.2rem;
   font-family: monospace;
 }
@@ -849,7 +629,7 @@
   padding: 0.6rem 0.75rem;
   line-height: 1.5;
 }
-.dedupHint strong { color: #0D9488; }
+.dedupHint strong { color: #077A69; }
 
 .statusBtnGroup {
   display: flex;
@@ -899,7 +679,7 @@
 .termsLink {
   background: none;
   border: none;
-  color: #0D9488;
+  color: #077A69;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -970,7 +750,7 @@
 .termsBody h3 {
   font-size: 0.875rem;
   font-weight: 700;
-  color: #0D9488;
+  color: #077A69;
   margin: 1.25rem 0 0.4rem;
 }
 .termsBody h3:first-of-type { margin-top: 0.5rem; }
@@ -997,25 +777,29 @@
 .registerOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(6, 49, 43, 0.28);
   z-index: 50;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .registerModal {
-  background: #ffffff;
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
   width: 100%;
   max-width: 520px;
   max-height: 90dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 0 0 1px rgba(6, 74, 66, 0.07), 0 24px 60px rgba(6, 74, 66, 0.22);
 }
 
 .registerModalHeader {
@@ -1037,7 +821,7 @@
 
 .registerModalPlan {
   font-size: 0.8rem;
-  color: #0D9488;
+  color: #077A69;
   font-weight: 600;
   margin: 0.15rem 0 0;
 }
@@ -1050,7 +834,7 @@
   border: none;
   cursor: pointer;
   font-size: 1rem;
-  color: #94a3b8;
+  color: #4D6B69;
   padding: 0.1rem 0.3rem;
   border-radius: 6px;
   line-height: 1;
@@ -1068,15 +852,12 @@
   padding: 1.5rem 1.75rem;
 }
 
-/* Promos mobile — ocultas no desktop */
-.promosMobile {
-  display: none;
-}
-
-/* Responsive */
+/* Responsivo */
 @media (max-width: 860px) {
   .page { flex-direction: column; align-items: center; }
-  .left { display: none; }
+  /* some da vista, mas segue no leitor de tela (o título da página) */
+  .left { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .cardLogin .brand { display: block; }
   .right {
     width: 100%;
     padding: 2rem 1.25rem;
@@ -1084,13 +865,6 @@
     justify-content: center;
   }
   .wrap { max-width: 400px; }
-
-  .promosMobile {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-top: 1rem;
-    width: 100%;
-  }
+  .pageDemo .right { padding: 1rem; }
+  .pageDemo .card { padding: 2rem 1.25rem; max-height: calc(100dvh - 2rem); }
 }
-

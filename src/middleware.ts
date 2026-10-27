@@ -82,6 +82,8 @@ export async function middleware(request: NextRequest) {
 
   const isPublicPath =
     pathname.startsWith('/login') ||
+    // demonstração do "Teste grátis": dados fictícios fixos, nunca toca o banco
+    pathname.startsWith('/experimentar') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/trial-expirado') ||
     pathname.startsWith('/financial-demo') ||

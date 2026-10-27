@@ -1,0 +1,10 @@
+/* Dashboard de exemplo, só de fundo: ocupa o contêiner da página e fica desfocado por quem o usa */
+.shell { position: absolute; inset: 0; display: flex; overflow: hidden; background: var(--bg-page); color: var(--text-primary); pointer-events: none; }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px; padding: 28px 32px; overflow: hidden; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.row { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 18px; }
+@media (max-width: 1100px) { .row { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 768px) {
+  .main { padding: 20px 16px; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
