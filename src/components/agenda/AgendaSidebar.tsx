@@ -11,13 +11,16 @@ interface Props {
   unassignedCount: number
   hiddenIds: Set<string>
   onToggle: (id: string) => void
+  /** abre a agenda só desse profissional */
+  onFocus: (id: string) => void
+  /** profissional cuja agenda exclusiva está aberta */
+  focusedId: string | null
   /** o que o contador de cada profissional conta ("na semana", "no dia", "no mês") */
-  scopeLabel: string
   today: DaySummary
 }
 
-/** Profissionais com caixa de seleção (mostra ou esconde na grade) e o resumo de hoje. */
-export function AgendaSidebar({ professionals, unassignedCount, hiddenIds, onToggle, scopeLabel, today }: Props) {
+/** Profissionais com caixa de seleção (mostra ou esconde na grade), o nome que abre a agenda só dele e o resumo de hoje. */
+export function AgendaSidebar({ professionals, unassignedCount, hiddenIds, onToggle, onFocus, focusedId, today }: Props) {
   const rows: { id: string; name: string; initials: string; color: string; count: number }[] = [...professionals]
   if (unassignedCount > 0 || hiddenIds.has('')) rows.push({ id: '', name: 'Sem profissional', initials: '–', color: 'var(--text-tertiary)', count: unassignedCount })
   const lines: { tone: 'ok' | 'wait' | 'idle' | 'warn'; text: string }[] = []
@@ -40,7 +43,16 @@ export function AgendaSidebar({ professionals, unassignedCount, hiddenIds, onTog
                     <span className={styles.box} aria-hidden="true" />
                     <span className={styles.avatar} style={{ background: p.color }}>{p.initials}</span>
                     <span className={styles.who}>
-                      <span className={styles.name}>{p.name}</span>
+                      {p.id ? (
+                        <button
+                          type="button"
+                          className={`${styles.nameBtn}${focusedId === p.id ? ` ${styles.nameBtnOn}` : ''}`}
+                          title={`Ver só a agenda de ${p.name}`}
+                          onClick={e => { e.preventDefault(); onFocus(p.id) }}
+                        >{p.name}</button>
+                      ) : (
+                        <span className={styles.name}>{p.name}</span>
+                      )}
                       <span className={styles.count}>{p.count} {p.count === 1 ? 'consulta' : 'consultas'}</span>
                     </span>
                   </label>
@@ -48,7 +60,6 @@ export function AgendaSidebar({ professionals, unassignedCount, hiddenIds, onTog
               )
             })}
           </ul>
-          <p className={styles.scope}>Contagem {scopeLabel}</p>
         </Card>
       )}
       <Card title="Hoje">

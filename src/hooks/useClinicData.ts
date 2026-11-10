@@ -59,7 +59,7 @@ interface DashboardStats {
   avgTicket: number
 }
 export interface RevenueByCategory { category: string; value: number }
-export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario' | 'estoque_baixo' | 'pediu_remarcacao' | 'respondeu' | 'whatsapp_pausado'
+export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario' | 'estoque_baixo' | 'pediu_remarcacao' | 'respondeu' | 'whatsapp_pausado' | 'escala_pendente'
 export interface DashboardAlert {
   patientId: string
   name: string
@@ -355,12 +355,25 @@ export function useAgendaData(clinicId: string | undefined, scopeProfessionalId:
       if (!clinicId) return { appointments: [], patients: [], confirmations: {} as Record<string, ConfirmationInfo> }
       const threeMonthsAgo = new Date()
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
-      let apptQuery = supabase.from('appointments').select('*, patients(id, name, phone), professionals(id, name)').eq('clinic_id', clinicId).gte('scheduled_at', threeMonthsAgo.toISOString()).order('scheduled_at', { ascending: true })
-      if (scopeProfessionalId) apptQuery = apptQuery.eq('professional_id', scopeProfessionalId)
+      // O banco devolve no máximo 1000 linhas por consulta: lê em páginas, senão as consultas mais futuras somem da agenda.
+      // O profissional restrito vê as próprias consultas e os bloqueios da clínica toda (sem profissional).
+      const fetchAppointments = async (): Promise<Appointment[]> => {
+        const PAGE = 1000
+        const out: Appointment[] = []
+        for (let from = 0; from < PAGE * 20; from += PAGE) {
+          let q = supabase.from('appointments').select('*, patients(id, name, phone), professionals(id, name)').eq('clinic_id', clinicId).gte('scheduled_at', threeMonthsAgo.toISOString()).order('scheduled_at', { ascending: true }).order('id', { ascending: true })
+          if (scopeProfessionalId) q = q.or(`professional_id.eq.${scopeProfessionalId},and(professional_id.is.null,status.eq.bloqueado)`)
+          const { data, error } = await q.range(from, from + PAGE - 1)
+          if (error) break
+          out.push(...((data ?? []) as Appointment[]))
+          if (!data || data.length < PAGE) break
+        }
+        return out
+      }
       // confirmações de WhatsApp só importam para consultas de ontem em diante
       const sinceConf = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      const [apptRes, patRes, confRes] = await Promise.all([
-        apptQuery,
+      const [appointments, patRes, confRes] = await Promise.all([
+        fetchAppointments(),
         supabase.from('patients').select('id, name, phone').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
         supabase.from('appointment_confirmations')
           .select('appointment_id, kind, status, sent_at, answered_at, error, created_at')
@@ -377,7 +390,7 @@ export function useAgendaData(clinicId: string | undefined, scopeProfessionalId:
         if (latest) confirmations[id] = latest
       }
       return {
-        appointments: (apptRes.data ?? []) as Appointment[],
+        appointments,
         patients: (patRes.data ?? []) as Patient[],
         confirmations,
       }
@@ -452,17 +465,25 @@ export function useEstoqueData(clinicId: string | undefined) {
 
 // ── Relatórios ────────────────────────────────────────────────────────────────
 
-export function useRelatoriosRawData(clinicId: string | undefined, period: string) {
+/** Janela de busca dos relatórios: o atalho antigo ('3m', '6m', '12m' = meses cheios até hoje) ou um intervalo [from, to) em ISO. */
+function reportWindow(period: string | { from: string; to: string }): { from: string; to: string | null } {
+  if (typeof period !== 'string') return period
+  const now = new Date()
+  const months = period === '3m' ? 3 : period === '6m' ? 6 : 12
+  return { from: new Date(now.getFullYear(), now.getMonth() - (months - 1), 1).toISOString(), to: null }
+}
+
+export function useRelatoriosRawData(clinicId: string | undefined, period: string | { from: string; to: string }) {
   return useQuery({
     queryKey: ['relatorios-raw', clinicId, period],
     queryFn: async () => {
       if (!clinicId) return { fins: [], appts: [], pats: [] }
-      const now = new Date()
-      const months = period === '3m' ? 3 : period === '6m' ? 6 : 12
-      const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1).toISOString()
+      const { from, to } = reportWindow(period)
+      const finQ = supabase.from('financial_records').select('total_amount,type,created_at,procedure_id').eq('clinic_id', clinicId).gte('created_at', from)
+      const apptQ = supabase.from('appointments').select('status,procedure_name,professional_id,patient_id,scheduled_at,patients(name)').eq('clinic_id', clinicId).gte('scheduled_at', from)
       const [finRes, apptRes, patRes] = await Promise.all([
-        supabase.from('financial_records').select('total_amount,type,created_at,procedure_id').eq('clinic_id', clinicId).gte('created_at', startDate),
-        supabase.from('appointments').select('status,procedure_name,professional_id,patient_id,scheduled_at,patients(name)').eq('clinic_id', clinicId).gte('scheduled_at', startDate),
+        to ? finQ.lt('created_at', to) : finQ,
+        to ? apptQ.lt('scheduled_at', to) : apptQ,
         supabase.from('patients').select('id,created_at,lgpd_consent').eq('clinic_id', clinicId).eq('is_active', true),
       ])
       return {
@@ -491,20 +512,18 @@ export interface CommissionEntryRow {
   } | null
 }
 
-export function useCommissionsData(clinicId: string | undefined, period: string) {
+export function useCommissionsData(clinicId: string | undefined, period: string | { from: string; to: string }) {
   return useQuery({
     queryKey: ['comissoes-relatorio', clinicId, period],
     queryFn: async () => {
       if (!clinicId) return { entries: [] as CommissionEntryRow[] }
-      const now = new Date()
-      const months = period === '3m' ? 3 : period === '6m' ? 6 : 12
-      const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1).toISOString()
-      const { data } = await supabase
+      const { from, to } = reportWindow(period)
+      const q = supabase
         .from('commission_entries')
         .select('id, recipient_id, recipient_name, percent, amount, created_at, financial_records(procedure_id, patient_id, procedures(name), patients(name))')
         .eq('clinic_id', clinicId)
-        .gte('created_at', startDate)
-        .order('created_at', { ascending: false })
+        .gte('created_at', from)
+      const { data } = await (to ? q.lt('created_at', to) : q).order('created_at', { ascending: false })
       return { entries: (data ?? []) as unknown as CommissionEntryRow[] }
     },
     enabled: !!clinicId,

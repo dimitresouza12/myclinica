@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
-import { PageTitle } from '@/components/layout/PageTitle'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Icon } from '@/components/ui/Icon'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -22,6 +22,7 @@ const TIMEZONE = DEFAULT_SETTINGS.timezone
 
 function Inbox() {
   const clinicId = useAuthStore(s => s.clinic?.id)
+  const isDemo = useAuthStore(s => s.clinic?.demoMode === true)
   const qc = useQueryClient()
   const { canEdit } = usePermissions('crm')
   const { data: waState } = useWhatsAppState(clinicId)
@@ -214,13 +215,15 @@ function Inbox() {
   }
 
   const sendBlockedReason =
-    !canEdit ? 'Você não tem permissão para responder'
+    isDemo ? 'Envio desativado na conta de demonstração'
+    : !canEdit ? 'Você não tem permissão para responder'
     : !connected ? 'Reconecte o WhatsApp para responder'
     : null
 
   return (
     <>
-      <PageTitle title="Mensagens" mobileOnly />
+      {/* no celular o título já aparece na barra de cima (PageHeader o leva para lá); o bloco some para não ocupar espaço */}
+      <div className={styles.pageHead}><PageHeader title="Mensagens" /></div>
       <div className={styles.root} data-fullbleed>
         {everConnected && !connected && (
           <div className={styles.banner} role="alert">

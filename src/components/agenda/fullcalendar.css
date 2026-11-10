@@ -117,6 +117,11 @@
   background: color-mix(in srgb, var(--ev) 13%, var(--surface));
   color: var(--text-primary);
 }
+/* agendada (ainda sem confirmação): fundo neutro; só a faixa lateral leva a cor, para não sujar o tema escuro */
+.fc .fc-event.ev-agendado {
+  --fc-event-bg-color: var(--surface);
+  background: var(--surface);
+}
 .fc .fc-event.ev-cancelado .fc-event-title { text-decoration: line-through; opacity: 0.7; }
 .fc .fc-event:hover { filter: brightness(0.97); }
 [data-theme="dark"] .fc .fc-event:hover { filter: brightness(1.15); }
@@ -216,3 +221,35 @@
   .fc .fc-timegrid-event .fc-event-main { padding: 1px; }
   .fc .fc-col-header-cell-cushion { padding: 3px 1px; }
 }
+
+/* Escala do profissional em foco: faixas de fundo atrás das consultas */
+.fc .fc-bg-event.sched-off,
+.fc .fc-bg-event.sched-pending {
+  opacity: 1;
+  background: repeating-linear-gradient(135deg, transparent, transparent 6px, color-mix(in srgb, var(--text-tertiary) 16%, transparent) 6px, color-mix(in srgb, var(--text-tertiary) 16%, transparent) 7px);
+}
+.fc .fc-bg-event.sched-pending {
+  background: repeating-linear-gradient(135deg, transparent, transparent 6px, color-mix(in srgb, var(--st-wait) 24%, transparent) 6px, color-mix(in srgb, var(--st-wait) 24%, transparent) 7px);
+}
+
+/* Popover "+N mais" do Mês: segue o tema (o padrão do FullCalendar é branco com texto claro no escuro) */
+.fc .fc-popover {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  z-index: 20;
+}
+.fc .fc-popover-header {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.fc .fc-popover-close { color: var(--text-secondary); cursor: pointer; opacity: 1; }
+.fc .fc-popover-close:hover { color: var(--text-primary); }
+.fc .fc-popover-body { padding: 6px 8px 8px; max-height: 260px; overflow-y: auto; }
+.fc .fc-popover .fc-event-time,
+.fc .fc-popover .fc-event-title { color: var(--text-primary); }

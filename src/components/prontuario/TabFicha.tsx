@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { usePermissions } from '@/hooks/usePermissions'
+import { ownProfessionalLookup } from '@/lib/professionalScope'
 import type { Patient, MedicalRecord, RecordEntry, ClinicType, TreatmentPlanItem } from '@/types'
 import type { AuthClinic } from '@/types'
 import { printProntuario, printContrato, printOrcamento } from '@/lib/print'
@@ -66,14 +67,19 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
   // vê marcos do desenvolvimento). Vem de professionals.specialty (texto
   // livre), resolvido pelo clinic_user_id do login atual.
   const [myMedicoSpecialty, setMyMedicoSpecialty] = useState<string | null>(null)
+  // Resolvido por user.professionalId quando existe (na conta de demonstração é o profissional da
+  // área escolhida; numa clínica real é o mesmo vínculo clinic_user_id de antes) e, sem ele, pelo
+  // clinic_user_id do login.
+  const ownLookup = ownProfessionalLookup(user)
+  const ownLookupColumn = ownLookup?.column
+  const ownLookupValue = ownLookup?.value
   useEffect(() => {
-    if (!user?.clinicUserId || viewArea !== 'medico') { setMyMedicoSpecialty(null); return }
+    if (!ownLookupColumn || !ownLookupValue || viewArea !== 'medico') { setMyMedicoSpecialty(null); return }
     supabase.from('professionals').select('specialty')
-      .eq('clinic_id', clinicId).eq('clinic_user_id', user.clinicUserId)
+      .eq('clinic_id', clinicId).eq(ownLookupColumn, ownLookupValue)
       .maybeSingle()
       .then(({ data }) => setMyMedicoSpecialty(data?.specialty ?? null))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clinicId, user?.clinicUserId, viewArea])
+  }, [clinicId, ownLookupColumn, ownLookupValue, viewArea])
 
   // Bloco G: campos personalizados por área — se o profissional sente
   // falta de uma pergunta específica da prática dele, ele mesmo adiciona.

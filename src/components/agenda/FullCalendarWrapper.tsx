@@ -6,6 +6,7 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import googleCalendarPlugin from '@fullcalendar/google-calendar'
 import type { EventClickArg, DateSelectArg, DatesSetArg } from '@fullcalendar/core'
+import type { EventDropArg } from '@fullcalendar/core'
 import './fullcalendar.css'
 
 export interface CalendarEvent {
@@ -16,6 +17,10 @@ export interface CalendarEvent {
   /** cor sólida (eventos do Google Calendar); consultas usam `classNames` e as cores do tema */
   color?: string
   classNames?: string[]
+  /** 'background' pinta a faixa atrás das consultas (fora da escala); não é clicável nem arrastável */
+  display?: 'auto' | 'background'
+  /** false trava o arraste (bloqueios e consultas concluídas) */
+  startEditable?: boolean
   extendedProps: Record<string, unknown>
 }
 
@@ -39,6 +44,11 @@ interface Props {
   onTitleChange?: (title: string) => void
   /** período visível (fim exclusivo), a cada navegação, para o mini calendário e a contagem da agenda */
   onRangeChange?: (start: Date, end: Date) => void
+  /** consulta arrastada para outro horário ou dia; `revert` devolve o evento ao lugar */
+  onEventDrop?: (id: string, start: Date, revert: () => void) => void
+  /** horas visíveis na Semana ("07:00:00"); padrão 06:00 a 21:00 */
+  slotMinTime?: string
+  slotMaxTime?: string
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -54,7 +64,7 @@ export function statusColor(status: string) {
 }
 
 const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullCalendarWrapper(
-  { events, view, googleCalendarId, onEventClick, onDateSelect, onTitleChange, onRangeChange },
+  { events, view, googleCalendarId, onEventClick, onDateSelect, onTitleChange, onRangeChange, onEventDrop, slotMinTime = '06:00:00', slotMaxTime = '21:00:00' },
   ref
 ) {
   const GAPI_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
@@ -63,7 +73,7 @@ const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullC
   const eventSources = [
     { events },
     ...(googleCalendarId && GAPI_KEY
-      ? [{ googleCalendarId, className: 'gcal-event' }]
+      ? [{ googleCalendarId, className: 'gcal-event', editable: false }]
       : []),
   ]
 
@@ -88,6 +98,12 @@ const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullC
       nowIndicator
       selectable
       selectMirror
+      editable
+      eventDurationEditable={false}
+      eventDrop={(arg: EventDropArg) => {
+        if (arg.event.id && arg.event.start) onEventDrop?.(arg.event.id, arg.event.start, arg.revert)
+        else arg.revert()
+      }}
       select={(arg: DateSelectArg) => onDateSelect(arg.startStr)}
       eventClick={(arg: EventClickArg) => {
         arg.jsEvent.preventDefault()
@@ -132,8 +148,8 @@ const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullC
       dayMaxEvents={4}
       moreLinkText={n => `+${n} mais`}
       slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-      slotMinTime="06:00:00"
-      slotMaxTime="21:00:00"
+      slotMinTime={slotMinTime}
+      slotMaxTime={slotMaxTime}
       allDaySlot={false}
     />
   )

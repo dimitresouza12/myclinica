@@ -11,7 +11,7 @@ interface ModalProps {
   title: string
   /** Linha de contexto sob o título (ex.: "Botox · R$ 890,00") */
   subtitle?: string
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'wide'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'wide' | 'full'
   /** Botões de ação, alinhados à direita; fica fixo no pé enquanto o corpo rola */
   footer?: React.ReactNode
   /** false: sem botão de fechar e sem Esc nem clique no fundo (modal bloqueante, ex.: teste encerrado) */
@@ -53,6 +53,9 @@ export function Modal({ open, onClose, title, subtitle, size = 'md', footer, dis
     function onKey(e: KeyboardEvent) {
       // uma confirmação aberta por cima é quem responde ao Esc e ao Tab
       if (document.querySelector('[role="alertdialog"]')) return
+      // com um modal aberto sobre outro (ex.: detalhe do dente sobre o prontuário), só o de cima responde
+      const dialogs = document.querySelectorAll('[role="dialog"]')
+      if (dialogs.length > 1 && dialogs[dialogs.length - 1] !== panelRef.current) return
       if (e.key === 'Escape') {
         if (dismissibleRef.current) { e.stopPropagation(); onCloseRef.current() }
         return

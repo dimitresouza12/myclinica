@@ -83,6 +83,50 @@
   --st-warn: #EA580C;
   --st-bad:  #DC2626;
   --st-idle: #9BB5B3;
+
+  /* ─── Lote 1 da auditoria (2026-11): escalas de base. Aditivo: nada acima foi removido ─── */
+  /* Texto (rem sobre 16px; o body usa 15px, então use sempre estes tokens, não valores soltos) */
+  --fs-2xs:  0.6875rem; /* 11px: rótulo mínimo, legenda de gráfico */
+  --fs-xs:   0.75rem;   /* 12px: metadado, contador */
+  --fs-sm:   0.8125rem; /* 13px: texto secundário, badge, tabela densa */
+  --fs-md:   0.875rem;  /* 14px: texto de interface padrão, botão */
+  --fs-base: 1rem;      /* 16px: campo de formulário (evita zoom no iOS), corpo de leitura */
+  --fs-lg:   1.25rem;   /* 20px: título de seção e de modal */
+  --fs-xl:   1.75rem;   /* 28px: título de página */
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+
+  /* Espaçamento (base 4px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+
+  /* Camadas (z-index) */
+  --z-base:     0;
+  --z-sticky:   10;
+  --z-dropdown: 100;
+  --z-overlay:  900;
+  --z-modal:    1000;
+  --z-toast:    1100;
+
+  /* Largura máxima do conteúdo das páginas (Mensagens e Agenda podem ser exceção) */
+  --container-max: 1260px;
+
+  /* Perigo: um único vermelho (substitui #DC2626 e #EF4444 soltos) */
+  --danger:       #DC2626;
+  --danger-hover: #B91C1C;
+  --danger-text:  #B91C1C;                  /* texto vermelho sobre fundo claro (4,5:1+) */
+  --danger-soft:  rgba(220,38,38,0.10);     /* fundo suave de aviso/erro */
+  --st-info:      #2563EB;
+
+  /* Marca do WhatsApp: use só onde o botão/ícone é do próprio WhatsApp */
+  --whatsapp: #25D366;
 }
 
 /* ─── Dark mode ───────────────────────────────────────────────────── */
@@ -143,6 +187,10 @@
   --st-warn: #FB923C;
   --st-bad:  #F87171;
   --st-idle: #6B6B6B;
+
+  --danger-text: #F87171;
+  --danger-soft: rgba(248,113,113,0.14);
+  --st-info:     #60A5FA;
 }
 
 /* ─── Base ────────────────────────────────────────────────────────── */

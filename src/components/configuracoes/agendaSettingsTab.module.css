@@ -1,0 +1,31 @@
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.card { display: flex; flex-direction: column; gap: 14px; padding: 20px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 14px; }
+.title { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+.note { margin: 0; font-size: 0.84rem; line-height: 1.5; color: var(--text-secondary); max-width: 62ch; }
+
+.shifts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.shift { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 12px; }
+.shiftName { min-width: 0; }
+.remove {
+  min-height: 44px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.remove:hover:not(:disabled) { color: var(--st-bad); border-color: var(--st-bad); }
+.remove:disabled { opacity: 0.45; cursor: not-allowed; }
+.remove:focus-visible { outline: 2px solid var(--brand-primary, #4DD9C0); outline-offset: 2px; }
+
+.saveRow { display: flex; justify-content: flex-end; }
+
+@media (max-width: 600px) {
+  .card { padding: 16px; }
+  .shift { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .shiftName { grid-column: 1 / -1; }
+  .remove { grid-column: 1 / -1; }
+}

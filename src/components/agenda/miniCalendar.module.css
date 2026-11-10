@@ -28,9 +28,20 @@
 .out { color: var(--text-tertiary); }
 /* período em foco: faixa suave; hoje: círculo escuro */
 .on { background: var(--brand-light); border-radius: 10px; }
-.today { background: var(--ink); color: var(--on-ink); font-weight: 600; }
-.today:hover { background: var(--ink); }
+/* dia aberto (visão Dia): círculo cheio na cor da marca; hoje: só o contorno, para não brigar com ele */
+.selected { background: var(--brand-primary); color: #0D2421; font-weight: 600; border-radius: 999px; }
+.selected:hover { background: var(--brand-primary); }
+.today { box-shadow: inset 0 0 0 1.5px var(--text-primary); font-weight: 600; }
+.today.selected { box-shadow: none; }
 .dot { position: absolute; bottom: 3px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--brand-accent); }
-.today .dot { background: var(--on-ink); }
+.selected .dot, .today .dot { background: var(--text-primary); }
 [data-theme="dark"] .dot { background: var(--brand-primary); }
-[data-theme="dark"] .today .dot { background: var(--on-ink); }
+[data-theme="dark"] .selected .dot, .today .dot { background: var(--text-primary); }
+
+/* escala do profissional em foco: atende (verde claro), não atende (apagado), por definir (tracejado) */
+.toneOn { background: color-mix(in srgb, var(--brand-primary) 14%, transparent); }
+.toneOff { color: var(--text-tertiary); text-decoration: line-through; text-decoration-thickness: 1px; }
+.tonePending { box-shadow: inset 0 0 0 1px var(--st-wait, #D97706); border-style: dashed; }
+.on.toneOn, .on.toneOff, .on.tonePending { background: var(--brand-light); }
+
+.selected.toneOn, .selected.toneOff, .selected.tonePending { background: var(--brand-primary); }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireModulePerm } from '@/lib/whatsapp/auth'
+import { rejectIfDemo } from '@/lib/demoGuard'
 import { deleteOwnMessage } from '@/lib/whatsapp/conversations'
 import { rateLimit } from '@/lib/rateLimit'
 import { failure } from '../../_shared'
@@ -10,6 +11,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export async function POST(req: Request) {
   const ctx = await requireModulePerm(req, 'crm', true)
   if (ctx instanceof NextResponse) return ctx
+
+  const demo = await rejectIfDemo(ctx.clinicId)
+  if (demo) return demo
   if (!rateLimit(`wa-msg-delete:${ctx.userId}`, { limit: 20, windowMs: 60_000 }).success) {
     return NextResponse.json({ error: 'Muitas ações em pouco tempo. Aguarde um instante.' }, { status: 429 })
   }

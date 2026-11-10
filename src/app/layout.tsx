@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Nunito } from 'next/font/google'
 import { Providers } from '@/components/Providers'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
+// só o logotipo usa: ver components/login/Logotype.tsx
+const nunito = Nunito({ subsets: ['latin'], weight: '700', variable: '--font-nunito', display: 'swap' })
 
 export const metadata: Metadata = {
   title: 'My Clinica',
@@ -35,7 +37,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" className={nunito.variable} suppressHydrationWarning>
       <head>
         {/* Inline script runs before paint to avoid flash of wrong theme */}
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('myclinica-theme')||( window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t)}catch(e){}})()` }} />

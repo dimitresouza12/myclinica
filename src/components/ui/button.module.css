@@ -32,11 +32,15 @@
 .ghost { composes: base; background: transparent; color: var(--text-secondary); padding: 0 12px; }
 .ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text-primary); }
 
-.danger { composes: base; background: #DC2626; color: #FFFFFF; }
-.danger:hover:not(:disabled) { background: #B91C1C; }
+.danger { composes: base; background: var(--danger); color: #FFFFFF; }
+.danger:hover:not(:disabled) { background: var(--danger-hover); }
 
 .icon { composes: base; width: 40px; padding: 0; background: var(--surface); border-color: var(--border-color); color: var(--text-secondary); }
 .icon:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-tertiary); }
+
+/* extras do componente Button */
+.block { width: 100%; }
+.busy { cursor: progress; }
 
 @media (max-width: 768px) {
   .base { height: 44px; }

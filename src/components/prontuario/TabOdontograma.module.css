@@ -1,273 +1,266 @@
-.wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+/* ── Painel do odontograma: arcada 3D, análise, detalhes, histórico e recomendações ── */
+.board {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+.stageCard { grid-column: span 8; }
+.analysis  { grid-column: span 4; }
+.history   { grid-column: span 8; }
+.recs      { grid-column: span 4; }
+.saveRow   { grid-column: 1 / -1; }
+
+@container (max-width: 900px) {
+  .stageCard, .analysis, .history, .recs { grid-column: 1 / -1; }
 }
 
-/* ── Arcade ── */
-.arcade {
+.card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 1rem 0.75rem 0.875rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  box-shadow: var(--shadow-sm);
 }
-.arcadeLabel {
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-secondary);
-  align-self: flex-start;
-  padding: 0 0.25rem;
+.cardHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cardTitle { margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
+.empty { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--text-secondary); }
+.iconBtn {
+  display: grid; place-items: center; width: 36px; height: 36px; margin: -6px -8px -6px 0;
+  background: none; border: none; border-radius: 10px; color: var(--text-secondary); cursor: pointer;
 }
-.teethRow {
-  display: flex;
-  gap: 3px;
-  align-items: flex-end;
-}
-.midline {
-  width: 100%;
-  height: 2px;
-  background: linear-gradient(to right, transparent, var(--border-color) 20%, var(--border-color) 80%, transparent);
-  margin: 0.2rem 0;
-}
+.iconBtn:hover { background: var(--surface-2); color: var(--text-primary); }
+.miniLabel { margin: 0; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); }
+.srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* ── Individual tooth button ── */
-.toothBtn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 6px;
-  transition: transform 0.1s;
-}
-.toothBtn:hover { transform: translateY(-2px); }
-.toothBtnSelected { transform: translateY(-3px) !important; }
-.toothSvg {
-  width: 32px;
-  height: 52px;
-  display: block;
-  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.28)) drop-shadow(0 1px 1px rgba(0,0,0,0.16));
-  transition: filter 0.12s;
-}
-.toothBtn:hover .toothSvg {
-  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.34)) drop-shadow(0 1px 2px rgba(0,0,0,0.20));
-}
-.toothBtnSelected .toothSvg {
-  filter: drop-shadow(0 0 6px rgba(77,217,192,0.75)) drop-shadow(0 2px 4px rgba(0,0,0,0.24));
-}
-.toothNumber {
+/* ── Palco 3D ── */
+.stageCard {
   position: relative;
-  font-size: 0.58rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.noteMarker {
-  position: absolute;
-  top: -5px;
-  right: -7px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #0891b2;
-  border: 1px solid var(--bg-primary);
-}
-
-/* ── Selection panel ── */
-.selPanel {
-  background: var(--bg-primary);
-  border: 1.5px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 1rem 1.25rem;
-  animation: fadeIn 0.15s ease both;
-}
-@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
-
-.selPanelHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.875rem;
-}
-.selPanelTitle {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.selPanelClose {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: none;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.selPanelClose:hover { background: var(--border-color); }
-
-.selPanelBody {
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  align-items: flex-start;
-}
-.selPanelLeft {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-  flex-shrink: 0;
+  min-width: 0;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  background:
+    radial-gradient(90% 70% at 50% 100%, var(--brand-light), transparent 70%),
+    radial-gradient(60% 50% at 0% 0%, var(--brand-glow), transparent 70%),
+    var(--surface);
+  box-shadow: var(--shadow-sm);
 }
-.selPanelSub {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
+.modeTabs { display: flex; justify-content: center; gap: 4px; position: relative; z-index: 1; }
+.modeTab {
+  min-height: 36px; padding: 0 16px; border: none; border-radius: 10px; background: transparent;
+  font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
-.surfaceDiagram {
-  width: 100px;
-  height: 100px;
-  cursor: pointer;
+.modeTab:hover { color: var(--text-primary); }
+.modeTabOn { background: var(--brand-light); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--glass-border); }
+.modeTab:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+
+.stage { position: relative; height: clamp(360px, 58dvh, 660px); margin: 0 0 0 34px; border-radius: 14px; outline: none; }
+.stage:focus-visible { box-shadow: 0 0 0 2px var(--brand-accent); }
+.stageFoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0 0 34px; }
+.stageHint { text-align: center; font-size: 0.72rem; color: var(--text-secondary); }
+.sideLabel { flex: none; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-tertiary); }
+.unsavedMsg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
+.unsavedMsg::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #d97706; }
+.legend { list-style: none; margin: 6px 0 0 34px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.74rem; color: var(--text-secondary); }
+.legend li { display: inline-flex; align-items: center; gap: 6px; }
+.legend small { font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.legendDot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.legendDot[data-ghost] { background: transparent; border: 1.5px dashed var(--text-tertiary); }
+.legendNone { color: var(--text-secondary); }
+.viewTabs {
+  position: absolute; top: 12px; right: 14px; z-index: 2; display: flex; gap: 2px; padding: 3px;
+  background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: 10px;
 }
-.selPanelHint {
-  font-size: 0.68rem;
-  color: var(--text-secondary);
-  text-align: center;
+.viewTab { min-height: 30px; padding: 0 10px; border: none; border-radius: 8px; background: none; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.viewTabOn { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+.viewTab:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+@media (pointer: coarse) { .viewTab { min-height: 40px; } }
+.hoverTip {
+  position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+  padding: 5px 10px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+  background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: var(--shadow-md);
+  font-size: 0.75rem; color: var(--text-primary);
 }
 
-.selPanelRight { flex: 1; min-width: 220px; }
-.statusGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
+.zoom {
+  position: absolute; left: 12px; top: 56px; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
 }
+.zoomRange {
+  writing-mode: vertical-lr; direction: rtl;
+  width: 24px; height: 120px; margin: 4px 0; accent-color: var(--brand-accent); cursor: pointer;
+}
+.zoomBtn {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--border-color); background: var(--surface); color: var(--text-primary);
+  font-size: 1rem; line-height: 1; cursor: pointer;
+}
+.zoomBtn:hover { border-color: var(--brand-primary); }
+@media (pointer: coarse) { .zoomBtn { width: 44px; height: 44px; } }
+
+/* ── Análise dos dentes ── */
+.analysisList { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; max-height: clamp(360px, 58dvh, 660px); overflow-y: auto; }
+.toothCard {
+  display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 4px 10px;
+  width: 100%; padding: 10px 10px 8px; text-align: left; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: 14px; color: var(--text-primary);
+  transition: border-color 0.15s, background 0.15s;
+}
+.toothCard:hover { border-color: var(--brand-primary); }
+.toothCardOn { border-color: var(--brand-accent); background: var(--brand-light); }
+.toothCard:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.thumb { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--surface); }
+.thumb svg { width: 26px; height: 28px; }
+.toothCardGrid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; min-width: 0; }
+.toothCardGrid span { display: grid; min-width: 0; }
+.toothCardGrid small { font-size: 0.66rem; color: var(--text-secondary); }
+.toothCardGrid b { font-size: 0.76rem; font-weight: 600; line-height: 1.25; }
+.statusChip {
+  justify-self: end; padding: 3px 8px; border-radius: 8px; white-space: nowrap;
+  background: var(--st-bg); color: var(--st-color); font-size: 0.7rem; font-weight: 700;
+}
+.toothCardNote { grid-column: 1 / -1; padding-top: 6px; border-top: 1px dashed var(--border-color); font-size: 0.74rem; color: var(--text-secondary); }
+
+/* ── Modal do detalhe do dente ── */
+.modalThumb { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: var(--surface-2); }
+.modalThumb svg { width: 32px; height: 34px; }
+.stepper { display: flex; gap: 2px; }
+.marks { display: flex; flex-direction: column; gap: 8px; }
+.marksEmpty { margin: 0; font-size: 0.8125rem; color: var(--text-secondary); }
+.markList { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.markChip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 4px 0 10px;
+  border: 1.5px solid var(--st-color); border-radius: 999px; background: var(--st-bg);
+  color: var(--st-color); font-size: 0.78rem; font-weight: 700;
+}
+.markChip small { font-weight: 500; opacity: 0.85; }
+.markChip button {
+  display: grid; place-items: center; width: 26px; height: 26px; border: none; border-radius: 50%;
+  background: transparent; color: inherit; cursor: pointer;
+}
+.markChip button:hover { background: rgba(0, 0, 0, 0.08); }
+.markChip button:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+@media (pointer: coarse) { .markChip { min-height: 40px; } .markChip button { width: 34px; height: 34px; } }
+.statusHint { margin: 2px 0 0; font-size: 0.72rem; color: var(--text-secondary); }
+.undoBtn {
+  margin-right: auto; min-height: 40px; padding: 0 12px; border: none; border-radius: 10px; background: none;
+  color: var(--text-secondary); font-size: 0.8125rem; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.undoBtn:hover { color: var(--text-primary); background: var(--surface-2); }
+@media (max-width: 600px) { .undoBtn { flex: 1 0 100% !important; margin: 0; } }
+.stepper .iconBtn { margin: 0; width: 40px; height: 40px; }
+.stepper .iconBtn:disabled { opacity: 0.35; cursor: default; }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 0; }
+.facts div { min-width: 0; }
+.facts dt { font-size: 0.7rem; color: var(--text-secondary); }
+.facts dd { margin: 1px 0 0; font-size: 0.84rem; font-weight: 600; color: var(--text-primary); }
+.editor { display: flex; gap: 18px; align-items: flex-start; padding-top: 4px; border-top: 1px solid var(--border-subtle); }
+.facesCol { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; padding-top: 6px; }
+.facesHint { margin: 0; max-width: 132px; text-align: center; font-size: 0.66rem; color: var(--text-secondary); }
+.surfaceDiagram { width: 132px; height: 132px; cursor: pointer; }
+.statusCol { flex: 1; min-width: 0; padding-top: 6px; }
+.statusGrid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .statusBtn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.75rem;
-  border: 1.5px solid var(--border-subtle);
-  border-radius: 999px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.12s;
+  display: flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 10px;
+  border: 1.5px solid var(--border-subtle); border-radius: 999px; background: var(--surface-2);
+  color: var(--text-secondary); font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.12s;
 }
-.statusBtn:hover {
-  background: var(--st-bg, #d1fae5);
-  color: var(--st-color, #10b981);
-  border-color: var(--st-color, #10b981);
-}
-.statusBtnActive {
-  background: var(--st-bg, #d1fae5) !important;
-  color: var(--st-color, #10b981) !important;
-  border-color: var(--st-color, #10b981) !important;
-}
-.statusDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.noteField { margin-top: 0.75rem; }
+.statusBtn:hover { background: var(--st-bg, #d1fae5); color: var(--st-color, #10b981); border-color: var(--st-color, #10b981); }
+.statusBtnActive { background: var(--st-bg, #d1fae5) !important; color: var(--st-color, #10b981) !important; border-color: var(--st-color, #10b981) !important; }
+.statusDot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+@media (pointer: coarse) { .statusBtn { min-height: 40px; } }
 .noteTextarea {
-  width: 100%;
-  margin-top: 0.35rem;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  font-size: 0.8rem;
-  font-family: inherit;
-  resize: vertical;
-  outline: none;
+  width: 100%; padding: 0.5rem 0.65rem; border: 1px solid var(--border-color); border-radius: 10px;
+  background: var(--surface-2); color: var(--text-primary); font-size: 0.82rem; font-family: inherit; resize: vertical; outline: none;
 }
-.noteTextarea:focus { border-color: #4DD9C0; }
+.noteTextarea:focus { border-color: var(--brand-primary); }
 
-/* ── Legend ── */
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem 1rem;
-}
-.legendItem {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.73rem;
-  color: var(--text-secondary);
-}
-.legendDot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
+/* ── Histórico ── */
+.tableWrap { overflow: auto; max-height: 320px; margin: 0 -4px; }
+.table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+.table th { position: sticky; top: 0; padding: 6px 4px; text-align: left; font-weight: 600; font-size: 0.7rem; color: var(--text-secondary); background: var(--surface); }
+.table td { padding: 8px 4px; border-top: 1px solid var(--border-subtle); color: var(--text-primary); white-space: nowrap; }
+.table td:nth-child(2) { white-space: normal; }
 
-/* ── Save row ── */
-.saveRow {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1rem;
+/* ── Recomendações ── */
+.recHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.recHead b { font-size: 0.875rem; }
+.riskChip { padding: 3px 9px; border-radius: 8px; font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
+.risk_baixo { background: #E7F8C8; color: #3F6212; }
+.risk_moderado { background: #FEF3C7; color: #92400E; }
+.risk_alto { background: #FEE2E2; color: #991B1B; }
+.recText { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--text-secondary); }
+.recBtn {
+  align-self: flex-start; min-height: 40px; margin-top: auto; padding: 0 16px; border: none; border-radius: 10px;
+  background: var(--brand-light); color: var(--text-primary); font-size: 0.8125rem; font-weight: 700; cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--glass-border);
 }
-.savedMsg {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.875rem;
-  color: #059669;
-  font-weight: 600;
-}
+.recBtn:hover { background: var(--brand-primary); color: #06312B; }
+
+/* ── Salvar ── */
+.saveRow { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; }
+.savedMsg { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.875rem; color: #059669; font-weight: 600; }
 .btnSave {
-  padding: 0.6rem 1.5rem;
-  background: var(--brand-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
+  min-height: 44px; padding: 0 1.5rem; background: var(--brand-primary); color: #06312B; border: none;
+  border-radius: var(--radius-md); font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s;
 }
 .btnSave:hover:not(:disabled) { opacity: 0.88; }
 .btnSave:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* ── Mobile ── */
-@media (max-width: 640px) {
-  .toothSvg { width: 26px; height: 42px; }
-  .toothNumber { font-size: 0.52rem; }
-  .teethRow { gap: 2px; }
-  .selPanelBody { flex-direction: column; }
+/* ── Arcada 2D (sem WebGL no aparelho) ── */
+.arcade {
+  display: flex; flex-direction: column; align-items: center; gap: 0.25rem; margin-top: 8px;
+  padding: 0.75rem; overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.teethRow { display: flex; gap: 3px; align-items: flex-end; }
+.midline { width: 100%; height: 2px; margin: 0.2rem 0; background: linear-gradient(to right, transparent, var(--border-color) 20%, var(--border-color) 80%, transparent); }
+.toothBtn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px;
+  background: none; border: none; border-radius: 6px; cursor: pointer; transition: transform 0.1s;
+}
+.toothBtn:hover { transform: translateY(-2px); }
+.toothBtnSelected { transform: translateY(-3px) !important; }
+.toothSvg { display: block; width: 32px; height: 52px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.28)) drop-shadow(0 1px 1px rgba(0,0,0,0.16)); }
+.toothBtnSelected .toothSvg { filter: drop-shadow(0 0 6px rgba(77,217,192,0.75)) drop-shadow(0 2px 4px rgba(0,0,0,0.24)); }
+.toothNumber { position: relative; font-size: 0.58rem; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; line-height: 1; }
+.noteMarker { position: absolute; top: -5px; right: -7px; width: 6px; height: 6px; border-radius: 50%; background: #0891b2; border: 1px solid var(--bg-primary); }
 
-  /* No mobile a fileira de dentes sempre transborda o container, e ela é
-     rolável (overflow-x: auto). Com align-items:center (herdado do desktop)
-     a metade do transbordo fica "antes" da posição de scroll 0 — inacessível,
-     já que scrollLeft nunca é negativo. Os dentes das pontas (16/26, 48/38)
-     ficavam cortados e impossíveis de clicar. flex-start faz o scroll
-     começar exatamente no primeiro dente da fileira. */
+@media (max-width: 640px) {
+  .editor { flex-direction: column; align-items: center; }
+  .statusCol { width: 100%; }
+  .stage { height: 260px; margin-left: 0; }
+  .stageFoot { margin-left: 0; }
+  .legend { margin-left: 0; }
+  .viewTabs { position: static; align-self: center; margin-bottom: 6px; }
+  .zoom { display: none; }
+  .toothSvg { width: 26px; height: 42px; }
+  .teethRow { gap: 2px; }
   .arcade { align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toothBtn, .statusBtn { transition: none; }
+}
+
+.legendDot[data-planned] { background: transparent; border: 1.5px dashed var(--brand-accent); }
+.seg { display: inline-flex; gap: 2px; padding: 3px; margin: 0 0 10px; background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: 10px; }
+.segBtn { min-height: 30px; padding: 0 12px; border: none; border-radius: 8px; background: none; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.segBtnOn { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+.segBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.doneBtn { min-height: 24px; padding: 0 8px; border: 1px solid var(--st-color); border-radius: 999px; background: var(--surface); color: var(--st-color); font-size: 0.68rem; font-weight: 700; cursor: pointer; }
+@media (pointer: coarse) { .segBtn { min-height: 44px; } .doneBtn { min-height: 36px; } }
+
+@media (max-width: 640px) {
+  .segBtn { min-height: 44px; }
+  .markChip { flex-wrap: wrap; height: auto; padding: 4px 4px 4px 12px; border-radius: 20px; }
+  .markChip button { width: 36px; height: 36px; }
+  .markChip .doneBtn { width: auto; height: 44px; padding: 0 14px; border-radius: 22px; }
+  .recBtn { min-height: 44px; }
 }

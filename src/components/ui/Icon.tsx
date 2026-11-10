@@ -6,8 +6,8 @@ export type IconName =
   | 'sun' | 'moon' | 'chevronLeft' | 'chevronRight' | 'chevronDown' | 'menu'
   | 'crm' | 'stock' | 'reports' | 'campaigns' | 'procedures' | 'target' | 'alert' | 'phone' | 'cake'
   | 'close' | 'check' | 'checkDouble' | 'checkCircle' | 'edit' | 'trash' | 'arrowUp' | 'swap' | 'refresh'
-  | 'ban' | 'eye' | 'camera' | 'paperclip' | 'bell' | 'mail' | 'trophy' | 'download' | 'upload'
-  | 'pause' | 'play' | 'info' | 'percent' | 'receipt' | 'search' | 'copy' | 'chat' | 'messages' | 'wallet' | 'send' | 'plus' | 'clock' | 'mic' | 'help'
+  | 'ban' | 'eye' | 'eyeOff' | 'camera' | 'paperclip' | 'bell' | 'mail' | 'trophy' | 'download' | 'upload'
+  | 'pause' | 'play' | 'info' | 'percent' | 'receipt' | 'search' | 'copy' | 'chat' | 'messages' | 'wallet' | 'send' | 'plus' | 'minus' | 'more' | 'clock' | 'mic' | 'help'
 
 const PATHS: Record<IconName, string> = {
   dashboard:    'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
@@ -44,6 +44,7 @@ const PATHS: Record<IconName, string> = {
   refresh:      'M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15',
   ban:          'M12 2a10 10 0 100 20 10 10 0 000-20zM4.93 4.93l14.14 14.14',
   eye:          'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 15a3 3 0 100-6 3 3 0 000 6z',
+  eyeOff:       'M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M14.12 14.12a3 3 0 11-4.24-4.24M1 1l22 22',
   camera:       'M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2zM12 17a4 4 0 100-8 4 4 0 000 8z',
   paperclip:    'M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48',
   bell:         'M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0',
@@ -62,6 +63,8 @@ const PATHS: Record<IconName, string> = {
   wallet:       'M19 7V4a1 1 0 00-1-1H5a2 2 0 000 4h15a1 1 0 011 1v4h-3a2 2 0 000 4h3a1 1 0 001-1v-2a1 1 0 00-1-1M3 5v14a2 2 0 002 2h15a1 1 0 001-1v-4',
   send:         'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z',
   plus:         'M12 5v14M5 12h14',
+  minus:        'M5 12h14',
+  more:         'M5 12h.01M12 12h.01M19 12h.01',
   clock:        'M12 2a10 10 0 100 20 10 10 0 000-20zM12 6v6l4 2',
   help:         'M12 2a10 10 0 100 20 10 10 0 000-20zM9.1 9a3 3 0 015.8 1c0 2-3 3-3 3M12 17h.01',
   mic:          'M12 2a3 3 0 00-3 3v6a3 3 0 006 0V5a3 3 0 00-3-3zM19 10v1a7 7 0 01-14 0v-1M12 18v4M8 22h8',

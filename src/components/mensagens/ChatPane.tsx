@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/components/ui/Icon'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Spinner } from '@/components/ui/Spinner'
 import { clockLabel, contactDisplayName, formatJidPhone, withDaySeparators } from '@/lib/whatsapp/inbox'
 import { ContactAvatar } from './ConversationList'
 import { ContextChip } from './ContextChip'
@@ -259,6 +261,7 @@ export function ChatPane(p: Props) {
 
   const slash = slashQuery(text)
   const showQuick = p.canSend && (quickOpen || slash !== null)
+  const blockedDesc = !p.canSend && p.sendBlockedReason ? 'inbox-send-blocked' : undefined
 
   function pickQuick(r: QuickReplyRow) {
     const c = p.conversation
@@ -285,13 +288,13 @@ export function ChatPane(p: Props) {
     return (
       <div className={`${styles.pane} ${styles.chat}`}>
         <div className={styles.placeholder}>
-          <div>
-            <span className={styles.placeholderIcon} aria-hidden="true"><Icon name="chat" size={40} /></span>
-            <strong>Selecione uma conversa</strong>
-            {p.waitingCount > 0
+          <EmptyState
+            icon="chat"
+            title="Selecione uma conversa"
+            description={p.waitingCount > 0
               ? `${p.waitingCount} ${p.waitingCount === 1 ? 'conversa aguardando' : 'conversas aguardando'} resposta`
               : 'Escolha um contato na lista para ver as mensagens e responder.'}
-          </div>
+          />
         </div>
       </div>
     )
@@ -315,7 +318,7 @@ export function ChatPane(p: Props) {
       </div>
 
       <div className={styles.msgs} ref={msgsRef}>
-        {p.loading && p.messages.length === 0 && <div className={styles.day}>Carregando mensagens…</div>}
+        {p.loading && p.messages.length === 0 && <div className={styles.msgsLoading} aria-busy="true"><Spinner label="Carregando mensagens" /></div>}
         {items.map(i => i.type === 'day'
           ? <div key={`d-${i.key}`} className={styles.day}>{i.label}</div>
           : <Bubble key={i.msg.id} m={i.msg} timezone={p.timezone} now={p.now} canAct={p.canSend} showAuthor={startsAuthorRun(prevOf.get(i.msg.id) ?? null, runInfo(i.msg), p.timezone)} onEdit={p.onEditMessage} onDelete={p.onDeleteMessage} media={{ urls: p.mediaUrls, onOpenMedia: (url, name, kind) => setLightbox({ url, name, kind }), onRetry: p.onRetryMedia, onDownload: p.onDownloadMedia }} />)}
@@ -376,11 +379,12 @@ export function ChatPane(p: Props) {
           accept={UPLOAD_ACCEPT}
           onChange={e => { void pickFile(e.target.files?.[0]); e.target.value = '' }}
         />
+        {!p.canSend && p.sendBlockedReason && <span id="inbox-send-blocked" className={styles.srOnly}>{p.sendBlockedReason}</span>}
         <div className={`${styles.composerBox} ${!p.canSend ? styles.composerOff : ''}`}>
-          <button type="button" className={styles.attachBtn} onClick={() => fileRef.current?.click()} disabled={!p.canSend || p.sending} aria-label="Anexar foto ou documento">
+          <button type="button" className={styles.attachBtn} onClick={() => fileRef.current?.click()} disabled={!p.canSend || p.sending} aria-label="Anexar foto ou documento" aria-describedby={blockedDesc}>
             <Icon name="paperclip" size={20} />
           </button>
-          <button type="button" className={styles.attachBtn} onClick={() => setQuickOpen(o => !o)} disabled={!p.canSend || p.sending} aria-label="Respostas rápidas" aria-expanded={showQuick}>
+          <button type="button" className={styles.attachBtn} onClick={() => setQuickOpen(o => !o)} disabled={!p.canSend || p.sending} aria-label="Respostas rápidas" aria-expanded={showQuick} aria-describedby={blockedDesc}>
             <Icon name="chat" size={20} />
           </button>
           <textarea
@@ -390,16 +394,17 @@ export function ChatPane(p: Props) {
             disabled={!p.canSend}
             placeholder={p.canSend ? (file ? 'Legenda (opcional)' : 'Escreva uma mensagem') : (p.sendBlockedReason ?? 'Envio indisponível')}
             aria-label="Mensagem"
+            aria-describedby={blockedDesc}
             maxLength={4000}
             onChange={e => { setText(e.target.value); resize() }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submit() } }}
           />
           {text.trim() || file ? (
-            <button className={styles.send} onClick={() => void submit()} disabled={!p.canSend || p.sending} aria-label="Enviar mensagem">
+            <button className={styles.send} onClick={() => void submit()} disabled={!p.canSend || p.sending} aria-label="Enviar mensagem" aria-describedby={blockedDesc}>
               <Icon name="send" size={18} />
             </button>
           ) : (
-            <button className={`${styles.send} ${styles.sendMic}`} onClick={() => void recorder.start()} disabled={!p.canSend || p.sending} aria-label="Gravar mensagem de voz">
+            <button className={`${styles.send} ${styles.sendMic}`} onClick={() => void recorder.start()} disabled={!p.canSend || p.sending} aria-label="Gravar mensagem de voz" aria-describedby={blockedDesc}>
               <Icon name="mic" size={20} />
             </button>
           )}

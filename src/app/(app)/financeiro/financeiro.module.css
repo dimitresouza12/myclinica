@@ -13,16 +13,13 @@
 .chartEmpty { padding: 56px 0; text-align: center; color: var(--text-secondary); font-size: 0.875rem; }
 .chartLoading { height: 260px; }
 
-.loading { color: var(--text-secondary); padding: 2rem 22px; }
+.loading { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-5) var(--space-5); }
+.errorWrap { padding: var(--space-4) var(--space-5) var(--space-5); }
+.emptyCell { padding: 0; }
 .wrap { padding: 0 10px 10px; }
 
-/* busca por paciente: campo em pílula, com sugestões abaixo */
-.patientSearchBox { position: relative; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid var(--surface-line); border-radius: 999px; background: var(--surface-2); color: var(--text-tertiary); }
-.patientSearchBox:focus-within { border-color: var(--brand-primary); }
-.patientSearchInput { border: 0; outline: 0; background: none; font: inherit; font-size: 0.8125rem; color: var(--text-primary); width: 190px; min-width: 0; }
-.patientSearchInput::placeholder { color: var(--text-tertiary); }
-.patientSearchClear { position: relative; display: grid; place-items: center; width: 20px; height: 20px; border: 0; background: var(--surface-line); border-radius: 50%; color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
-.patientSearchClear::after { content: ''; position: absolute; inset: -12px; }
+/* busca por paciente: SearchInput, com sugestões abaixo */
+.patientSearchBox { position: relative; width: 240px; }
 .patientSuggestions { position: absolute; top: calc(100% + 6px); left: 0; right: 0; min-width: 220px; z-index: 20; background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--radius-inner); box-shadow: var(--shadow-lg); padding: 6px; max-height: 260px; overflow-y: auto; }
 .patientSuggestion { display: block; width: 100%; min-height: 44px; text-align: left; padding: 0 12px; border: 0; border-radius: 10px; background: none; font: inherit; font-size: 0.875rem; color: var(--text-primary); cursor: pointer; }
 .patientSuggestion:hover { background: var(--surface-2); }
@@ -56,15 +53,12 @@
   .wrap { padding: 0; }
   .patientSummary { margin: 0 0 10px; }
   .patientSearchBox { width: 100%; }
-  .patientSearchInput { width: 100%; }
+  .loading, .errorWrap { padding: var(--space-3) 0 var(--space-4); }
   .row .actionsCell { position: absolute; top: 8px; right: 6px; width: auto; display: block; padding: 0 !important; }
   .row .who { padding-right: 36px; }
 }
 @media (max-width: 480px) {
   .cards { grid-template-columns: minmax(0, 1fr); }
-  /* três botões não cabem numa linha com rótulo: Exportar fica só com o ícone */
-  .exportBtn { width: 44px; padding: 0; gap: 0; }
-  .exportLabel { display: none; }
 }
 
 @keyframes slideUp { from { opacity:0; transform:translateY(12px) scale(.98); } to { opacity:1; transform:none; } }
@@ -78,28 +72,3 @@
 .hint { font-size:.72rem; color:var(--text-secondary); }
 .checkboxField { display:flex; align-items:center; gap:.5rem; font-size:.82rem; font-weight:600; color:var(--text-secondary); cursor:pointer; }
 .checkboxField input { width:16px; height:16px; accent-color:#4DD9C0; cursor:pointer; }
-
-
-/* Export period picker */
-.exportOptions { display:flex; flex-direction:column; gap:.5rem; }
-.exportOption { display:flex; align-items:center; gap:.75rem; padding:.6rem .875rem; border:1px solid var(--border-color); border-radius:10px; cursor:pointer; font-size:.875rem; color:var(--text-primary); transition:border-color .15s, background .15s; user-select:none; }
-.exportOption:hover { border-color:#4DD9C0; background:rgba(77,217,192,0.05); }
-.exportOptionActive { border-color:#4DD9C0; background:rgba(77,217,192,0.08); font-weight:600; }
-.exportCustomFields { display:flex; gap:.75rem; margin-top:.625rem; flex-wrap:wrap; }
-.exportCustomFields > div { display:flex; flex-direction:column; gap:.3rem; flex:1; min-width:120px; }
-.exportCustomFields label { font-size:.75rem; font-weight:600; color:var(--text-secondary); }
-
-/* ── Export modal (dedicated, sem conflito com modal de transação) ── */
-.exportOverlay { position:fixed; inset:0; background:rgba(13,17,23,.55); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:250; padding:1rem; }
-.exportModal { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:20px; width:100%; max-width:380px; max-height:90dvh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow-xl); animation:slideUp .22s cubic-bezier(.22,1,.36,1) both; }
-.exportModalHeader { flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:1rem 1.5rem; border-bottom:1px solid var(--border-color); }
-.exportModalHeader h3 { font-size:.95rem; font-weight:700; color:var(--text-primary); margin:0; }
-.exportModalBody { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:1.25rem 1.5rem; display:flex; flex-direction:column; gap:.75rem; }
-.exportModalFooter { flex-shrink:0; padding:.875rem 1.5rem; border-top:1px solid var(--border-color); display:flex; justify-content:flex-end; gap:.625rem; background:var(--bg-primary); }
-.exportBtnClose { width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:var(--bg-secondary); border:none; border-radius:50%; font-size:.85rem; cursor:pointer; color:var(--text-secondary); transition:background .15s; flex-shrink:0; }
-.exportBtnClose:hover { background:var(--bg-tertiary); }
-@media (max-width:600px) {
-  .exportOverlay { padding:0; align-items:flex-end; }
-  .exportModal { max-width:100%; max-height:85dvh; border-radius:20px 20px 0 0; }
-  .exportModalFooter { padding-bottom: max(0.875rem, env(safe-area-inset-bottom)); }
-}

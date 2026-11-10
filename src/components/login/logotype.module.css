@@ -1,0 +1,4 @@
+/* Cores da marca. O batimento é escuro e pode ser trocado por --logotype-beat onde o fundo é escuro */
+.logotype { display: block; height: 1.25em; width: 5.41em; overflow: visible; font-size: 34px; }
+.beat { fill: none; stroke: var(--logotype-beat, #06312B); stroke-width: 124; stroke-linecap: round; stroke-linejoin: round; }
+.word { fill: #5EEAD4; font-family: var(--font-nunito), 'Nunito', sans-serif; font-weight: 700; font-size: 1000px; }

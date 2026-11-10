@@ -48,12 +48,24 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [timelinePending, setTimelinePending] = useState(false)
+  const [odontoDirty, setOdontoDirty] = useState(false)
+  const [faceDirty, setFaceDirty] = useState(false)
+  const [bodyDirty, setBodyDirty] = useState(false)
+
+  // o que ainda não foi salvo, para avisar antes de fechar o prontuário
+  const unsaved = [
+    timelinePending && 'a anotação da Evolução',
+    odontoDirty && 'o Odontograma',
+    faceDirty && 'o Faceograma',
+    bodyDirty && 'o Corpograma',
+  ].filter(Boolean) as string[]
 
   async function tryClose() {
-    if (!timelinePending) return onClose()
+    if (unsaved.length === 0) return onClose()
+    const list = unsaved.length > 1 ? `${unsaved.slice(0, -1).join(', ')} e ${unsaved[unsaved.length - 1]}` : unsaved[0]
     const ok = await confirmDialog({
       title: 'Fechar sem salvar?',
-      message: 'Você tem uma anotação não salva. Se fechar agora ela será perdida.',
+      message: `Ainda não foi salvo: ${list}. Se fechar agora, essas alterações serão perdidas.`,
       confirmText: 'Descartar e fechar',
       cancelText: 'Voltar e salvar',
       danger: true,
@@ -159,7 +171,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
     <Modal
       open
       onClose={tryClose}
-      size="xl"
+      size="full"
       title={patient.name}
       subtitle="Prontuário"
       leading={
@@ -223,6 +235,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
                   patient={patient}
                   clinicId={clinicId}
                   onSaved={loadRecord}
+                  onDirtyChange={setOdontoDirty}
                 />
               </div>
             )}
@@ -233,6 +246,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
                   patient={patient}
                   clinicId={clinicId}
                   onSaved={loadRecord}
+                  onDirtyChange={setFaceDirty}
                 />
               </div>
             )}
@@ -243,6 +257,7 @@ export function ProntuarioModal({ patient, clinic, onClose }: Props) {
                   patient={patient}
                   clinicId={clinicId}
                   onSaved={loadRecord}
+                  onDirtyChange={setBodyDirty}
                 />
               </div>
             )}

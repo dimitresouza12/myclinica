@@ -7,6 +7,7 @@ import { getAdminClient } from '@/lib/supabaseAdmin'
 import { extractIncomingText } from './webhook-parse'
 import { parseReply } from './reply'
 import { sendText } from './evolution'
+import { isDemoClinic } from '@/lib/demoGuard'
 import { recordOutgoing } from './conversations'
 
 export type IncomingOutcome =
@@ -111,7 +112,7 @@ export async function handleIncoming(instance: string, data: unknown): Promise<I
   // resposta automática ao paciente (best effort: falhar aqui não desfaz a confirmação)
   const to = row.to_jid?.split('@')[0]
   const reply = target === 'confirmado' ? wa.reply_yes_text : wa.reply_no_text
-  if (to && reply) {
+  if (to && reply && !(await isDemoClinic(wa.clinic_id as string))) {
     try {
       const sent = await sendText(instance, to, reply)
       await recordOutgoing({ clinicId: wa.clinic_id as string, jid: row.to_jid as string, text: reply, providerMessageId: sent.messageId, origin: 'automatico' })

@@ -28,6 +28,7 @@ const api = whatsappApi
 export function WhatsAppTab() {
   const qc = useQueryClient()
   const clinicId = useAuthStore(s => s.clinic?.id)
+  const isDemo = useAuthStore(s => s.clinic?.demoMode === true)
   const [conn, setConn] = useState<Connection | null>(null)
   const [qr, setQr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -131,6 +132,7 @@ export function WhatsAppTab() {
       </p>
 
       {error && <p className={styles.error} role="alert">{error}</p>}
+      {isDemo && <p id="wa-demo-note" className={styles.hint}>Envio de mensagens desativado na conta de demonstração. Conectar, desconectar e enviar teste ficam bloqueados.</p>}
 
       {!conn && !error && <p className={styles.muted}>Carregando…</p>}
 
@@ -143,7 +145,7 @@ export function WhatsAppTab() {
               <span>{conn?.phone ? formatBrPhone(conn.phone) : 'Número da clínica'}</span>
             </div>
             {!confirmingDisconnect && (
-              <button className={styles.btnGhost} onClick={() => setConfirmingDisconnect(true)}>Desconectar</button>
+              <button className={styles.btnGhost} onClick={() => setConfirmingDisconnect(true)} disabled={isDemo} aria-describedby={isDemo ? 'wa-demo-note' : undefined}>Desconectar</button>
             )}
           </div>
 
@@ -169,7 +171,7 @@ export function WhatsAppTab() {
                 value={testNumber}
                 onChange={setTestNumber}
               />
-              <button className={styles.btnPrimary} type="submit" disabled={testing || !isCompleteBrPhone(testNumber)}>
+              <button className={styles.btnPrimary} type="submit" disabled={isDemo || testing || !isCompleteBrPhone(testNumber)} aria-describedby={isDemo ? 'wa-demo-note' : undefined}>
                 {testing ? 'Enviando…' : 'Enviar teste'}
               </button>
             </div>
@@ -211,7 +213,7 @@ export function WhatsAppTab() {
             <span className={`${styles.dot} ${styles.dotOff}`} />
             <strong>Não conectado</strong>
           </div>
-          <button className={styles.btnPrimary} onClick={handleConnect} disabled={busy}>
+          <button className={styles.btnPrimary} onClick={handleConnect} disabled={busy || isDemo} aria-describedby={isDemo ? 'wa-demo-note' : undefined}>
             {busy ? 'Preparando…' : 'Conectar WhatsApp'}
           </button>
         </div>
@@ -227,7 +229,7 @@ export function WhatsAppTab() {
       </div>
     </div>
 
-    {conn && <WhatsAppSettingsForm connected={status === 'conectado'} />}
+    {conn && <WhatsAppSettingsForm connected={status === 'conectado'} demo={isDemo} />}
     {conn && <WhatsAppHistory />}
     </div>
   )

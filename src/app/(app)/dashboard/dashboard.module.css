@@ -4,7 +4,6 @@
   gap: 18px;
   width: 100%;
   max-width: 1320px;
-  padding-top: 14px;
   /* backwards, não both — evita transform residual (matrix, não "none") que
      vira containing block e quebra modais position:fixed no mobile. */
   animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) backwards;
@@ -50,29 +49,8 @@
 :global([data-theme="dark"]) .hero::before { opacity: 0.45; }
 .hero > * { position: relative; }
 
-.heroTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.hello { font-size: 1.625rem; font-weight: 600; letter-spacing: -0.6px; line-height: 1.2; color: var(--text-primary); }
-.helloSub { margin-top: 2px; font-size: 0.844rem; color: var(--text-secondary); }
-.helloSub::first-letter { text-transform: uppercase; }
-.btnHide {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--surface-line);
-  border-radius: 50%;
-  background: var(--surface);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-.btnHide:hover { color: var(--text-primary); border-color: var(--border-color); }
-.btnHide:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
-.btnHide::after { content: ''; position: absolute; inset: -4px; }
-
-.gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 30px; }
+/* botão de ocultar valores: fica nas ações do cabeçalho */
+.gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .gaugeBox { min-width: 0; text-align: center; }
 .gaugeTitle { font-size: 0.844rem; font-weight: 500; letter-spacing: 0; margin-bottom: 6px; color: var(--text-primary); }
 .gaugeNum { font-size: 2.5rem; font-weight: 300; letter-spacing: -1.4px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text-primary); }
@@ -143,7 +121,8 @@
 
 /* ─── Gráfico ─── */
 .chartCard { min-width: 0; padding-bottom: 12px; }
-.chartLoading, .chartHidden { height: 262px; }
+.chartHidden, .chartEmpty { min-height: 262px; }
+.chartEmpty { justify-content: center; }
 .chartHidden { display: grid; place-items: center; color: var(--text-secondary); font-size: 0.875rem; }
 
 /* ─── Faixas de baixo ─── */
@@ -151,7 +130,6 @@
 .cardLink { display: inline-flex; align-items: center; gap: 2px; min-height: 32px; padding: 0 6px; font-size: 0.8125rem; font-weight: 500; color: var(--text-secondary); border-radius: 8px; }
 .cardLink:hover { color: var(--text-primary); }
 .cardMeta { font-size: 0.78rem; color: var(--text-secondary); padding-right: 6px; }
-.empty { padding: 28px 0 18px; text-align: center; font-size: 0.875rem; color: var(--text-secondary); }
 
 .apptList { list-style: none; margin-top: 8px; }
 .appt { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 60px; padding: 10px 0; border-top: 1px solid var(--surface-line); }
@@ -213,14 +191,15 @@
 }
 
 @media (max-width: 768px) {
-  .page { gap: 14px; padding-top: 4px; }
+  .page { gap: 14px; }
   .grid { gap: 14px; }
   .hero { padding: 20px 18px; border-radius: 18px; }
-  .hello { font-size: 1.375rem; }
-  .gauges { gap: 10px; margin-top: 22px; }
+  .gauges { gap: 10px; }
   .gaugeNum { font-size: 2rem; }
-  .btnHide { width: 44px; height: 44px; }
-  .btnHide::after { content: none; }
+  .btnHide { margin-left: auto; }
+  /* "Editar" / "Definir meta": alvo de toque de 44px sem aumentar a altura da linha (margem negativa compensa) */
+  .gaugeLink { display: inline-flex; align-items: center; min-height: 44px; margin: -14px 0 -14px 6px; padding: 0 8px; }
+  .gaugeLink::after { content: none; }
   .minis { gap: 12px; }
   .bottom { gap: 14px; }
   .apptBtn, .nextGo { height: 40px; }
@@ -231,7 +210,6 @@
 }
 
 @media (max-width: 520px) {
-  .minis { grid-template-columns: 1fr; }
   .segs { gap: 10px; }
   /* rótulo em cima, número embaixo: as três colunas não se atropelam */
   .seg p { white-space: normal; }

@@ -13,12 +13,14 @@ interface Props {
   /** dias (AAAA-MM-DD) com consulta: ganham um ponto */
   marked: Set<string>
   onPick: (day: Date) => void
+  /** escala do profissional em foco: o dia atende, não atende ou está por definir. Ausente = sem cor. */
+  dayTone?: (key: string) => 'atende' | 'nao_atende' | 'por_definir' | undefined
 }
 
 const DOW = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 
 /** Calendário do mês com ponto nos dias com consulta. Navegar nos meses aqui não muda a agenda; clicar num dia, sim. */
-export function MiniCalendar({ month, highlight, marked, onPick }: Props) {
+export function MiniCalendar({ month, highlight, marked, onPick, dayTone }: Props) {
   const [shown, setShown] = useState(() => new Date(month.getFullYear(), month.getMonth(), 1))
   const days = monthGrid(shown.getFullYear(), shown.getMonth())
   const todayKey = localDayKey(new Date())
@@ -43,10 +45,13 @@ export function MiniCalendar({ month, highlight, marked, onPick }: Props) {
           const inMonth = d.getMonth() === shown.getMonth()
           const t = d.getTime()
           const inRange = !!highlight && t >= hs && t < he
-          const cls = [styles.day, !inMonth && styles.out, inRange && styles.on, key === todayKey && styles.today].filter(Boolean).join(' ')
+          const tone = inMonth ? dayTone?.(key) : undefined
+          const toneClass = tone === 'atende' ? styles.toneOn : tone === 'nao_atende' ? styles.toneOff : tone === 'por_definir' ? styles.tonePending : ''
+          const single = !!highlight && he - hs <= 24 * 3600 * 1000 + 3600 * 1000
+          const cls = [styles.day, !inMonth && styles.out, toneClass, inRange && !single && styles.on, inRange && single && styles.selected, key === todayKey && styles.today].filter(Boolean).join(' ')
           return (
             <button key={key} type="button" className={cls} onClick={() => onPick(d)}
-              aria-label={`${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}${marked.has(key) ? ', com consultas' : ''}`}
+              aria-label={`${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}${marked.has(key) ? ', com consultas' : ''}${tone === 'atende' ? ', atende' : tone === 'nao_atende' ? ', não atende' : tone === 'por_definir' ? ', escala por definir' : ''}`}
               aria-current={key === todayKey ? 'date' : undefined}>
               <span>{d.getDate()}</span>
               {marked.has(key) && <i className={styles.dot} aria-hidden="true" />}

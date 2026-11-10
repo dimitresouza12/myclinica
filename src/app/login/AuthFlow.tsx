@@ -1,12 +1,12 @@
 'use client'
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import { useState, useEffect, useId, useRef } from 'react'
+import { Plus_Jakarta_Sans } from 'next/font/google'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { audit } from '@/lib/audit'
 import { normalizeUsername } from '@/lib/username'
-import { getSpecialtyConfig, CLINIC_TYPE_OPTIONS, CLINIC_TYPE_ICON_OPTIONS } from '@/lib/specialtyConfig'
+import { getSpecialtyConfig, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { MEDICO_AREA_OPTIONS } from '@/lib/medicoSpecialties'
 import { PLAN_CATALOG } from '@/lib/planCatalog'
 import type { Clinic, ClinicUser, AuthClinic, AuthUser, ClinicPlan, ClinicType } from '@/types'
@@ -14,10 +14,19 @@ import styles from './login.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { CpfInput } from '@/components/ui/NumericInput'
-import { cpfInputError } from '@/lib/numericFormat'
-import { phoneInputError } from '@/lib/phoneFormat'
+import { PasswordInput } from '@/components/ui/PasswordInput'
+import { cpfInputError, maskLoginCredential } from '@/lib/numericFormat'
+import { phoneInputError, caretAfterDigits } from '@/lib/phoneFormat'
 import { DemoApp } from '@/components/demo/DemoApp'
 import { useDialogFocus } from '@/hooks/useDialogFocus'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { Logotype } from '@/components/login/Logotype'
+import { LoginShowcase } from '@/components/login/LoginShowcase'
+import { LiveTicker } from '@/components/login/LiveTicker'
+import { HeartbeatProgress } from '@/components/login/HeartbeatProgress'
+
+// Fonte da tela de login (título, formulário e vitrine). Variável: um arquivo por estilo.
+const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], style: ['normal', 'italic'], variable: '--font-jakarta', display: 'swap' })
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -48,88 +57,66 @@ async function fetchClinicUserWithRetry(accessToken: string, userId: string) {
 
 type Mode = 'login' | 'register' | 'quiz'
 
-// Primeira pergunta do quiz usa ícone+cor+label de CLINIC_TYPE_ICON_OPTIONS
-// (specialtyConfig.ts) — fonte única, sem lista literal duplicada aqui.
-const QUIZ_SPECIALTY_OPTIONS = CLINIC_TYPE_ICON_OPTIONS
+const svgp = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
 
+// A primeira pergunta do quiz (áreas) tem tela própria; estas são as três que decidem o plano.
+// `reason` é a frase que o resultado usa para dizer em que resposta ele se baseou.
 const QUIZ_STEPS = [
   {
-    question: 'Qual é a especialidade da sua clínica?',
-    options: QUIZ_SPECIALTY_OPTIONS,
-  },
-  {
-    question: 'Como você trabalha?',
+    name: 'Equipe',
+    question: 'Quantas pessoas vão usar o sistema?',
+    sub: 'Contando com você.',
     options: [
-      { value: 'solo',  label: 'Só eu', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-      )},
-      { value: 'small', label: 'Pequena equipe (2 a 4)', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      )},
-      { value: 'large', label: '5 ou mais profissionais', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-      )},
+      { value: 'solo',  label: 'Só eu', hint: 'Atendo e organizo tudo sozinho(a)', reason: 'Só você usando o sistema',
+        icon: <svg {...svgp}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg> },
+      { value: 'small', label: '2 a 4 pessoas', hint: 'Pequena equipe, com recepção ou sócios', reason: 'Equipe de 2 a 4 pessoas',
+        icon: <svg {...svgp}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+      { value: 'large', label: '5 ou mais', hint: 'Equipe grande, vários profissionais', reason: 'Equipe de 5 pessoas ou mais',
+        icon: <svg {...svgp}><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> },
+      { value: 'multi', label: 'Mais de uma unidade', hint: 'Ou planejo abrir outra em breve', reason: 'Mais de uma unidade',
+        icon: <svg {...svgp}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg> },
     ],
   },
   {
-    question: 'Quantos pacientes atende por mês?',
+    name: 'Pacientes',
+    question: 'Quantos pacientes você atende por mês?',
+    sub: 'Uma ideia já ajuda, não precisa ser exato.',
     options: [
-      { value: 'few',    label: 'Até 100 pacientes', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-      )},
-      { value: 'medium', label: 'Entre 100 e 300', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      )},
-      { value: 'many',   label: 'Mais de 300', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4"/><circle cx="17" cy="7" r="4"/><path d="M21 21v-2a4 4 0 0 0-4-4h-1"/><path d="M13 11h4"/></svg>
-      )},
+      { value: 'few',    label: 'Até 100', hint: 'Agenda tranquila, atendimento próximo', reason: 'Até 100 pacientes por mês',
+        icon: <svg {...svgp}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> },
+      { value: 'medium', label: 'Entre 100 e 300', hint: 'Movimento constante o mês todo', reason: 'Entre 100 e 300 pacientes por mês',
+        icon: <svg {...svgp}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+      { value: 'many',   label: 'Mais de 300', hint: 'Alto volume, agenda sempre cheia', reason: 'Mais de 300 pacientes por mês',
+        icon: <svg {...svgp}><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4"/><circle cx="17" cy="7" r="4"/><path d="M21 21v-2a4 4 0 0 0-4-4h-1"/></svg> },
     ],
   },
   {
-    question: 'Como você usa financeiro e relatórios?',
+    name: 'Prioridade',
+    question: 'O que você mais precisa controlar?',
+    sub: 'Escolha o que pesa mais no seu dia.',
     options: [
-      { value: 'basic',      label: 'Registro básico de entradas e saídas', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-      )},
-      { value: 'financeiro', label: 'Financeiro completo e controle de equipe', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      )},
-      { value: 'relatorios', label: 'Relatórios, metas e análise do negócio', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-      )},
-    ],
-  },
-  {
-    question: 'Quantas unidades você atende?',
-    options: [
-      { value: 'single', label: 'Só uma', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      )},
-      { value: 'multi',  label: 'Mais de uma (ou planejo expandir)', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><path d="M6 7V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v3"/></svg>
-      )},
+      { value: 'basic', label: 'Agenda e prontuário', hint: 'Marcar, confirmar e registrar atendimentos', reason: 'Agenda e prontuário em primeiro lugar',
+        icon: <svg {...svgp}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg> },
+      { value: 'financeiro', label: 'Financeiro e equipe', hint: 'Caixa, comissões e contas da clínica', reason: 'Financeiro e controle de equipe',
+        icon: <svg {...svgp}><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+      { value: 'relatorios', label: 'Relatórios e metas', hint: 'Números do negócio e crescimento', reason: 'Relatórios, metas e análise do negócio',
+        icon: <svg {...svgp}><path d="M18 20V10M12 20V4M6 20v-6"/></svg> },
     ],
   },
 ] as const
 
 // Mesmos sinais de sempre (tamanho de equipe, volume de pacientes, feature
-// desejada, multi-unidade) — só remapeados pros 3 degraus atuais: o antigo
-// bucket "completo" virou "ilimitado", e "avancado" virou "completo" (ver
-// planCatalog.ts pra por que o Avançado foi aposentado).
-function calcPlan(answers: string[]): typeof QUIZ_PLANS[number] {
-  const [, team, patients, features, units] = answers
-  if (units === 'multi' || team === 'large' || patients === 'many' || features === 'relatorios') return 'ilimitado'
-  if (team === 'small' || patients === 'medium' || features === 'financeiro') return 'completo'
+// desejada, multi-unidade), agora em três respostas: "Mais de uma unidade"
+// vem junto com a pergunta de equipe. O antigo bucket "completo" virou
+// "ilimitado" e "avancado" virou "completo" (ver planCatalog.ts).
+function calcPlan([team, patients, focus]: string[]): typeof QUIZ_PLANS[number] {
+  if (team === 'multi' || team === 'large' || patients === 'many' || focus === 'relatorios') return 'ilimitado'
+  if (team === 'small' || patients === 'medium' || focus === 'financeiro') return 'completo'
   return 'essencial'
 }
 
 // Completo+ fica fora do quiz/cadastro de autoatendimento — é sob consulta.
 const QUIZ_PLANS = ['essencial', 'completo', 'ilimitado'] as const
-const PLAN_INFO: Record<typeof QUIZ_PLANS[number], { label: string; price: string; why: string; color: string }> = {
-  essencial: { label: PLAN_CATALOG.essencial.label, price: PLAN_CATALOG.essencial.price, why: 'Perfeito para profissionais autônomos que precisam organizar agenda e prontuários.', color: PLAN_CATALOG.essencial.color },
-  completo:  { label: PLAN_CATALOG.completo.label,  price: PLAN_CATALOG.completo.price,  why: 'Ideal para equipes em crescimento com controle financeiro e relatórios avançados.',  color: PLAN_CATALOG.completo.color },
-  ilimitado: { label: PLAN_CATALOG.ilimitado.label, price: PLAN_CATALOG.ilimitado.price, why: 'Feito para clínicas com múltiplas unidades, equipes grandes e gestão completa.',     color: PLAN_CATALOG.ilimitado.color },
-}
 
 // Fonte única do rótulo de cada área — vem de specialtyConfig.ts, não
 // duplicado aqui (era o caso antes; qualquer área nova só precisa ser
@@ -165,6 +152,79 @@ function toSlug(name: string) {
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
+}
+
+const REG_STEP_NAMES = ['Sua clínica', 'Você', 'Acesso'] as const
+const REG_STEP_TITLES = [
+  ['Conte sobre a clínica', 'Leva menos de 2 minutos. Sem cartão de crédito.'],
+  ['Agora, sobre você', 'Você será a pessoa responsável por esta conta.'],
+  ['Crie seu acesso', 'É o que você usa para entrar no dia a dia.'],
+] as const
+/** Pergunta de duas respostas como controle segmentado (cada botão com 44 px ou mais). */
+function RegChoice({ legend, hint, value, onChange, options }: {
+  legend: string
+  hint?: string
+  value: boolean | null
+  onChange: (v: boolean) => void
+  options: { label: string; value: boolean }[]
+}) {
+  const id = useId()
+  return (
+    <div className={styles.regField} role="group" aria-labelledby={id}>
+      <span id={id} className={styles.regQ}>{legend}</span>
+      <div className={styles.regSeg}>
+        {options.map(o => (
+          <button
+            key={o.label}
+            type="button"
+            aria-pressed={value === o.value}
+            className={`${styles.regSegBtn} ${value === o.value ? styles.regSegBtnOn : ''}`}
+            onClick={() => onChange(o.value)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {hint && <span className={styles.regHint}>{hint}</span>}
+    </div>
+  )
+}
+
+/** Opções em pílulas que quebram de linha (escolha única ou várias, conforme o chamador trata o clique). */
+function RegPills({ legend, hideLegend, hint, items, isOn, onToggle, showCheck }: {
+  legend: string
+  /** a pergunta já é o título da tela: fica só como nome do grupo para leitor de tela */
+  hideLegend?: boolean
+  hint?: string
+  items: { value: string; label: string }[]
+  isOn: (value: string) => boolean
+  onToggle: (value: string) => void
+  showCheck?: boolean
+}) {
+  const id = useId()
+  return (
+    <div className={styles.regField} role="group" aria-labelledby={hideLegend ? undefined : id} aria-label={hideLegend ? legend : undefined}>
+      {!hideLegend && <span id={id} className={styles.regQ}>{legend}</span>}
+      <div className={styles.regPills}>
+        {items.map(it => {
+          const on = isOn(it.value)
+          return (
+            <button
+              key={it.value}
+              type="button"
+              aria-pressed={on}
+              className={`${styles.regPill} ${on ? styles.regPillOn : ''}`}
+              onClick={() => onToggle(it.value)}
+            >
+              {showCheck && on && <Icon name="check" size={14} />}
+              {it.label}
+            </button>
+          )
+        })}
+      </div>
+      {hint && <span className={styles.regHint}>{hint}</span>}
+    </div>
+  )
 }
 
 /** login: tela de entrar. demo: "Teste grátis", o quiz e o cadastro num modal sobre uma demonstração desfocada do sistema. */
@@ -235,16 +295,10 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // A tela é sempre clara (branco com teal), qualquer que seja o tema guardado do app.
-  useEffect(() => {
-    const root = document.documentElement
-    const before = root.getAttribute('data-theme')
-    root.setAttribute('data-theme', 'light')
-    return () => { if (before) root.setAttribute('data-theme', before); else root.removeAttribute('data-theme') }
-  }, [])
-
   const [panelEl, setPanelEl] = useState<HTMLDivElement | null>(null)
   useDialogFocus(variant === 'demo' ? panelEl : null)
+  // vitrine só acima de 860 px (no celular nem chega a montar); abaixo disso entra a faixa "ao vivo"
+  const showShowcase = useMediaQuery('(min-width: 861px)')
 
   function goLogin() {
     if (variant === 'demo') router.push('/login')
@@ -256,102 +310,57 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
   const [resetLoading, setResetLoading] = useState(false)
   const [resetError, setResetError] = useState('')
 
-  // Quiz state
+  // Quiz: áreas, sub-área médica (só se "Medicina" estiver marcada) e as três perguntas do plano
   const [quizStep, setQuizStep] = useState(0)
   const [quizAnswers, setQuizAnswers] = useState<string[]>([])
   const [quizResult, setQuizResult] = useState<PlanValue | null>(null)
-  // Fase antes das QUIZ_STEPS indexadas: primeiro pergunta se a clínica tem
-  // mais de uma área (evita a pessoa ficar em dúvida na pergunta de tipo
-  // único, que é pulada de vez quando a resposta é "sim"). isMultiSpecialty
-  // e selectedSpecialties (declarados mais abaixo) são reaproveitados aqui e
-  // seguem populados quando o quiz termina e cai no formulário de cadastro.
-  const [quizPhase, setQuizPhase] = useState<'ask-multi' | 'multi-select' | 'medico-area' | 'questions'>('ask-multi')
+  const [quizPhase, setQuizPhase] = useState<'areas' | 'medico-area' | 'questions'>('areas')
+  const quizTitleRef = useRef<HTMLHeadingElement>(null)
+  // as respostas de área e plano que o quiz já deu (o cadastro mostra como resumo, sem perguntar de novo)
+  const [areasFromQuiz, setAreasFromQuiz] = useState(false)
+  const [areasOpen, setAreasOpen] = useState(false)
 
-  function handleQuizAnswer(value: string) {
-    const next = [...quizAnswers, value]
-    setQuizAnswers(next)
-    if (quizStep === 0 && value === 'medico') {
-      // Bloco F: próxima pergunta é a sub-área médica, antes de seguir pro resto do quiz.
-      setQuizPhase('medico-area')
-      return
-    }
-    if (next.length < QUIZ_STEPS.length) {
-      setQuizStep(quizStep + 1)
-    } else {
-      setQuizResult(calcPlan(next))
-    }
+  function focusQuizTitle() { setTimeout(() => quizTitleRef.current?.focus(), 0) }
+
+  function quizAreasContinue() {
+    if (selectedSpecialties.length === 0) return
+    setQuizStep(0)
+    setQuizPhase(needsMedicoArea ? 'medico-area' : 'questions')
+    focusQuizTitle()
   }
 
-  function handleQuizMedicoAreaContinue() {
+  function quizMedicoContinue() {
     if (!medicoArea) return
     if (medicoArea === 'Outra' && !medicoAreaOther.trim()) return
+    setQuizStep(0)
     setQuizPhase('questions')
-    setQuizStep(1)
+    focusQuizTitle()
   }
 
-  function handleQuizMultiAnswer(isMulti: boolean) {
-    setIsMultiSpecialty(isMulti)
-    setQuizPhase(isMulti ? 'multi-select' : 'questions')
+  function quizPick(value: string) {
+    setQuizAnswers(prev => { const next = [...prev]; next[quizStep] = value; return next })
   }
 
-  function toggleQuizSpecialty(value: ClinicType) {
-    setSelectedSpecialties(prev => {
-      const next = prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
-      setReg(p => ({ ...p, clinic_type: next[0] ?? '' }))
-      return next
-    })
+  function quizNext() {
+    if (!quizAnswers[quizStep]) return
+    if (quizStep < QUIZ_STEPS.length - 1) { setQuizStep(quizStep + 1); focusQuizTitle() }
+    else setQuizResult(calcPlan(quizAnswers))
   }
 
-  function handleQuizMultiSelectContinue() {
-    if (selectedSpecialties.length === 0) return
-    setQuizAnswers([selectedSpecialties[0]])
-    if (selectedSpecialties.includes('medico')) {
-      setQuizPhase('medico-area')
-    } else {
-      setQuizStep(1)
-      setQuizPhase('questions')
-    }
-  }
-
-  function handleQuizBack() {
-    if (quizPhase === 'medico-area') {
-      setMedicoArea('')
-      setMedicoAreaOther('')
-      if (isMultiSpecialty) {
-        setQuizPhase('multi-select')
-      } else {
-        setQuizPhase('questions')
-        setQuizAnswers([])
-      }
-      return
-    }
-    if (quizPhase === 'multi-select') {
-      setQuizPhase('ask-multi')
-      setIsMultiSpecialty(null)
-      setSelectedSpecialties([])
-      return
-    }
-    if (quizStep === 0) {
-      setQuizPhase('ask-multi')
-      setIsMultiSpecialty(null)
-      return
-    }
-    if (quizStep === 1 && isMultiSpecialty) {
-      setQuizPhase('multi-select')
-      setQuizStep(0)
-      setQuizAnswers([])
-      return
-    }
-    setQuizStep(s => s - 1)
-    setQuizAnswers(a => a.slice(0, -1))
+  function quizBack() {
+    if (quizPhase === 'medico-area') { setQuizPhase('areas'); focusQuizTitle(); return }
+    if (quizStep > 0) { setQuizStep(quizStep - 1); focusQuizTitle(); return }
+    setQuizPhase(needsMedicoArea ? 'medico-area' : 'areas')
+    focusQuizTitle()
   }
 
   function goToRegisterFromQuiz(plan: PlanValue) {
-    const clinicType = quizAnswers[0] as ClinicTypeValue | undefined
-    setReg(prev => ({ ...prev, plan, ...(clinicType ? { clinic_type: clinicType } : {}) }))
-    setQuizStep(0)
-    setQuizAnswers([])
+    setReg(prev => ({ ...prev, plan }))
+    setAreasFromQuiz(true)
+    setAreasOpen(false)
     setQuizResult(null)
+    setQuizPhase('areas')
+    setQuizStep(0)
     setMode('register')
   }
 
@@ -398,9 +407,8 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
   // mesmo tempo) sem forçar uma escolha excludente entre as duas coisas.
   const [founderIsProfessional, setFounderIsProfessional] = useState<boolean | null>(null)
   const [founderHasTeam, setFounderHasTeam] = useState<boolean | null>(null)
-  // Pergunta fica em primeiro lugar no formulário (antes do tipo de clínica)
-  // justamente pra quem tem várias áreas não ficar em dúvida na etapa de tipo
-  // único. null = ainda não respondeu (bloqueia avançar pro resto do form).
+  // As áreas são sempre uma escolha só (uma ou várias pílulas): "atende mais de
+  // uma área" é consequência de marcar mais de uma, não uma pergunta à parte.
   // A clínica também cresce pra multi-área sozinha depois (specialties[])
   // quando um usuário de área nova é criado; isso aqui só define o ponto de
   // partida e liga o seletor de área na hora de criar gente.
@@ -413,12 +421,83 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
   // (ver medicoSpecialties.ts) além da base de `medico`.
   const [medicoArea, setMedicoArea] = useState('')
   const [medicoAreaOther, setMedicoAreaOther] = useState('')
-  const needsMedicoArea = isMultiSpecialty === false ? reg.clinic_type === 'medico' : selectedSpecialties.includes('medico')
-  // No quiz, a sub-área médica vira uma pergunta extra logo após escolher
-  // "Médico" — soma 1 ao total de perguntas só quando ela vai aparecer.
-  const medicoAskedInQuiz = quizAnswers[0] === 'medico' || (isMultiSpecialty === true && selectedSpecialties.includes('medico'))
-  const QUIZ_TOTAL_DOTS = QUIZ_STEPS.length + 1 + (medicoAskedInQuiz ? 1 : 0)
+  const needsMedicoArea = selectedSpecialties.includes('medico')
+  const quizTotal = 1 + (needsMedicoArea ? 1 : 0) + QUIZ_STEPS.length
+
+  function setAreas(next: ClinicType[]) {
+    setSelectedSpecialties(next)
+    setIsMultiSpecialty(next.length === 0 ? null : next.length > 1)
+    setReg(p => ({ ...p, clinic_type: next[0] ?? '' }))
+  }
+  function toggleArea(v: ClinicType) {
+    setAreas(selectedSpecialties.includes(v) ? selectedSpecialties.filter(x => x !== v) : [...selectedSpecialties, v])
+  }
+  const areaLabel = (v: ClinicType) => CLINIC_TYPES.find(t => t.value === v)?.label ?? v
+  const principalRole = (v: ClinicType) => getSpecialtyConfig(v).roles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.label ?? areaLabel(v)
+  const areasSummary = selectedSpecialties.map(v => {
+    const medico = v === 'medico' ? (medicoArea === 'Outra' ? medicoAreaOther.trim() : medicoArea) : ''
+    return medico ? `${areaLabel(v)} (${medico})` : areaLabel(v)
+  }).reduce((acc, l, i, all) => (i === 0 ? l : i === all.length - 1 ? `${acc} e ${l}` : `${acc}, ${l}`), '')
   const [showTerms, setShowTerms] = useState(false)
+
+  // Cadastro em três etapas (Sua clínica, Você, Acesso) dentro de um diálogo
+  const [regStep, setRegStep] = useState<1 | 2 | 3>(1)
+  const [planOpen, setPlanOpen] = useState(false)
+  const [registerEl, setRegisterEl] = useState<HTMLDivElement | null>(null)
+  const regFirstRef = useRef<HTMLInputElement>(null)
+  const regTitleRef = useRef<HTMLHeadingElement>(null)
+  useDialogFocus(mode === 'register' ? registerEl : null, regFirstRef)
+
+  // Esc fecha primeiro os Termos (se abertos) e depois o cadastro; durante o envio não fecha
+  useEffect(() => {
+    if (mode !== 'register') return
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      if (showTerms) { setShowTerms(false); return }
+      if (regLoading) return
+      setMode('quiz'); setRegError(''); setRegStep(1); setPlanOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mode, showTerms, regLoading])
+
+  function closeRegister() {
+    if (regLoading) return
+    setMode('quiz'); setRegError(''); setRegStep(1); setPlanOpen(false)
+  }
+
+  // Troca de etapa: o foco vai para o título da nova etapa (leitor de tela anuncia onde está)
+  function changeStep(next: 1 | 2 | 3) {
+    setRegStep(next)
+    setTimeout(() => regTitleRef.current?.focus(), 0)
+  }
+  function goPrevStep() {
+    setRegError('')
+    if (regStep > 1) changeStep((regStep - 1) as 1 | 2 | 3)
+  }
+
+  /** Primeira regra quebrada, já com a etapa onde ela mora (mesmas regras e mensagens de sempre). */
+  function firstRegisterError(): { step: 1 | 2 | 3; msg: string } | null {
+    if (!reg.plan)           return { step: 1, msg: 'Selecione o plano.' }
+    if (selectedSpecialties.length === 0) return { step: 1, msg: 'Marque pelo menos uma área.' }
+    if (!reg.clinic_type)    return { step: 1, msg: 'Selecione o tipo de clínica.' }
+    if (needsMedicoArea && !medicoArea) return { step: 1, msg: 'Diga em qual área da medicina você atua.' }
+    if (needsMedicoArea && medicoArea === 'Outra' && !medicoAreaOther.trim()) return { step: 1, msg: 'Digite a área da medicina.' }
+    if (!reg.clinic_name.trim()) return { step: 1, msg: 'Nome da clínica é obrigatório.' }
+    if (!reg.admin_name.trim())  return { step: 2, msg: 'Seu nome é obrigatório.' }
+    const cpfError = cpfInputError(reg.cpf, { required: true })
+    if (cpfError) return { step: 2, msg: cpfError }
+    const regPhoneError = phoneInputError(reg.phone)
+    if (regPhoneError) return { step: 2, msg: regPhoneError }
+    if (founderIsProfessional === null) return { step: 2, msg: 'Diga se você também atende pacientes pessoalmente.' }
+    if (founderHasTeam === null)        return { step: 2, msg: 'Diga se você vai ter mais gente usando o sistema com você.' }
+    if (!reg.email.trim())       return { step: 3, msg: 'E-mail é obrigatório.' }
+    const usernameLen = normalizeUsername(reg.username).length
+    if (usernameLen < 3 || usernameLen > 30) return { step: 3, msg: 'Nome de usuário deve ter 3-30 caracteres (letras minúsculas, números, _ . -).' }
+    if (reg.password.length < 6) return { step: 3, msg: 'Senha deve ter pelo menos 6 caracteres.' }
+    if (!acceptedTerms)     return { step: 3, msg: 'Você precisa aceitar os Termos de Uso para continuar.' }
+    return null
+  }
 
   // Rate limiting: 5 attempts → 60s lockout (persisted in localStorage)
   function getRateLimitKey(cred: string) { return `rl:${cred.toLowerCase().trim()}` }
@@ -490,7 +569,8 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
         const isCpf = digits.length === 11
 
         const rpcName = isCpf ? 'get_email_by_cpf' : 'get_email_by_username'
-        const rpcArg  = isCpf ? { p_cpf: digits } : { p_username: cred.toLowerCase() }
+        // só números que não fecham 11 dígitos são um usuário numérico (a máscara de CPF pode ter posto pontos)
+        const rpcArg  = isCpf ? { p_cpf: digits } : { p_username: /^[\d.\-\s]+$/.test(cred) ? digits : cred.toLowerCase() }
 
         const { data: foundEmail, error: lookupErr } = await supabase.rpc(rpcName, rpcArg)
         if (lookupErr) { console.error('lookup error:', lookupErr); throw new Error('Erro ao buscar usuário.') }
@@ -591,6 +671,8 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
         monthlyRevenueGoal: c.monthly_revenue_goal ?? null,
         onboardingDismissed: c.onboarding_dismissed ?? [],
         onboardingModalSeen: c.onboarding_modal_seen ?? false,
+        // clinics(*) já traz demo_mode quando a coluna existe; sem ela vem undefined
+        demoMode: c.demo_mode === true,
       }
       const user: AuthUser = {
         id: clinicUser.user_id, clinicUserId: clinicUser.id, role: clinicUser.role,
@@ -646,25 +728,20 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
     e.preventDefault()
     setRegError('')
 
-    if (!reg.plan)           return setRegError('Selecione o plano.')
-    if (isMultiSpecialty === null) return setRegError('Diga se sua clínica atende mais de uma área.')
-    if (isMultiSpecialty && selectedSpecialties.length === 0) return setRegError('Marque pelo menos uma área.')
-    if (!reg.clinic_type)   return setRegError('Selecione o tipo de clínica.')
-    if (needsMedicoArea && !medicoArea) return setRegError('Diga em qual área da medicina você atua.')
-    if (needsMedicoArea && medicoArea === 'Outra' && !medicoAreaOther.trim()) return setRegError('Digite a área da medicina.')
-    if (founderIsProfessional === null) return setRegError('Diga se você também atende pacientes pessoalmente.')
-    if (founderHasTeam === null)        return setRegError('Diga se você vai ter mais gente usando o sistema com você.')
-    if (!acceptedTerms)     return setRegError('Você precisa aceitar os Termos de Uso para continuar.')
-    const cpfError = cpfInputError(reg.cpf, { required: true })
-    if (cpfError) return setRegError(cpfError)
-    if (!reg.clinic_name.trim()) return setRegError('Nome da clínica é obrigatório.')
-    if (!reg.admin_name.trim())  return setRegError('Seu nome é obrigatório.')
+    // etapas 1 e 2: só valida a etapa atual e avança
+    if (regStep < 3) {
+      const err = firstRegisterError()
+      if (err && err.step <= regStep) return setRegError(err.msg)
+      changeStep((regStep + 1) as 1 | 2 | 3)
+      return
+    }
+    // etapa 3: confere tudo; se a falha é de uma etapa anterior, volta para ela
+    const err = firstRegisterError()
+    if (err) {
+      if (err.step !== regStep) changeStep(err.step)
+      return setRegError(err.msg)
+    }
     const usernameClean = normalizeUsername(reg.username)
-    if (usernameClean.length < 3 || usernameClean.length > 30) return setRegError('Nome de usuário deve ter 3-30 caracteres (letras minúsculas, números, _ . -).')
-    const regPhoneError = phoneInputError(reg.phone)
-    if (regPhoneError)           return setRegError(regPhoneError)
-    if (!reg.email.trim())       return setRegError('E-mail é obrigatório.')
-    if (reg.password.length < 6) return setRegError('Senha deve ter pelo menos 6 caracteres.')
 
     setRegLoading(true)
     try {
@@ -767,7 +844,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
           }
         }
 
-        const suggestions = getSpecialtyConfig(reg.clinic_type).procedureSuggestions
+        const suggestions = getSpecialtyConfig(reg.clinic_type || undefined).procedureSuggestions
         if (newClinic?.id && suggestions?.length) {
           await supabase.from('procedures').insert(
             suggestions.map(s => ({
@@ -802,25 +879,18 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
   }
 
   return (
-    <div className={`${styles.page} ${variant === 'demo' ? styles.pageDemo : ''}`}>
+    <div className={`${jakarta.variable} ${styles.page} ${variant === 'demo' ? styles.pageDemo : ''}`}>
 
       {variant === 'demo' ? (
         <>
           <div className={styles.demoStage}><DemoApp /></div>
-          <span className={styles.demoNote}>Exemplo com dados fictícios</span>
         </>
       ) : (
         <>
           <div className={styles.bg} aria-hidden="true"><i /><i /><i /></div>
-          <svg className={styles.ecg} viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M0 60 H300 l30 -50 l36 100 l32 -80 l22 30 H620 l30 -40 l36 90 l30 -70 l20 20 H1000" fill="none" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" pathLength="1" />
-          </svg>
           <div className={styles.left}>
-            <a href="https://myclinica.online" className={styles.leftLogo}>
-              <Image src="/logoMyClinica.png" alt="MyClínica" width={36} height={36} className={styles.leftLogoImg} priority />
-              <span className={styles.leftLogoName}>My<strong>Clínica</strong></span>
-            </a>
-            <h1 className={styles.leftHeadline}>O cuidado é seu.<br />A burocracia é nossa.</h1>
+            <h1 className={styles.leftHeadline}>O cuidado é seu.<br /><em>A burocracia é nossa.</em></h1>
+            {showShowcase ? <LoginShowcase /> : <LiveTicker />}
           </div>
         </>
       )}
@@ -830,15 +900,15 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
       <div className={styles.wrap}>
       <div
         ref={setPanelEl}
-        className={`${styles.card} ${variant === 'login' ? styles.cardLogin : ''}`}
+        className={styles.card}
         {...(variant === 'demo' ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Teste grátis por 7 dias', tabIndex: -1 } : {})}
       >
         <div className={styles.brand}>
-          <div className={styles.brandLogoRow}>
-            <Image src="/logoMyClinica.png" alt="MyClínica" width={34} height={34} className={styles.brandLogoImg} />
-            <span className={styles.brandName}>My<strong>Clínica</strong></span>
-          </div>
-          <p className={styles.brandSub}>Gestão clínica inteligente</p>
+          {variant === 'login' ? (
+            <a href="https://myclinica.online" className={styles.brandLink} aria-label="MyClínica, site"><Logotype className={styles.brandLogotype} /></a>
+          ) : (
+            <Logotype className={styles.brandLogotype} />
+          )}
         </div>
 
         {recoveryChecking ? (
@@ -861,13 +931,13 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
                 <p className={styles.resetDesc}>Escolha sua nova senha.</p>
                 <div className={styles.field}>
                   <label htmlFor="newPassword">Nova senha</label>
-                  <input id="newPassword" type="password" value={newPassword}
+                  <PasswordInput id="newPassword" value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
                     placeholder="••••••••" required autoComplete="new-password" />
                 </div>
                 <div className={styles.field}>
                   <label htmlFor="newPasswordConfirm">Confirmar nova senha</label>
-                  <input id="newPasswordConfirm" type="password" value={newPasswordConfirm}
+                  <PasswordInput id="newPasswordConfirm" value={newPasswordConfirm}
                     onChange={e => setNewPasswordConfirm(e.target.value)}
                     placeholder="••••••••" required autoComplete="new-password" />
                 </div>
@@ -910,15 +980,37 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
           </div>
         ) : mode === 'login' ? (
           <form onSubmit={handleLogin} className={styles.form}>
+            <div className={styles.formHead}>
+              <h2 className={styles.formTitle}>Entrar</h2>
+              <p className={styles.formSub}>Bom te ver de novo.</p>
+            </div>
             <div className={styles.field}>
               <label htmlFor="credential">Usuário, e-mail ou CPF</label>
               <input id="credential" type="text" value={credential}
-                onChange={e => setCredential(e.target.value)}
+                onChange={e => {
+                  // números viram CPF na hora (123.456.789-09); letras ou @ voltam ao texto livre
+                  const el = e.target
+                  const next = maskLoginCredential(el.value, credential)
+                  if (next !== el.value) {
+                    const digitsBeforeCaret = el.value.slice(0, el.selectionStart ?? el.value.length).replace(/\D/g, '').length
+                    const wasCpf = /^[\d.\-\s]*$/.test(next)
+                    requestAnimationFrame(() => {
+                      const pos = wasCpf ? caretAfterDigits(next, digitsBeforeCaret) : Math.min(next.length, el.selectionStart ?? next.length)
+                      el.setSelectionRange(pos, pos)
+                    })
+                  }
+                  setCredential(next)
+                }}
                 placeholder="usuário, email@clinica.com ou 000.000.000-00" required autoComplete="username" />
             </div>
             <div className={styles.field}>
-              <label htmlFor="password">Senha</label>
-              <input id="password" type="password" value={password}
+              <div className={styles.labelRow}>
+                <label htmlFor="password">Senha</label>
+                <button type="button" className={styles.inlineLink} onClick={() => { setShowReset(true); setResetError(''); setResetSent(false) }}>
+                  Esqueci a senha
+                </button>
+              </div>
+              <PasswordInput id="password" value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••" required autoComplete="current-password" />
             </div>
@@ -935,12 +1027,21 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
               </div>
             ) : (
               <button type="submit" className={styles.btn} disabled={loading}>
-                {loading ? (step || 'Autenticando...') : 'Entrar'}
+                {loading ? (step || 'Autenticando...') : <>Entrar <Icon name="chevronRight" size={15} /></>}
               </button>
             )}
-            <button type="button" className={styles.btnLink} onClick={() => { setShowReset(true); setResetError(''); setResetSent(false) }}>
-              Esqueci minha senha
+            <div className={styles.or}>ainda não usa?</div>
+            <button type="button" className={styles.btnGhost} onClick={() => router.push('/experimentar')}>
+              Testar 7 dias grátis
             </button>
+            <a
+              href="https://wa.me/5588920020570?text=Olá!%20Gostaria%20de%20efetivar%20minha%20vantagem%20de%20indicação."
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.referral}
+            >
+              Foi indicado ou indicou alguém? Fale com a gente
+            </a>
             <p className={styles.madeby}>
               feito por{' '}
               <a href="https://otimizai.net.br" target="_blank" rel="noopener noreferrer" className={styles.madebyLink}>
@@ -953,231 +1054,175 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
         {mode === 'quiz' && (
           <div className={styles.quiz}>
             {quizResult ? (
-              /* ── Resultado ── */
+              /* ── Resultado: o plano e em que respostas ele se baseia ── */
               <>
-                <div className={styles.quizResultBadge} style={{ background: PLAN_INFO[quizResult].color }}>
-                  Recomendado para você
+                <HeartbeatProgress total={quizTotal} step={quizTotal + 1} />
+                <div>
+                  <h3 tabIndex={-1} ref={quizTitleRef} className={styles.quizQuestion}>Montamos o seu plano</h3>
+                  <p className={styles.quizSub}>Com base no que você respondeu.</p>
                 </div>
-                <div className={styles.quizResultCard} style={{ borderColor: PLAN_INFO[quizResult].color }}>
-                  <p className={styles.quizResultPlan} style={{ color: PLAN_INFO[quizResult].color }}>
-                    {PLAN_INFO[quizResult].label}
-                  </p>
-                  <p className={styles.quizResultPrice}>{PLAN_INFO[quizResult].price}</p>
-                  <p className={styles.quizResultWhy}>{PLAN_INFO[quizResult].why}</p>
-                  <button
-                    className={styles.btn}
-                    style={{ background: PLAN_INFO[quizResult].color, marginTop: '0.5rem' }}
-                    onClick={() => goToRegisterFromQuiz(quizResult)}
-                  >
-                    Começar grátis com plano {PLAN_INFO[quizResult].label} <Icon name="chevronRight" size={13} />
-                  </button>
+                <div className={styles.quizRec}>
+                  <span className={styles.quizRecTag}>Recomendado para você</span>
+                  <span className={styles.quizRecName}>{PLANS.find(p => p.value === quizResult)?.label}</span>
+                  <span className={styles.quizRecPrice}>{PLANS.find(p => p.value === quizResult)?.price} · 7 dias grátis</span>
+                  <ul className={styles.quizWhy}>
+                    {QUIZ_STEPS.map((st, i) => {
+                      const opt = st.options.find(o => o.value === quizAnswers[i])
+                      return opt ? <li key={st.name}><Icon name="check" size={14} />{opt.reason}</li> : null
+                    })}
+                    {selectedSpecialties.length > 1 && (
+                      <li><Icon name="check" size={14} />{areasSummary} na mesma clínica</li>
+                    )}
+                  </ul>
                 </div>
+                <button className={styles.btn} onClick={() => goToRegisterFromQuiz(quizResult)}>
+                  Começar grátis com o {PLANS.find(p => p.value === quizResult)?.label} <Icon name="chevronRight" size={16} />
+                </button>
                 <p className={styles.quizAlt}>Prefere outro plano?</p>
                 <div className={styles.quizAltPlans}>
-                  {(Object.keys(PLAN_INFO) as Array<typeof QUIZ_PLANS[number]>)
-                    .filter(p => p !== quizResult)
-                    .map(p => (
-                      <button key={p} className={styles.quizAltBtn} onClick={() => goToRegisterFromQuiz(p)}>
-                        {PLAN_INFO[p].label} · {PLAN_INFO[p].price}
-                      </button>
-                    ))
-                  }
-                </div>
-                <button className={styles.btnLink} onClick={() => { setQuizResult(null); setQuizStep(0); setQuizAnswers([]) }}>
-                  Refazer questionário
-                </button>
-              </>
-            ) : quizPhase === 'ask-multi' ? (
-              /* ── Fase 0: sua clínica atende mais de uma área? ── */
-              <>
-                <div className={styles.quizProgress}>
-                  {Array.from({ length: QUIZ_TOTAL_DOTS }).map((_, i) => (
-                    <div key={i} className={`${styles.quizProgressDot} ${i === 0 ? styles.quizProgressDotActive : ''}`} />
-                  ))}
-                </div>
-                <p className={styles.quizStepLabel}>Pergunta 1 de {QUIZ_TOTAL_DOTS}</p>
-                <h3 className={styles.quizQuestion}>Sua clínica atende mais de uma área (ex: odontologia e estética)?</h3>
-                <div className={styles.quizOptions}>
-                  <button className={styles.quizOption} onClick={() => handleQuizMultiAnswer(false)}>
-                    <span className={styles.quizOptionLabel}>Não, só uma área</span>
-                  </button>
-                  <button className={styles.quizOption} onClick={() => handleQuizMultiAnswer(true)}>
-                    <span className={styles.quizOptionLabel}>Sim, mais de uma</span>
-                  </button>
-                </div>
-                <button className={styles.btnLink} onClick={goLogin}>{variant === 'demo' ? 'Já tenho conta' : 'Cancelar'}</button>
-              </>
-            ) : quizPhase === 'multi-select' ? (
-              /* ── Fase 0b: quais áreas (só quando respondeu "sim" acima) ── */
-              <>
-                <div className={styles.quizProgress}>
-                  {Array.from({ length: QUIZ_TOTAL_DOTS }).map((_, i) => (
-                    <div key={i} className={`${styles.quizProgressDot} ${i <= 1 ? styles.quizProgressDotActive : ''}`} />
-                  ))}
-                </div>
-                <p className={styles.quizStepLabel}>Pergunta 2 de {QUIZ_TOTAL_DOTS}</p>
-                <h3 className={styles.quizQuestion}>Quais áreas?</h3>
-                <div className={styles.typeGrid}>
-                  {CLINIC_TYPES.map(t => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      className={`${styles.typeCard} ${selectedSpecialties.includes(t.value) ? styles.typeCardActive : ''}`}
-                      onClick={() => toggleQuizSpecialty(t.value)}
-                    >
-                      <span className={styles.typeLabel}>{t.label}</span>
+                  {PLANS.filter(p => p.value !== quizResult).map(p => (
+                    <button key={p.value} type="button" className={styles.quizAltBtn} onClick={() => goToRegisterFromQuiz(p.value)}>
+                      <b>{p.label}</b><small>{p.price}</small>
                     </button>
                   ))}
                 </div>
-                {selectedSpecialties.length > 0 && (
-                  <span className={styles.slugHint}>Área principal: {getSpecialtyConfig(selectedSpecialties[0]).roles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.label ?? selectedSpecialties[0]} (a primeira marcada).</span>
-                )}
-                <button
-                  className={styles.btn}
-                  style={{ marginTop: '0.75rem' }}
-                  disabled={selectedSpecialties.length === 0}
-                  onClick={handleQuizMultiSelectContinue}
-                >
-                  Continuar <Icon name="chevronRight" size={13} />
-                </button>
-                <button className={styles.btnLink} onClick={handleQuizBack}>
-                  <Icon name="chevronLeft" size={13} /> Voltar
+                <button type="button" className={styles.btnLink} onClick={() => { setQuizResult(null); setQuizPhase('areas'); setQuizStep(0); focusQuizTitle() }}>
+                  Refazer perguntas
                 </button>
               </>
-            ) : quizPhase === 'medico-area' ? (
-              /* ── Bloco F: sub-área médica, logo após escolher "Médico" ── */
-              <>
-                <div className={styles.quizProgress}>
-                  {Array.from({ length: QUIZ_TOTAL_DOTS }).map((_, i) => (
-                    <div key={i} className={`${styles.quizProgressDot} ${i <= 2 ? styles.quizProgressDotActive : ''}`} />
-                  ))}
-                </div>
-                <p className={styles.quizStepLabel}>Pergunta 3 de {QUIZ_TOTAL_DOTS}</p>
-                <h3 className={styles.quizQuestion}>Em qual área da medicina você atua?</h3>
-                <div className={styles.typeGrid}>
-                  {MEDICO_AREA_OPTIONS.map(area => (
-                    <button
-                      key={area}
-                      type="button"
-                      className={`${styles.typeCard} ${medicoArea === area ? styles.typeCardActive : ''}`}
-                      onClick={() => setMedicoArea(area)}
-                    >
-                      <span className={styles.typeLabel}>{area}</span>
+            ) : (() => {
+              const pos = quizPhase === 'areas' ? 1 : quizPhase === 'medico-area' ? 2 : 1 + (needsMedicoArea ? 1 : 0) + quizStep + 1
+              const stepName = quizPhase === 'areas' ? 'Sua clínica' : quizPhase === 'medico-area' ? 'Medicina' : QUIZ_STEPS[quizStep].name
+              const title = quizPhase === 'areas' ? 'Quais áreas a clínica atende?' : quizPhase === 'medico-area' ? 'Em qual área da medicina você atua?' : QUIZ_STEPS[quizStep].question
+              const sub = quizPhase === 'areas' ? 'Marque uma ou mais. Dá para ajustar depois.' : quizPhase === 'medico-area' ? 'Isso deixa a ficha do paciente com os campos certos.' : QUIZ_STEPS[quizStep].sub
+              const canContinue = quizPhase === 'areas' ? selectedSpecialties.length > 0
+                : quizPhase === 'medico-area' ? !!medicoArea && (medicoArea !== 'Outra' || !!medicoAreaOther.trim())
+                : !!quizAnswers[quizStep]
+              const onContinue = quizPhase === 'areas' ? quizAreasContinue : quizPhase === 'medico-area' ? quizMedicoContinue : quizNext
+              const last = quizPhase === 'questions' && quizStep === QUIZ_STEPS.length - 1
+              return (
+                <>
+                  <div className={styles.quizMeta}><b>{pos} de {quizTotal}</b><span>{stepName}</span></div>
+                  <HeartbeatProgress total={quizTotal} step={pos} />
+                  <div>
+                    <h3 tabIndex={-1} ref={quizTitleRef} className={styles.quizQuestion}>{title}</h3>
+                    <p className={styles.quizSub}>{sub}</p>
+                  </div>
+
+                  {quizPhase === 'areas' && (
+                    <>
+                      <RegPills
+                        legend={title}
+                        hideLegend
+                        hint={selectedSpecialties.length > 0 ? `Área principal: ${principalRole(selectedSpecialties[0])}${selectedSpecialties.length > 1 ? ', a primeira marcada' : ''}.` : undefined}
+                        items={CLINIC_TYPES.map(t => ({ value: t.value, label: t.label }))}
+                        isOn={v => selectedSpecialties.includes(v as ClinicType)}
+                        showCheck
+                        onToggle={v => toggleArea(v as ClinicType)}
+                      />
+                    </>
+                  )}
+
+                  {quizPhase === 'medico-area' && (
+                    <>
+                      <RegPills
+                        legend={title}
+                        hideLegend
+                        items={MEDICO_AREA_OPTIONS.map(a => ({ value: a, label: a }))}
+                        isOn={v => medicoArea === v}
+                        onToggle={v => setMedicoArea(v)}
+                      />
+                      {medicoArea === 'Outra' && (
+                        <div className={styles.field}>
+                          <label htmlFor="quizMedicoOther">Qual área?</label>
+                          <input id="quizMedicoOther" value={medicoAreaOther} onChange={e => setMedicoAreaOther(e.target.value)} placeholder="Ex: Reumatologia" />
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {quizPhase === 'questions' && (
+                    <div className={styles.quizOptions} role="group" aria-label={title}>
+                      {QUIZ_STEPS[quizStep].options.map(opt => {
+                        const on = quizAnswers[quizStep] === opt.value
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            aria-pressed={on}
+                            className={`${styles.quizOpt} ${on ? styles.quizOptOn : ''}`}
+                            onClick={() => quizPick(opt.value)}
+                          >
+                            <span className={styles.quizOptIcon}>{opt.icon}</span>
+                            <span className={styles.quizOptText}><b>{opt.label}</b><small>{opt.hint}</small></span>
+                            <span className={styles.quizRadio} aria-hidden="true" />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <div className={styles.quizBtns}>
+                    {pos > 1 && <button type="button" className={styles.regBack} onClick={quizBack}>Voltar</button>}
+                    <button type="button" className={styles.btn} disabled={!canContinue} onClick={onContinue}>
+                      {last ? 'Ver meu plano' : 'Continuar'} <Icon name="chevronRight" size={16} />
                     </button>
-                  ))}
-                </div>
-                {medicoArea === 'Outra' && (
-                  <input
-                    className={styles.fieldInput}
-                    style={{ marginTop: '0.5rem' }}
-                    placeholder="Qual área?"
-                    value={medicoAreaOther}
-                    onChange={e => setMedicoAreaOther(e.target.value)}
-                  />
-                )}
-                <button
-                  className={styles.btn}
-                  style={{ marginTop: '0.75rem' }}
-                  disabled={!medicoArea || (medicoArea === 'Outra' && !medicoAreaOther.trim())}
-                  onClick={handleQuizMedicoAreaContinue}
-                >
-                  Continuar <Icon name="chevronRight" size={13} />
-                </button>
-                <button className={styles.btnLink} onClick={handleQuizBack}>
-                  <Icon name="chevronLeft" size={13} /> Voltar
-                </button>
-              </>
-            ) : (
-              /* ── Perguntas indexadas (QUIZ_STEPS) ── */
-              <>
-                <div className={styles.quizProgress}>
-                  {Array.from({ length: QUIZ_TOTAL_DOTS }).map((_, i) => (
-                    <div key={i} className={`${styles.quizProgressDot} ${i <= quizStep + 1 + (medicoAskedInQuiz && quizStep >= 1 ? 1 : 0) ? styles.quizProgressDotActive : ''}`} />
-                  ))}
-                </div>
-                <p className={styles.quizStepLabel}>Pergunta {quizStep + 2 + (medicoAskedInQuiz && quizStep >= 1 ? 1 : 0)} de {QUIZ_TOTAL_DOTS}</p>
-                <h3 className={styles.quizQuestion}>{QUIZ_STEPS[quizStep].question}</h3>
-                {quizStep === 0 ? (
-                  <div className={styles.specialtyGrid}>
-                    {QUIZ_STEPS[0].options.map(opt => (
-                      <button key={opt.value} type="button" className={styles.specialtyCard} onClick={() => handleQuizAnswer(opt.value)}>
-                        <span className={styles.specialtyIcon} style={{ background: `rgba(${opt.color},0.12)`, color: `rgb(${opt.color})` }}>
-                          {opt.icon}
-                        </span>
-                        <span className={styles.typeLabel}>{opt.label}</span>
-                      </button>
-                    ))}
                   </div>
-                ) : (
-                  <div className={styles.quizOptions}>
-                    {QUIZ_STEPS[quizStep].options.map(opt => (
-                      <button key={opt.value} className={styles.quizOption} onClick={() => handleQuizAnswer(opt.value)}>
-                        <span className={styles.quizOptionIcon}>{opt.icon}</span>
-                        <span className={styles.quizOptionLabel}>{opt.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <button className={styles.btnLink} onClick={handleQuizBack}>
-                  <Icon name="chevronLeft" size={13} /> Voltar
-                </button>
-                <button className={styles.btnLink} onClick={goLogin}>{variant === 'demo' ? 'Já tenho conta' : 'Cancelar'}</button>
-              </>
-            )}
+                  <p className={styles.regNote}>
+                    Já tem conta?{' '}
+                    <button type="button" className={styles.regNoteLink} onClick={goLogin}>Entrar</button>
+                  </p>
+                </>
+              )
+            })()}
           </div>
         )}
 
       </div>
-      {mode === 'login' && !showReset && (
-        <div className={styles.trialCta} onClick={() => router.push('/experimentar')}>
-          <div className={styles.trialCtaText}>
-            <span className={styles.trialCtaBadge}>7 dias grátis</span>
-            <p className={styles.trialCtaHeadline}>Ainda não tem conta?</p>
-            <p className={styles.trialCtaSub}>Descubra o plano ideal em 3 perguntas.</p>
-          </div>
-          <span className={styles.trialCtaBtn}>Começar agora <Icon name="chevronRight" size={13} /></span>
-        </div>
-      )}
-
-      {/* ── Indicação: link discreto ── */}
-      {mode === 'login' && !showReset && (
-        <a
-          href="https://wa.me/5588920020570?text=Olá!%20Gostaria%20de%20efetivar%20minha%20vantagem%20de%20indicação."
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.referral}
-        >
-          Foi indicado ou indicou alguém? Fale com a gente
-        </a>
-      )}
-
       </div>
       </div>
 
       {/* ── Modal de Cadastro ── */}
       {mode === 'register' && (
-        <div className={styles.registerOverlay} onClick={() => { setMode('quiz'); setRegError('') }}>
-          <div className={styles.registerModal} onClick={e => e.stopPropagation()}>
-            <div className={styles.registerModalHeader}>
-              <div>
-                <p className={styles.registerModalTitle}>Criar sua clínica</p>
-                {reg.plan && (
-                  <p className={styles.registerModalPlan}>
-                    Plano {PLANS.find(p => p.value === reg.plan)?.label} · {PLANS.find(p => p.value === reg.plan)?.price}
-                  </p>
-                )}
+        <div className={styles.registerOverlay} ref={setRegisterEl}>
+          <div
+            className={styles.registerModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="regTitle"
+          >
+            <div className={styles.regHead}>
+              <div className={styles.regTop}>
+                <Logotype className={styles.regLogotype} />
+                <button type="button" className={styles.registerModalClose} onClick={closeRegister} aria-label="Fechar">
+                  <Icon name="close" size={20} />
+                </button>
               </div>
-              <button
-                className={styles.registerModalClose}
-                onClick={() => { setMode('quiz'); setRegError('') }}
-                aria-label="Fechar"
-              >
-                <Icon name="close" size={18} />
-              </button>
+              {!regSuccess && (
+                <div className={styles.regSteps}>
+                  <ol className={styles.regStepNames} aria-label="Etapas do cadastro">
+                    {REG_STEP_NAMES.map((name, i) => {
+                      const n = i + 1
+                      const state = n < regStep ? 'done' : n === regStep ? 'on' : ''
+                      return (
+                        <li
+                          key={name}
+                          className={`${styles.regStepName} ${state === 'done' ? styles.regStepDone : ''} ${state === 'on' ? styles.regStepOn : ''}`}
+                          aria-current={n === regStep ? 'step' : undefined}
+                        >
+                          <span className={styles.regStepNum}>{state === 'done' ? <Icon name="check" size={11} /> : n}</span>
+                          {name}
+                        </li>
+                      )
+                    })}
+                  </ol>
+                  <HeartbeatProgress total={REG_STEP_NAMES.length} step={regStep} />
+                </div>
+              )}
             </div>
 
-            <div className={styles.registerModalBody}>
-              {regSuccess ? (
+            {regSuccess ? (
+              <div className={styles.regBody}>
                 <div className={styles.successBox}>
                   <div className={styles.successIcon}><Icon name="checkCircle" size={24} /></div>
                   <h3 className={styles.successTitle}>Clínica criada!</h3>
@@ -1186,265 +1231,241 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
                     {error ? 'Não conseguimos entrar automaticamente. Faça login com o e-mail e a senha que você acabou de cadastrar.' : 'Entrando no sistema…'}
                   </p>
                   {error && (
-                    <button className={styles.btnOutline} onClick={() => { setRegSuccess(false); setReg(BLANK_REG); goLogin() }}>
+                    <button className={styles.btnOutline} onClick={() => { setRegSuccess(false); setReg(BLANK_REG); setRegStep(1); goLogin() }}>
                       Fazer login
                     </button>
                   )}
                 </div>
-              ) : (
-                <form onSubmit={handleRegister} className={styles.form}>
-                  <p className={styles.dedupHint}>
-                    Sua clínica já usa o MyClínica? Não crie uma conta nova — peça para quem administra te cadastrar em <strong>Configurações → Equipe</strong>.
-                  </p>
-
-                  <div className={styles.field}>
-                    <label>Escolha seu plano *</label>
-                    <div className={styles.planGrid}>
-                      {PLANS.map(p => (
-                        <button
-                          key={p.value}
-                          type="button"
-                          className={`${styles.planCard} ${reg.plan === p.value ? styles.planCardActive : ''}`}
-                          onClick={() => setReg(prev => ({ ...prev, plan: p.value }))}
-                        >
-                          <span className={styles.planLabel}>{p.label}</span>
-                          <span className={styles.planPrice}>{p.price}</span>
-                          <span className={styles.planDesc}>{p.desc}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <span className={styles.slugHint}>7 dias grátis em qualquer plano — sem cartão de crédito</span>
+              </div>
+            ) : (
+              <form onSubmit={handleRegister} className={styles.regForm} noValidate>
+                <div className={styles.regBody}>
+                  <div className={styles.regTitleBlock}>
+                    <h2 id="regTitle" ref={regTitleRef} tabIndex={-1} className={styles.regTitle}>{REG_STEP_TITLES[regStep - 1][0]}</h2>
+                    <p className={styles.regSub}>{REG_STEP_TITLES[regStep - 1][1]}</p>
                   </div>
 
-                  <div className={styles.field}>
-                    <label>Sua clínica atende mais de uma área (ex: odontologia e estética)? *</label>
-                    <div className={styles.statusBtnGroup}>
-                      <button
-                        type="button"
-                        className={`${styles.statusChoiceBtn} ${isMultiSpecialty === false ? styles.statusChoiceBtnActive : ''}`}
-                        onClick={() => { setIsMultiSpecialty(false); setSelectedSpecialties([]) }}
-                      >
-                        Não, só uma área
-                      </button>
-                      <button
-                        type="button"
-                        className={`${styles.statusChoiceBtn} ${isMultiSpecialty === true ? styles.statusChoiceBtnActive : ''}`}
-                        onClick={() => setIsMultiSpecialty(true)}
-                      >
-                        Sim, mais de uma
-                      </button>
-                    </div>
-                    <span className={styles.slugHint}>Se sim, marque abaixo todas as áreas que a clínica atende — não precisa ser exato, dá para ajustar depois em Equipe.</span>
-                  </div>
-
-                  {isMultiSpecialty === false && (
-                    <div className={styles.field}>
-                      <label>Tipo de clínica *</label>
-                      <div className={styles.typeGrid}>
-                        {CLINIC_TYPES.map(t => (
-                          <button
-                            key={t.value}
-                            type="button"
-                            className={`${styles.typeCard} ${reg.clinic_type === t.value ? styles.typeCardActive : ''}`}
-                            onClick={() => setReg(p => ({ ...p, clinic_type: t.value }))}
-                          >
-                            <span className={styles.typeLabel}>{t.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {isMultiSpecialty === true && (
-                    <div className={styles.field}>
-                      <label>Quais áreas? *</label>
-                      <div className={styles.typeGrid}>
-                        {CLINIC_TYPES.map(t => {
-                          const active = selectedSpecialties.includes(t.value)
-                          return (
-                            <button
-                              key={t.value}
-                              type="button"
-                              className={`${styles.typeCard} ${active ? styles.typeCardActive : ''}`}
-                              onClick={() => setSelectedSpecialties(prev => {
-                                const next = prev.includes(t.value) ? prev.filter(v => v !== t.value) : [...prev, t.value]
-                                setReg(p => ({ ...p, clinic_type: next[0] ?? '' }))
-                                return next
-                              })}
-                            >
-                              <span className={styles.typeLabel}>{t.label}</span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                      {selectedSpecialties.length > 0 && (
-                        <span className={styles.slugHint}>Área principal: {getSpecialtyConfig(selectedSpecialties[0]).roles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.label ?? selectedSpecialties[0]} (a primeira marcada — dá pra trocar desmarcando e marcando na outra ordem).</span>
+                  {regStep === 1 && (
+                    <>
+                      {planOpen ? (
+                        <div className={styles.regField} role="group" aria-label="Escolha seu plano">
+                          <div className={styles.regPlanList}>
+                            {PLANS.map(p => (
+                              <button
+                                key={p.value}
+                                type="button"
+                                aria-pressed={reg.plan === p.value}
+                                className={`${styles.regPlanOpt} ${reg.plan === p.value ? styles.regPlanOptOn : ''}`}
+                                onClick={() => { setReg(prev => ({ ...prev, plan: p.value })); setPlanOpen(false) }}
+                              >
+                                <span className={styles.regPlanOptText}><b>{p.label}</b><small>{p.desc}</small></span>
+                                <span className={styles.regPlanOptPrice}>{p.price}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={styles.regPlan}>
+                          <div className={styles.regPlanText}>
+                            <b>Plano {PLANS.find(p => p.value === reg.plan)?.label} · {PLANS.find(p => p.value === reg.plan)?.price}</b>
+                            <small>7 dias grátis, sem cartão de crédito</small>
+                          </div>
+                          <button type="button" className={styles.regPlanChange} onClick={() => setPlanOpen(true)}>Trocar</button>
+                        </div>
                       )}
-                    </div>
-                  )}
 
-                  {needsMedicoArea && (
-                    <div className={styles.field}>
-                      <label>Em qual área da medicina você atua? *</label>
-                      <div className={styles.typeGrid}>
-                        {MEDICO_AREA_OPTIONS.map(area => (
-                          <button
-                            key={area}
-                            type="button"
-                            className={`${styles.typeCard} ${medicoArea === area ? styles.typeCardActive : ''}`}
-                            onClick={() => setMedicoArea(area)}
-                          >
-                            <span className={styles.typeLabel}>{area}</span>
-                          </button>
-                        ))}
-                      </div>
-                      {medicoArea === 'Outra' && (
+                      {areasFromQuiz && !areasOpen && selectedSpecialties.length > 0 ? (
+                        <div className={styles.regPlan}>
+                          <div className={styles.regPlanText}>
+                            <b>{areasSummary}</b>
+                            <small>Área principal: {principalRole(selectedSpecialties[0])}</small>
+                          </div>
+                          <button type="button" className={styles.regPlanChange} onClick={() => setAreasOpen(true)}>Alterar</button>
+                        </div>
+                      ) : (
+                        <>
+                          <RegPills
+                            legend="Quais áreas a clínica atende?"
+                            hint={selectedSpecialties.length > 1
+                              ? `Área principal: ${principalRole(selectedSpecialties[0])}, a primeira marcada. Para trocar, desmarque e marque na outra ordem. Dá para ajustar depois em Equipe.`
+                              : 'Marque uma ou mais. Dá para ajustar depois em Equipe.'}
+                            items={CLINIC_TYPES.map(t => ({ value: t.value, label: t.label }))}
+                            isOn={v => selectedSpecialties.includes(v as ClinicType)}
+                            showCheck
+                            onToggle={v => toggleArea(v as ClinicType)}
+                          />
+
+                          {needsMedicoArea && (
+                            <>
+                              <RegPills
+                                legend="Em qual área da medicina você atua?"
+                                items={MEDICO_AREA_OPTIONS.map(a => ({ value: a, label: a }))}
+                                isOn={v => medicoArea === v}
+                                onToggle={v => setMedicoArea(v)}
+                              />
+                              {medicoArea === 'Outra' && (
+                                <div className={styles.field}>
+                                  <label htmlFor="regMedicoOther">Qual área?</label>
+                                  <input id="regMedicoOther" value={medicoAreaOther} onChange={e => setMedicoAreaOther(e.target.value)} placeholder="Ex: Reumatologia" />
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )}
+
+                      <div className={styles.field}>
+                        <label htmlFor="regClinicName">Nome da clínica</label>
                         <input
-                          className={styles.fieldInput}
-                          style={{ marginTop: '0.5rem' }}
-                          placeholder="Qual área?"
-                          value={medicoAreaOther}
-                          onChange={e => setMedicoAreaOther(e.target.value)}
+                          id="regClinicName"
+                          ref={regFirstRef}
+                          type="text"
+                          value={reg.clinic_name}
+                          onChange={e => setReg(p => ({ ...p, clinic_name: e.target.value }))}
+                          placeholder="Ex: Clínica Sorriso"
+                          autoComplete="organization"
                         />
-                      )}
-                    </div>
+                      </div>
+
+                      <p className={styles.regAside}>
+                        Sua clínica já usa o MyClínica? Não crie uma conta nova: peça a quem administra para te cadastrar em <strong>Configurações → Equipe</strong>.
+                      </p>
+                    </>
                   )}
 
-                  <div className={styles.field}>
-                    <label>
-                      Você também atende pacientes pessoalmente
-                      {reg.clinic_type && ` (é ${getSpecialtyConfig(reg.clinic_type).roles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.label ?? 'profissional'}`}
-                      {reg.clinic_type && ', além de administrar)'}?
-                    </label>
-                    <div className={styles.statusBtnGroup}>
-                      <button type="button" className={`${styles.statusChoiceBtn} ${founderIsProfessional === true ? styles.statusChoiceBtnActive : ''}`} onClick={() => setFounderIsProfessional(true)}>Sim</button>
-                      <button type="button" className={`${styles.statusChoiceBtn} ${founderIsProfessional === false ? styles.statusChoiceBtnActive : ''}`} onClick={() => setFounderIsProfessional(false)}>Não</button>
-                    </div>
-                  </div>
+                  {regStep === 2 && (
+                    <>
+                      <div className={styles.field}>
+                        <label htmlFor="regAdminName">Seu nome</label>
+                        <input
+                          id="regAdminName"
+                          type="text"
+                          value={reg.admin_name}
+                          onChange={e => setReg(p => ({ ...p, admin_name: e.target.value }))}
+                          placeholder="Dr. João Silva"
+                          autoComplete="name"
+                        />
+                      </div>
 
-                  <div className={styles.field}>
-                    <label>Tem outras pessoas que vão usar o sistema com você (ou vai ter em breve)?</label>
-                    <div className={styles.statusBtnGroup}>
-                      <button type="button" className={`${styles.statusChoiceBtn} ${founderHasTeam === false ? styles.statusChoiceBtnActive : ''}`} onClick={() => setFounderHasTeam(false)}>Só eu por enquanto</button>
-                      <button type="button" className={`${styles.statusChoiceBtn} ${founderHasTeam === true ? styles.statusChoiceBtnActive : ''}`} onClick={() => setFounderHasTeam(true)}>Sim, tenho equipe</button>
-                    </div>
-                    <span className={styles.slugHint}>Você será a pessoa responsável por esta conta e por dar acesso aos demais da equipe.</span>
-                  </div>
+                      <div className={styles.regRow2}>
+                        <div className={styles.field}>
+                          <label htmlFor="regCpf">CPF</label>
+                          <CpfInput id="regCpf" value={reg.cpf} onChange={v => setReg(p => ({ ...p, cpf: v }))} />
+                          <span className={styles.regHint}>Também serve para entrar</span>
+                        </div>
+                        <div className={styles.field}>
+                          <label htmlFor="regPhone">Telefone</label>
+                          <PhoneInput id="regPhone" value={reg.phone} onChange={v => setReg(p => ({ ...p, phone: v }))} />
+                          <span className={styles.regHint}>Opcional</span>
+                        </div>
+                      </div>
 
-                  <div className={styles.field}>
-                    <label>Nome da clínica *</label>
-                    <input
-                      type="text"
-                      value={reg.clinic_name}
-                      onChange={e => setReg(p => ({ ...p, clinic_name: e.target.value }))}
-                      placeholder="Ex: Clínica Sorriso"
-                      required
-                    />
-                    {reg.clinic_name && (
-                      <span className={styles.slugHint}>myclinica.app/{toSlug(reg.clinic_name)}</span>
+                      <RegChoice
+                        legend="Você também atende pacientes?"
+                        hint={`Marque Sim se você é ${getSpecialtyConfig(reg.clinic_type || undefined).roles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.label ?? 'profissional'}, além de administrar a clínica.`}
+                        value={founderIsProfessional}
+                        onChange={setFounderIsProfessional}
+                        options={[{ label: 'Sim', value: true }, { label: 'Não', value: false }]}
+                      />
+
+                      <RegChoice
+                        legend="Mais gente vai usar o sistema com você?"
+                        hint="Você será a pessoa responsável pela conta e dá acesso aos demais depois, em Equipe."
+                        value={founderHasTeam}
+                        onChange={setFounderHasTeam}
+                        options={[{ label: 'Só eu por enquanto', value: false }, { label: 'Sim, tenho equipe', value: true }]}
+                      />
+                    </>
+                  )}
+
+                  {regStep === 3 && (
+                    <>
+                      <div className={styles.field}>
+                        <label htmlFor="regEmail">E-mail</label>
+                        <input
+                          id="regEmail"
+                          type="email"
+                          value={reg.email}
+                          onChange={e => setReg(p => ({ ...p, email: e.target.value }))}
+                          placeholder="contato@clinica.com"
+                          autoComplete="email"
+                        />
+                      </div>
+
+                      <div className={styles.field}>
+                        <label htmlFor="regUsername">Nome de usuário</label>
+                        <input
+                          id="regUsername"
+                          type="text"
+                          value={reg.username}
+                          onChange={e => setReg(p => ({ ...p, username: normalizeUsername(e.target.value) }))}
+                          placeholder="ex: drjoao"
+                          autoComplete="username"
+                        />
+                        <span className={styles.regHint}>Letras minúsculas, números, _ . - (3 a 30 caracteres).</span>
+                      </div>
+
+                      <div className={styles.field}>
+                        <label htmlFor="regPassword">Senha</label>
+                        <PasswordInput
+                          id="regPassword"
+                          value={reg.password}
+                          onChange={e => setReg(p => ({ ...p, password: e.target.value }))}
+                          placeholder="mín. 6 caracteres"
+                          autoComplete="new-password"
+                        />
+                      </div>
+
+                      <label className={styles.termsCheck}>
+                        <input
+                          type="checkbox"
+                          checked={acceptedTerms}
+                          onChange={e => setAcceptedTerms(e.target.checked)}
+                        />
+                        <span>
+                          Li e aceito os{' '}
+                          <button type="button" className={styles.termsLink} onClick={() => setShowTerms(true)}>
+                            Termos de Uso
+                          </button>
+                          , trial gratuito por 7 dias
+                        </span>
+                      </label>
+                    </>
+                  )}
+                </div>
+
+                <div className={styles.regFoot}>
+                  {regError && <p className={styles.error} role="alert">{regError}</p>}
+                  <div className={styles.regBtnRow}>
+                    {regStep > 1 && (
+                      <button type="button" className={styles.regBack} onClick={goPrevStep} disabled={regLoading}>Voltar</button>
                     )}
+                    <button key={`go-${regStep}`} type="submit" className={styles.btn} disabled={regLoading}>
+                      {regStep < 3
+                        ? <>Continuar <Icon name="chevronRight" size={16} /></>
+                        : regLoading ? 'Criando clínica...' : 'Criar minha clínica'}
+                    </button>
                   </div>
-
-                  <div className={styles.field}>
-                    <label>Seu nome (responsável) *</label>
-                    <input
-                      type="text"
-                      value={reg.admin_name}
-                      onChange={e => setReg(p => ({ ...p, admin_name: e.target.value }))}
-                      placeholder="Dr. João Silva"
-                      required
-                    />
-                  </div>
-
-                  <div className={styles.field}>
-                    <label>Nome de usuário (para login) *</label>
-                    <input
-                      type="text"
-                      value={reg.username}
-                      onChange={e => setReg(p => ({ ...p, username: normalizeUsername(e.target.value) }))}
-                      placeholder="ex: drjoao"
-                      autoComplete="username"
-                      required
-                    />
-                    <span className={styles.slugHint}>
-                      {reg.username ? `Login: ${reg.username}` : '3-30 caracteres: letras minúsculas, números, _ . -'}
-                    </span>
-                  </div>
-
-                  <div className={styles.field}>
-                    <label>E-mail *</label>
-                    <input
-                      type="email"
-                      value={reg.email}
-                      onChange={e => setReg(p => ({ ...p, email: e.target.value }))}
-                      placeholder="contato@clinica.com"
-                      required
-                    />
-                  </div>
-
-                  <div className={styles.field}>
-                    <label>Senha *</label>
-                    <input
-                      type="password"
-                      value={reg.password}
-                      onChange={e => setReg(p => ({ ...p, password: e.target.value }))}
-                      placeholder="mín. 6 caracteres"
-                      required
-                    />
-                  </div>
-
-                  <div className={styles.field}>
-                    <label>Telefone</label>
-                    <PhoneInput
-                      value={reg.phone}
-                      onChange={v => setReg(p => ({ ...p, phone: v }))}
-                    />
-                  </div>
-
-                  <div className={styles.field}>
-                    <label>CPF *</label>
-                    <CpfInput
-                      value={reg.cpf}
-                      onChange={v => setReg(p => ({ ...p, cpf: v }))}
-                      required
-                    />
-                    <span className={styles.slugHint}>Você poderá usar o CPF para fazer login</span>
-                  </div>
-
-                  <label className={styles.termsCheck}>
-                    <input
-                      type="checkbox"
-                      checked={acceptedTerms}
-                      onChange={e => setAcceptedTerms(e.target.checked)}
-                    />
-                    <span>
-                      Li e aceito os{' '}
-                      <button type="button" className={styles.termsLink} onClick={() => setShowTerms(true)}>
-                        Termos de Uso
-                      </button>
-                      {' '}— trial gratuito por 7 dias
-                    </span>
-                  </label>
-
-                  {regError && <p className={styles.error}>{regError}</p>}
-                  <button type="submit" className={styles.btn} disabled={regLoading || !acceptedTerms}>
-                    {regLoading ? 'Criando clínica...' : 'Criar minha clínica'}
-                  </button>
-                  <button type="button" className={styles.btnLink} onClick={() => { setRegError(''); setRegSuccess(false); goLogin() }}>
-                    Já tenho conta — Entrar
-                  </button>
-                </form>
-              )}
-            </div>
+                  {regStep === 1 ? (
+                    <p className={styles.regNote}>
+                      Já tem conta?{' '}
+                      <button type="button" className={styles.regNoteLink} onClick={() => { setRegError(''); setRegSuccess(false); goLogin() }}>Entrar</button>
+                    </p>
+                  ) : regStep === 3 ? (
+                    <p className={styles.regNote}>Sem cartão de crédito. Cancele quando quiser.</p>
+                  ) : null}
+                </div>
+              </form>
+            )}
           </div>
 
           {/* Terms overlay dentro do modal */}
           {showTerms && (
             <div className={styles.termsOverlay} onClick={() => setShowTerms(false)}>
-              <div className={styles.termsModal} onClick={e => e.stopPropagation()}>
+              <div className={styles.termsModal} role="dialog" aria-modal="true" aria-labelledby="termsTitle" onClick={e => e.stopPropagation()}>
                 <div className={styles.termsHeader}>
-                  <h2 className={styles.termsTitle}>Termos de Uso — My Clinica</h2>
-                  <button className={styles.termsClose} onClick={() => setShowTerms(false)}><Icon name="close" size={16} /></button>
+                  <h2 id="termsTitle" className={styles.termsTitle}>Termos de Uso — My Clinica</h2>
+                  <button className={styles.termsClose} onClick={() => setShowTerms(false)} aria-label="Fechar"><Icon name="close" size={16} /></button>
                 </div>
                 <div className={styles.termsBody}>
                   <p className={styles.termsDate}>Versão vigente: maio de 2026</p>

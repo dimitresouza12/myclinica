@@ -6,6 +6,7 @@ import { getAdminClient } from '@/lib/supabaseAdmin'
 import { extractMessage, type InboundMessage } from './webhook-parse'
 import { previewFor } from './inbox'
 import { phoneKeys, phoneKeyFromJid, isLidJid } from './phone'
+import { isDemoClinic, DEMO_SEND_BLOCKED_MESSAGE } from '@/lib/demoGuard'
 import { sendText, sendMedia, sendVoice, deleteForEveryone, editText } from './evolution'
 import { connectedInstanceFor } from './connection'
 import { createLeadForNewConversation, onLeadMessage, fillLeadName } from './leads'
@@ -265,6 +266,7 @@ async function loadOwnMessage(clinicId: string, messageId: string): Promise<{ ms
 
 /** Apaga para todos uma mensagem enviada pela clínica (até cerca de 2 dias depois). */
 export async function deleteOwnMessage(p: { clinicId: string; messageId: string }): Promise<SendResult> {
+  if (await isDemoClinic(p.clinicId)) return { ok: false, status: 403, error: DEMO_SEND_BLOCKED_MESSAGE }
   const r = await loadOwnMessage(p.clinicId, p.messageId)
   if ('error' in r) return { ok: false, ...r.error }
   if (!canDeleteForEveryone(r.msg, new Date())) return { ok: false, status: 409, error: 'Já passou o prazo para apagar esta mensagem para todos.' }
@@ -278,6 +280,7 @@ export async function deleteOwnMessage(p: { clinicId: string; messageId: string 
 
 /** Edita o texto de uma mensagem enviada pela clínica (até 15 minutos depois). */
 export async function editOwnMessage(p: { clinicId: string; messageId: string; text: string }): Promise<SendResult> {
+  if (await isDemoClinic(p.clinicId)) return { ok: false, status: 403, error: DEMO_SEND_BLOCKED_MESSAGE }
   const r = await loadOwnMessage(p.clinicId, p.messageId)
   if ('error' in r) return { ok: false, ...r.error }
   if (!canEditMessage(r.msg, new Date())) return { ok: false, status: 409, error: 'O WhatsApp só deixa editar nos primeiros 15 minutos, e só mensagens de texto.' }
@@ -335,6 +338,7 @@ export type SendResult = { ok: true } | { ok: false; status: number; error: stri
 
 /** Envia uma resposta digitada na caixa de entrada. */
 export async function sendFromInbox(p: { clinicId: string; conversationId: string; text: string; userId: string; userName: string }): Promise<SendResult> {
+  if (await isDemoClinic(p.clinicId)) return { ok: false, status: 403, error: DEMO_SEND_BLOCKED_MESSAGE }
   const admin = getAdminClient()
   const { data: conv } = await admin.from('whatsapp_conversations').select('id, jid')
     .eq('id', p.conversationId).eq('clinic_id', p.clinicId).maybeSingle()
@@ -359,6 +363,7 @@ export async function sendMediaFromInbox(p: {
   clinicId: string; conversationId: string; userId: string; userName: string
   bytes: Buffer; name: string; mime: string; kind: 'image' | 'document' | 'audio'; caption: string; seconds?: number | null; wave?: string | null
 }): Promise<SendResult> {
+  if (await isDemoClinic(p.clinicId)) return { ok: false, status: 403, error: DEMO_SEND_BLOCKED_MESSAGE }
   const admin = getAdminClient()
   const { data: conv } = await admin.from('whatsapp_conversations').select('id, jid')
     .eq('id', p.conversationId).eq('clinic_id', p.clinicId).maybeSingle()

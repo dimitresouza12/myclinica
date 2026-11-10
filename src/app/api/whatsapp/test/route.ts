@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireClinicAdmin } from '@/lib/whatsapp/auth'
+import { rejectIfDemo } from '@/lib/demoGuard'
 import { connectedInstanceFor } from '@/lib/whatsapp/connection'
 import { checkNumbers, sendText } from '@/lib/whatsapp/evolution'
 import { whatsappCandidates } from '@/lib/whatsapp/phone'
@@ -12,6 +13,9 @@ const TEST_TEXT = 'Mensagem de teste do MyClinica. Se você recebeu este texto, 
 export async function POST(req: Request) {
   const ctx = await requireClinicAdmin(req)
   if (ctx instanceof NextResponse) return ctx
+
+  const demo = await rejectIfDemo(ctx.clinicId)
+  if (demo) return demo
 
   const limit = rateLimit(`wa-test:${ctx.clinicId}`, { limit: 5, windowMs: 10 * 60_000 })
   if (!limit.success) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireModulePerm } from '@/lib/whatsapp/auth'
+import { rejectIfDemo } from '@/lib/demoGuard'
 import { sendMediaFromInbox } from '@/lib/whatsapp/conversations'
 import { checkUpload, checkVoice, normalizeWave, MAX_UPLOAD_BYTES, MAX_VOICE_SECONDS } from '@/lib/whatsapp/media'
 import { rateLimit } from '@/lib/rateLimit'
@@ -17,6 +18,9 @@ const MAX_BODY_BYTES = MAX_UPLOAD_BYTES + 512 * 1024
 export async function POST(req: Request) {
   const ctx = await requireModulePerm(req, 'crm', true)
   if (ctx instanceof NextResponse) return ctx
+
+  const demo = await rejectIfDemo(ctx.clinicId)
+  if (demo) return demo
 
   const limit = rateLimit(`wa-inbox-media:${ctx.userId}`, { limit: 15, windowMs: 60_000 })
   if (!limit.success) {

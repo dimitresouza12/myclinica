@@ -12,6 +12,7 @@ import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner'
 import { PaymentLateBanner } from '@/components/layout/PaymentLateBanner'
 import { ToastContainer } from '@/components/ui/Toast'
 import { ConfirmDialogContainer } from '@/components/ui/ConfirmDialog'
+import { SpecialtyPickerModal } from '@/components/demo/SpecialtyPickerModal'
 import styles from './app.module.css'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -113,11 +114,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if ((data.asaas_subscription_id ?? null) !== currentClinic.asaasSubscriptionId) updates.asaasSubscriptionId = data.asaas_subscription_id ?? null
       if ((data.monthly_revenue_goal ?? null) !== currentClinic.monthlyRevenueGoal) updates.monthlyRevenueGoal = data.monthly_revenue_goal ?? null
 
-      if (Object.keys(updates).length > 0) setSession({ ...currentClinic, ...updates }, currentUser)
+      // Parte do snapshot mais recente do store, não do capturado ao montar: na conta de
+      // demonstração a pessoa pode ter escolhido a área depois que este efeito rodou.
+      // (setSession também preserva a escolha, isto só evita gravar dados velhos por cima.)
+      if (Object.keys(updates).length > 0) {
+        const latest = useAuthStore.getState()
+        setSession({ ...(latest.clinic ?? currentClinic), ...updates }, latest.user ?? currentUser)
+      }
       if (connected) silentRefreshGCal(true)
     }
 
+    // demo_mode em consulta separada: a coluna pode não existir (ainda) e um select explícito
+    // junto das outras quebraria a sincronização de TODAS as clínicas; aqui o erro só é ignorado.
+    // Roda uma vez por montagem, o flag não muda durante a sessão.
+    async function syncDemoMode() {
+      const { data, error } = await supabase
+        .from('clinics')
+        .select('demo_mode')
+        .eq('id', currentClinic.id)
+        .maybeSingle()
+      if (error || !data) return
+      const demo = (data as { demo_mode?: boolean | null }).demo_mode === true
+      const latest = useAuthStore.getState()
+      if (!latest.clinic || !latest.user || latest.clinic.id !== currentClinic.id) return
+      if ((latest.clinic.demoMode ?? false) !== demo) setSession({ ...latest.clinic, demoMode: demo }, latest.user)
+    }
+
     syncClinicData()
+    syncDemoMode()
 
     // Sincroniza a cada 5 min e renova token GCal a cada 45 min
     const syncInterval  = setInterval(syncClinicData, 5 * 60 * 1000)
@@ -173,6 +197,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       <ToastContainer />
       <ConfirmDialogContainer />
+      <SpecialtyPickerModal />
     </div>
   )
 }

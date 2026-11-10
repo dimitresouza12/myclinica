@@ -19,6 +19,20 @@ export function maskCpf(input: string | null | undefined): string {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
 }
 
+const CPF_LIKE = /^[\d.\-\s]*$/
+
+/**
+ * Campo "usuário, e-mail ou CPF" do login: enquanto só houver números (e a pontuação do CPF), o texto é formatado
+ * como CPF na hora; no primeiro caractere de usuário ou e-mail ele volta a ser texto livre. `previous` é o que estava
+ * no campo antes da digitação: se era um CPF em formação ("123.45") e a pessoa passa a digitar um usuário ("123.45a"),
+ * a pontuação que a máscara pôs é retirada ("12345a"), senão o usuário ficaria com pontos que ela não digitou.
+ */
+export function maskLoginCredential(input: string, previous = ''): string {
+  if (CPF_LIKE.test(input)) return /\d/.test(input) ? maskCpf(input) : input
+  if (previous && CPF_LIKE.test(previous)) return input.replace(/^[\d.\-\s]+/, run => run.replace(/\D/g, ''))
+  return input
+}
+
 /** CPF com exatamente 11 números. (Não confere os dígitos verificadores: só a quantidade.) */
 export function isCompleteCpf(value: string | null | undefined): boolean {
   return onlyDigits(maskCpf(value)).length === CPF_DIGITS

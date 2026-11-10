@@ -29,7 +29,7 @@ Duas peças, na ordem:
 
 **Ideia (Dimitre):** em vez de o quiz viver na tela de login, quem aperta "Teste grátis" cai no sistema, na tela de dashboard, com um modal de quiz por cima e o fundo desfocado. A pessoa vê o produto antes de responder e fica no fluxo até concluir.
 
-**Fundo.** Uma página de demonstração própria, pública, sem login, montada com os mesmos componentes do app (barra lateral, cartões de indicador, gráficos) e **dados fictícios fixos**, nunca dados reais. Desfocada por trás do modal. Uma etiqueta discreta "Exemplo" deixa claro que os números não são de ninguém. Carrega leve: sem chamadas ao banco e sem o estado de autenticação.
+**Fundo.** Uma página de demonstração própria, pública, sem login, montada com os mesmos componentes do app (barra lateral, cartões de indicador, gráficos) e **dados fictícios fixos**, nunca dados reais. Desfocada por trás do modal. (A etiqueta "Exemplo com dados fictícios" foi removida a pedido de Dimitre em 2026-10-28.) Carrega leve: sem chamadas ao banco e sem o estado de autenticação.
 
 **Modal.** O mesmo cartão de vidro da tela de login, sobre o fundo desfocado. Não fecha com Esc nem clicando fora (`dismissible={false}` do `Modal`), mas tem sempre um link visível "Já tenho conta" que leva ao login, para ninguém ficar preso. Passos: as perguntas do quiz que existem hoje, o plano sugerido e, como **último passo no mesmo modal**, nome, e-mail e senha para criar a conta. Concluída a conta, a pessoa entra no dashboard de verdade, já no plano escolhido.
 
@@ -44,6 +44,17 @@ Lógica de autenticação, textos de erro, regras de plano e cobrança, e a pág
 ## Verificação
 
 `tsc` e `vitest` limpos. Conferido no painel do navegador (a cota do Antigravity acabou): `/login` e `/experimentar` em 1280 e 390 px, tema claro forçado, cartão com 16 px de gutter no celular, sem rolagem lateral, botões de no mínimo 44 px, foco entrando no diálogo da demonstração, quiz avançando e "Já tenho conta" levando ao login. Texto sem contraste insuficiente medido na página de login (corrigido o crédito "feito por Otimiza AÍ"). **Falta:** passar o cadastro e a entrada automática de ponta a ponta com uma conta de verdade, e a reverificação pelo Antigravity quando a cota voltar.
+
+## Segunda rodada (2026-10-28): composição nova do login
+
+Dimitre achou a tela ainda genérica. Maquete aprovada: https://claude.ai/artifact/7VBiao9ErKHePmQKZbNVNx (opção A, "Agenda viva"). Vale para o computador; o celular está no item próprio abaixo.
+
+- **Esquerda:** só a frase "O cuidado é seu. *A burocracia é nossa.*" (tudo em verde escuro, o itálico separa as duas linhas) e a **vitrine** (`src/components/login/LoginShowcase.tsx`): três cenas de um dia de clínica com dados fictícios fixos (agenda se confirmando, financeiro do mês, conversa de confirmação no WhatsApp), 6,5 s cada. O relógio é uma linha de batimento sob as abas: ao terminar de se desenhar, troca de cena. Pausa com mouse ou foco; com movimento reduzido tudo fica parado no estado final. Só monta acima de 860 px (`useMediaQuery`).
+- **Cartão:** logotipo no topo, centralizado e grande, com um fio embaixo; "Entrar" e "Bom te ver de novo." centralizados; "Esqueci a senha" na linha do rótulo da senha; "Entrar" com seta; "ainda não usa?" e o botão "Testar 7 dias grátis" (agora botão de verdade, antes era uma div clicável); indicação e crédito da Otimiza AÍ dentro do cartão. O traço de batimento que cruzava o fundo saiu.
+- **Logotipo** (`src/components/login/Logotype.tsx`, opção E): o "My" é o batimento do logo desenhado na escala do "Clínica" em Plus Jakarta Sans 700. Começa no meio da altura das letras, o pico alto bate na altura do C, o vale desce como a perna do y, traço com a espessura das hastes. Batimento em `#06312B`, "Clínica" no teal do arquivo do logo (`#5EEAD4`). O nome usa `textLength` para não se deslocar se a fonte demorar. **Pendente (opcional):** converter as letras em desenho fixo, para não depender da fonte.
+- **Fonte:** Plus Jakarta Sans no título e em tudo da tela de login, via `next/font/google` (variável `--font-jakarta`, normal e itálico, sem pedido externo no navegador). O resto do app continua com o `@import` do design system.
+- **Celular (até 860 px), opção 1 "Faixa ao vivo"** (maquete: https://claude.ai/artifact/S6unQDHxo9uKLa4mFpEtDh): a frase no topo, logo abaixo uma faixa "AO VIVO" com ponto pulsando que alterna três acontecimentos fictícios (`src/components/login/LiveTicker.tsx`, só CSS, decorativa para leitor de tela) e o mesmo cartão do computador, mais compacto. Cabe sem rolar em 390 × 844; em telas baixas (até 720 px de altura) o título encolhe para o botão Entrar ficar na primeira tela. Dimitre preferiu a opção 1 à de cena com cartão embaixo.
+- O teal do logo como cor de texto tem contraste baixo sobre branco (cerca de 1,5:1). Dimitre escolheu assim para o "Clínica" do logotipo; a frase do título ficou em verde escuro por legibilidade.
 
 ## Decisões
 

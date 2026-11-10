@@ -38,22 +38,8 @@
   .kpis, .kpis3, .kpis2 { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Export period picker */
-.exportOptions { display:flex; flex-direction:column; gap:.5rem; }
-.exportOption { display:flex; align-items:center; gap:.75rem; padding:.6rem .875rem; border:1px solid var(--border-color); border-radius:10px; cursor:pointer; font-size:.875rem; color:var(--text-primary); transition:border-color .15s, background .15s; user-select:none; }
-.exportOption:hover { border-color:#4DD9C0; background:rgba(77,217,192,0.05); }
-.exportOptionActive { border-color:#4DD9C0; background:rgba(77,217,192,0.08); font-weight:600; }
-/* ── Export modal dedicado ── */
-.exportOverlay { position:fixed; inset:0; background:rgba(13,17,23,.55); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:250; padding:1rem; }
-.exportModal { background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:20px; width:100%; max-width:380px; max-height:90dvh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow-xl); animation:fadeUp .2s ease both; }
-.exportModalHeader { flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:1rem 1.5rem; border-bottom:1px solid var(--border-color); }
-.exportModalHeader h3 { font-size:.95rem; font-weight:700; color:var(--text-primary); margin:0; }
-.exportBtnClose { width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:var(--bg-secondary); border:none; border-radius:50%; font-size:.85rem; cursor:pointer; color:var(--text-secondary); transition:background .15s; flex-shrink:0; }
-.exportBtnClose:hover { background:var(--bg-tertiary); }
-.exportModalBody { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:1.25rem 1.5rem; display:flex; flex-direction:column; gap:.75rem; }
-.exportModalFooter { flex-shrink:0; padding:.875rem 1.5rem; border-top:1px solid var(--border-color); display:flex; justify-content:flex-end; gap:.625rem; background:var(--bg-primary); }
-@media (max-width:600px) {
-  .exportOverlay { padding:0; align-items:flex-end; }
-  .exportModal { max-width:100%; max-height:85dvh; border-radius:20px 20px 0 0; }
-}
-
+/* Intervalo do "Personalizar": De / até */
+.range { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.rangeField { flex: 1 1 170px; min-width: 0; }
+.rangeSep { font-size: 0.82rem; color: var(--text-secondary); }
+@media (max-width: 768px) { .range { width: 100%; } }

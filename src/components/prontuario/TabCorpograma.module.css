@@ -453,3 +453,6 @@
 
   .bodyHint { font-size: 0.65rem; }
 }
+
+.unsavedMsg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
+.unsavedMsg::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #d97706; }

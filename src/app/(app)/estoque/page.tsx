@@ -1,6 +1,6 @@
 'use client'
 import { usePageSearch } from '@/store/pageSearch'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
@@ -50,6 +50,7 @@ function EstoqueContent() {
   const [search, setSearch] = usePageSearch()
   const [filterCategory, setFilterCategory] = useState('')
   const [filterLow, setFilterLow] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
   const [filterMovType, setFilterMovType] = useState('')
 
   const [modal, setModal] = useState<ModalMode>(null)
@@ -202,6 +203,24 @@ function EstoqueContent() {
   const trendData = monthlyMovements.map(m => ({ label: m.month, value: m.entrada, compare: m.saida }))
   const hasTrend = monthlyMovements.some(m => m.entrada > 0 || m.saida > 0)
   const lowCount = stats.low
+  // os mais urgentes primeiro: zerados, depois os mais perto de acabar
+  const lowItems = useMemo(() => items.filter(i => i.quantity <= i.min_quantity).sort((a, b) => a.quantity - b.quantity), [items])
+  const lowHint = (() => {
+    if (lowItems.length === 0) return 'nenhum produto em falta'
+    const zeroed = lowItems.filter(i => i.quantity <= 0).length
+    const running = lowItems.length - zeroed
+    return [
+      zeroed > 0 && `${zeroed} ${zeroed === 1 ? 'zerado' : 'zerados'}`,
+      running > 0 && `${running} acabando`,
+    ].filter(Boolean).join(', ')
+  })()
+  const lowTitle = lowItems.map(i => `${i.name}: ${i.quantity} ${i.unit} (mínimo ${i.min_quantity})`).join('\n')
+  function showLowStock() {
+    setTab('produtos')
+    setFilterLow(true)
+    // espera a lista filtrar para rolar até ela
+    setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
   const monthKey = new Date().toISOString().slice(0, 7)
   const movementsThisMonth = movements.filter(m => (m.created_at ?? '').startsWith(monthKey)).length
 
@@ -227,8 +246,8 @@ function EstoqueContent() {
         <StatCard
           title="Estoque baixo"
           value={lowCount}
-          hint={lowCount > 0 ? 'na quantidade mínima ou abaixo' : 'nenhum produto em falta'}
-          delta={lowCount > 0 ? { label: 'repor', bad: true } : undefined}
+          hint={<span title={lowTitle}>{lowHint}</span>}
+          delta={lowCount > 0 ? { label: 'Ver produtos', bad: true, onClick: showLowStock } : undefined}
         />
         <StatCard title="Valor em estoque" value={formatCurrency(stats.totalValue)} compact hint="quantidade x preço de custo" />
         <StatCard title="Movimentações no mês" value={movementsThisMonth} hint="entradas, saídas e ajustes" />
@@ -267,7 +286,7 @@ function EstoqueContent() {
           />
         }
       >
-        <div className={styles.filters}>
+        <div className={styles.filters} ref={listRef}>
           {tab === 'produtos' && (
             <>
               {/* no desktop a busca fica na barra de cima; este campo só aparece no celular */}

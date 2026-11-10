@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { getPlanEntry } from '@/lib/planCatalog'
+import { Icon } from '@/components/ui/Icon'
 import styles from './trial-expirado.module.css'
 
 export default function TrialExpiradoPage() {
@@ -39,10 +40,10 @@ export default function TrialExpiradoPage() {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <div className={styles.icon}>⏰</div>
+        <div className={styles.icon} aria-hidden="true"><Icon name="clock" size={28} /></div>
         <h1 className={styles.title}>Seu período de teste encerrou</h1>
         <p className={styles.desc}>
-          Para continuar com acesso completo ao myclinica, assine o plano mensal.
+          Para continuar com acesso completo ao MyClínica, assine o plano mensal.
         </p>
 
         <div className={styles.divider}/>
@@ -56,17 +57,17 @@ export default function TrialExpiradoPage() {
         </div>
 
         <ul className={styles.features}>
-          <li>Prontuário eletrônico completo</li>
-          <li>Agenda com Google Calendar</li>
-          <li>Financeiro + relatórios</li>
-          <li>Odontograma / Faceograma</li>
-          <li>Múltiplos usuários e perfis</li>
-          <li>Suporte via WhatsApp</li>
+          <li><Icon name="check" size={12} aria-hidden="true" />Prontuário eletrônico completo</li>
+          <li><Icon name="check" size={12} aria-hidden="true" />Agenda com Google Calendar</li>
+          <li><Icon name="check" size={12} aria-hidden="true" />Financeiro + relatórios</li>
+          <li><Icon name="check" size={12} aria-hidden="true" />Odontograma / Faceograma</li>
+          <li><Icon name="check" size={12} aria-hidden="true" />Múltiplos usuários e perfis</li>
+          <li><Icon name="check" size={12} aria-hidden="true" />Suporte via WhatsApp</li>
         </ul>
 
         <div className={styles.divider}/>
 
-        {error && <p className={styles.errMsg}>{error}</p>}
+        {error && <p className={styles.errMsg} role="alert">{error}</p>}
 
         <button
           className={styles.btnContact}

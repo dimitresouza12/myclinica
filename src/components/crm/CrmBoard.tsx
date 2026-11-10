@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { LeadCard } from './LeadCard'
 import { Icon } from '@/components/ui/Icon'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { STAGES, formatMoney, groupByStage, stageTotals, type Lead, type Stage } from '@/lib/crm/model'
 import styles from './Crm.module.css'
 
@@ -90,6 +91,33 @@ export function CrmBoard({ leads, ownerNames, unreadByKey, photoByKey, now, canE
           </section>
         )
       })}
+    </div>
+  )
+}
+
+/** Quadro em carregamento: as cinco colunas com cartões fantasmas. O contêiner traz aria-busy. */
+export function CrmBoardSkeleton() {
+  return (
+    <div className={styles.board} aria-busy="true" aria-label="Carregando leads">
+      {STAGES.map((st, i) => (
+        <div key={st.key} className={`${styles.col} ${COL_CLASS[st.key]}`}>
+          <div className={styles.colHead}>
+            <h3 className={styles.colTitle}><span className={styles.dot} aria-hidden="true" />{st.label}</h3>
+          </div>
+          <div className={styles.cards}>
+            {Array.from({ length: i % 2 === 0 ? 2 : 1 }, (_, k) => (
+              <div key={k} className={styles.skelCard}>
+                <div className={styles.skelRow}>
+                  <Skeleton width={36} height={36} radius="50%" />
+                  <div className={styles.skelCol}><Skeleton height={14} width="70%" /><Skeleton height={12} width="45%" /></div>
+                </div>
+                <Skeleton height={24} width="40%" radius={999} />
+                <Skeleton height={40} radius={999} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

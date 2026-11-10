@@ -90,6 +90,9 @@ export async function middleware(request: NextRequest) {
     // Chamada server-to-server do Asaas — sem cookie de sessão. Autenticada
     // por token próprio (ver isValidAsaasToken em api/asaas/webhook/route.ts).
     pathname.startsWith('/api/asaas/webhook') ||
+    // Integração Gestor -> MyClinica (servidor a servidor). Sem cookie de sessão;
+    // autenticada por segredo (ver lib/gestorIntegration.ts). Continua sujeita ao rate limit por IP.
+    pathname.startsWith('/api/integracoes/gestor/') ||
     // Evolution (webhook) e agendador (rotina de confirmação) — sem cookie de sessão.
     // Autenticados por token próprio (ver api/whatsapp/_token.ts).
     isServerToServer

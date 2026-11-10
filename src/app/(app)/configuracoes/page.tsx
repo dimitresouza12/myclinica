@@ -12,20 +12,27 @@ import { MODULES, MODULE_EXTRAS, presetPermissions, blankPermissions, type Permi
 import { normalizeUsername } from '@/lib/username'
 import { audit } from '@/lib/audit'
 import styles from './configuracoes.module.css'
+import btn from '@/components/ui/button.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { showToast } from '@/components/ui/Toast'
 import { Modal } from '@/components/ui/Modal'
 import f from '@/components/ui/modalForm.module.css'
-import btn from '@/components/ui/button.module.css'
+import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ErrorNotice } from '@/components/ui/ErrorNotice'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { CredentialsConfirmModal } from '@/components/ui/CredentialsConfirmModal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon, type IconName } from '@/components/ui/Icon'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { PhoneInput } from '@/components/ui/PhoneInput'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 import { phoneInputError, previousPhoneNote, toInputValue } from '@/lib/phoneFormat'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { DocumentFieldCalibrator } from '@/components/configuracoes/DocumentFieldCalibrator'
 import { WhatsAppTab } from '@/components/configuracoes/WhatsAppTab'
+import { AgendaSettingsTab } from '@/components/configuracoes/AgendaSettingsTab'
 import { useWhatsAppState } from '@/hooks/useClinicData'
 import { isImageUrl } from '@/hooks/useTemplateBackground'
 import { IntegerInput } from '@/components/ui/NumericInput'
@@ -112,8 +119,8 @@ function ConfiguracoesContent() {
     u.specialty_type ? specialtyRoleLabel(u.specialty_type) : roleLabel(u.role)
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab')
-  const [tab, setTab] = useState<'geral' | 'equipe' | 'plano' | 'documentos' | 'integracoes' | 'whatsapp' | 'conta' | 'auditoria'>(
-    (['geral', 'equipe', 'plano', 'documentos', 'integracoes', 'whatsapp', 'conta', 'auditoria'] as const).find(k => k === initialTab) ?? 'geral'
+  const [tab, setTab] = useState<'geral' | 'equipe' | 'agenda' | 'plano' | 'documentos' | 'integracoes' | 'whatsapp' | 'conta' | 'auditoria'>(
+    (['geral', 'equipe', 'agenda', 'plano', 'documentos', 'integracoes', 'whatsapp', 'conta', 'auditoria'] as const).find(k => k === initialTab) ?? 'geral'
   )
   const [name, setName] = useState(clinic?.name ?? '')
   const [address, setAddress] = useState(clinic?.address ?? '')
@@ -274,6 +281,7 @@ function ConfiguracoesContent() {
       items: [
         { key: 'geral', label: 'Geral', hint: 'Nome, telefone e logo', icon: 'settings' },
         ...(isAdmin ? [{ key: 'equipe' as const, label: 'Equipe', hint: 'Acessos e permissões', icon: 'team' as const }] : []),
+        ...(isAdmin ? [{ key: 'agenda' as const, label: 'Agenda', hint: 'Turnos, encaixe e lembrete', icon: 'calendar' as const }] : []),
         { key: 'documentos', label: 'Documentos', hint: 'Papel timbrado', icon: 'procedures' },
       ],
     },
@@ -454,7 +462,7 @@ function ConfiguracoesContent() {
         if (error) {
           const msg = error.message.includes('cannot_delete_self') ? 'Você não pode excluir sua própria conta.'
             : 'Erro ao excluir usuário: ' + error.message
-          alert(msg)
+          showToast('error', msg)
         } else {
           if (user && clinic) audit({ action: 'user.delete', user_id: user.id, clinic_id: clinic.id, module: 'configuracoes', resource_id: target.id })
           await loadUsers()
@@ -468,7 +476,7 @@ function ConfiguracoesContent() {
           p_display_name: target.display_name,
         })
         if (error) {
-          alert(error.message.includes('user_limit_reached')
+          showToast('error', error.message.includes('user_limit_reached')
             ? 'Limite de usuários do plano atingido. Desative outro usuário ou fale com o suporte para migrar de plano.'
             : 'Erro: ' + error.message)
         } else {
@@ -1104,6 +1112,8 @@ function ConfiguracoesContent() {
       )}
 
       {/* WhatsApp: a configuração fica na própria aba; em Integrações só aparece o cartão de status */}
+      {tab === 'agenda' && isAdmin && <AgendaSettingsTab />}
+
       {tab === 'whatsapp' && isAdmin && <WhatsAppTab />}
 
       {tab === 'integracoes' && isAdmin && (
@@ -1249,15 +1259,15 @@ function ConfiguracoesContent() {
         <form onSubmit={handleChangePassword} className={styles.form}>
           <div className={styles.field}>
             <label>Senha atual</label>
-            <input type="password" value={pwCurrent} onChange={(e) => setPwCurrent(e.target.value)} autoComplete="current-password" />
+            <PasswordInput value={pwCurrent} onChange={(e) => setPwCurrent(e.target.value)} autoComplete="current-password" />
           </div>
           <div className={styles.field}>
             <label>Nova senha</label>
-            <input type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)} autoComplete="new-password" />
+            <PasswordInput value={pwNew} onChange={(e) => setPwNew(e.target.value)} autoComplete="new-password" />
           </div>
           <div className={styles.field}>
             <label>Confirmar nova senha</label>
-            <input type="password" value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} autoComplete="new-password" />
+            <PasswordInput value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} autoComplete="new-password" />
           </div>
           {pwMsg && (
             <p className={pwMsg.type === 'ok' ? styles.savedMsg : styles.pwError}>{pwMsg.text}</p>
@@ -1429,8 +1439,7 @@ function ConfiguracoesContent() {
             </div>
             <div className={f.field}>
               <label>Senha *</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={userForm.password}
                 onChange={e => setUserForm(p => ({ ...p, password: e.target.value }))}
                 placeholder="mín. 6 caracteres"

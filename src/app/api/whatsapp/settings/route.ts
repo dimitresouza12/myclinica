@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireClinicAdmin } from '@/lib/whatsapp/auth'
+import { rejectIfDemo } from '@/lib/demoGuard'
 import { loadSettings, saveSettings } from '@/lib/whatsapp/connection'
 import { validateSettings } from '@/lib/whatsapp/settings'
 import { failure } from '../_shared'
@@ -17,6 +18,8 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   const ctx = await requireClinicAdmin(req)
   if (ctx instanceof NextResponse) return ctx
+  const demo = await rejectIfDemo(ctx.clinicId)
+  if (demo) return demo
 
   let body: unknown
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Corpo inválido.' }, { status: 400 }) }

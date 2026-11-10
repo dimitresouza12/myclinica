@@ -55,6 +55,23 @@ a {
   overflow-y: hidden;
 }
 
+/* ─── Foco visível global (teclado) ──────────────────────────────────
+   Anel teal para quem navega por teclado. :where() zera a especificidade
+   do seletor de elemento, então qualquer .classe:focus-visible dos módulos
+   (mais específico) continua vencendo. Campos de texto ficam de fora: eles
+   já têm o próprio estilo de foco (borda teal + halo) nos módulos. */
+:where(a, button, summary, select, [role="button"], [role="tab"], [role="menuitem"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 2px;
+}
+:where(input[type="checkbox"], input[type="radio"]):focus-visible {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 2px;
+}
+[data-theme="dark"] :where(a, button, summary, select, [role="button"], [role="tab"], [role="menuitem"], [tabindex]:not([tabindex="-1"]), input[type="checkbox"], input[type="radio"]):focus-visible {
+  outline-color: var(--brand-primary);
+}
+
 /* ─── Status: ponto colorido com texto ───────────────
    Mesmos nomes de classe de antes (status-badge + status-*), agora sem caixa,
    sem borda lateral e sem caixa alta: a cor fica só no ponto e o texto

@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '@/components/ui/Icon'
+import { Badge, type BadgeTone } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { Portal } from '@/components/ui/Portal'
 import { Avatar } from '@/components/ui/Avatar'
 import { SelectMenu } from '@/components/ui/SelectMenu'
@@ -13,6 +15,7 @@ import {
   LOST_REASONS, SOURCES, STAGES, dateInputToIso, isoToDateInput, leadPhoneLabel, leadTitle, stageLabel,
   validateLeadForm, type Lead, type LeadFormInput, type Source, type Stage,
 } from '@/lib/crm/model'
+import f from '@/components/ui/modalForm.module.css'
 import styles from './Crm.module.css'
 import { MoneyInput, DateInput } from '@/components/ui/NumericInput'
 import { dateBRToISO, dateInputError, isoToDateBR, DATE_PLACEHOLDER } from '@/lib/numericFormat'
@@ -115,8 +118,8 @@ export function LeadDrawer({
               {!creating && (
                 <>
                   <div className={styles.tags}>
-                    <span className={`${styles.stageChip} ${stageClass(lead.stage)}`}><span className={styles.dot} aria-hidden="true" />{stageLabel(lead.stage)}</span>
-                    {lead.patient_id && <span className={`${styles.tag} ${styles.tagGood}`}>Paciente cadastrado</span>}
+                    <Badge tone={STAGE_TONE[lead.stage]}>{stageLabel(lead.stage)}</Badge>
+                    {lead.patient_id && <Badge tone="success">Paciente cadastrado</Badge>}
                   </div>
                   {lead.stage_source === 'auto' && lead.stage_note && (
                     <p className={styles.autoNote}><Icon name="info" size={12} />Atualizado automaticamente: {lead.stage_note}</p>
@@ -124,87 +127,87 @@ export function LeadDrawer({
                 </>
               )}
             </div>
-            <button type="button" className={styles.iconBtn} onClick={onClose} aria-label="Fechar"><Icon name="close" size={18} /></button>
+            <button type="button" className={styles.drawerClose} onClick={onClose} aria-label="Fechar"><Icon name="close" size={18} /></button>
           </header>
 
           <div className={styles.drawerBody}>
             {!creating && (
               <div className={styles.quick}>
-                <button type="button" className={styles.btn} onClick={onTalk} disabled={!canEdit}><Icon name="chat" size={16} />Conversar</button>
-                <button type="button" className={styles.btn} onClick={onSchedule} disabled={!canEdit || (!lead.patient_id && !canCreatePatient)}><Icon name="calendar" size={16} />Agendar</button>
+                <Button icon="chat" onClick={onTalk} disabled={!canEdit}>Conversar</Button>
+                <Button icon="calendar" onClick={onSchedule} disabled={!canEdit || (!lead.patient_id && !canCreatePatient)}>Agendar</Button>
                 {lead.patient_id
-                  ? <button type="button" className={styles.btn} onClick={onOpenPatient}><Icon name="patients" size={16} />Abrir prontuário</button>
-                  : <button type="button" className={styles.btn} onClick={onConvert} disabled={!canEdit || !canCreatePatient} title={canCreatePatient ? undefined : 'Você não tem permissão para cadastrar pacientes'}><Icon name="patients" size={16} />Cadastrar como paciente</button>}
+                  ? <Button icon="patients" onClick={onOpenPatient}>Abrir prontuário</Button>
+                  : <Button icon="patients" onClick={onConvert} disabled={!canEdit || !canCreatePatient} title={canCreatePatient ? undefined : 'Você não tem permissão para cadastrar pacientes'}>Cadastrar como paciente</Button>}
               </div>
             )}
 
-            <div className={styles.field}>
+            <div className={f.field}>
               <label htmlFor="lead-name">Nome</label>
-              <input id="lead-name" ref={firstRef} className={styles.input} value={form.name} onChange={e => set('name', e.target.value)} readOnly={readOnly} autoComplete="off" aria-invalid={!!errors.name} aria-describedby={errors.name ? 'lead-name-err' : undefined} />
+              <input id="lead-name" ref={firstRef} value={form.name} onChange={e => set('name', e.target.value)} readOnly={readOnly} autoComplete="off" aria-invalid={!!errors.name} aria-describedby={errors.name ? 'lead-name-err' : undefined} />
               {errors.name && <p id="lead-name-err" className={styles.fieldErr} role="alert">{errors.name}</p>}
             </div>
 
-            <div className={styles.field}>
+            <div className={f.field}>
               <label htmlFor="lead-phone">Telefone (WhatsApp)</label>
               {hasConversation && lead ? (
                 <>
-                  <input id="lead-phone" className={styles.input} value={leadPhoneLabel(lead) || 'Número oculto pelo WhatsApp'} readOnly aria-describedby="lead-phone-hint" />
-                  <p id="lead-phone-hint" className={styles.hint}>O telefone vem da conversa do WhatsApp e não pode ser alterado aqui.</p>
+                  <input id="lead-phone" value={leadPhoneLabel(lead) || 'Número oculto pelo WhatsApp'} readOnly aria-describedby="lead-phone-hint" />
+                  <p id="lead-phone-hint" className={f.hint}>O telefone vem da conversa do WhatsApp e não pode ser alterado aqui.</p>
                 </>
               ) : (
                 <>
-                  <PhoneInput id="lead-phone" className={styles.input} value={form.phone} onChange={v => set('phone', v)} readOnly={readOnly} aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'lead-phone-err' : 'lead-phone-fmt'} />
+                  <PhoneInput id="lead-phone" value={form.phone} onChange={v => set('phone', v)} readOnly={readOnly} aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'lead-phone-err' : 'lead-phone-fmt'} />
                   {errors.phone
                     ? <p id="lead-phone-err" className={styles.fieldErr} role="alert">{errors.phone}</p>
-                    : <p id="lead-phone-fmt" className={styles.hint}>{PHONE_HINT}</p>}
+                    : <p id="lead-phone-fmt" className={f.hint}>{PHONE_HINT}</p>}
                 </>
               )}
             </div>
 
             <div className={styles.fieldRow}>
-              <div className={styles.field}>
-                <span id="lead-source-l" className={styles.labelText}>Origem</span>
-                <SelectMenu value={form.source} onChange={v => set('source', v as Source)} options={SOURCE_OPTIONS} />
+              <div className={f.field}>
+                <label htmlFor="lead-source">Origem</label>
+                <SelectMenu id="lead-source" variant="field" value={form.source} onChange={v => set('source', v as Source)} options={SOURCE_OPTIONS} />
               </div>
-              <div className={styles.field}>
-                <span id="lead-owner-l" className={styles.labelText}>Responsável</span>
-                <SelectMenu value={form.assignedTo} onChange={v => set('assignedTo', v)} options={[{ value: '', label: 'Sem responsável' }, ...members.map(m => ({ value: m.userId, label: m.name }))]} />
+              <div className={f.field}>
+                <label htmlFor="lead-owner">Responsável</label>
+                <SelectMenu id="lead-owner" variant="field" value={form.assignedTo} onChange={v => set('assignedTo', v)} options={[{ value: '', label: 'Sem responsável' }, ...members.map(m => ({ value: m.userId, label: m.name }))]} />
               </div>
             </div>
 
-            <div className={styles.field}>
+            <div className={f.field}>
               <label htmlFor="lead-interest">Interesse</label>
-              <input id="lead-interest" className={styles.input} placeholder="Ex.: clareamento, consulta de rotina" value={form.interest} onChange={e => set('interest', e.target.value)} readOnly={readOnly} />
+              <input id="lead-interest" placeholder="Ex.: clareamento, consulta de rotina" value={form.interest} onChange={e => set('interest', e.target.value)} readOnly={readOnly} />
             </div>
 
             <div className={styles.fieldRow}>
-              <div className={styles.field}>
+              <div className={f.field}>
                 <label htmlFor="lead-value">Valor estimado</label>
-                <MoneyInput id="lead-value" className={styles.input} value={form.value} onChange={v => set('value', v)} readOnly={readOnly} aria-invalid={!!errors.value} aria-describedby={errors.value ? 'lead-value-err' : undefined} />
+                <MoneyInput id="lead-value" value={form.value} onChange={v => set('value', v)} readOnly={readOnly} aria-invalid={!!errors.value} aria-describedby={errors.value ? 'lead-value-err' : undefined} />
                 {errors.value && <p id="lead-value-err" className={styles.fieldErr} role="alert">{errors.value}</p>}
               </div>
-              <div className={styles.field}>
+              <div className={f.field}>
                 <label htmlFor="lead-followup">Retomar em</label>
-                <DateInput id="lead-followup" className={styles.input} value={followUp} onChange={v => { setFollowUp(v); setFollowUpErr('') }} readOnly={readOnly} placeholder={DATE_PLACEHOLDER} autoComplete="off" aria-invalid={!!followUpErr} aria-describedby={followUpErr ? 'lead-followup-err' : undefined} />
+                <DateInput id="lead-followup" value={followUp} onChange={v => { setFollowUp(v); setFollowUpErr('') }} readOnly={readOnly} placeholder={DATE_PLACEHOLDER} autoComplete="off" aria-invalid={!!followUpErr} aria-describedby={followUpErr ? 'lead-followup-err' : undefined} />
                 {followUpErr && <p id="lead-followup-err" className={styles.fieldErr} role="alert">{followUpErr}</p>}
               </div>
             </div>
 
-            <div className={styles.field}>
-              <span id="lead-stage-l" className={styles.labelText}>Etapa</span>
-              <SelectMenu value={stage} onChange={v => setStage(v as Stage)} options={STAGE_OPTIONS} />
+            <div className={f.field}>
+              <label htmlFor="lead-stage">Etapa</label>
+              <SelectMenu id="lead-stage" variant="field" value={stage} onChange={v => setStage(v as Stage)} options={STAGE_OPTIONS} />
             </div>
 
             {stage === 'perdido' && (
-              <div className={styles.field}>
-                <span id="lead-lost-l" className={styles.labelText}>Motivo da perda</span>
-                <SelectMenu value={lostReason} onChange={setLostReason} options={LOST_OPTIONS} />
+              <div className={f.field}>
+                <label htmlFor="lead-lost">Motivo da perda</label>
+                <SelectMenu id="lead-lost" variant="field" value={lostReason} onChange={setLostReason} options={LOST_OPTIONS} />
               </div>
             )}
 
-            <div className={styles.field}>
+            <div className={f.field}>
               <label htmlFor="lead-notes">Observações</label>
-              <textarea id="lead-notes" className={`${styles.input} ${styles.textarea}`} rows={4} value={form.notes} onChange={e => set('notes', e.target.value)} readOnly={readOnly} />
+              <textarea id="lead-notes" rows={4} value={form.notes} onChange={e => set('notes', e.target.value)} readOnly={readOnly} />
             </div>
 
             {!creating && (
@@ -213,14 +216,14 @@ export function LeadDrawer({
           </div>
 
           <footer className={styles.drawerFoot}>
-            {error && <p className={styles.formErr} role="alert">{error}</p>}
+            {error && <p className={f.error} role="alert">{error}</p>}
             <div className={styles.footRow}>
               {!creating && canEdit && (
-                <button type="button" className={styles.btnDanger} onClick={onDelete} disabled={saving}><Icon name="trash" size={15} />Excluir</button>
+                <Button variant="ghost" icon="trash" className={styles.deleteBtn} onClick={onDelete} disabled={saving}>Excluir</Button>
               )}
               <span className={styles.spacer} />
-              <button type="button" className={styles.btn} onClick={onClose} disabled={saving}>{canEdit ? 'Cancelar' : 'Fechar'}</button>
-              {canEdit && <button type="submit" className={styles.btnPrimary} disabled={saving}>{saving ? 'Salvando…' : creating ? 'Adicionar lead' : 'Salvar'}</button>}
+              <Button onClick={onClose} disabled={saving}>{canEdit ? 'Cancelar' : 'Fechar'}</Button>
+              {canEdit && <Button type="submit" variant="primary" loading={saving}>{saving ? 'Salvando…' : creating ? 'Adicionar lead' : 'Salvar'}</Button>}
             </div>
           </footer>
         </form>
@@ -229,6 +232,6 @@ export function LeadDrawer({
   )
 }
 
-function stageClass(stage: Stage): string {
-  return { novo: styles.stNovo, em_conversa: styles.stConversa, agendado: styles.stAgendado, compareceu: styles.stCompareceu, perdido: styles.stPerdido }[stage]
+const STAGE_TONE: Record<Stage, BadgeTone> = {
+  novo: 'neutral', em_conversa: 'info', agendado: 'brand', compareceu: 'success', perdido: 'danger',
 }

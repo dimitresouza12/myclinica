@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  maskCpf, isCompleteCpf, cpfInputError, formatCpf, cpfToInputValue, previousCpfNote, CPF_INCOMPLETE,
+  maskCpf, maskLoginCredential, isCompleteCpf, cpfInputError, formatCpf, cpfToInputValue, previousCpfNote, CPF_INCOMPLETE,
   maskInteger, clampInteger, maskMoney, moneyToDecimal, decimalToMoney, maskPercent, percentToDecimal, decimalToPercent,
   maskDecimal, maskDateBR, dateBRToISO, dateInputError, isoToDateBR, DATE_INCOMPLETE, DATE_INVALID,
 } from './numericFormat'
@@ -209,5 +209,29 @@ describe('data DD/MM/AAAA', () => {
     expect(isoToDateBR('1990-12-31T00:00:00+00:00')).toBe('31/12/1990')
     expect(isoToDateBR(null)).toBe('')
     expect(isoToDateBR('lixo')).toBe('')
+  })
+})
+
+describe('maskLoginCredential', () => {
+  it('formata como CPF enquanto só há números', () => {
+    expect(maskLoginCredential('1')).toBe('1')
+    expect(maskLoginCredential('1234')).toBe('123.4')
+    expect(maskLoginCredential('12345678909')).toBe('123.456.789-09')
+    expect(maskLoginCredential('123456789091234')).toBe('123.456.789-09')
+  })
+  it('aceita CPF colado já formatado ou com espaços', () => {
+    expect(maskLoginCredential('123.456.789-09')).toBe('123.456.789-09')
+    expect(maskLoginCredential(' 123 456 789 09')).toBe('123.456.789-09')
+  })
+  it('deixa usuário e e-mail como estão', () => {
+    expect(maskLoginCredential('drjoao')).toBe('drjoao')
+    expect(maskLoginCredential('a@b.com')).toBe('a@b.com')
+    expect(maskLoginCredential('')).toBe('')
+    expect(maskLoginCredential('Dr.Joao')).toBe('Dr.Joao')
+  })
+  it('tira a pontuação da máscara se a pessoa passa a digitar um usuário', () => {
+    expect(maskLoginCredential('123.45a', '123.45')).toBe('12345a')
+    expect(maskLoginCredential('123.456.789-09x', '123.456.789-09')).toBe('12345678909x')
+    expect(maskLoginCredential('ab.1', 'ab.')).toBe('ab.1')
   })
 })

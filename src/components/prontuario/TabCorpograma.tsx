@@ -5,6 +5,7 @@ import type { Patient, MedicalRecord } from '@/types'
 import styles from './TabCorpograma.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
 
 const TOOLS = [
   { key: 'criolipolise',     label: 'Criolipólise',        abbr: 'Cr', color: '#3B82F6', bg: '#DBEAFE' },
@@ -29,10 +30,12 @@ function newSession(): Session {
 const VW = 210
 const VH = 280
 
-interface Props { record: MedicalRecord | null; patient: Patient; clinicId: string; onSaved: () => void }
+interface Props { record: MedicalRecord | null; patient: Patient; clinicId: string; onSaved: () => void; onDirtyChange?: (dirty: boolean) => void }
 
-export function TabCorpograma({ record, patient, clinicId, onSaved }: Props) {
-  const [sessions,  setSessions]  = useState<Session[]>([newSession()])
+export function TabCorpograma({ record, patient, clinicId, onSaved, onDirtyChange }: Props) {
+  const [initial]                  = useState<Session[]>(() => [newSession()])
+  const [sessions,  setSessions]  = useState<Session[]>(initial)
+  const [savedSnap, setSavedSnap] = useState(() => JSON.stringify(initial))
   const [activeIdx, setActiveIdx] = useState(0)
   const [tool,      setTool]      = useState('criolipolise')
   const [view,      setView]      = useState<'frente' | 'costas'>('frente')
@@ -41,11 +44,22 @@ export function TabCorpograma({ record, patient, clinicId, onSaved }: Props) {
   const [saved,     setSaved]     = useState(false)
   const sidePanelRef = useRef<HTMLDivElement>(null)
 
+  // O prontuário recarrega o registro quando QUALQUER aba salva. Só reaplica aqui se o corpograma
+  // mudou de fato; senão salvar outra aba apagaria o que foi marcado aqui e ainda não foi salvo.
+  const loadedKey = useRef<string | null>(null)
   useEffect(() => {
+    const key = JSON.stringify(record?.body_protocols ?? null)
+    if (key === loadedKey.current) return
+    loadedKey.current = key
     const raw = record?.body_protocols as Session[] | undefined
-    if (Array.isArray(raw) && raw.length > 0) { setSessions(raw); setActiveIdx(0) }
-    else setSessions([newSession()])
+    const next = Array.isArray(raw) && raw.length > 0 ? raw : [newSession()]
+    setSessions(next); setActiveIdx(0); setSavedSnap(JSON.stringify(next))
   }, [record])
+
+  // avisa o prontuário, que pergunta antes de fechar com alterações não salvas
+  const dirty = JSON.stringify(sessions) !== savedSnap
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
   // Auto-scroll to side panel on mobile when a point is selected
   useEffect(() => {
@@ -90,8 +104,20 @@ export function TabCorpograma({ record, patient, clinicId, onSaved }: Props) {
     setActiveIdx(sessions.length)
     setSelId(null)
   }
-  function delSession(i: number) {
+  async function delSession(i: number) {
     if (sessions.length === 1) return
+    const target = sessions[i]
+    if (target.annotations.length > 0 || target.notes.trim()) {
+      const n = target.annotations.length
+      const ok = await confirmDialog({
+        title: 'Excluir esta sessão?',
+        message: `A sessão de ${new Date(target.date + 'T12:00:00').toLocaleDateString('pt-BR')}${n > 0 ? ` e ${n === 1 ? 'o ponto marcado' : `os ${n} pontos marcados`}` : ''} serão removidos. Isso só vale depois de salvar o corpograma.`,
+        confirmText: 'Excluir sessão',
+        cancelText: 'Manter',
+        danger: true,
+      })
+      if (!ok) return
+    }
     const next = sessions.filter((_, idx) => idx !== i)
     setSessions(next)
     setActiveIdx(Math.min(activeIdx, next.length - 1))
@@ -107,6 +133,7 @@ export function TabCorpograma({ record, patient, clinicId, onSaved }: Props) {
     }
     if (record?.id) await supabase.from('medical_records').update(payload).eq('id', record.id)
     else            await supabase.from('medical_records').insert([payload])
+    setSavedSnap(JSON.stringify(sessions))
     setSaved(true); setTimeout(() => setSaved(false), 2500)
     setSaving(false); onSaved()
   }
@@ -173,7 +200,7 @@ export function TabCorpograma({ record, patient, clinicId, onSaved }: Props) {
               onClick={handleBodyClick}
               style={{ cursor: 'crosshair' }}
             >
-              {/* Referência anatômica — WebP, ver ATTRIBUTIONS.md (CC BY-SA 3.0, Termininja/Wikimedia, recolorido) */}
+              {/* Referência anatômica: WebP com fundo transparente (ver ATTRIBUTIONS.md). Mais estreita que o quadro (proporção 0,6 contra 0,75), por isso fica centralizada; os pontos usam as coordenadas do quadro. */}
               <image
                 href={view === 'frente' ? '/corpo-frente.webp' : '/corpo-costas.webp'}
                 x="0" y="0"
@@ -306,6 +333,7 @@ export function TabCorpograma({ record, patient, clinicId, onSaved }: Props) {
 
       {/* ── Save ── */}
       <div className={styles.saveRow}>
+        {dirty && !saving && <span className={styles.unsavedMsg}>Alterações não salvas</span>}
         {saved && <span className={styles.savedMsg}><Icon name="check" size={12} /> Salvo com sucesso!</span>}
         <button type="button" className={styles.btnSave} onClick={handleSave} disabled={saving}>
           {saving ? 'Salvando...' : 'Salvar Corpograma'}

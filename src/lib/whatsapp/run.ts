@@ -10,6 +10,7 @@
 // pausa quando os envios começam a falhar e intervalo aleatório entre um envio e outro.
 
 import { getAdminClient } from '@/lib/supabaseAdmin'
+import { demoClinicIds, isDemoClinic, DEMO_SEND_BLOCKED_MESSAGE } from '@/lib/demoGuard'
 import { checkNumbers, sendText, EvolutionError } from './evolution'
 import { phoneKey, whatsappCandidates } from './phone'
 import { renderMessage } from './message'
@@ -115,7 +116,10 @@ export async function runConfirmations(opts: RunOptions = {}): Promise<RunResult
 
   // Algumas clínicas por vez: com o intervalo entre envios, uma fila única deixaria as
   // últimas da lista sem tempo na rodada.
-  const queue = [...((waRows ?? []) as WaRow[])]
+  // Clínica de demonstração nunca envia mensagem real, mesmo que o WhatsApp esteja conectado.
+  const allRows = (waRows ?? []) as WaRow[]
+  const demoIds = await demoClinicIds(allRows.map(r => r.clinic_id))
+  const queue = allRows.filter(r => !demoIds.has(r.clinic_id))
   const clinics: ClinicRunResult[] = []
   const worker = async () => {
     for (let wa = queue.shift(); wa; wa = queue.shift()) {
@@ -384,6 +388,7 @@ export type ManualResult = { ok: true; kind: ConfirmKind } | { ok: false; status
  * impede uma segunda); agendada recebe pedido de confirmação, confirmada recebe só um lembrete.
  */
 export async function sendConfirmationNow(clinicId: string, appointmentId: string): Promise<ManualResult> {
+  if (await isDemoClinic(clinicId)) return { ok: false, status: 403, error: DEMO_SEND_BLOCKED_MESSAGE }
   const admin = getAdminClient()
   const now = new Date()
 

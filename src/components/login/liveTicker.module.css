@@ -1,0 +1,27 @@
+/* Só no celular; no computador quem mostra o produto é a vitrine */
+.live {
+  display: flex; align-items: center; gap: 10px; width: 100%; height: 46px; padding: 0 14px;
+  background: rgba(255, 255, 255, .85); border: 1px solid rgba(255, 255, 255, .95);
+  outline: 1px solid rgba(6, 74, 66, .07); border-radius: 14px;
+  box-shadow: 0 14px 28px -20px rgba(6, 49, 43, .5);
+  color: #06312B;
+}
+@media (min-width: 861px) { .live { display: none; } }
+
+.dot { position: relative; flex: none; width: 8px; height: 8px; border-radius: 50%; background: #0FA891; }
+.dot::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: #4DD9C0; animation: pulse 1.8s ease-out infinite; }
+.label { flex: none; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; color: #077A69; }
+
+.text { position: relative; flex: 1; min-width: 0; height: 20px; overflow: hidden; font-size: 13px; line-height: 20px; }
+.text span { position: absolute; inset: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: rotate 3.4s ease both; }
+
+@keyframes pulse { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(2.6); opacity: 0; } }
+@keyframes rotate {
+  0% { opacity: 0; transform: translateY(8px); }
+  10%, 84% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot::after, .text span { animation: none; }
+}

@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import f from '@/components/ui/modalForm.module.css'
-import btn from '@/components/ui/button.module.css'
+import { Button } from '@/components/ui/Button'
 import { LOST_REASONS, leadTitle, type Lead } from '@/lib/crm/model'
 import styles from './Crm.module.css'
 
@@ -25,10 +25,10 @@ export function LostReasonDialog({ lead, saving, onConfirm, onCancel }: Props) {
       title={`Por que ${leadTitle(lead)} foi perdido?`}
       footer={
         <>
-          <button type="button" className={btn.secondary} onClick={onCancel} disabled={saving}>Cancelar</button>
-          <button type="button" className={btn.primary} onClick={() => onConfirm(reason || null)} disabled={saving}>
+          <Button onClick={onCancel} disabled={saving}>Cancelar</Button>
+          <Button variant="primary" loading={saving} onClick={() => onConfirm(reason || null)}>
             {saving ? 'Salvando…' : 'Marcar como perdido'}
-          </button>
+          </Button>
         </>
       }
     >

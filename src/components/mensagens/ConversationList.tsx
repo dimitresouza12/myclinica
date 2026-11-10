@@ -1,6 +1,11 @@
 'use client'
 import Link from 'next/link'
 import { Icon } from '@/components/ui/Icon'
+import { PillTabs, type PillOption } from '@/components/ui/PillTabs'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Skeleton } from '@/components/ui/Skeleton'
+import btn from '@/components/ui/button.module.css'
 import { contactDisplayName, listTimeLabel } from '@/lib/whatsapp/inbox'
 import { avatarTone } from '@/lib/whatsapp/bubble'
 import { Avatar } from '@/components/ui/Avatar'
@@ -10,11 +15,11 @@ import styles from './Inbox.module.css'
 
 export type InboxFilter = 'todas' | 'naolidas' | 'pacientes' | 'leads'
 
-const TABS: { key: InboxFilter; label: string }[] = [
-  { key: 'todas', label: 'Todas' },
-  { key: 'naolidas', label: 'Não lidas' },
-  { key: 'pacientes', label: 'Pacientes' },
-  { key: 'leads', label: 'Leads' },
+const TABS: { value: InboxFilter; label: string }[] = [
+  { value: 'todas', label: 'Todas' },
+  { value: 'naolidas', label: 'Não lidas' },
+  { value: 'pacientes', label: 'Pacientes' },
+  { value: 'leads', label: 'Leads' },
 ]
 
 /** Círculo do contato: foto ou iniciais (cor derivada do nome); lead ganha um contorno ao redor. */
@@ -58,43 +63,52 @@ interface Props {
 export function ConversationList(p: Props) {
   const visible = filterConversations(p.conversations, p.filter, p.query)
   const unread = p.conversations.filter(c => c.unread_count > 0).length
+  const tabOptions: PillOption<InboxFilter>[] = TABS.map(t => (t.value === 'naolidas' && unread > 0 ? { ...t, count: unread } : t))
 
   return (
     <div className={`${styles.pane} ${styles.list}`}>
       <div className={styles.listHead}>
-        <h2 className={styles.listTitle}>Mensagens</h2>
-        <label className={`${styles.search} ${styles.localSearch}`}>
-          <Icon name="search" size={16} />
-          <input type="search" placeholder="Buscar conversa" aria-label="Buscar conversa" value={p.query} onChange={e => p.onQuery(e.target.value)} />
-        </label>
-        <div className={styles.tabs} role="group" aria-label="Filtrar conversas">
-          {TABS.map(t => (
-            <button key={t.key} className={`${styles.tab} ${p.filter === t.key ? styles.tabOn : ''}`} aria-pressed={p.filter === t.key} onClick={() => p.onFilter(t.key)}>
-              {t.label}
-              {t.key === 'naolidas' && unread > 0 && <span className={styles.tabCount}>{unread}</span>}
-            </button>
-          ))}
-        </div>
+        {/* no desktop a busca fica na barra de cima; este campo só aparece no celular */}
+        <SearchInput className={styles.localSearch} placeholder="Buscar conversa" value={p.query} onChange={p.onQuery} />
+        <PillTabs label="Filtrar conversas" options={tabOptions} value={p.filter} onChange={p.onFilter} className={styles.filterTabs} />
       </div>
 
       <div className={styles.convs}>
-        {p.loading && <p className={styles.empty}>Carregando conversas…</p>}
-
-        {!p.loading && p.conversations.length === 0 && (
-          <div className={styles.empty}>
-            {p.everConnected ? (
-              <p>Nenhuma conversa ainda. As mensagens que seus pacientes e contatos enviarem para o WhatsApp da clínica aparecem aqui.</p>
-            ) : (
-              <>
-                <p>Conecte o WhatsApp da clínica para ver e responder as conversas por aqui, sem precisar do celular.</p>
-                <Link className={styles.emptyLink} href="/configuracoes?tab=whatsapp">Conectar WhatsApp</Link>
-              </>
-            )}
+        {p.loading && (
+          <div className={styles.convSkelList} aria-busy="true">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className={styles.convSkel}>
+                <Skeleton width={40} height={40} radius="50%" />
+                <span className={styles.convSkelText}>
+                  <Skeleton width={i % 2 ? '55%' : '70%'} height={14} />
+                  <Skeleton width={i % 2 ? '80%' : '60%'} height={12} />
+                </span>
+              </div>
+            ))}
           </div>
         )}
 
+        {!p.loading && p.conversations.length === 0 && (
+          p.everConnected ? (
+            <EmptyState
+              compact
+              icon="messages"
+              title="Nenhuma conversa ainda"
+              description="As mensagens que seus pacientes e contatos enviarem para o WhatsApp da clínica aparecem aqui."
+            />
+          ) : (
+            <EmptyState
+              compact
+              icon="messages"
+              title="WhatsApp não conectado"
+              description="Conecte o WhatsApp da clínica para ver e responder as conversas por aqui, sem precisar do celular."
+              action={<Link className={`${btn.primary} ${styles.emptyLink}`} href="/configuracoes?tab=whatsapp">Conectar WhatsApp</Link>}
+            />
+          )
+        )}
+
         {!p.loading && p.conversations.length > 0 && visible.length === 0 && (
-          <p className={styles.empty}>Nenhuma conversa encontrada com esse filtro.</p>
+          <EmptyState compact icon="search" title="Nenhuma conversa encontrada" description="Tente outro nome ou troque o filtro." />
         )}
 
         {visible.map(c => {

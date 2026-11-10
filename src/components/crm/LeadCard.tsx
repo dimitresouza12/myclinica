@@ -1,6 +1,8 @@
 'use client'
 import type { DragEvent, MouseEvent } from 'react'
 import { Icon } from '@/components/ui/Icon'
+import { Badge, type BadgeTone } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
 import { initialsOf } from '@/lib/whatsapp/inbox'
 import {
@@ -27,8 +29,8 @@ interface Props {
   onDragEnd: () => void
 }
 
-const SOURCE_TAG: Record<string, string> = {
-  instagram: styles.tagInfo, anuncio: styles.tagWarn, indicacao: styles.tagGood, google: styles.tagBad,
+const SOURCE_TONE: Record<string, BadgeTone> = {
+  instagram: 'info', anuncio: 'warning', indicacao: 'success',
 }
 
 export function LeadCard({ lead, ownerName, photoUrl, unread, now, canEdit, dragging, busy, onOpen, onTalk, onSchedule, onMove, onDragStart, onDragEnd }: Props) {
@@ -51,24 +53,26 @@ export function LeadCard({ lead, ownerName, photoUrl, unread, now, canEdit, drag
       <div className={styles.cardTop}>
         <Avatar url={photoUrl} name={title} size={36} className={styles.cardAvatar} />
         <div className={styles.cardWho}>
-          <button type="button" className={styles.cardName} onClick={stop(onOpen)}>{title}</button>
-          {lead.interest
-            ? <span className={styles.cardSub}>{lead.interest}</span>
-            : phone && title !== phone ? <span className={styles.cardSub}>{phone}</span> : null}
+          <button type="button" className={styles.cardName} onClick={stop(onOpen)}>
+            <span className={styles.cardTitle}>{title}</span>
+            {lead.interest
+              ? <span className={styles.cardSub}>{lead.interest}</span>
+              : phone && title !== phone ? <span className={styles.cardSub}>{phone}</span> : null}
+          </button>
         </div>
         {unread > 0 && <span className={styles.unread} title={`${unread} ${unread === 1 ? 'mensagem não lida' : 'mensagens não lidas'}`}>{unread}</span>}
       </div>
 
       <div className={styles.tags}>
-        <span className={`${styles.tag} ${SOURCE_TAG[lead.source] ?? ''}`}>{sourceLabel(lead.source)}</span>
-        {lead.patient_id && <span className={`${styles.tag} ${styles.tagGood}`}>Paciente</span>}
-        {lead.stage === 'perdido' && lead.lost_reason && <span className={styles.tag}>{lead.lost_reason}</span>}
+        <Badge tone={SOURCE_TONE[lead.source] ?? 'neutral'} dot={lead.source in SOURCE_TONE}>{sourceLabel(lead.source)}</Badge>
+        {lead.patient_id && <Badge tone="success">Paciente</Badge>}
+        {lead.stage === 'perdido' && lead.lost_reason && <Badge dot={false}>{lead.lost_reason}</Badge>}
         {lead.next_contact_at && lead.stage !== 'perdido' && lead.stage !== 'compareceu' && (
-          <span className={`${styles.tag} ${due ? styles.tagWarn : ''}`}>
+          <Badge tone={due ? 'warning' : 'neutral'} dot={false}>
             <Icon name="calendar" size={11} />{followUpLabel(lead.next_contact_at, now)}
-          </span>
+          </Badge>
         )}
-        {lead.estimated_value != null && lead.estimated_value > 0 && <span className={styles.tag}>{formatMoney(lead.estimated_value)}</span>}
+        {lead.estimated_value != null && lead.estimated_value > 0 && <Badge dot={false}>{formatMoney(lead.estimated_value)}</Badge>}
       </div>
 
       <div className={styles.cardFoot}>
@@ -85,12 +89,8 @@ export function LeadCard({ lead, ownerName, photoUrl, unread, now, canEdit, drag
       )}
 
       <div className={styles.cardActs}>
-        <button type="button" className={styles.btnSm} onClick={stop(onTalk)} disabled={busy || !canEdit} title={canEdit ? undefined : 'Você não tem permissão para conversar'}>
-          <Icon name="chat" size={14} />Conversar
-        </button>
-        <button type="button" className={styles.btnSm} onClick={stop(onSchedule)} disabled={busy || !canEdit} title={canEdit ? undefined : 'Você não tem permissão para agendar'}>
-          <Icon name="calendar" size={14} />Agendar
-        </button>
+        <Button icon="chat" onClick={stop(onTalk)} disabled={busy || !canEdit} title={canEdit ? undefined : 'Você não tem permissão para conversar'}>Conversar</Button>
+        <Button icon="calendar" onClick={stop(onSchedule)} disabled={busy || !canEdit} title={canEdit ? undefined : 'Você não tem permissão para agendar'}>Agendar</Button>
       </div>
 
       {/* arrastar não funciona no toque: no celular a etapa muda por aqui */}

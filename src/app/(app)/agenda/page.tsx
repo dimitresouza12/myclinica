@@ -14,7 +14,7 @@ import { useProfessionals, useProcedures, useAgendaData, useWhatsAppState } from
 import { confirmationLabel, type ConfirmationInfo } from '@/lib/whatsapp/labels'
 import { whatsappApi } from '@/components/configuracoes/whatsappApi'
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
-import { isAdminOrRecepcao, myScopedProfessionalId } from '@/lib/professionalScope'
+import { isAdmin, isAdminOrRecepcao, myScopedProfessionalId } from '@/lib/professionalScope'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Appointment, Patient, Professional, Procedure } from '@/types'
 import { type CalendarEvent, type FullCalendarHandle } from '@/components/agenda/FullCalendarWrapper'
@@ -26,7 +26,14 @@ import { SelectMenu } from '@/components/ui/SelectMenu'
 import { StatusDot, type StatusTone } from '@/components/ui/StatusDot'
 import { MiniCalendar } from '@/components/agenda/MiniCalendar'
 import { AgendaSidebar } from '@/components/agenda/AgendaSidebar'
+import { DayColumns, type DayColumn } from '@/components/agenda/DayColumns'
+import { ScheduleEditor } from '@/components/agenda/ScheduleEditor'
+import { TeamSchedule } from '@/components/agenda/TeamSchedule'
 import { rangeFor, daysWithAppointments, inRange, countByProfessional, daySummary } from '@/lib/agenda/view'
+import { useSchedules, scheduleOf } from '@/hooks/useSchedules'
+import { buildSlots, canExtraSlot, DEFAULT_SETTINGS } from '@/lib/agenda/settings'
+import { closedRanges, freeSlotsOfDay, slotInSchedule, dayStatus, describeDay, summarizeSchedule, weekDates } from '@/lib/agenda/availability'
+import { buildBusyMap, conflictInSpan, nextFreeSlots, isClinicBlock, toLocalInput, overlaps, MAX_APPT_MS } from '@/lib/agenda/slots'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { showToast } from '@/components/ui/Toast'
@@ -52,21 +59,17 @@ interface NewAppt {
   duration_minutes: number
   status: string
   notes: string
+  /** encaixe: marcar fora da escala do profissional, com motivo */
+  extra_mode: boolean
+  extra_reason: string
 }
 
 const BLANK: NewAppt = {
   patient_id: '', professional_id: '', procedure_id: '', procedure_name: '', procedure_price: '',
-  scheduled_at: '', duration_minutes: 60, status: 'agendado', notes: '',
+  scheduled_at: '', duration_minutes: 60, status: 'agendado', notes: '', extra_mode: false, extra_reason: '',
 }
 
 type ViewMode = 'mes' | 'semana' | 'dia'
-
-// 30-min slots from 07:00 to 19:00
-const TIME_SLOTS: string[] = []
-for (let h = 7; h <= 19; h++) {
-  TIME_SLOTS.push(`${String(h).padStart(2, '0')}:00`)
-  if (h < 19) TIME_SLOTS.push(`${String(h).padStart(2, '0')}:30`)
-}
 
 const PROF_COLORS = [
   '#4DD9C0', '#0B9B85', '#127C9A', '#2F6FB0',
@@ -95,6 +98,12 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_DOTS: Record<string, string> = {
   agendado: 'var(--st-wait)', confirmado: 'var(--st-ok)', concluido: 'var(--st-idle)', cancelado: 'var(--st-bad)', faltou: 'var(--st-warn)', bloqueado: 'var(--st-idle)',
 }
+// Próximo passo natural de cada status: vira o botão de destaque no detalhe da consulta.
+const NEXT_STEP: Record<string, { status: string; label: string } | undefined> = {
+  agendado: { status: 'confirmado', label: 'Confirmar consulta' },
+  confirmado: { status: 'concluido', label: 'Concluir consulta' },
+}
+
 interface BlockForm {
   professional_id: string
   scheduled_at: string
@@ -108,9 +117,44 @@ function fmtTime(iso: string) {
   const d = new Date(iso)
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
+/** "segunda-feira, 2 de novembro · 10:00" (com o ano só quando não é o corrente) */
+function fmtWhen(iso: string) {
+  const d = new Date(iso)
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  const day = d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) })
+  return `${day} · ${fmtTime(iso)}`
+}
 function fmtEndTime(iso: string, durationMin: number) {
   const d = new Date(new Date(iso).getTime() + durationMin * 60000)
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+// ── Conflito de horário ────────────────────────────────────────
+/**
+ * Confere no banco se o profissional já está ocupado em [início, início + duração).
+ * Considera as consultas dele e os bloqueios da clínica toda (sem profissional).
+ * Busca só a janela que pode alcançar o horário (uma consulta dura no máximo 12 h), para não esbarrar
+ * no limite de 1000 linhas do banco em quem tem muito histórico.
+ */
+async function checkConflict(
+  clinicId: string, professionalId: string, startMs: number, durationMin: number, ignoreId?: string | null,
+): Promise<'conflict' | 'free' | 'error'> {
+  const endMs = startMs + durationMin * 60000
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('id, scheduled_at, duration_minutes')
+    .eq('clinic_id', clinicId)
+    .or(`professional_id.eq.${professionalId},and(professional_id.is.null,status.eq.bloqueado)`)
+    .neq('status', 'cancelado')
+    .gte('scheduled_at', new Date(startMs - MAX_APPT_MS).toISOString())
+    .lt('scheduled_at', new Date(endMs).toISOString())
+  if (error) return 'error'
+  const hit = (data ?? []).some(c => {
+    if (ignoreId && c.id === ignoreId) return false
+    const cStart = new Date(c.scheduled_at).getTime()
+    return overlaps(startMs, endMs, cStart, cStart + (c.duration_minutes ?? 60) * 60000)
+  })
+  return hit ? 'conflict' : 'free'
 }
 
 // ── Topbar date helpers ────────────────────────────────────────
@@ -156,9 +200,9 @@ const PlusIcon = () => (
     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
   </svg>
 )
-const BanIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+const LockIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
   </svg>
 )
 
@@ -170,7 +214,10 @@ function ApptDetailContent({
   onGCal,
   onClose,
   onEdit,
+  onReschedule,
   onDelete,
+  canDelete,
+  onArrive,
   onPhoneAdded,
   confirmation,
   whatsappConnected,
@@ -182,7 +229,11 @@ function ApptDetailContent({
   onGCal: (a: Appointment) => void
   onClose: () => void
   onEdit: (a: Appointment) => void
+  onReschedule: (a: Appointment) => void
   onDelete: (a: Appointment) => void
+  /** excluir fica só com o administrador; a recepção cancela */
+  canDelete: boolean
+  onArrive: (a: Appointment, arrived: boolean) => void
   onPhoneAdded?: (patientId: string, phone: string) => void
   confirmation?: ConfirmationInfo
   whatsappConnected?: boolean
@@ -192,6 +243,7 @@ function ApptDetailContent({
   // instante em que o detalhe foi aberto (não chamar Date.now() direto no render)
   const [openedAt] = useState(() => Date.now())
   const [waSending, setWaSending] = useState(false)
+  const isDemo = useAuthStore(s => s.clinic?.demoMode === true)
   const [waMsg, setWaMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const waLabel = confirmation ? confirmationLabel(confirmation) : null
   const canSendWa =
@@ -214,6 +266,16 @@ function ApptDetailContent({
   const [showPhoneInput, setShowPhoneInput] = useState(false)
   const [phoneInput, setPhoneInput] = useState('')
   const [savingPhone, setSavingPhone] = useState(false)
+  const [showMore, setShowMore] = useState(false)
+  const [showStatus, setShowStatus] = useState(false)
+  const nextStep = NEXT_STEP[appt.status ?? '']
+  const canReschedule = appt.status !== 'concluido'
+  // chegada: só no dia da consulta e enquanto ela está agendada ou confirmada
+  const waiting = appt.status === 'agendado' || appt.status === 'confirmado'
+  const isToday = new Date(appt.scheduled_at).toDateString() === new Date(openedAt).toDateString()
+  const canArrive = waiting && isToday
+  // confirmada, hoje e ainda sem chegada: o passo da vez é receber o paciente; depois, concluir
+  const arriveIsPrimary = canArrive && !appt.arrived_at && appt.status === 'confirmado'
 
   async function savePhone() {
     if (!appt.patient_id) return
@@ -243,13 +305,15 @@ function ApptDetailContent({
 
       <div className={styles.detailBody}>
         <div className={styles.detailInfoGrid}>
-          <InfoCard label="Procedimento" value={appt.procedure_name ?? '-'} />
-          <InfoCard label="Data e hora" value={formatDate(appt.scheduled_at)} />
+          <InfoCard label="Procedimento" value={appt.procedure_name ?? '-'} fullWidth />
+          <InfoCard label="Data e hora" value={fmtWhen(appt.scheduled_at)} fullWidth />
           <InfoCard label="Duração" value={`${appt.duration_minutes ?? 60} min`} />
-          <InfoCard label="Telefone" value={formatBrPhone(appt.patients?.phone) || '-'} />
           {appt.professionals?.name && (
             <InfoCard label="Profissional" value={appt.professionals.name} />
           )}
+          {appt.patients?.phone && <InfoCard label="Telefone" value={formatBrPhone(appt.patients.phone) || '-'} />}
+          {appt.arrived_at && <InfoCard label="Chegada" value={fmtTime(appt.arrived_at)} />}
+          {appt.extra_slot_reason && <InfoCard label="Encaixe fora da escala" value={appt.extra_slot_reason} fullWidth />}
           {appt.notes && <InfoCard label="Observações" value={appt.notes} fullWidth />}
         </div>
 
@@ -258,28 +322,47 @@ function ApptDetailContent({
             <p className={styles.detailActionsLabel}>Confirmação pelo WhatsApp</p>
             {waLabel && <span className={`${styles.waChip} ${styles[`waTone_${waLabel.tone}`]}`}>{waLabel.text}</span>}
             {canSendWa && (
-              <button className={styles.waBtn} onClick={sendWhatsAppNow} disabled={waSending}>
+              <button className={styles.waBtn} onClick={sendWhatsAppNow} disabled={waSending || isDemo} aria-describedby={isDemo ? 'agenda-demo-wa-note' : undefined}>
                 {waSending ? 'Enviando…' : confirmation ? 'Reenviar mensagem agora' : 'Enviar confirmação agora'}
               </button>
             )}
+            {isDemo && <span id="agenda-demo-wa-note" className={styles.waHint}>Envio de mensagens desativado na conta de demonstração.</span>}
             {waMsg && <span className={waMsg.ok ? styles.waOk : styles.waErr} role="status">{waMsg.text}</span>}
           </div>
         )}
 
         <div className={styles.detailActions}>
-          <p className={styles.detailActionsLabel}>Alterar status</p>
-          <div className={styles.statusBtns}>
-            {(['agendado','confirmado','concluido','cancelado','faltou'] as const).map(s => (
-              <button
-                key={s}
-                className={`${styles.statusBtn} ${styles[`statusBtn_${s}`]} ${appt.status === s ? styles.statusBtnActive : ''}`}
-                onClick={() => onUpdateStatus(appt.id, s)}
-              >
-                <span className={styles.statusDot} style={{ background: STATUS_DOTS[s] }} />
-                {STATUS_LABELS[s]}
-              </button>
-            ))}
-          </div>
+          {arriveIsPrimary ? (
+            <button type="button" className={styles.btnNextStep} onClick={() => onArrive(appt, true)}>Paciente chegou</button>
+          ) : nextStep && (
+            <button type="button" className={styles.btnNextStep} onClick={() => onUpdateStatus(appt.id, nextStep.status)}>
+              {nextStep.label}
+            </button>
+          )}
+          {canArrive && !arriveIsPrimary && !appt.arrived_at && (
+            <button type="button" className={styles.btnArrive} onClick={() => onArrive(appt, true)}>Paciente chegou</button>
+          )}
+          {canArrive && appt.arrived_at && (
+            <button type="button" className={styles.btnUndoArrive} onClick={() => onArrive(appt, false)}>Desfazer chegada</button>
+          )}
+          <button type="button" className={styles.statusToggle} onClick={() => setShowStatus(v => !v)} aria-expanded={showStatus}>
+            Alterar status
+          </button>
+          {showStatus && (
+            <div className={styles.statusBtns}>
+              {(['agendado','confirmado','concluido','cancelado','faltou'] as const).filter(st => st !== appt.status).map(st => (
+                <button
+                  key={st}
+                  type="button"
+                  className={`${styles.statusBtn} ${styles[`statusBtn_${st}`]}`}
+                  onClick={() => { setShowStatus(false); onUpdateStatus(appt.id, st) }}
+                >
+                  <span className={styles.statusDot} style={{ background: STATUS_DOTS[st] }} />
+                  {STATUS_LABELS[st]}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -289,16 +372,23 @@ function ApptDetailContent({
             <>
               <a
                 className={styles.btnWhatsApp}
-                href={`https://wa.me/${waMeNumber(appt.patients?.phone)}?text=${encodeURIComponent(
+                href={isDemo ? undefined : `https://wa.me/${waMeNumber(appt.patients?.phone)}?text=${encodeURIComponent(
                   `Olá, ${appt.patients?.name?.split(' ')[0]}! Passando para lembrar da sua consulta marcada para ${formatDate(appt.scheduled_at)}. Até lá!`
                 )}`}
                 target="_blank" rel="noopener noreferrer"
+                aria-disabled={isDemo || undefined}
+                aria-describedby={isDemo ? 'agenda-demo-wa-note-footer' : undefined}
+                onClick={isDemo ? e => e.preventDefault() : undefined}
               >Lembrar</a>
               <a
                 className={styles.btnChat}
-                href={`https://wa.me/${waMeNumber(appt.patients?.phone)}`}
+                href={isDemo ? undefined : `https://wa.me/${waMeNumber(appt.patients?.phone)}`}
                 target="_blank" rel="noopener noreferrer"
+                aria-disabled={isDemo || undefined}
+                aria-describedby={isDemo ? 'agenda-demo-wa-note-footer' : undefined}
+                onClick={isDemo ? e => e.preventDefault() : undefined}
               >Conversar</a>
+              {isDemo && <span id="agenda-demo-wa-note-footer" className={styles.waHint}>Envio de mensagens desativado na conta de demonstração.</span>}
             </>
           ) : showPhoneInput ? (
             <div className={styles.phoneInputRow}>
@@ -321,17 +411,20 @@ function ApptDetailContent({
           )}
         </div>
         <div className={styles.detailFooterActions}>
+          {canReschedule && <button className={styles.btnDetailEdit} onClick={() => onReschedule(appt)}>Remarcar</button>}
           <button className={styles.btnDetailEdit} onClick={() => onEdit(appt)}>Editar</button>
-          <button className={styles.btnDetailDelete} onClick={() => onDelete(appt)}>Excluir</button>
-          {!appt.gcal_event_id && (
-            <button className={styles.btnGcalLarge} onClick={() => onGCal(appt)}>
-              + Google Agenda
-            </button>
-          )}
-          {appt.gcal_event_id && (
-            <span className={styles.gcalSynced}><Icon name="check" size={12} /> Google Agenda</span>
-          )}
+          <button className={styles.btnDetailEdit} onClick={() => setShowMore(v => !v)} aria-expanded={showMore}>Mais</button>
         </div>
+        {showMore && (
+          <div className={styles.moreActions}>
+            {appt.gcal_event_id ? (
+              <span className={styles.gcalSynced}><Icon name="check" size={12} /> No Google Agenda</span>
+            ) : (
+              <button type="button" className={styles.btnGcalLarge} onClick={() => onGCal(appt)}>Adicionar ao Google Agenda</button>
+            )}
+            {canDelete && <button type="button" className={styles.btnDetailDelete} onClick={() => onDelete(appt)}>Excluir consulta</button>}
+          </div>
+        )}
       </div>
     </>
   )
@@ -404,6 +497,23 @@ function AgendaContent() {
     return prof.default_duration_minutes ?? getSpecialtyConfig(prof.specialty_type ?? clinic?.type).defaultDurationMinutes
   }, [professionals, defaultDuration, clinic?.type])
   const { data: procedures = [] } = useProcedures(clinic?.id)
+  // Escala dos profissionais: sem as tabelas (ou com a escala desligada para o profissional) tudo segue como antes.
+  const { data: schedules } = useSchedules(clinic?.id)
+  const scheduleFor = useCallback(
+    (professionalId: string) => {
+      const prof = allProfessionals.find(p => p.id === professionalId)
+      return scheduleOf(schedules, professionalId, prof?.schedule_enabled)
+    },
+    [schedules, allProfessionals],
+  )
+  // Grade de horários e regras de encaixe vêm das configurações da clínica (padrões se não houver)
+  const scheduleSettings = schedules?.settings ?? DEFAULT_SETTINGS
+  const TIME_SLOTS = useMemo(() => buildSlots(scheduleSettings.opening), [scheduleSettings.opening])
+  const canExtra = canExtraSlot(scheduleSettings.extraSlotPolicy, { isAdmin: isAdmin(user), isAdminOrRecepcao: canSeeAllProfessionals })
+  const canDeleteAppt = isAdmin(user)
+  // Editor de escala (de um profissional, numa semana) e a grade da equipe; o editor aberto pela equipe volta para ela ao fechar
+  const [scheduleEditor, setScheduleEditor] = useState<{ prof: Professional; date: Date; fromTeam: boolean } | null>(null)
+  const [teamOpen, setTeamOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('dia')
   const calRef = useRef<FullCalendarHandle>(null)
   const [calendarTitle, setCalendarTitle] = useState('')
@@ -429,10 +539,25 @@ function AgendaContent() {
   const [savingPatient, setSavingPatient] = useState(false)
   const [patientSearch, setPatientSearch] = useState('')
   const [showPatientDrop, setShowPatientDrop] = useState(false)
+  // A lista de pacientes carregada vem cortada em 1000 linhas: o que se digita é buscado no banco.
+  const [patientHits, setPatientHits] = useState<{ q: string; rows: Patient[] } | null>(null)
   const [showBlockModal, setShowBlockModal] = useState(false)
+  // Clique numa casa livre: escolhe entre agendar uma consulta e bloquear o horário
+  const [slotChoice, setSlotChoice] = useState<{ date: string; time: string; professionalId: string } | null>(null)
   const [blockForm, setBlockForm] = useState<BlockForm>(BLANK_BLOCK)
   const [savingBlock, setSavingBlock] = useState(false)
   const [blockError, setBlockError] = useState('')
+  // Remarcar: escolhe só a nova data e hora; paciente, procedimento e profissional continuam os mesmos.
+  const [resched, setResched] = useState<{ appt: Appointment; date: string; time: string } | null>(null)
+  const [reschedSaving, setReschedSaving] = useState(false)
+  const [reschedError, setReschedError] = useState('')
+  const [reschedDone, setReschedDone] = useState<Appointment | null>(null)
+  // Novo agendamento rápido: duração, valor, status e observações ficam recolhidos até alguém querer mudá-los
+  const [showMoreForm, setShowMoreForm] = useState(false)
+  // Visão Dia: lista (padrão) ou uma coluna por profissional. A escolha fica guardada neste navegador.
+  const [dayLayout, setDayLayout] = useState<'lista' | 'colunas'>(() => {
+    try { return window.localStorage.getItem('agenda.dayLayout') === 'colunas' ? 'colunas' : 'lista' } catch { return 'lista' }
+  })
 
   // On mobile (<900px), show detail as overlay; on desktop, as side panel
   const [isMobile, setIsMobile] = useState(false)
@@ -476,14 +601,41 @@ function AgendaContent() {
     if (!prefillPatientId || prefillDone.current || !agendaData) return
     prefillDone.current = true
     window.history.replaceState(null, '', '/agenda')
+    const openWith = (p: Patient) => {
+      setForm({ ...blankAppt(), patient_id: p.id })
+      setPatientSearch(p.name)
+      setShowModal(true)
+    }
     const p = agendaData.patients.find(x => x.id === prefillPatientId)
-    if (!p) return
-    // roda uma única vez (ref acima), quando os dados chegam: não há como derivar isso no render
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setForm({ ...blankAppt(), patient_id: p.id })
-    setPatientSearch(p.name)
-    setShowModal(true)
-  }, [prefillPatientId, agendaData, blankAppt])
+    if (p) {
+      // roda uma única vez (ref acima), quando os dados chegam
+      openWith(p)
+      return
+    }
+    // a lista carregada é cortada em 1000 linhas: paciente de fora dela é buscado pelo id
+    if (!clinic?.id) return
+    supabase.from('patients').select('id, name, phone').eq('id', prefillPatientId).eq('clinic_id', clinic.id).maybeSingle()
+      .then(({ data }) => { if (data) openWith(data as Patient) })
+  }, [prefillPatientId, agendaData, blankAppt, clinic?.id])
+
+  // Link /agenda?profissional=<id>: abre já na agenda só dele. Uma vez só, quando a lista de profissionais chega
+  // (ajuste de estado durante a renderização, protegido por `focusDone`).
+  const focusParam = useSearchParams().get('profissional')
+  const [focusDone, setFocusDone] = useState(false)
+  if (focusParam && !focusDone && allProfessionals.length > 1) {
+    setFocusDone(true)
+    if (allProfessionals.some(p => p.id === focusParam)) {
+      setHiddenProfIds(new Set(['', ...allProfessionals.filter(p => p.id !== focusParam).map(p => p.id)]))
+    }
+  }
+
+  // Link /agenda?escala=1 (do lembrete no sino): abre a escala da equipe, uma vez, quando a escala está disponível
+  const teamParam = useSearchParams().get('escala')
+  const [teamDone, setTeamDone] = useState(false)
+  if (teamParam && !teamDone && schedules?.available && canSeeAllProfessionals) {
+    setTeamDone(true)
+    setTeamOpen(true)
+  }
 
   function loadData() {
     queryClient.invalidateQueries({ queryKey: ['agenda', clinic?.id] })
@@ -538,27 +690,67 @@ function AgendaContent() {
     return map
   }, [professionals])
 
-  // Map slot → patient first name for busy slots on the selected date/professional
-  const slotBusyMap = useMemo<Map<string, string>>(() => {
-    const dateStr = form.scheduled_at.slice(0, 10)
-    if (!dateStr) return new Map()
-    const map = new Map<string, string>()
-    appointments.forEach(a => {
-      if (!a.scheduled_at || a.status === 'cancelado') return
-      if (editingId && a.id === editingId) return
-      if (form.professional_id && a.professional_id !== form.professional_id) return
-      if (localDateStr(new Date(a.scheduled_at)) !== dateStr) return
-      const aStartMs = new Date(a.scheduled_at).getTime()
-      const aEndMs = aStartMs + (a.duration_minutes ?? 60) * 60000
-      TIME_SLOTS.forEach(slot => {
-        const slotMs = new Date(`${dateStr}T${slot}:00`).getTime()
-        if (aStartMs < slotMs + 30 * 60000 && aEndMs > slotMs && !map.has(slot)) {
-          map.set(slot, a.status === 'bloqueado' ? 'Bloqueado' : (a.patients?.name?.split(' ')[0] ?? 'Ocupado'))
-        }
-      })
+  // Casa da grade -> quem ocupa, no dia e profissional escolhidos. Bloqueio da clínica toda vale para todos.
+  const slotBusyMap = useMemo<Map<string, string>>(
+    () => buildBusyMap(appointments, {
+      dateStr: form.scheduled_at.slice(0, 10),
+      professionalId: form.professional_id,
+      ignoreId: editingId,
+      slots: TIME_SLOTS,
+    }),
+    [appointments, form.scheduled_at, form.professional_id, editingId, TIME_SLOTS],
+  )
+
+  // Atalho de telefone ("quando a Dra. X tem horário?"): os próximos horários livres do profissional escolhido
+  const nextFree = useMemo(() => {
+    if (!showModal || !form.professional_id) return []
+    const durationMin = Number(form.duration_minutes) || defaultDuration
+    const schedule = scheduleFor(form.professional_id)
+    return nextFreeSlots(appointments, {
+      professionalId: form.professional_id,
+      durationMin,
+      slots: TIME_SLOTS,
+      from: new Date(),
+      count: 6,
+      ignoreId: editingId,
+      isOpen: (d, slot) => slotInSchedule(schedule, d, slot, durationMin),
     })
-    return map
-  }, [appointments, form.scheduled_at, form.professional_id, editingId])
+  }, [showModal, appointments, form.professional_id, form.duration_minutes, editingId, defaultDuration, scheduleFor, TIME_SLOTS])
+
+  // Escala do profissional escolhido no formulário e se o horário marcado cai fora dela (encaixe)
+  const formSchedule = form.professional_id ? scheduleFor(form.professional_id) : undefined
+  const formDateStr = form.scheduled_at.slice(0, 10)
+  const formDayStatus = formDateStr ? dayStatus(formSchedule, formDateStr) : null
+  const formOutside = !!formSchedule && !!formDateStr && form.scheduled_at.length >= 16 &&
+    !slotInSchedule(formSchedule, formDateStr, form.scheduled_at.slice(11, 16), Number(form.duration_minutes) || defaultDuration)
+
+  useEffect(() => {
+    const q = patientSearch.trim()
+    if (!clinic?.id || !showPatientDrop || q.length < 2) return
+    const clinicId = clinic.id
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      // vírgula, parênteses e % têm função na sintaxe do filtro: viram espaço
+      const safe = q.replace(/[%,()*\\]/g, ' ').trim()
+      const { data, error } = await supabase
+        .from('patients')
+        .select('id, name, phone')
+        .eq('clinic_id', clinicId)
+        .eq('is_active', true)
+        .ilike('name', `%${safe}%`)
+        .order('name')
+        .limit(8)
+      if (!cancelled && !error) setPatientHits({ q, rows: (data ?? []) as Patient[] })
+    }, 250)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [patientSearch, showPatientDrop, clinic?.id])
+
+  // o que aparece no menu: o resultado do banco para o texto atual; antes dele chegar, a lista carregada
+  const patientOptions = useMemo(() => {
+    const q = patientSearch.trim()
+    if (patientHits && patientHits.q === q) return patientHits.rows
+    return patients.filter(p => !q || p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8)
+  }, [patientHits, patientSearch, patients])
 
   function toggleProfFilter(profId: string) {
     setHiddenProfIds(prev => {
@@ -569,9 +761,49 @@ function AgendaContent() {
     })
   }
 
+  // Agenda exclusiva de um profissional = só ele marcado (e o resto, inclusive "sem profissional", oculto).
+  // Derivado do filtro que já existe: marcar uma caixa a mais na lateral sai do foco sozinho.
+  const focusedProf = useMemo(() => {
+    if (professionals.length < 2) return null
+    const shown = professionals.filter(p => !hiddenProfIds.has(p.id))
+    return shown.length === 1 && hiddenProfIds.has('') ? shown[0] : null
+  }, [professionals, hiddenProfIds])
+
+  function focusProfessional(profId: string) {
+    setHiddenProfIds(new Set(['', ...professionals.filter(p => p.id !== profId).map(p => p.id)]))
+    window.history.replaceState(null, '', `/agenda?profissional=${profId}`)
+  }
+
+  function clearProfessionalFocus() {
+    setHiddenProfIds(new Set())
+    window.history.replaceState(null, '', '/agenda')
+  }
+
+  // Toque no avatar (celular): foca o profissional; toque de novo no focado volta para todos
+  function tapProfAvatar(profId: string) {
+    if (focusedProf?.id === profId) clearProfessionalFocus()
+    else if (hiddenProfIds.size === 0) focusProfessional(profId)
+    else toggleProfFilter(profId)
+  }
+
+  const focusNextFree = useMemo(() => {
+    if (!focusedProf) return []
+    const durationMin = resolveProfessionalDuration(focusedProf.id)
+    const schedule = scheduleFor(focusedProf.id)
+    return nextFreeSlots(appointments, {
+      professionalId: focusedProf.id,
+      durationMin,
+      slots: TIME_SLOTS,
+      from: new Date(),
+      count: 6,
+      isOpen: (d, slot) => slotInSchedule(schedule, d, slot, durationMin),
+    })
+  }, [appointments, focusedProf, resolveProfessionalDuration, scheduleFor, TIME_SLOTS])
+
   // Agendamentos visíveis após o filtro de profissionais (chips com anel colorido na TopBar)
   const visibleAppointments = useMemo(
-    () => appointments.filter(a => !hiddenProfIds.has(a.professional_id ?? '')),
+    // bloqueio da clínica toda vale para todo mundo: não some ao ocultar "sem profissional"
+    () => appointments.filter(a => isClinicBlock(a) || !hiddenProfIds.has(a.professional_id ?? '')),
     [appointments, hiddenProfIds]
   )
 
@@ -589,9 +821,13 @@ function AgendaContent() {
       }
       return {
         id: a.id,
-        title: a.status === 'bloqueado' ? `Bloqueado: ${a.notes || 'horário indisponível'}` : `${a.patients?.name ?? 'Paciente'} — ${a.procedure_name ?? 'Consulta'}`,
+        title: a.status === 'bloqueado'
+          ? (viewMode === 'mes' ? 'Bloqueado' : `Bloqueado: ${a.notes || 'horário indisponível'}`)
+          // no Mês a célula é estreita: só o primeiro nome
+          : viewMode === 'mes' ? (a.patients?.name ?? 'Paciente').split(' ')[0] : `${a.patients?.name ?? 'Paciente'} — ${a.procedure_name ?? 'Consulta'}`,
         start, end,
         classNames: [`ev-${a.status ?? 'agendado'}`],
+        startEditable: a.status !== 'bloqueado' && a.status !== 'concluido',
         extendedProps: { appt: a },
       }
     })
@@ -603,8 +839,50 @@ function AgendaContent() {
       color: '#4285F4',
       extendedProps: { gcal: true, link: e.htmlLink },
     }))
-    return [...clinicEvents, ...gEvents]
-  }, [visibleAppointments, gcalEvents])
+    // Escala do profissional em foco: o que está fora dela fica listrado (Semana) ou apagado (Mês)
+    const shading: CalendarEvent[] = []
+    const sched = focusedProf ? scheduleFor(focusedProf.id) : undefined
+    if (sched && calRange && (viewMode === 'semana' || viewMode === 'mes')) {
+      for (let d = new Date(calRange.start.getFullYear(), calRange.start.getMonth(), calRange.start.getDate()); d < calRange.end; d.setDate(d.getDate() + 1)) {
+        const key = localDateStr(d)
+        const pending = dayStatus(sched, key).state === 'por_definir'
+        const cls = [pending ? 'sched-pending' : 'sched-off']
+        if (viewMode === 'mes') {
+          if (dayStatus(sched, key).state !== 'atende') shading.push({ id: `bg-${key}`, title: '', start: key, display: 'background', classNames: cls, extendedProps: {} })
+          continue
+        }
+        for (const r of closedRanges(sched, key, 6 * 60, 21 * 60)) {
+          const at = (m: number) => `${key}T${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00`
+          shading.push({ id: `bg-${key}-${r.start}`, title: '', start: at(r.start), end: at(r.end), display: 'background', classNames: cls, extendedProps: {} })
+        }
+      }
+    }
+    return [...shading, ...clinicEvents, ...gEvents]
+  }, [visibleAppointments, gcalEvents, focusedProf, scheduleFor, calRange, viewMode])
+
+  // Horas visíveis na Semana: o horário da clínica (Configurações → Agenda); se houver consulta fora dele no período, estica até ela
+  const calSlotRange = useMemo(() => {
+    const hour = (hhmm: string) => Number(hhmm.slice(0, 2)) + (Number(hhmm.slice(3, 5)) > 0 ? 1 : 0)
+    let minH = Number(scheduleSettings.opening.start.slice(0, 2))
+    let maxH = Math.min(24, hour(scheduleSettings.opening.end))
+    if (calRange) {
+      for (const a of visibleAppointments) {
+        const st = new Date(a.scheduled_at)
+        if (st < calRange.start || st >= calRange.end) continue
+        const en = new Date(st.getTime() + (a.duration_minutes ?? 60) * 60000)
+        minH = Math.min(minH, st.getHours())
+        maxH = Math.max(maxH, Math.min(24, en.getHours() + (en.getMinutes() > 0 ? 1 : 0)))
+      }
+    }
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return { min: `${pad(minH)}:00:00`, max: maxH >= 24 ? '24:00:00' : `${pad(maxH)}:00:00` }
+  }, [scheduleSettings.opening, calRange, visibleAppointments])
+
+  // Mini calendário: com um profissional em foco e escala ligada, cada dia mostra se ele atende
+  const focusSched = focusedProf ? scheduleFor(focusedProf.id) : undefined
+  const miniDayTone = focusSched
+    ? (key: string) => { const st = dayStatus(focusSched, key).state; return st === 'sem_escala' ? undefined : st }
+    : undefined
 
   // Helper: local date string "YYYY-MM-DD" from a Date object (respects timezone)
   function localDateStr(d: Date) {
@@ -617,13 +895,50 @@ function AgendaContent() {
     return visibleAppointments.filter(a => {
       const matchStatus = !filterStatus || a.status === filterStatus
       const matchDate = a.scheduled_at && localDateStr(new Date(a.scheduled_at)) === targetDate
-      const matchSearch = !searchQ ||
-        a.patients?.name?.toLowerCase().includes(searchQ.toLowerCase()) ||
-        a.procedure_name?.toLowerCase().includes(searchQ.toLowerCase()) ||
-        a.professionals?.name?.toLowerCase().includes(searchQ.toLowerCase())
-      return matchStatus && matchDate && matchSearch
+      return matchStatus && matchDate
     })
-  }, [visibleAppointments, filterStatus, currentDate, searchQ])
+  }, [visibleAppointments, filterStatus, currentDate])
+
+  // Colunas da visão Dia: os profissionais visíveis e, se houver consulta sem profissional no dia, uma coluna para elas
+  const dayColumns = useMemo<DayColumn[]>(() => {
+    const cols: DayColumn[] = professionals
+      .filter(p => !hiddenProfIds.has(p.id))
+      .map(p => ({ id: p.id, name: p.name, initials: initials(p.name), color: profColor(p.id, profColorIndex) }))
+    if (filtered.some(a => !a.professional_id && a.status !== 'bloqueado')) {
+      cols.push({ id: '', name: 'Sem profissional', initials: '–', color: '#9CA3AF' })
+    }
+    return cols
+  }, [professionals, hiddenProfIds, filtered, profColorIndex])
+
+  // Busca da visão Dia: procura em todas as datas, por nome, procedimento, profissional ou telefone.
+  // Próximas consultas primeiro (da mais perto para a mais longe), depois as passadas (da mais recente).
+  const searchResults = useMemo(() => {
+    const q = searchQ.trim().toLowerCase()
+    if (!q) return null
+    const digits = q.replace(/\D/g, '')
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+    const rows = visibleAppointments.filter(a => {
+      if (a.status === 'bloqueado' || !a.scheduled_at) return false
+      if (filterStatus && a.status !== filterStatus) return false
+      return !!(
+        a.patients?.name?.toLowerCase().includes(q) ||
+        a.procedure_name?.toLowerCase().includes(q) ||
+        a.professionals?.name?.toLowerCase().includes(q) ||
+        (digits.length >= 3 && (a.patients?.phone ?? '').replace(/\D/g, '').includes(digits))
+      )
+    })
+    const ms = (a: Appointment) => new Date(a.scheduled_at).getTime()
+    const upcoming = rows.filter(a => ms(a) >= todayStart.getTime()).sort((a, b) => ms(a) - ms(b))
+    const past = rows.filter(a => ms(a) < todayStart.getTime()).sort((a, b) => ms(b) - ms(a))
+    const all = [...upcoming, ...past]
+    return { total: all.length, rows: all.slice(0, 60) }
+  }, [visibleAppointments, filterStatus, searchQ])
+
+  function openSearchResult(a: Appointment) {
+    setCurrentDate(new Date(a.scheduled_at))
+    setSearchQ('')
+    setSelected(a)
+  }
 
   // Date nav
   function prevDay() { setCurrentDate(d => { const nd = new Date(d); nd.setDate(nd.getDate() - 1); return nd }) }
@@ -642,8 +957,23 @@ function AgendaContent() {
     } else if (!wasCalendar && isNextCalendar) {
       calRef.current?.gotoDate(currentDate)
     }
+    setSelected(null)
     setViewMode(next)
   }
+
+  // Esc fecha o painel de detalhe (no desktop), a não ser que haja um modal ou confirmação aberta por cima
+  useEffect(() => {
+    if (!selected || isMobile) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
+      const el = e.target as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return
+      setSelected(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selected, isMobile])
 
   // Mantém o FullCalendar na visão certa (Mês/Semana) sem desmontar o componente
   useEffect(() => {
@@ -692,6 +1022,12 @@ function AgendaContent() {
 
   function pickDay(d: Date) {
     setCurrentDate(d)
+    // No Mês, escolher um dia no mini calendário abre aquele dia
+    if (viewMode === 'mes') {
+      setSelected(null)
+      setViewMode('dia')
+      return
+    }
     if (isCalendarView) calRef.current?.gotoDate(d)
   }
 
@@ -717,9 +1053,37 @@ function AgendaContent() {
     if (appt) setSelected(appt)
   }
 
-  function handleDateSelect(dateStr: string) {
-    setForm({ ...blankAppt(), scheduled_at: dateStr.length <= 10 ? dateStr + 'T09:00' : dateStr })
+  // Na agenda exclusiva de um profissional, o novo agendamento já vem para ele
+  function openNewAppt() {
+    if (focusedProf) setForm({ ...blankAppt(), professional_id: focusedProf.id, duration_minutes: resolveProfessionalDuration(focusedProf.id) })
     setShowModal(true)
+  }
+
+  function handleDateSelect(dateStr: string) {
+    // Mês: clicou num dia inteiro, sem horário. Semana: clicou num horário, então pergunta o que fazer com ele.
+    if (dateStr.length <= 10) {
+      setForm({ ...blankAppt(), scheduled_at: dateStr + 'T09:00' })
+      setShowModal(true)
+      return
+    }
+    setSlotChoice({ date: dateStr.slice(0, 10), time: dateStr.slice(11, 16), professionalId: focusedProf?.id ?? scopeProfessionalId ?? '' })
+  }
+
+  function chooseSlotSchedule() {
+    if (!slotChoice) return
+    const { date, time, professionalId } = slotChoice
+    setForm({ ...blankAppt(), professional_id: professionalId, duration_minutes: professionalId ? resolveProfessionalDuration(professionalId) : defaultDuration, scheduled_at: `${date}T${time}` })
+    setSlotChoice(null)
+    setShowModal(true)
+  }
+
+  function chooseSlotBlock() {
+    if (!slotChoice) return
+    const { date, time, professionalId } = slotChoice
+    setBlockForm({ ...BLANK_BLOCK, professional_id: professionalId, scheduled_at: `${date}T${time}` })
+    setBlockError('')
+    setSlotChoice(null)
+    setShowBlockModal(true)
   }
 
   async function handleSave() {
@@ -738,26 +1102,23 @@ function AgendaContent() {
       const procName = procId
         ? (procedures.find(p => p.id === procId)?.name ?? form.procedure_name)
         : (form.procedure_name || null)
-      const patient = patients.find(p => p.id === form.patient_id)
+      const patient = patients.find(p => p.id === form.patient_id) ?? patientHits?.rows.find(p => p.id === form.patient_id)
+
+      // fora da escala do profissional só como encaixe, com motivo
+      const extraReason = form.extra_reason.trim()
+      if (formOutside && scheduleSettings.extraSlotRequireReason && !extraReason) {
+        setSaveError('Este horário está fora da escala do profissional. Informe o motivo do encaixe.')
+        return
+      }
 
       if (professionalId) {
-        const startMs = new Date(scheduledAtISO).getTime()
-        const endISO = new Date(startMs + duration * 60000).toISOString()
-        const { data: conflicts } = await supabase
-          .from('appointments')
-          .select('id, scheduled_at, duration_minutes')
-          .eq('clinic_id', clinic.id)
-          .eq('professional_id', professionalId)
-          .neq('status', 'cancelado')
-          .lt('scheduled_at', endISO)
-        const overlap = (conflicts ?? []).some(c => {
-          if (editingId && c.id === editingId) return false
-          const cStart = new Date(c.scheduled_at).getTime()
-          const cEnd = cStart + (c.duration_minutes ?? 60) * 60000
-          return cStart < startMs + duration * 60000 && startMs < cEnd
-        })
-        if (overlap) {
-          setSaveError('Este profissional já tem agendamento nesse horário.')
+        const result = await checkConflict(clinic.id, professionalId, new Date(scheduledAtISO).getTime(), duration, editingId)
+        if (result === 'error') {
+          setSaveError('Não foi possível conferir a agenda. Tente de novo.')
+          return
+        }
+        if (result === 'conflict') {
+          setSaveError('Este profissional já tem agendamento ou bloqueio nesse horário.')
           return
         }
       }
@@ -772,6 +1133,10 @@ function AgendaContent() {
         duration_minutes: duration,
         status: form.status,
         notes: form.notes || null,
+        // só vai quando há encaixe: a coluna só existe depois da migration da escala
+        ...(formOutside
+          ? { extra_slot_reason: extraReason || 'Encaixe fora da escala' }
+          : editingId && appointments.find(a => a.id === editingId)?.extra_slot_reason ? { extra_slot_reason: null } : {}),
       }
 
       if (editingId) {
@@ -917,6 +1282,7 @@ function AgendaContent() {
     setNpPhone('')
     setPatientSearch('')
     setShowPatientDrop(false)
+    setShowMoreForm(false)
   }
 
   async function createPatient() {
@@ -946,17 +1312,20 @@ function AgendaContent() {
       procedure_id: appt.procedure_id ?? (appt.procedure_name ? 'outro' : ''),
       procedure_name: appt.procedure_name ?? '',
       procedure_price: appt.procedure_price != null ? String(appt.procedure_price) : '',
-      scheduled_at: appt.scheduled_at.slice(0, 16),
+      scheduled_at: toLocalInput(appt.scheduled_at),
       duration_minutes: appt.duration_minutes ?? 60,
       status: appt.status,
       notes: appt.notes ?? '',
+      extra_mode: !!appt.extra_slot_reason,
+      extra_reason: appt.extra_slot_reason ?? '',
     })
     setSelected(null)
     setShowNewPatient(false)
     setNpName('')
     setNpPhone('')
-    setPatientSearch(patients.find(p => p.id === appt.patient_id)?.name ?? '')
+    setPatientSearch(appt.patients?.name ?? patients.find(p => p.id === appt.patient_id)?.name ?? '')
     setShowPatientDrop(false)
+    setShowMoreForm(true)
     setShowModal(true)
   }
 
@@ -971,6 +1340,125 @@ function AgendaContent() {
     await supabase.from('appointments').delete().eq('id', appt.id).eq('clinic_id', clinic!.id)
     await removeRevenueForAppointment(appt.id)
     setSelected(null)
+    loadData()
+  }
+
+  async function markArrived(appt: Appointment, arrived: boolean) {
+    const at = arrived ? new Date().toISOString() : null
+    const { error } = await supabase.from('appointments').update({ arrived_at: at }).eq('id', appt.id).eq('clinic_id', clinic!.id)
+    if (error) { showToast('error', 'Não foi possível registrar a chegada.'); return }
+    setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, arrived_at: at } : a))
+    setSelected(prev => prev && prev.id === appt.id ? { ...prev, arrived_at: at } : prev)
+    showToast('ok', arrived ? 'Chegada registrada' : 'Chegada desfeita')
+  }
+
+  function openReschedule(appt: Appointment) {
+    setReschedError('')
+    setReschedDone(null)
+    setResched({ appt, date: toLocalInput(appt.scheduled_at).slice(0, 10), time: '' })
+    setSelected(null)
+  }
+
+  function closeReschedule() {
+    setResched(null)
+    setReschedDone(null)
+    setReschedError('')
+  }
+
+  // Horários ocupados do profissional no dia escolhido, sem contar a própria consulta que está sendo remarcada
+  const reschedBusy = useMemo<Map<string, string>>(
+    () => resched
+      ? buildBusyMap(appointments, { dateStr: resched.date, professionalId: resched.appt.professional_id ?? '', ignoreId: resched.appt.id, slots: TIME_SLOTS })
+      : new Map(),
+    [resched, appointments, TIME_SLOTS],
+  )
+
+  // Remarcar de verdade: confere conflito, grava, atualiza o Google Agenda. Devolve a mensagem de erro, ou os novos status e observações.
+  async function applyReschedule(appt: Appointment, newStart: Date, extraReason: string | null): Promise<{ error: string } | { status: Appointment['status']; notes: string }> {
+    const duration = appt.duration_minutes ?? 60
+    if (appt.professional_id) {
+      const result = await checkConflict(clinic!.id, appt.professional_id, newStart.getTime(), duration, appt.id)
+      if (result !== 'free') {
+        return { error: result === 'error'
+          ? 'Não foi possível conferir a agenda. Tente de novo.'
+          : 'Este profissional já tem agendamento ou bloqueio nesse horário.' }
+      }
+    }
+    // a confirmação era para o horário antigo: volta para "agendado". Concluído nem chega aqui.
+    const status = appt.status === 'confirmado' || appt.status === 'cancelado' || appt.status === 'faltou' ? 'agendado' : appt.status
+    const trail = `Remarcada de ${formatDate(appt.scheduled_at)}.`
+    const notes = appt.notes ? `${appt.notes}\n${trail}` : trail
+    const { error } = await supabase
+      .from('appointments')
+      .update({ scheduled_at: newStart.toISOString(), status, notes, ...(extraReason ? { extra_slot_reason: extraReason } : {}) })
+      .eq('id', appt.id)
+      .eq('clinic_id', clinic!.id)
+    if (error) return { error: `Erro ao remarcar: ${error.message}` }
+    if (appt.gcal_event_id && gcalConnected) {
+      const token = getGCalToken()
+      if (token) {
+        try {
+          await updateGCalEvent(token, appt.gcal_event_id, {
+            summary: `${appt.procedure_name || 'Consulta'} — ${appt.patients?.name ?? 'Paciente'}`,
+            description: notes || undefined,
+            start: newStart.toISOString(),
+            end: new Date(newStart.getTime() + duration * 60000).toISOString(),
+          })
+        } catch { /* ignora */ }
+      }
+    }
+    return { status, notes }
+  }
+
+  async function handleReschedule() {
+    if (!clinic || !resched || !resched.date || !resched.time) return
+    const { appt } = resched
+    const newStart = new Date(`${resched.date}T${resched.time}`)
+    if (newStart.getTime() === new Date(appt.scheduled_at).getTime()) {
+      setReschedError('Escolha um horário diferente do atual.')
+      return
+    }
+    setReschedSaving(true)
+    setReschedError('')
+    const sched = appt.professional_id ? scheduleFor(appt.professional_id) : undefined
+    const outside = !!sched && !slotInSchedule(sched, resched.date, resched.time, appt.duration_minutes ?? 60)
+    const res = await applyReschedule(appt, newStart, outside ? 'Remarcada para fora da escala' : null)
+    if ('error' in res) {
+      setReschedError(res.error)
+      setReschedSaving(false)
+      return
+    }
+    setReschedSaving(false)
+    setReschedDone({ ...appt, scheduled_at: newStart.toISOString(), status: res.status, notes: res.notes })
+    setCurrentDate(newStart)
+    loadData()
+  }
+
+  // Arrastar uma consulta no calendário (Semana e Mês) para remarcar
+  async function handleEventDrop(id: string, newStart: Date, revert: () => void) {
+    const appt = appointments.find(a => a.id === id)
+    if (!appt || !clinic || appt.status === 'concluido' || appt.status === 'bloqueado') { revert(); return }
+    const sched = appt.professional_id ? scheduleFor(appt.professional_id) : undefined
+    const time = `${String(newStart.getHours()).padStart(2, '0')}:${String(newStart.getMinutes()).padStart(2, '0')}`
+    const outside = !!sched && !slotInSchedule(sched, localDateStr(newStart), time, appt.duration_minutes ?? 60)
+    if (outside && !canExtra) {
+      showToast('error', 'Esse horário está fora da escala do profissional.')
+      revert()
+      return
+    }
+    const ok = await confirmDialog({
+      title: 'Remarcar consulta?',
+      message: `Mover ${appt.patients?.name ?? 'o agendamento'} para ${formatDate(newStart.toISOString())}?${outside ? ' Esse horário está fora da escala do profissional e ficará registrado como encaixe.' : ''}`,
+      confirmText: 'Remarcar',
+    })
+    if (!ok) { revert(); return }
+    const res = await applyReschedule(appt, newStart, outside ? 'Remarcada para fora da escala' : null)
+    if ('error' in res) {
+      showToast('error', res.error)
+      revert()
+      return
+    }
+    showToast('ok', 'Consulta remarcada')
     loadData()
   }
 
@@ -999,22 +1487,11 @@ function AgendaContent() {
     const professionalId = blockForm.professional_id || null
 
     if (professionalId) {
-      const startMs = new Date(scheduledAtISO).getTime()
-      const endISO = new Date(startMs + duration * 60000).toISOString()
-      const { data: conflicts } = await supabase
-        .from('appointments')
-        .select('id, scheduled_at, duration_minutes')
-        .eq('clinic_id', clinic.id)
-        .eq('professional_id', professionalId)
-        .neq('status', 'cancelado')
-        .lt('scheduled_at', endISO)
-      const overlap = (conflicts ?? []).some(c => {
-        const cStart = new Date(c.scheduled_at).getTime()
-        const cEnd = cStart + (c.duration_minutes ?? 60) * 60000
-        return cStart < startMs + duration * 60000 && startMs < cEnd
-      })
-      if (overlap) {
-        setBlockError('Já existe um agendamento ou bloqueio nesse horário para este profissional.')
+      const result = await checkConflict(clinic.id, professionalId, new Date(scheduledAtISO).getTime(), duration)
+      if (result !== 'free') {
+        setBlockError(result === 'error'
+          ? 'Não foi possível conferir a agenda. Tente de novo.'
+          : 'Já existe um agendamento ou bloqueio nesse horário para este profissional.')
         setSavingBlock(false)
         return
       }
@@ -1054,6 +1531,39 @@ function AgendaContent() {
     window.open(url, '_blank')
   }
 
+  // Filtro de status e modo de exibição do dia: na barra de cima no desktop, em faixa própria no celular
+  const statusFilterEl = (
+    <>
+      <SelectMenu
+        className={styles.statusSelect}
+        value={filterStatus}
+        onChange={setFilterStatus}
+        options={[
+          { value: '', label: 'Todos os status' },
+          { value: 'agendado', label: 'Agendado' },
+          { value: 'confirmado', label: 'Confirmado' },
+          { value: 'concluido', label: 'Concluído' },
+          { value: 'cancelado', label: 'Cancelado' },
+          { value: 'faltou', label: 'Faltou' },
+        ]}
+      />
+      {filterStatus && (
+        <button className={styles.btnClear} onClick={() => setFilterStatus('')}>Limpar</button>
+      )}
+    </>
+  )
+  const layoutToggleEl = !loading && !isMobile && dayColumns.length > 0 ? (
+    <PillTabs
+      label="Como mostrar o dia"
+      options={[{ value: 'lista' as const, label: 'Lista' }, { value: 'colunas' as const, label: 'Colunas' }]}
+      value={dayLayout}
+      onChange={v => {
+        setDayLayout(v)
+        try { window.localStorage.setItem('agenda.dayLayout', v) } catch { /* sem armazenamento: vale só nesta sessão */ }
+      }}
+    />
+  ) : null
+
   // ── Render ──────────────────────────────────────────────────
   return (
     <div className={styles.shell}>
@@ -1062,7 +1572,12 @@ function AgendaContent() {
         subtitle={`${rangeCount} ${rangeCount === 1 ? 'consulta' : 'consultas'}${rangeLabel ? ` · ${rangeLabel}` : ''}`}
         actions={<>
           <PillTabs label="Visão da agenda" options={viewOptions} value={viewMode} onChange={switchView} />
-          <button className={`${btn.primary} ${styles.headerCta}`} onClick={() => setShowModal(true)}>
+          {canSeeAllProfessionals && schedules?.available && allProfessionals.length > 0 && (
+            <button type="button" className={`${btn.secondary} ${styles.teamCta}`} onClick={() => setTeamOpen(true)}>
+              Escala da equipe
+            </button>
+          )}
+          <button className={`${btn.primary} ${styles.headerCta}`} onClick={openNewAppt}>
             <Icon name="plus" size={16} />
             Novo agendamento
           </button>
@@ -1077,6 +1592,7 @@ function AgendaContent() {
               highlight={viewMode === 'mes' ? null : range}
               marked={markedDays}
               onPick={pickDay}
+              dayTone={miniDayTone}
             />
           </div>
           <AgendaSidebar
@@ -1084,7 +1600,8 @@ function AgendaContent() {
             unassignedCount={profCounts[''] ?? 0}
             hiddenIds={hiddenProfIds}
             onToggle={toggleProfFilter}
-            scopeLabel={viewMode === 'dia' ? 'no dia' : viewMode === 'semana' ? 'na semana' : 'no mês'}
+            onFocus={focusProfessional}
+            focusedId={focusedProf?.id ?? null}
             today={todayStats}
           />
         </aside>
@@ -1106,15 +1623,17 @@ function AgendaContent() {
               <div className={`${styles.search} ${styles.localSearch}`}>
                 <SearchIcon />
                 <input
-                  placeholder="Buscar paciente..."
-                  aria-label="Buscar paciente"
+                  placeholder="Buscar nome ou telefone..."
+                  aria-label="Buscar por nome ou telefone, em todas as datas"
                   value={searchQ}
                   onChange={e => setSearchQ(e.target.value)}
                 />
               </div>
             )}
-            <button className={styles.btnSecondaryAction} onClick={openBlockModal} title="Bloquear um horário na agenda" aria-label="Bloquear horário">
-              <BanIcon />
+            {viewMode === 'dia' && !isMobile && <>{statusFilterEl}{layoutToggleEl}</>}
+            <button type="button" className={styles.btnSecondaryAction} onClick={openBlockModal} title="Reservar um horário em que ninguém pode agendar (almoço, reunião, folga)">
+              <LockIcon />
+              <span className={styles.btnSecondaryLabel}>Bloquear horário</span>
             </button>
             {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
               gcalConnected ? (
@@ -1128,17 +1647,78 @@ function AgendaContent() {
                   Vincular Google Calendar
                 </button>
               )
-            ) : (
-              <div className={styles.gcalUnlinked}>
-                <span className={styles.gcalDotOff} />
-                <span>Google Calendar</span>
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
 
       {gcalError && <p className={styles.gcalErrorMsg}>{gcalError}</p>}
+
+      {/* ── Agenda exclusiva do profissional ── */}
+      {focusedProf && (
+        <div className={styles.focusBar}>
+          <span className={styles.focusAvatar} style={{ background: profColor(focusedProf.id, profColorIndex) }}>{initials(focusedProf.name)}</span>
+          <div className={styles.focusInfo}>
+            <strong className={styles.focusName}>Agenda de {focusedProf.name}</strong>
+            <span className={styles.focusSub}>
+              {profCounts[focusedProf.id] ?? 0} {(profCounts[focusedProf.id] ?? 0) === 1 ? 'consulta' : 'consultas'} {viewMode === 'dia' ? 'no dia' : viewMode === 'semana' ? 'na semana' : 'no mês'}
+            </span>
+          </div>
+          <button type="button" className={styles.focusBack} onClick={clearProfessionalFocus}>Voltar para todos</button>
+          {schedules?.available && (() => {
+            const sched = scheduleFor(focusedProf.id)
+            const shifts = schedules.settings.shifts
+            return (
+              <div className={styles.focusSchedule}>
+                <div className={styles.scheduleHead}>
+                  <span className={styles.focusFreeLabel}>{summarizeSchedule(sched, currentDate, shifts)}</span>
+                  {canSeeAllProfessionals && (
+                    <button type="button" className={styles.focusBack} onClick={() => setScheduleEditor({ prof: focusedProf, date: currentDate, fromTeam: false })}>
+                      {focusedProf.schedule_enabled ? 'Editar dias e horários' : 'Definir escala'}
+                    </button>
+                  )}
+                </div>
+                {sched && (
+                  <ul className={styles.weekStrip} aria-label="Escala da semana">
+                    {weekDates(currentDate).map(d => {
+                      const st = dayStatus(sched, d)
+                      const free = freeSlotsOfDay(appointments, { professionalId: focusedProf.id, dateStr: d, durationMin: resolveProfessionalDuration(focusedProf.id), slots: TIME_SLOTS, schedule: sched }).length
+                      return (
+                        <li key={d} className={`${styles.weekCell}${st.state === 'atende' ? ` ${styles.weekCellOn}` : ''}${d === localDateStr(currentDate) ? ` ${styles.weekCellToday}` : ''}`}>
+                          <b>{new Date(`${d}T00:00`).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')} {d.slice(8)}</b>
+                          <span>{describeDay(st, shifts)}</span>
+                          {st.state === 'atende' && <small>{free} {free === 1 ? 'livre' : 'livres'}</small>}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+            )
+          })()}
+          {focusNextFree.length > 0 && (
+            <div className={styles.focusFree}>
+              <span className={styles.focusFreeLabel}>Próximos horários livres</span>
+              <div className={styles.nextFreeRow}>
+                {focusNextFree.map(s => (
+                  <button
+                    key={`${s.date}T${s.time}`}
+                    type="button"
+                    className={styles.nextFreeChip}
+                    title="Agendar neste horário"
+                    onClick={() => {
+                      setForm({ ...blankAppt(), professional_id: focusedProf.id, duration_minutes: resolveProfessionalDuration(focusedProf.id), scheduled_at: `${s.date}T${s.time}` })
+                      setShowModal(true)
+                    }}
+                  >
+                    {new Date(`${s.date}T00:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }).replace('.', '')} · {s.time}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Date strip: date-picker horizontal deslizante (mobile, visões Dia/Lista) ── */}
       {!isCalendarView && (
@@ -1173,8 +1753,8 @@ function AgendaContent() {
                 type="button"
                 className={styles.profFilterBtn}
                 data-active={active}
-                title={`${active ? 'Ocultar' : 'Mostrar'} ${p.name}`}
-                onClick={() => toggleProfFilter(p.id)}
+                title={focusedProf?.id === p.id ? `Voltar para todos` : hiddenProfIds.size === 0 ? `Ver só a agenda de ${p.name}` : `${active ? 'Ocultar' : 'Mostrar'} ${p.name}`}
+                onClick={() => tapProfAvatar(p.id)}
               >
                 <span className={styles.profAvatar} style={{ background: color }}>{initials(p.name)}</span>
               </button>
@@ -1192,26 +1772,9 @@ function AgendaContent() {
         </div>
       )}
 
-      {/* ── Filters (visão Dia) ── */}
-      {viewMode === 'dia' && (
-        <div className={styles.filters}>
-          <SelectMenu
-            className={styles.statusSelect}
-            value={filterStatus}
-            onChange={setFilterStatus}
-            options={[
-              { value: '', label: 'Todos os status' },
-              { value: 'agendado', label: 'Agendado' },
-              { value: 'confirmado', label: 'Confirmado' },
-              { value: 'concluido', label: 'Concluído' },
-              { value: 'cancelado', label: 'Cancelado' },
-              { value: 'faltou', label: 'Faltou' },
-            ]}
-          />
-          {filterStatus && (
-            <button className={styles.btnClear} onClick={() => setFilterStatus('')}>Limpar</button>
-          )}
-        </div>
+      {/* ── Filtro de status (visão Dia no celular; no desktop fica na barra de cima) ── */}
+      {viewMode === 'dia' && isMobile && (
+        <div className={styles.filters}>{statusFilterEl}</div>
       )}
 
       {/* ── Stage ── */}
@@ -1233,9 +1796,50 @@ function AgendaContent() {
                   onDateSelect={handleDateSelect}
                   onTitleChange={setCalendarTitle}
                   onRangeChange={(start, end) => setCalRange({ start, end })}
+                  onEventDrop={handleEventDrop}
+                  slotMinTime={calSlotRange.min}
+                  slotMaxTime={calSlotRange.max}
                 />
-                <p className={styles.calHint}>Clique num evento para ver detalhes • Clique numa data para criar agendamento</p>
               </div>
+            ) : searchResults ? (
+              /* ── Resultado da busca, em todas as datas ── */
+              <div className={styles.listScroll}>
+                <div className={styles.srHead}>
+                  {searchResults.total === 0
+                    ? 'Nenhuma consulta encontrada em nenhuma data'
+                    : `${searchResults.total} ${searchResults.total === 1 ? 'consulta encontrada' : 'consultas encontradas'} em todas as datas${searchResults.total > searchResults.rows.length ? ` · mostrando as ${searchResults.rows.length} primeiras` : ''}`}
+                </div>
+                {searchResults.rows.map(a => {
+                  const d = new Date(a.scheduled_at)
+                  return (
+                    <button key={a.id} type="button" className={styles.srRow} onClick={() => openSearchResult(a)}>
+                      <span className={styles.srDate}>
+                        <strong>{d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</strong>
+                        <span>{fmtTime(a.scheduled_at)}</span>
+                      </span>
+                      <span className={styles.srMain}>
+                        <strong className={styles.srName}>{a.patients?.name ?? '-'}</strong>
+                        <span className={styles.srSub}>
+                          {[a.procedure_name ?? 'Consulta', a.professionals?.name, d.toLocaleDateString('pt-BR', d.getFullYear() === new Date().getFullYear() ? { weekday: 'long' } : { weekday: 'long', year: 'numeric' })].filter(Boolean).join(' · ')}
+                        </span>
+                      </span>
+                      <StatusDot tone={STATUS_TONE[a.status ?? 'agendado'] ?? 'idle'}>{STATUS_LABELS[a.status ?? ''] ?? a.status}</StatusDot>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : dayLayout === 'colunas' && !isMobile && dayColumns.length > 0 ? (
+              /* ── Visão Dia em colunas: um profissional por coluna, com as casas livres ── */
+              <DayColumns
+                dateStr={localDateStr(currentDate)}
+                columns={dayColumns}
+                appointments={filtered}
+                slots={TIME_SLOTS}
+                statusLabels={STATUS_LABELS}
+                onOpenAppt={setSelected}
+                isOpen={(professionalId, time) => slotInSchedule(scheduleFor(professionalId), localDateStr(currentDate), time, 30)}
+                onFreeSlot={(professionalId, time) => setSlotChoice({ date: localDateStr(currentDate), time, professionalId })}
+              />
             ) : (
               /* ── Visão Dia: cards com trilho de horário ── */
               <div className={styles.listScroll}>
@@ -1248,7 +1852,7 @@ function AgendaContent() {
                       <line x1="3" y1="10" x2="21" y2="10"/>
                     </svg>
                     <span>Nenhum agendamento para este dia</span>
-                    <button className={styles.btnPrimary} onClick={() => setShowModal(true)} style={{ marginTop: 4 }}>
+                    <button className={styles.btnPrimary} onClick={openNewAppt} style={{ marginTop: 4 }}>
                       <PlusIcon /> Novo Agendamento
                     </button>
                   </div>
@@ -1339,7 +1943,7 @@ function AgendaContent() {
             )}
 
             {/* FAB — único CTA no mobile (≤600px) */}
-            <button className={styles.fab} onClick={() => setShowModal(true)} title="Novo agendamento">
+            <button className={styles.fab} onClick={openNewAppt} title="Novo agendamento">
               <PlusIcon />
               <span className={styles.fabLabel}>Novo agendamento</span>
             </button>
@@ -1362,7 +1966,10 @@ function AgendaContent() {
                   onGCal={openGCal}
                   onClose={() => setSelected(null)}
                   onEdit={openEdit}
+                  onReschedule={openReschedule}
                   onDelete={handleDelete}
+            canDelete={canDeleteAppt}
+            onArrive={markArrived}
                   onPhoneAdded={(patientId, phone) => {
                     setAppointments(prev => prev.map(a =>
                       a.patient_id === patientId && a.patients
@@ -1399,7 +2006,10 @@ function AgendaContent() {
             onGCal={openGCal}
             onClose={() => setSelected(null)}
             onEdit={openEdit}
+            onReschedule={openReschedule}
             onDelete={handleDelete}
+            canDelete={canDeleteAppt}
+            onArrive={markArrived}
             onPhoneAdded={(patientId, phone) => {
               setAppointments(prev => prev.map(a =>
                 a.patient_id === patientId && a.patients
@@ -1456,6 +2066,36 @@ function AgendaContent() {
       </Modal>
 
       {/* ── Novo e editar agendamento ── */}
+      {scheduleEditor && clinic && schedules?.available && (
+        <ScheduleEditor
+          key={`${scheduleEditor.prof.id}-${scheduleEditor.date.getTime()}`}
+          open
+          onClose={() => { if (scheduleEditor.fromTeam) setTeamOpen(true); setScheduleEditor(null) }}
+          professional={scheduleEditor.prof}
+          clinicId={clinic.id}
+          userId={user?.id}
+          shifts={schedules.settings.shifts}
+          saved={schedules.byProfessional[scheduleEditor.prof.id] ?? { pattern: [], days: [] }}
+          initialDate={scheduleEditor.date}
+        />
+      )}
+
+      {teamOpen && clinic && schedules?.available && (
+        <TeamSchedule
+          open
+          onClose={() => setTeamOpen(false)}
+          professionals={allProfessionals}
+          schedules={schedules}
+          shifts={schedules.settings.shifts}
+          clinicId={clinic.id}
+          userId={user?.id}
+          initialDate={currentDate}
+          colorOf={id => profColor(id, profColorIndex)}
+          initialsOf={initials}
+          onEdit={(prof, date) => { setTeamOpen(false); setScheduleEditor({ prof, date, fromTeam: true }) }}
+        />
+      )}
+
       <Modal
         open={showModal}
         onClose={closeModal}
@@ -1520,10 +2160,7 @@ function AgendaContent() {
               )}
               {showPatientDrop && (
                 <div className={styles.patientDrop}>
-                  {patients
-                    .filter(p => !patientSearch || p.name.toLowerCase().includes(patientSearch.toLowerCase()))
-                    .slice(0, 8)
-                    .map(p => (
+                  {patientOptions.map(p => (
                       <button
                         key={p.id}
                         type="button"
@@ -1541,7 +2178,7 @@ function AgendaContent() {
                         {p.name}
                       </button>
                     ))}
-                  {patients.filter(p => !patientSearch || p.name.toLowerCase().includes(patientSearch.toLowerCase())).length === 0 && (
+                  {patientOptions.length === 0 && (
                     <div className={styles.patientDropEmpty}>Nenhum paciente encontrado</div>
                   )}
                 </div>
@@ -1598,13 +2235,25 @@ function AgendaContent() {
             />
           </div>
         )}
-        {form.procedure_id && form.procedure_id !== 'outro' && (
+        {/* ── Próximos horários livres do profissional ── */}
+        {form.professional_id && nextFree.length > 0 && (
           <div className={f.field}>
-            <label>Valor (R$)</label>
-            <MoneyInput
-              value={form.procedure_price}
-              onChange={v => setForm(p => ({ ...p, procedure_price: v }))}
-            />
+            <label>Próximos horários livres</label>
+            <div className={styles.nextFreeRow}>
+              {nextFree.map(s => {
+                const picked = form.scheduled_at === `${s.date}T${s.time}`
+                return (
+                  <button
+                    key={`${s.date}T${s.time}`}
+                    type="button"
+                    className={`${styles.nextFreeChip}${picked ? ` ${styles.nextFreeChipOn}` : ''}`}
+                    onClick={() => setForm(p => ({ ...p, scheduled_at: `${s.date}T${s.time}` }))}
+                  >
+                    {new Date(`${s.date}T00:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }).replace('.', '')} · {s.time}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
 
@@ -1635,16 +2284,21 @@ function AgendaContent() {
             <div className={styles.timeGrid}>
               {TIME_SLOTS.map(slot => {
                 const hasDate = !!form.scheduled_at.slice(0, 10)
-                const busyName = hasDate ? slotBusyMap.get(slot) : undefined
+                // ocupado = a casa em si ou qualquer casa dentro da duração escolhida (09:00 por 60 min invade o 09:30)
+                const ownBusy = hasDate ? slotBusyMap.get(slot) : undefined
+                const busyName = hasDate ? conflictInSpan(slot, Number(form.duration_minutes), slotBusyMap, TIME_SLOTS) : undefined
                 const isBusy = !!busyName
                 const isSelected = form.scheduled_at.slice(11, 16) === slot
+                // fora da escala: só abre no modo encaixe
+                const isOutside = hasDate && !!formSchedule && !slotInSchedule(formSchedule, formDateStr, slot, Number(form.duration_minutes) || defaultDuration)
+                const closed = isOutside && !form.extra_mode
                 return (
                   <button
                     key={slot}
                     type="button"
-                    disabled={!hasDate || isBusy}
-                    title={!hasDate ? 'Selecione a data primeiro' : isBusy ? `Ocupado — ${busyName}` : `Selecionar ${slot}`}
-                    className={`${styles.timeSlot}${isSelected ? ` ${styles.timeSlotSelected}` : ''}${isBusy ? ` ${styles.timeSlotBusy}` : ''}`}
+                    disabled={!hasDate || isBusy || closed}
+                    title={!hasDate ? 'Selecione a data primeiro' : ownBusy ? `Ocupado — ${busyName}` : isBusy ? `Não cabe: ${busyName} logo depois (${form.duration_minutes} min)` : isOutside ? (closed ? 'Fora da escala do profissional' : `Encaixe fora da escala — ${slot}`) : `Selecionar ${slot}`}
+                    className={`${styles.timeSlot}${isSelected ? ` ${styles.timeSlotSelected}` : ''}${isBusy || closed ? ` ${styles.timeSlotBusy}` : ''}${isOutside && form.extra_mode && !isBusy ? ` ${styles.timeSlotExtra}` : ''}`}
                     onClick={() => setForm(p => ({ ...p, scheduled_at: `${p.scheduled_at.slice(0, 10)}T${slot}` }))}
                   >
                     {slot}
@@ -1659,25 +2313,78 @@ function AgendaContent() {
             )}
           </div>
           {form.professional_id && slotBusyMap.size > 0 && (
-            <p className={styles.timeGridHint}>Horários em cinza já estão ocupados para este profissional</p>
+            <p className={styles.timeGridHint}>Horários em cinza estão ocupados ou não comportam a duração escolhida</p>
+          )}
+          {formSchedule && formDayStatus && (
+            <div className={styles.scheduleNote}>
+              <p className={styles.timeGridHint}>
+                {formDayStatus.state === 'nao_atende' && 'O profissional não atende neste dia.'}
+                {formDayStatus.state === 'por_definir' && 'A escala deste dia ainda não foi definida.'}
+                {formDayStatus.state === 'atende' && `Escala do dia: ${describeDay(formDayStatus, schedules?.settings.shifts)}. Horários fora dela ficam em cinza.`}
+              </p>
+              {(canExtra || form.extra_mode) && (
+                <button
+                  type="button"
+                  className={styles.extraToggle}
+                  aria-pressed={form.extra_mode}
+                  onClick={() => setForm(p => ({ ...p, extra_mode: !p.extra_mode }))}
+                >
+                  {form.extra_mode ? 'Voltar a mostrar só a escala' : 'Encaixar fora da escala'}
+                </button>
+              )}
+            </div>
+          )}
+          {(form.extra_mode || formOutside) && formSchedule && (
+            <div className={`${f.field} ${styles.extraReason}`}>
+              <label>Motivo do encaixe{scheduleSettings.extraSlotRequireReason ? ' *' : ' (opcional)'}</label>
+              <input
+                value={form.extra_reason}
+                onChange={e => setForm(p => ({ ...p, extra_reason: e.target.value }))}
+                placeholder="Ex.: paciente com dor, retorno urgente"
+                maxLength={200}
+              />
+            </div>
           )}
         </div>
 
-        {/* ── Duração / Status / Notas ── */}
-        <div className={f.field}>
-          <label>Duração (min)</label>
-          <IntegerInput value={form.duration_minutes || ''} onChange={v => setForm(p => ({ ...p, duration_minutes: v === '' ? 0 : Number(v) }))} min={5} max={720} placeholder="60" />
-        </div>
-        <div className={f.field}>
-          <label>Status</label>
-          <SelectMenu variant="field" ariaLabel="Status" value={form.status}
-            onChange={v => setForm(p => ({ ...p, status: v }))}
-            options={[{ value: 'agendado', label: 'Agendado' }, { value: 'confirmado', label: 'Confirmado' }]} />
-        </div>
-        <div className={f.field}>
-          <label>Observações</label>
-          <textarea rows={3} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Informações adicionais..." />
-        </div>
+        {/* ── Mais detalhes: duração, valor, status e observações ── */}
+        <button
+          type="button"
+          className={styles.moreToggle}
+          onClick={() => setShowMoreForm(v => !v)}
+          aria-expanded={showMoreForm}
+        >
+          <Icon name={showMoreForm ? 'chevronDown' : 'chevronRight'} size={14} />
+          Mais detalhes
+          {!showMoreForm && <span className={styles.moreSummary}>{form.duration_minutes || 60} min</span>}
+        </button>
+        {showMoreForm && (
+          <>
+            <div className={f.field}>
+              <label>Duração (min)</label>
+              <IntegerInput value={form.duration_minutes || ''} onChange={v => setForm(p => ({ ...p, duration_minutes: v === '' ? 0 : Number(v) }))} min={5} max={720} placeholder="60" />
+            </div>
+            {form.procedure_id && form.procedure_id !== 'outro' && (
+              <div className={f.field}>
+                <label>Valor (R$)</label>
+                <MoneyInput
+                  value={form.procedure_price}
+                  onChange={v => setForm(p => ({ ...p, procedure_price: v }))}
+                />
+              </div>
+            )}
+            <div className={f.field}>
+              <label>Status</label>
+              <SelectMenu variant="field" ariaLabel="Status" value={form.status}
+                onChange={v => setForm(p => ({ ...p, status: v }))}
+                options={[{ value: 'agendado', label: 'Agendado' }, { value: 'confirmado', label: 'Confirmado' }]} />
+            </div>
+            <div className={f.field}>
+              <label>Observações</label>
+              <textarea rows={3} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Informações adicionais..." />
+            </div>
+          </>
+        )}
         {gcalConnected && (
           <label className={styles.gcalCheck}>
             <input type="checkbox" checked={syncToGCal} onChange={e => setSyncToGCal(e.target.checked)} />
@@ -1685,6 +2392,110 @@ function AgendaContent() {
           </label>
         )}
         {saveError && <p ref={saveErrorRef} className={f.error} role="alert">{saveError}</p>}
+      </Modal>
+
+      {/* ── Remarcar consulta ── */}
+      <Modal
+        open={!!resched}
+        onClose={closeReschedule}
+        size="sm"
+        title={reschedDone ? 'Consulta remarcada' : 'Remarcar consulta'}
+        subtitle={resched ? `${resched.appt.patients?.name ?? 'Paciente'}${resched.appt.professionals?.name ? ` · ${resched.appt.professionals.name}` : ''}` : undefined}
+        footer={reschedDone ? (
+          <>
+            {waMeNumber(reschedDone.patients?.phone) && (
+              <a
+                className={btn.secondary}
+                href={clinic?.demoMode ? undefined : `https://wa.me/${waMeNumber(reschedDone.patients?.phone)}?text=${encodeURIComponent(
+                  `Olá, ${reschedDone.patients?.name?.split(' ')[0]}! Sua consulta foi remarcada para ${formatDate(reschedDone.scheduled_at)}. Até lá!`
+                )}`}
+                target="_blank" rel="noopener noreferrer"
+                aria-disabled={clinic?.demoMode ? true : undefined}
+                aria-describedby={clinic?.demoMode ? 'agenda-demo-resched-note' : undefined}
+                onClick={clinic?.demoMode ? e => e.preventDefault() : undefined}
+              >Avisar paciente no WhatsApp</a>
+            )}
+            {waMeNumber(reschedDone.patients?.phone) && clinic?.demoMode && (
+              <span id="agenda-demo-resched-note" className={styles.waHint}>Envio de mensagens desativado na conta de demonstração.</span>
+            )}
+            <button type="button" className={btn.primary} onClick={closeReschedule}>Fechar</button>
+          </>
+        ) : (
+          <>
+            <button type="button" className={btn.secondary} onClick={closeReschedule}>Cancelar</button>
+            <button type="button" className={btn.primary} onClick={handleReschedule} disabled={reschedSaving || !resched?.date || !resched?.time}>
+              {reschedSaving ? 'Remarcando...' : 'Remarcar'}
+            </button>
+          </>
+        )}
+      >
+        {resched && (reschedDone ? (
+          <p className={styles.reschedDone}>
+            Nova data: <strong>{formatDate(reschedDone.scheduled_at)}</strong>. O histórico ficou nas observações da consulta.
+          </p>
+        ) : (
+          <>
+            <p className={styles.reschedFrom}>Hoje: {formatDate(resched.appt.scheduled_at)} · {resched.appt.duration_minutes ?? 60} min</p>
+            <div className={f.field}>
+              <label>Nova data *</label>
+              <DatePicker
+                ariaLabel="Nova data"
+                value={resched.date}
+                onChange={date => setResched(r => r ? { ...r, date, time: '' } : r)}
+              />
+            </div>
+            <div className={f.field}>
+              <div className={styles.fieldLabelRow}>
+                <label>Novo horário *</label>
+                {resched.time && <span className={styles.selectedTimeLabel}>{resched.time} selecionado</span>}
+              </div>
+              <div className={styles.timeGrid}>
+                {TIME_SLOTS.map(slot => {
+                  const ownBusy = resched.date ? reschedBusy.get(slot) : undefined
+                  const busyName = resched.date ? conflictInSpan(slot, resched.appt.duration_minutes ?? 60, reschedBusy, TIME_SLOTS) : undefined
+                  const isBusy = !!busyName
+                  // fora da escala do profissional: só quem pode encaixar escolhe, e fica registrado
+                  const reschedSched = resched.appt.professional_id ? scheduleFor(resched.appt.professional_id) : undefined
+                  const isOutside = !!resched.date && !!reschedSched && !slotInSchedule(reschedSched, resched.date, slot, resched.appt.duration_minutes ?? 60)
+                  const closed = isOutside && !canExtra
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={!resched.date || isBusy || closed}
+                      title={ownBusy ? `Ocupado — ${busyName}` : isBusy ? `Não cabe: ${busyName} logo depois` : isOutside ? (closed ? 'Fora da escala do profissional' : `Encaixe fora da escala — ${slot}`) : `Selecionar ${slot}`}
+                      className={`${styles.timeSlot}${resched.time === slot ? ` ${styles.timeSlotSelected}` : ''}${isBusy || closed ? ` ${styles.timeSlotBusy}` : ''}${isOutside && !closed && !isBusy ? ` ${styles.timeSlotExtra}` : ''}`}
+                      onClick={() => setResched(r => r ? { ...r, time: slot } : r)}
+                    >
+                      {slot}
+                    </button>
+                  )
+                })}
+              </div>
+              {reschedBusy.size > 0 && <p className={styles.timeGridHint}>Horários em cinza estão ocupados ou não comportam a duração da consulta</p>}
+            </div>
+            {reschedError && <p className={f.error} role="alert">{reschedError}</p>}
+          </>
+        ))}
+      </Modal>
+
+      {/* ── Casa livre: agendar ou bloquear ── */}
+      <Modal
+        open={!!slotChoice}
+        onClose={() => setSlotChoice(null)}
+        size="sm"
+        title={slotChoice ? `${slotChoice.time} · ${new Date(`${slotChoice.date}T00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}` : 'Horário'}
+        subtitle={slotChoice?.professionalId ? professionals.find(p => p.id === slotChoice.professionalId)?.name : undefined}
+      >
+        <div className={styles.slotChoice}>
+          <button type="button" className={`${btn.primary} ${styles.slotChoiceBtn}`} onClick={chooseSlotSchedule}>
+            <Icon name="plus" size={16} /> Agendar consulta
+          </button>
+          <button type="button" className={`${btn.secondary} ${styles.slotChoiceBtn}`} onClick={chooseSlotBlock}>
+            Bloquear este horário
+          </button>
+          <p className={styles.slotChoiceHint}>Bloquear reserva o horário para almoço, reunião ou folga: ninguém consegue agendar nele.</p>
+        </div>
       </Modal>
 
       {/* ── Bloqueio de horário ── */}

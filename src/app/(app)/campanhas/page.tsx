@@ -1,15 +1,24 @@
 'use client'
 import { formatBrPhone } from '@/lib/phoneFormat'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { callN8n } from '@/lib/supabase-n8n'
+import { usePermissions } from '@/hooks/usePermissions'
+import { whatsappApi } from '@/components/configuracoes/whatsappApi'
 import { formatDate } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import styles from './campanhas.module.css'
-import { Icon } from '@/components/ui/Icon'
-import { PageTitle } from '@/components/layout/PageTitle'
+import f from '@/components/ui/modalForm.module.css'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { Card } from '@/components/ui/Card'
+import { Modal } from '@/components/ui/Modal'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ErrorNotice } from '@/components/ui/ErrorNotice'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { SelectMenu } from '@/components/ui/SelectMenu'
+import { showToast } from '@/components/ui/Toast'
 
 interface Patient { id: string; name: string; phone: string | null; created_at: string }
 
@@ -46,15 +55,22 @@ const AUDIENCE_DAYS: Record<string, number> = {
   sem_retorno_90: 90,
 }
 
+const DEMO_SEND_NOTICE = 'Envio de mensagens desativado na conta de demonstração.'
+const READ_ONLY_NOTICE = 'Você pode consultar as campanhas, mas não tem permissão para criar ou enviar.'
+
 function CampanhasContent() {
   const { clinic, user } = useAuthStore()
+  const { canEdit } = usePermissions('campanhas')
+  const demo = !!clinic?.demoMode
+  // campanha já salva como rascunho cujo disparo falhou: a nova tentativa reaproveita a mesma linha
+  const pendingDraft = useRef<{ id: string; key: string } | null>(null)
   const [creating, setCreating]     = useState(false)
   const [campaigns, setCampaigns]   = useState<Campaign[]>([])
   const [patients, setPatients]     = useState<Patient[]>([])
   const [loading, setLoading]       = useState(true)
   const [sending, setSending]       = useState(false)
   const [error, setError]           = useState('')
-  const [success, setSuccess]       = useState('')
+  const [loadError, setLoadError]   = useState(false)
 
   const [form, setForm] = useState({
     name: '',
@@ -71,6 +87,7 @@ function CampanhasContent() {
   async function loadData() {
     if (!clinic) return
     setLoading(true)
+    setLoadError(false)
     const [patRes, campRes] = await Promise.all([
       supabase.from('patients')
         .select('id,name,phone,created_at')
@@ -83,6 +100,7 @@ function CampanhasContent() {
         .order('created_at', { ascending: false })
         .limit(20),
     ])
+    if (patRes.error || campRes.error) setLoadError(true)
     setPatients((patRes.data ?? []) as Patient[])
     setCampaigns((campRes.data ?? []) as Campaign[])
     setLoading(false)
@@ -138,55 +156,79 @@ function CampanhasContent() {
     if (!form.message.trim()) return setError('Digite a mensagem da campanha.')
     if (audience.length === 0) return setError('Nenhum paciente encontrado para este público.')
     if (!clinic || !user) return
+    if (!canEdit) return setError(READ_ONLY_NOTICE)
+    if (clinic.demoMode) return setError(DEMO_SEND_NOTICE)
 
     setSending(true)
     setError('')
+    let savedAsDraft = false
 
     try {
-      // Salva a campanha no banco
-      const { data: camp, error: campErr } = await supabase
-        .from('campaigns')
-        .insert([{
-          clinic_id: clinic.id,
-          name: form.name,
-          message: form.message,
-          audience_type: form.audienceType,
-          audience_count: audience.length,
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-          created_by: user.id,
-        }])
-        .select('id')
-        .single()
+      // A campanha nasce como rascunho; o servidor a marca como enviada só depois que o disparo é aceito.
+      // Se o disparo falhar, ela continua como rascunho e uma nova tentativa reaproveita a mesma linha.
+      const key = JSON.stringify([form.name, form.message, form.audienceType, audience.length])
+      let campaignId = pendingDraft.current?.key === key ? pendingDraft.current.id : null
+      if (!campaignId) {
+        const { data: camp, error: campErr } = await supabase
+          .from('campaigns')
+          .insert([{
+            clinic_id: clinic.id,
+            name: form.name,
+            message: form.message,
+            audience_type: form.audienceType,
+            audience_count: audience.length,
+            status: 'draft',
+            created_by: user.id,
+          }])
+          .select('id')
+          .single()
+        if (campErr) throw campErr
+        campaignId = camp.id as string
+        pendingDraft.current = { id: campaignId, key }
+      }
+      savedAsDraft = true
 
-      if (campErr) throw campErr
-
-      // Dispara via n8n — envia lista de contatos e mensagem
-      await callN8n('campanha-whatsapp', {
-        campaign_id: camp.id,
-        clinic_name: clinic.name,
-        message_template: form.message,
-        contacts: audience.map(p => ({
-          name: p.name,
-          phone: p.phone,
-          first_name: p.name.split(' ')[0],
-        })),
+      // O envio passa pelo servidor, que recusa a conta de demonstração e marca a campanha como enviada.
+      await whatsappApi('/api/campanhas/dispatch', {
+        method: 'POST',
+        body: {
+          campaign_id: campaignId,
+          clinic_name: clinic.name,
+          message_template: form.message,
+          contacts: audience.map(p => ({
+            name: p.name,
+            phone: p.phone,
+            first_name: p.name.split(' ')[0],
+          })),
+        },
       })
 
-      setSuccess(`Campanha enviada para ${audience.length} pacientes.`)
-      setCreating(false)
-      setForm({ name: '', audienceType: 'sem_retorno_60', message: MESSAGE_TEMPLATES['sem_retorno_60'] })
+      pendingDraft.current = null
+      showToast('ok', `Campanha enviada para ${audience.length} pacientes.`)
+      closeBuilder()
       loadData()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao enviar campanha.')
+      const reason = err instanceof Error ? err.message : 'Erro ao enviar campanha.'
+      setError(savedAsDraft ? `${reason} A campanha ficou salva como rascunho.` : reason)
+      if (savedAsDraft) loadData()
     } finally {
       setSending(false)
     }
   }
 
+  function closeBuilder() {
+    setCreating(false)
+    setError('')
+    pendingDraft.current = null
+    setForm({ name: '', audienceType: 'sem_retorno_60', message: MESSAGE_TEMPLATES['sem_retorno_60'] })
+  }
+
   async function saveDraft() {
-    if (!form.name.trim() || !clinic || !user) return
-    await supabase.from('campaigns').insert([{
+    if (!form.name.trim()) return setError('Dê um nome para a campanha.')
+    if (!clinic || !user) return
+    if (!canEdit) return setError(READ_ONLY_NOTICE)
+    setError('')
+    const { error: draftErr } = await supabase.from('campaigns').insert([{
       clinic_id: clinic.id,
       name: form.name,
       message: form.message,
@@ -195,49 +237,103 @@ function CampanhasContent() {
       status: 'draft',
       created_by: user.id,
     }])
-    setCreating(false)
-    setForm({ name: '', audienceType: 'sem_retorno_60', message: MESSAGE_TEMPLATES['sem_retorno_60'] })
+    if (draftErr) return setError('Não foi possível salvar o rascunho. Tente novamente.')
+    showToast('ok', 'Rascunho salvo.')
+    closeBuilder()
     loadData()
   }
 
-  if (loading) return <p className={styles.loading}>Carregando...</p>
-
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <PageTitle title="Campanhas" subtitle="Envie mensagens segmentadas pelo WhatsApp para seus pacientes" />
-        {!creating && (
-          <button className={styles.btnNew} onClick={() => { setCreating(true); setError(''); setSuccess('') }}>
-            + Nova campanha
-          </button>
+      <PageHeader
+        title="Campanhas"
+        subtitle="Envie mensagens segmentadas pelo WhatsApp para seus pacientes"
+        actions={
+          <Button variant="primary" icon="plus" onClick={() => { setCreating(true); setError('') }} disabled={!canEdit} aria-describedby={!canEdit ? 'campanha-readonly-note' : undefined}>
+            Nova campanha
+          </Button>
+        }
+      />
+
+      {!canEdit && <p id="campanha-readonly-note" className={styles.demoNote}>{READ_ONLY_NOTICE}</p>}
+
+      {loadError && <ErrorNotice message="Não foi possível carregar suas campanhas." onRetry={loadData} retrying={loading} />}
+
+      {/* Histórico */}
+      <Card title="Histórico de campanhas" flush className={styles.history}>
+        {loading ? (
+          <div className={styles.historyList} aria-busy="true">
+            {[0, 1, 2].map(i => (
+              <div key={i} className={styles.historyItem}>
+                <div className={styles.historyMain}>
+                  <Skeleton width="45%" height={16} />
+                  <Skeleton width="65%" height={13} />
+                </div>
+                <Skeleton width={72} height={24} radius={999} />
+              </div>
+            ))}
+          </div>
+        ) : campaigns.length === 0 ? (
+          <EmptyState
+            icon="campaigns"
+            title="Nenhuma campanha ainda"
+            description="Crie a primeira para chamar pacientes sem retorno, aniversariantes ou toda a base pelo WhatsApp."
+            action={<Button variant="primary" icon="plus" onClick={() => { setCreating(true); setError('') }} disabled={!canEdit} aria-describedby={!canEdit ? 'campanha-readonly-note' : undefined}>Nova campanha</Button>}
+          />
+        ) : (
+          <div className={styles.historyList}>
+            {campaigns.map(c => (
+              <div key={c.id} className={styles.historyItem}>
+                <div className={styles.historyMain}>
+                  <div className={styles.historyName}>{c.name}</div>
+                  <div className={styles.historySub}>
+                    {AUDIENCE_OPTIONS.find(o => o.value === c.audience_type)?.label ?? c.audience_type}
+                    {' · '}
+                    {c.sent_at ? formatDate(c.sent_at) : formatDate(c.created_at)}
+                    {' · '}
+                    {c.audience_count} {c.audience_count === 1 ? 'contato' : 'contatos'}
+                  </div>
+                </div>
+                <Badge tone={c.status === 'sent' ? 'success' : 'neutral'}>
+                  {c.status === 'sent' ? 'Enviada' : 'Rascunho'}
+                </Badge>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
+      </Card>
 
-      {success && (
-        <div style={{ background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: 10, padding: '1rem 1.25rem', color: '#065F46', fontSize: '.875rem', fontWeight: 600 }}>
-          {success}
-        </div>
-      )}
-
-      {/* Builder */}
-      {creating && (
+      <Modal
+        open={creating}
+        onClose={() => { if (!sending) closeBuilder() }}
+        size="wide"
+        title="Nova campanha"
+        subtitle="Escolha o público, ajuste a mensagem e confira o preview antes de enviar"
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeBuilder} disabled={sending}>Cancelar</Button>
+            <Button variant="secondary" onClick={saveDraft} disabled={sending || !canEdit}>Salvar rascunho</Button>
+            <Button variant="primary" icon="send" onClick={handleSend} loading={sending} disabled={audience.length === 0 || demo || !canEdit} aria-describedby={demo ? 'campanha-demo-note' : undefined}>
+              {sending ? 'Enviando...' : `Enviar para ${audience.length} ${audience.length === 1 ? 'paciente' : 'pacientes'}`}
+            </Button>
+          </>
+        }
+      >
         <div className={styles.builder}>
           {/* Esquerda: configuração */}
-          <div className={styles.card}>
-            <div className={styles.cardTitle}>Configurar campanha</div>
-
-            <div className={styles.field}>
-              <label className={styles.label}>Nome da campanha</label>
+          <div className={styles.config}>
+            <div className={f.field}>
+              <label htmlFor="campanha-nome">Nome da campanha</label>
               <input
-                className={styles.input}
+                id="campanha-nome"
                 placeholder="Ex: Reativação junho, Aniversariantes..."
                 value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
               />
             </div>
 
-            <div className={styles.field}>
-              <label className={styles.label}>Público-alvo</label>
+            <div className={f.field}>
+              <label>Público-alvo</label>
               <SelectMenu variant="field" ariaLabel="Público-alvo" value={form.audienceType}
                 onChange={handleAudienceChange}
                 options={AUDIENCE_OPTIONS.map(o => ({ value: o.value, label: o.label }))} />
@@ -246,7 +342,7 @@ function CampanhasContent() {
             {/* Preview da audiência */}
             <div className={styles.audienceBox}>
               <div className={styles.audienceCount}>{audience.length}</div>
-              <div className={styles.audienceLabel}>pacientes serão atingidos</div>
+              <div className={styles.audienceLabel}>{audience.length === 1 ? 'paciente será atingido' : 'pacientes serão atingidos'}</div>
               {audience.length > 0 && (
                 <div className={styles.audienceList}>
                   {audience.slice(0, 6).map(p => (
@@ -255,16 +351,16 @@ function CampanhasContent() {
                     </div>
                   ))}
                   {audience.length > 6 && (
-                    <div className={styles.audienceName} style={{ color: 'var(--text-secondary)' }}>
-                      +{audience.length - 6} pacientes...
+                    <div className={`${styles.audienceName} ${styles.audienceMore}`}>
+                      +{audience.length - 6} pacientes
                     </div>
                   )}
                 </div>
               )}
             </div>
 
-            <div className={styles.field}>
-              <label className={styles.label}>Mensagem</label>
+            <div className={f.field}>
+              <label htmlFor="campanha-mensagem">Mensagem</label>
               <div className={styles.tagHelp}>
                 {['{{nome}}', '{{clinica}}'].map(tag => (
                   <button key={tag} className={styles.tagChip} type="button" onClick={() => insertTag(tag)}>
@@ -273,35 +369,25 @@ function CampanhasContent() {
                 ))}
               </div>
               <textarea
-                className={styles.textarea}
+                id="campanha-mensagem"
                 value={form.message}
-                onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
+                onChange={e => setForm(prev => ({ ...prev, message: e.target.value }))}
                 rows={5}
               />
             </div>
 
-            {error && <p className={styles.error}>{error}</p>}
+            {demo && (
+              <p id="campanha-demo-note" className={styles.demoNote}>
+                {DEMO_SEND_NOTICE} Você pode montar a campanha e salvar como rascunho, mas nenhuma mensagem é enviada.
+              </p>
+            )}
 
-            <div className={styles.actions}>
-              <button className={styles.btnCancel} onClick={() => { setCreating(false); setError('') }}>
-                Cancelar
-              </button>
-              <button className={styles.btnCancel} onClick={saveDraft}>
-                Salvar rascunho
-              </button>
-              <button
-                className={styles.btnSend}
-                onClick={handleSend}
-                disabled={sending || audience.length === 0}
-              >
-                {sending ? 'Enviando...' : <><Icon name="phone" size={14} /> Enviar para {audience.length} pacientes</>}
-              </button>
-            </div>
+            {error && <ErrorNotice message={error} />}
           </div>
 
           {/* Direita: preview WhatsApp */}
-          <div className={styles.card}>
-            <div className={styles.cardTitle}>Preview da mensagem</div>
+          <aside className={styles.previewCol} aria-label="Preview da mensagem">
+            <div className={styles.previewTitle}>Preview da mensagem</div>
             <div className={styles.waPreview}>
               <div className={styles.waHeader}>
                 <div className={styles.waAvatar}>
@@ -314,39 +400,12 @@ function CampanhasContent() {
                 {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
-            <p style={{ fontSize: '.75rem', color: 'var(--text-secondary)', marginTop: '.75rem' }}>
+            <p className={styles.previewNote}>
               Preview com dados do primeiro paciente da lista. As variáveis serão substituídas individualmente no envio.
             </p>
-          </div>
+          </aside>
         </div>
-      )}
-
-      {/* Histórico */}
-      <div className={styles.historySection}>
-        <div className={styles.historyHeader}>Histórico de campanhas</div>
-        {campaigns.length === 0 ? (
-          <p className={styles.emptyHistory}>Nenhuma campanha enviada ainda.<br />Crie sua primeira campanha acima!</p>
-        ) : (
-          <div className={styles.historyList}>
-            {campaigns.map(c => (
-              <div key={c.id} className={styles.historyItem}>
-                <div>
-                  <div className={styles.historyName}>{c.name}</div>
-                  <div className={styles.historySub}>
-                    {AUDIENCE_OPTIONS.find(o => o.value === c.audience_type)?.label ?? c.audience_type}
-                    {' · '}
-                    {c.sent_at ? formatDate(c.sent_at) : formatDate(c.created_at)}
-                  </div>
-                </div>
-                <div className={styles.historyCount}>{c.audience_count} contatos</div>
-                <span className={c.status === 'sent' ? styles.tagSent : styles.tagDraft}>
-                  {c.status === 'sent' ? 'Enviada' : 'Rascunho'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      </Modal>
     </div>
   )
 }

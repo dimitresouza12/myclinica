@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAgendaEditor } from '@/lib/whatsapp/auth'
+import { rejectIfDemo } from '@/lib/demoGuard'
 import { sendConfirmationNow } from '@/lib/whatsapp/run'
 import { rateLimit } from '@/lib/rateLimit'
 import { failure } from '../_shared'
@@ -11,6 +12,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export async function POST(req: Request) {
   const ctx = await requireAgendaEditor(req)
   if (ctx instanceof NextResponse) return ctx
+
+  const demo = await rejectIfDemo(ctx.clinicId)
+  if (demo) return demo
 
   let appointmentId = ''
   try { appointmentId = String((await req.json())?.appointmentId ?? '') } catch { /* corpo inválido */ }

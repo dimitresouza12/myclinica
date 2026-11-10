@@ -1,14 +1,14 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
-import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { useProfessionals, useProcedures, useRelatoriosRawData, useCommissionsData } from '@/hooks/useClinicData'
 import styles from './relatorios.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { MonthPicker } from '@/components/ui/MonthPicker'
+import { DatePicker } from '@/components/ui/DatePicker'
 import { Card } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PillTabs } from '@/components/ui/PillTabs'
@@ -18,6 +18,7 @@ import { BarList } from '@/components/ui/BarList'
 import btn from '@/components/ui/button.module.css'
 import t from '@/components/ui/table.module.css'
 import { moneyShort, axisMoney, statMoney } from '@/lib/ui/money'
+import { bucketKey, buildBuckets, defaultCustomRange, resolvePeriod, toRange, ymd, type PeriodKind } from '@/lib/reportPeriod'
 
 const AreaTrendChart = dynamic(() => import('@/components/ui/AreaTrendChart').then(m => m.AreaTrendChart), { ssr: false, loading: () => <div className={styles.chartLoading} /> })
 
@@ -34,14 +35,18 @@ function RelatoriosContent() {
   const { data: cachedProfessionals = [] } = useProfessionals(clinic?.id)
   const { data: cachedProcedures = [] }    = useProcedures(clinic?.id)
   const [tab, setTab]           = useState<ReportTab>('financeiro')
-  const [period, setPeriod]     = useState('6m')
-  const [month, setMonth]       = useState(() => new Date().toISOString().slice(0, 7))
-  const [showExportModal, setShowExportModal] = useState(false)
-  const [exportPeriodChoice, setExportPeriodChoice] = useState<'3m'|'6m'|'12m'>('6m')
+  const [period, setPeriod]     = useState<PeriodKind>('mensal')
+  const [month, setMonth]       = useState(() => ymd(new Date()).slice(0, 7))
+  const [customFrom, setCustomFrom] = useState(() => defaultCustomRange().from)
+  const [customTo, setCustomTo]     = useState(() => defaultCustomRange().to)
   const [exporting, setExporting] = useState(false)
 
-  const { data: rawData, isLoading: loading } = useRelatoriosRawData(clinic?.id, period)
-  const { data: commissionsData, isLoading: loadingCommissions } = useCommissionsData(clinic?.id, period)
+  const resolved = useMemo(() => resolvePeriod({ kind: period, month, customFrom, customTo }), [period, month, customFrom, customTo])
+  const range = useMemo(() => toRange(resolved), [resolved])
+  const byDay = resolved.granularity === 'day'
+
+  const { data: rawData, isLoading: loading } = useRelatoriosRawData(clinic?.id, range)
+  const { data: commissionsData, isLoading: loadingCommissions } = useCommissionsData(clinic?.id, range)
 
   const commissionsComputed = useMemo(() => {
     const entries = commissionsData?.entries ?? []
@@ -65,19 +70,13 @@ function RelatoriosContent() {
     const procNameMap: Record<string, string> = {}
     for (const p of cachedProcedures) procNameMap[p.id] = p.name
 
-    const now = new Date()
-    const months = period === '3m' ? 3 : period === '6m' ? 6 : 12
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const buckets = buildBuckets(resolved)
+    const g = resolved.granularity
 
     const monthMap: Record<string, MonthlyFin> = {}
-    for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const label = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/')
-      monthMap[key] = { month: label, receita: 0, despesa: 0, lucro: 0 }
-    }
+    for (const b of buckets) monthMap[b.key] = { month: b.label, receita: 0, despesa: 0, lucro: 0 }
     for (const r of fins) {
-      const key = (r.created_at as string).slice(0, 7)
+      const key = bucketKey(new Date(r.created_at as string), g)
       if (!monthMap[key]) continue
       if (r.type === 'receita') monthMap[key].receita += Number(r.total_amount)
       else monthMap[key].despesa += Number(r.total_amount)
@@ -129,31 +128,18 @@ function RelatoriosContent() {
       returnRate: pats.length > 0 ? Math.round((returnPatients / pats.length) * 100) : 0,
     }
 
-    const newMonth = pats.filter((p: { created_at: string }) => p.created_at >= startOfMonth).length
+    const inPeriod = (iso: string) => { const d = new Date(iso); return d >= resolved.from && d < resolved.to }
+    const newInPeriod = pats.filter((p: { created_at: string }) => inPeriod(p.created_at)).length
     const withConsent = pats.filter((p: { lgpd_consent: boolean }) => p.lgpd_consent).length
-    const patStats = { total: pats.length, newMonth, withConsent }
+    const patStats = { total: pats.length, newInPeriod, withConsent }
 
-    const newMap: Record<string, number> = {}
-    for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      newMap[key] = 0
-    }
+    const newMap: Record<string, { label: string; count: number }> = {}
+    for (const b of buckets) newMap[b.key] = { label: b.label, count: 0 }
     for (const p of pats) {
-      const key = (p.created_at as string).slice(0, 7)
-      if (key in newMap) newMap[key]++
+      const key = bucketKey(new Date(p.created_at as string), g)
+      if (key in newMap) newMap[key].count++
     }
-    const newByMonth = Object.entries(newMap).map(([key, count]) => ({
-      // new Date(key + '-01') parseia como UTC meia-noite — em fuso horário
-      // atrás de UTC isso "volta" um dia ao formatar em horário local,
-      // rotulando o mês errado no eixo do gráfico. Construir com
-      // componentes locais evita o bug.
-      month: (() => {
-        const [y, m] = key.split('-').map(Number)
-        return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/')
-      })(),
-      count,
-    }))
+    const newByMonth = Object.values(newMap).map(({ label, count }) => ({ month: label, count }))
 
     const profRows: ProfRow[] = profs.map(prof => {
       const mine = appts.filter((a: { professional_id?: string }) => a.professional_id === prof.id)
@@ -169,166 +155,78 @@ function RelatoriosContent() {
     }).sort((a, b) => b.concluded - a.concluded)
 
     return { monthly, finTotals, procRevenue, procRank, clinicStats, patStats, newByMonth, profRows }
-  }, [rawData, period, cachedProfessionals, cachedProcedures])
+  }, [rawData, resolved, cachedProfessionals, cachedProcedures])
 
   const { monthly, finTotals, procRevenue, procRank, clinicStats, patStats, newByMonth, profRows } = computed
 
+  /** Exporta o que está na tela: mesma aba, mesmo período, mesmos números */
   async function exportXLSX() {
-    if (!clinic?.id) return
     setExporting(true)
+    try {
+      const { utils, writeFile } = await import('xlsx')
+      const unit = byDay ? 'Dia' : 'Mês'
+      const head: (string | number)[][] = [['Período', resolved.label], []]
+      let sheetData: (string | number)[][] = []
+      let sheetName = 'Relatório'
 
-    const { utils, writeFile } = await import('xlsx')
-    const now = new Date()
-    const months = exportPeriodChoice === '3m' ? 3 : exportPeriodChoice === '6m' ? 6 : 12
-    const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1).toISOString()
-
-    const [finRes, apptRes, patRes, profRes, procNamesRes] = await Promise.all([
-      supabase.from('financial_records').select('total_amount,type,created_at,procedure_id').eq('clinic_id', clinic.id).gte('created_at', startDate),
-      supabase.from('appointments').select('status,procedure_name,professional_id,scheduled_at').eq('clinic_id', clinic.id).gte('scheduled_at', startDate),
-      supabase.from('patients').select('id,created_at,lgpd_consent').eq('clinic_id', clinic.id).eq('is_active', true),
-      supabase.from('professionals').select('id,name').eq('clinic_id', clinic.id),
-      supabase.from('procedures').select('id,name').eq('clinic_id', clinic.id),
-    ])
-
-    const fins = finRes.data ?? []
-    const appts = apptRes.data ?? []
-    const pats = patRes.data ?? []
-    const profs = profRes.data ?? []
-    const expProcNameMap: Record<string, string> = {}
-    for (const p of procNamesRes.data ?? []) expProcNameMap[p.id] = p.name
-
-    let sheetData: (string | number)[][] = []
-    let filename = 'relatorio.xlsx'
-    let sheetName = 'Relatório'
-
-    if (tab === 'financeiro') {
-      const monthMap: Record<string, { month: string; receita: number; despesa: number; lucro: number }> = {}
-      for (let i = months - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-        const label = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/')
-        monthMap[key] = { month: label, receita: 0, despesa: 0, lucro: 0 }
+      if (tab === 'financeiro') {
+        sheetName = 'Financeiro'
+        sheetData = [
+          [unit, 'Receita (R$)', 'Despesa (R$)', 'Lucro (R$)'],
+          ...monthly.map(m => [m.month, m.receita, m.despesa, m.lucro]),
+          [],
+          ['TOTAIS', finTotals.receita, finTotals.despesa, finTotals.lucro],
+          ['Ticket Médio', finTotals.ticketMedio, '', ''],
+          [],
+          ['Faturamento por Procedimento', '', '', ''],
+          ['Procedimento', 'Atendimentos', 'Faturamento (R$)', 'Ticket Médio (R$)'],
+          ...procRevenue.map(p => [p.name, p.count, p.revenue, p.count > 0 ? p.revenue / p.count : 0]),
+        ]
+      } else if (tab === 'clinico') {
+        sheetName = 'Clínico'
+        sheetData = [
+          ['Procedimento', 'Quantidade'],
+          ...procRank.map(p => [p.name, p.count]),
+          [],
+          ['Total de Atendimentos', clinicStats.totalAppts],
+          ['Taxa de Conversão', `${clinicStats.convRate}%`],
+          ['Taxa de Cancelamento', `${clinicStats.cancelRate}%`],
+          ['Taxa de Retorno', `${clinicStats.returnRate}%`],
+        ]
+      } else if (tab === 'pacientes') {
+        sheetName = 'Pacientes'
+        sheetData = [
+          [unit, 'Novos Pacientes'],
+          ...newByMonth.map(m => [m.month, m.count]),
+          [],
+          ['Total de Pacientes', patStats.total],
+          ['Novos no período', patStats.newInPeriod],
+          ['Com Consentimento LGPD', patStats.withConsent],
+        ]
+      } else if (tab === 'equipe') {
+        sheetName = 'Equipe'
+        sheetData = [
+          ['Profissional', 'Consultas Concluídas', 'Taxa de Cancelamento'],
+          ...profRows.map(p => [p.name, p.concluded, `${p.cancelRate}%`]),
+        ]
+      } else {
+        sheetName = 'Comissões'
+        sheetData = [
+          ['Beneficiário', 'Lançamentos', 'Total (R$)'],
+          ...commissionsComputed.recipientRows.map(r => [r.name, r.count, r.total]),
+          [],
+          ['TOTAL', commissionsComputed.entries.length, commissionsComputed.totalPaid],
+        ]
       }
-      for (const r of fins) {
-        const key = r.created_at!.slice(0, 7)
-        if (!monthMap[key]) continue
-        if (r.type === 'receita') monthMap[key].receita += Number(r.total_amount)
-        else monthMap[key].despesa += Number(r.total_amount)
-      }
-      const monthlyExport = Object.values(monthMap).map(m => ({ ...m, lucro: m.receita - m.despesa }))
-      const totalRec = fins.filter(r => r.type === 'receita').reduce((s, r) => s + Number(r.total_amount), 0)
-      const totalDesp = fins.filter(r => r.type === 'despesa').reduce((s, r) => s + Number(r.total_amount), 0)
-      const concluded = appts.filter(a => a.status === 'concluido')
-      const ticketMedio = concluded.length > 0 ? totalRec / concluded.length : 0
 
-      const procRevExport: Record<string, { name: string; count: number; revenue: number }> = {}
-      for (const r of fins) {
-        if (r.type !== 'receita' || !(r as { procedure_id?: string }).procedure_id) continue
-        const pid = (r as { procedure_id: string }).procedure_id
-        if (!procRevExport[pid]) procRevExport[pid] = { name: expProcNameMap[pid] ?? 'Desconhecido', count: 0, revenue: 0 }
-        procRevExport[pid].count++
-        procRevExport[pid].revenue += Number(r.total_amount)
-      }
-      const procRevRows = Object.values(procRevExport).sort((a, b) => b.revenue - a.revenue)
-
-      sheetName = 'Financeiro'
-      filename = `financeiro_${exportPeriodChoice}.xlsx`
-      sheetData = [
-        ['Mês', 'Receita (R$)', 'Despesa (R$)', 'Lucro (R$)'],
-        ...monthlyExport.map(m => [m.month, m.receita, m.despesa, m.lucro]),
-        [],
-        ['TOTAIS', totalRec, totalDesp, totalRec - totalDesp],
-        ['Ticket Médio', ticketMedio, '', ''],
-        [],
-        ['Faturamento por Procedimento', '', '', ''],
-        ['Procedimento', 'Atendimentos', 'Faturamento (R$)', 'Ticket Médio (R$)'],
-        ...procRevRows.map(p => [p.name, p.count, p.revenue, p.count > 0 ? p.revenue / p.count : 0]),
-      ]
-    } else if (tab === 'clinico') {
-      const concluded = appts.filter(a => a.status === 'concluido')
-      const total = appts.length
-      const canceled = appts.filter(a => a.status === 'cancelado' || a.status === 'faltou').length
-      const procMap: Record<string, number> = {}
-      for (const a of concluded) {
-        const name = a.procedure_name || 'Não informado'
-        procMap[name] = (procMap[name] ?? 0) + 1
-      }
-      const procRankExport = Object.entries(procMap).sort(([, a], [, b]) => b - a).slice(0, 8).map(([name, count]) => ({ name, count }))
-
-      sheetName = 'Clínico'
-      filename = `clinico_${exportPeriodChoice}.xlsx`
-      sheetData = [
-        ['Procedimento', 'Quantidade'],
-        ...procRankExport.map(p => [p.name, p.count]),
-        [],
-        ['Total de Atendimentos', total],
-        ['Concluídos', concluded.length],
-        ['Taxa de Conversão', `${total > 0 ? Math.round((concluded.length / total) * 100) : 0}%`],
-        ['Taxa de Cancelamento', `${total > 0 ? Math.round((canceled / total) * 100) : 0}%`],
-      ]
-    } else if (tab === 'pacientes') {
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-      const newMonth = pats.filter(p => p.created_at >= startOfMonth).length
-      const withConsent = pats.filter(p => p.lgpd_consent).length
-      const newMap: Record<string, number> = {}
-      for (let i = months - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-        newMap[key] = 0
-      }
-      for (const p of pats) {
-        const key = p.created_at!.slice(0, 7)
-        if (key in newMap) newMap[key]++
-      }
-      const newByMonthExport = Object.entries(newMap).map(([key, count]) => ({
-        // new Date(key + '-01') parseia como UTC meia-noite — em fuso horário
-      // atrás de UTC isso "volta" um dia ao formatar em horário local,
-      // rotulando o mês errado no eixo do gráfico. Construir com
-      // componentes locais evita o bug.
-      month: (() => {
-        const [y, m] = key.split('-').map(Number)
-        return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('. de ', '/')
-      })(),
-        count,
-      }))
-
-      sheetName = 'Pacientes'
-      filename = `pacientes_${exportPeriodChoice}.xlsx`
-      sheetData = [
-        ['Mês', 'Novos Pacientes'],
-        ...newByMonthExport.map(m => [m.month, m.count]),
-        [],
-        ['Total de Pacientes', pats.length],
-        ['Novos este mês', newMonth],
-        ['Com Consentimento LGPD', withConsent],
-      ]
-    } else if (tab === 'equipe') {
-      const rows = profs.map(prof => {
-        const mine = appts.filter((a: { professional_id?: string }) => a.professional_id === prof.id)
-        const myConc = mine.filter(a => a.status === 'concluido').length
-        const myCanceled = mine.filter(a => a.status === 'cancelado' || a.status === 'faltou').length
-        return {
-          name: prof.name,
-          concluded: myConc,
-          cancelRate: mine.length > 0 ? Math.round((myCanceled / mine.length) * 100) : 0,
-        }
-      }).sort((a, b) => b.concluded - a.concluded)
-
-      sheetName = 'Equipe'
-      filename = `equipe_${exportPeriodChoice}.xlsx`
-      sheetData = [
-        ['Profissional', 'Consultas Concluídas', 'Taxa de Cancelamento'],
-        ...rows.map(p => [p.name, p.concluded, `${p.cancelRate}%`]),
-      ]
+      const ws = utils.aoa_to_sheet([...head, ...sheetData])
+      const wb = utils.book_new()
+      utils.book_append_sheet(wb, ws, sheetName)
+      const tag = period === 'mensal' ? month : `${ymd(resolved.from)}_a_${ymd(new Date(resolved.to.getTime() - 1))}`
+      writeFile(wb, `${tab}_${tag}.xlsx`)
+    } finally {
+      setExporting(false)
     }
-
-    const ws = utils.aoa_to_sheet(sheetData)
-    const wb = utils.book_new()
-    utils.book_append_sheet(wb, ws, sheetName)
-    writeFile(wb, filename)
-
-    setExporting(false)
-    setShowExportModal(false)
   }
 
   const maxProc = useMemo(() => procRank[0]?.count ?? 1, [procRank])
@@ -340,16 +238,20 @@ function RelatoriosContent() {
     { value: 'equipe',     label: 'Equipe'     },
     { value: 'comissoes',  label: 'Comissões'  },
   ]
-  const PERIODS: { value: '3m' | '6m' | '12m'; label: string }[] = [
-    { value: '3m', label: '3 meses' },
-    { value: '6m', label: '6 meses' },
-    { value: '12m', label: '12 meses' },
+  const PERIODS: { value: PeriodKind; label: string }[] = [
+    { value: 'diario',        label: 'Diário'      },
+    { value: 'semanal',       label: 'Semanal'     },
+    { value: 'mensal',        label: 'Mensal'      },
+    { value: 'personalizado', label: 'Personalizar' },
   ]
+  const unitWord = byDay ? 'dia' : 'mês'
 
   const trendFin = monthly.map(m => ({ label: m.month, value: m.receita, compare: m.lucro }))
   const trendPat = newByMonth.map(m => ({ label: m.month, value: m.count }))
   const hasFin = monthly.some(m => m.receita > 0 || m.despesa > 0)
   const hasPat = newByMonth.some(m => m.count > 0)
+  const manyFin = trendFin.length > 1
+  const manyPat = trendPat.length > 1
   const clip = (n: number) => Math.min(100, Math.max(0, n))
 
   return (
@@ -359,9 +261,17 @@ function RelatoriosContent() {
         subtitle="Análise completa de desempenho da clínica"
         actions={
           <>
-            <PillTabs label="Período do relatório" value={period as '3m' | '6m' | '12m'} onChange={setPeriod} options={PERIODS} />
-            <button type="button" className={btn.secondary} onClick={() => setShowExportModal(true)}>
-              <Icon name="download" size={15} /> Exportar planilha
+            <PillTabs label="Período do relatório" value={period} onChange={setPeriod} options={PERIODS} />
+            {period === 'mensal' && <MonthPicker value={month} onChange={setMonth} />}
+            {period === 'personalizado' && (
+              <div className={styles.range}>
+                <div className={styles.rangeField}><DatePicker value={customFrom} onChange={setCustomFrom} max={customTo} ariaLabel="Data inicial" placeholder="De" /></div>
+                <span className={styles.rangeSep}>até</span>
+                <div className={styles.rangeField}><DatePicker value={customTo} onChange={setCustomTo} min={customFrom} ariaLabel="Data final" placeholder="Até" /></div>
+              </div>
+            )}
+            <button type="button" className={btn.secondary} onClick={exportXLSX} disabled={exporting || loading}>
+              <Icon name="download" size={15} /> {exporting ? 'Exportando...' : 'Exportar planilha'}
             </button>
           </>
         }
@@ -377,8 +287,8 @@ function RelatoriosContent() {
           {tab === 'financeiro' && (
             <>
               <div className={styles.kpis}>
-                <StatCard title="Receita total" value={statMoney(finTotals.receita)} compact hint={`no período de ${PERIODS.find(p => p.value === period)?.label}`} />
-                <StatCard title="Despesa total" value={statMoney(finTotals.despesa)} compact hint={`no período de ${PERIODS.find(p => p.value === period)?.label}`} />
+                <StatCard title="Receita total" value={statMoney(finTotals.receita)} compact hint="no período selecionado" />
+                <StatCard title="Despesa total" value={statMoney(finTotals.despesa)} compact hint="no período selecionado" />
                 <StatCard
                   title="Lucro líquido"
                   value={statMoney(finTotals.lucro)}
@@ -389,8 +299,8 @@ function RelatoriosContent() {
               </div>
 
               <div className={styles.split}>
-                <Card title="Receita e lucro por mês" actions={<span className={styles.cardMeta}>{PERIODS.find(p => p.value === period)?.label}</span>}>
-                  {hasFin ? (
+                <Card title={`Receita e lucro por ${unitWord}`} actions={<span className={styles.cardMeta}>{resolved.label}</span>}>
+                  {hasFin && manyFin ? (
                     <AreaTrendChart
                       data={trendFin}
                       highlightIndex={trendFin.length - 1}
@@ -399,10 +309,10 @@ function RelatoriosContent() {
                       formatValue={moneyShort}
                       formatAxis={axisMoney}
                       height={260}
-                      label="Receita e lucro por mês no período"
+                      label={`Receita e lucro por ${unitWord} no período`}
                     />
                   ) : (
-                    <p className={styles.cardEmpty}>Sem dados no período</p>
+                    <p className={styles.cardEmpty}>{hasFin ? 'Um dia só não forma gráfico. Os totais estão acima.' : 'Sem dados no período'}</p>
                   )}
                 </Card>
                 <Card title="Faturamento por procedimento">
@@ -414,12 +324,12 @@ function RelatoriosContent() {
                 </Card>
               </div>
 
-              <Card flush title="Resultado mensal">
+              <Card flush title={`Resultado por ${unitWord}`}>
                 <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
                   <table className={`${t.table} resp-table`}>
                     <thead>
                       <tr>
-                        <th>Mês</th>
+                        <th>{byDay ? 'Dia' : 'Mês'}</th>
                         <th className={t.num}>Receita</th>
                         <th className={t.num}>Despesa</th>
                         <th className={t.num}>Lucro</th>
@@ -477,7 +387,7 @@ function RelatoriosContent() {
             <>
               <div className={styles.kpis3}>
                 <StatCard title="Total de pacientes" value={patStats.total} hint="ativos no cadastro" />
-                <StatCard title="Novos este mês" value={patStats.newMonth} hint="cadastros desde o dia 1" />
+                <StatCard title="Novos no período" value={patStats.newInPeriod} hint="cadastros no período" />
                 <StatCard
                   title="Com consentimento LGPD"
                   value={patStats.withConsent}
@@ -485,18 +395,18 @@ function RelatoriosContent() {
                 />
               </div>
 
-              <Card title="Novos pacientes por mês" actions={<span className={styles.cardMeta}>{PERIODS.find(p => p.value === period)?.label}</span>}>
-                {hasPat ? (
+              <Card title={`Novos pacientes por ${unitWord}`} actions={<span className={styles.cardMeta}>{resolved.label}</span>}>
+                {hasPat && manyPat ? (
                   <AreaTrendChart
                     data={trendPat}
                     highlightIndex={trendPat.length - 1}
                     valueName="Novos pacientes"
                     formatValue={n => String(Math.round(n))}
                     height={240}
-                    label="Novos pacientes por mês no período"
+                    label={`Novos pacientes por ${unitWord} no período`}
                   />
                 ) : (
-                  <p className={styles.cardEmpty}>Sem dados no período</p>
+                  <p className={styles.cardEmpty}>{hasPat ? 'Um dia só não forma gráfico. O total está acima.' : 'Sem dados no período'}</p>
                 )}
               </Card>
             </>
@@ -608,39 +518,6 @@ function RelatoriosContent() {
             )
           )}
         </>
-      )}
-      {/* Export period modal — portal garante position:fixed relativo ao viewport */}
-      {showExportModal && typeof document !== 'undefined' && createPortal(
-        <div className={styles.exportOverlay} onClick={() => setShowExportModal(false)}>
-          <div className={styles.exportModal} onClick={e => e.stopPropagation()}>
-            <div className={styles.exportModalHeader}>
-              <h3>Exportar planilha</h3>
-              <button className={styles.exportBtnClose} onClick={() => setShowExportModal(false)}><Icon name="close" size={16} /></button>
-            </div>
-            <div className={styles.exportModalBody}>
-              <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', margin: 0 }}>Escolha o período para exportar:</p>
-              <div className={styles.exportOptions}>
-                {([
-                  ['3m', 'Últimos 3 meses'],
-                  ['6m', 'Últimos 6 meses'],
-                  ['12m', 'Últimos 12 meses'],
-                ] as const).map(([value, label]) => (
-                  <label key={value} className={`${styles.exportOption} ${exportPeriodChoice === value ? styles.exportOptionActive : ''}`}>
-                    <input type="radio" name="exportPeriod" value={value} checked={exportPeriodChoice === value} onChange={() => setExportPeriodChoice(value)} style={{ accentColor: '#4DD9C0' }} />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className={styles.exportModalFooter}>
-              <button type="button" className={btn.secondary} onClick={() => setShowExportModal(false)}>Cancelar</button>
-              <button type="button" className={btn.primary} onClick={exportXLSX} disabled={exporting}>
-                {exporting ? 'Exportando...' : <><Icon name="download" size={15} /> Exportar</>}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
       )}
     </div>
   )

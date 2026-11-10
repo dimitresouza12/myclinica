@@ -7,6 +7,7 @@ import { AreaTrendChart, type TrendPoint } from '@/components/ui/AreaTrendChart'
 import { BarList } from '@/components/ui/BarList'
 import { moneyShort, axisMoney } from '@/lib/ui/money'
 import nav from '@/components/layout/AppSidebar.module.css'
+import { Logotype } from '@/components/login/Logotype'
 import styles from './demoApp.module.css'
 
 // Dados FICTÍCIOS e fixos: esta tela é pública (sem login) e nunca toca o banco.
@@ -36,7 +37,7 @@ export function DemoApp() {
     <div className={styles.shell} aria-hidden="true" inert>
       <aside className={nav.sidebar}>
         <div className={nav.brand}>
-          <span className={nav.logoText}>My<strong>Clinica</strong></span>
+          <Logotype className={nav.brandLogotype} />
           <div className={nav.clinic}>
             <span className={nav.clinicMark}>C</span>
             <span className={nav.clinicText}><b>Clínica Exemplo</b></span>

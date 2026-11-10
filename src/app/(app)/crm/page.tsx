@@ -1,11 +1,18 @@
 'use client'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { PageTitle } from '@/components/layout/PageTitle'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { PillTabs } from '@/components/ui/PillTabs'
+import { Button } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ErrorNotice } from '@/components/ui/ErrorNotice'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { Skeleton } from '@/components/ui/Skeleton'
+import btn from '@/components/ui/button.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { Icon } from '@/components/ui/Icon'
@@ -17,7 +24,7 @@ import { conversationPhoto, useConversations } from '@/hooks/useWhatsAppInbox'
 import { usePageSearch } from '@/store/pageSearch'
 import { useCrmMembers, useCrmRealtime, useLeadMutations, useLeads, leadErrorMessage, type LeadPatch } from '@/hooks/useCrmLeads'
 import { whatsappApi } from '@/components/configuracoes/whatsappApi'
-import { CrmBoard } from '@/components/crm/CrmBoard'
+import { CrmBoard, CrmBoardSkeleton } from '@/components/crm/CrmBoard'
 import { LeadDrawer, type LeadSaveValues } from '@/components/crm/LeadDrawer'
 import { LostReasonDialog } from '@/components/crm/LostReasonDialog'
 import { LegacyAiLeads } from '@/components/crm/LegacyAiLeads'
@@ -28,7 +35,7 @@ import styles from '@/components/crm/Crm.module.css'
 
 type DrawerState = { mode: 'edit'; leadId: string } | { mode: 'create'; stage: Stage } | null
 
-function Funnel() {
+function Funnel({ tabs }: { tabs: ReactNode }) {
   const clinic = useAuthStore(s => s.clinic)
   const user = useAuthStore(s => s.user)
   const router = useRouter()
@@ -37,7 +44,7 @@ function Funnel() {
   const { canEdit } = usePermissions('crm')
   const { canEdit: canEditPatients } = usePermissions('pacientes')
 
-  const { data: leads = [], isLoading, isError } = useLeads(clinicId)
+  const { data: leads = [], isLoading, isError, refetch, isRefetching } = useLeads(clinicId)
   const { data: members = [] } = useCrmMembers(clinicId)
   const { data: conversations = [] } = useConversations(clinicId)
   const { data: waState } = useWhatsAppState(clinicId)
@@ -233,51 +240,62 @@ function Funnel() {
   const memberOptions = [{ value: '', label: 'Todos os responsáveis' }, { value: '__none', label: 'Sem responsável' }, ...members.map(m => ({ value: m.userId, label: m.name }))]
   const connected = waState?.status === 'conectado'
 
+  const count = (n: number) => isLoading ? <Skeleton width={36} height={24} radius={6} /> : n
+
   return (
     <>
-      <ul className={styles.stats} data-hscroll aria-label="Resumo do funil">
-        <li className={`${styles.stat} ${styles.stConversa}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Em andamento</span><span className={styles.statValue}>{openLeadCount(leads)}</span></li>
-        <li className={`${styles.stat} ${styles.stAgendado}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Agendados</span><span className={styles.statValue}>{leads.filter(l => l.stage === 'agendado').length}</span></li>
-        <li className={`${styles.stat} ${styles.stCompareceu}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Compareceram</span><span className={styles.statValue}>{leads.filter(l => l.stage === 'compareceu').length}</span></li>
-        <li className={`${styles.stat} ${styles.stPerdido}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Perdidos</span><span className={styles.statValue}>{leads.filter(l => l.stage === 'perdido').length}</span></li>
-        <li className={styles.stat}><span className={styles.statLabel}><span className={styles.statDot} style={{ background: 'var(--brand-primary)' }} aria-hidden="true" />Valor em potencial</span><span className={`${styles.statValue} ${styles.statValueMoney}`}>{formatMoney(potential)}</span></li>
-      </ul>
+      <PageHeader
+        title="CRM"
+        subtitle="Acompanhe cada contato até virar paciente"
+        actions={canEdit ? <Button variant="primary" icon="plus" onClick={() => { setFormError(''); setDrawer({ mode: 'create', stage: 'novo' }) }}>Novo lead</Button> : undefined}
+      />
+      {tabs}
+
+      {!isError && (
+        <ul className={styles.stats} data-hscroll aria-label="Resumo do funil" aria-busy={isLoading || undefined}>
+          <li className={`${styles.stat} ${styles.stConversa}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Em andamento</span><span className={styles.statValue}>{count(openLeadCount(leads))}</span></li>
+          <li className={`${styles.stat} ${styles.stAgendado}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Agendados</span><span className={styles.statValue}>{count(leads.filter(l => l.stage === 'agendado').length)}</span></li>
+          <li className={`${styles.stat} ${styles.stCompareceu}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Compareceram</span><span className={styles.statValue}>{count(leads.filter(l => l.stage === 'compareceu').length)}</span></li>
+          <li className={`${styles.stat} ${styles.stPerdido}`}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Perdidos</span><span className={styles.statValue}>{count(leads.filter(l => l.stage === 'perdido').length)}</span></li>
+          <li className={styles.stat}><span className={styles.statLabel}><span className={styles.statDot} aria-hidden="true" />Valor em potencial</span><span className={`${styles.statValue} ${styles.statValueMoney}`}>{isLoading ? <Skeleton width={96} height={22} radius={6} /> : formatMoney(potential)}</span></li>
+        </ul>
+      )}
 
       <div className={styles.bar}>
         <p className={styles.hintLine}><Icon name="info" size={14} />O funil se atualiza sozinho com o WhatsApp e a agenda.{canEdit && <> Arraste um cartão só para corrigir.</>}</p>
         <div className={styles.tools}>
-          <label className={`${styles.search} ${styles.localSearch}`}>
-            <Icon name="search" size={16} />
-            <input type="search" placeholder="Buscar lead" value={query} onChange={e => setQuery(e.target.value)} aria-label="Buscar lead por nome, telefone ou interesse" />
-          </label>
-          <div className={styles.ownerFilter}><SelectMenu value={owner} onChange={setOwner} options={memberOptions} /></div>
-          {canEdit && <button type="button" className={styles.btnPrimary} onClick={() => { setFormError(''); setDrawer({ mode: 'create', stage: 'novo' }) }}><Icon name="plus" size={16} />Novo lead</button>}
+          <SearchInput className={styles.localSearch} value={query} onChange={setQuery} placeholder="Buscar lead" label="Buscar lead por nome, telefone ou interesse" />
+          <div className={styles.ownerFilter}><SelectMenu value={owner} onChange={setOwner} options={memberOptions} ariaLabel="Filtrar por responsável" /></div>
         </div>
       </div>
 
       {waState && !connected && (
         <div className={styles.notice} role="alert">
-          <strong>O WhatsApp da clínica está desconectado.</strong>
-          <span>Contatos novos não entram no funil e não dá para conversar até reconectar.</span>
-          <Link className={styles.emptyLink} href="/configuracoes?tab=whatsapp">Reconectar</Link>
+          <Icon name="alert" size={18} className={styles.noticeIcon} aria-hidden="true" />
+          <p className={styles.noticeText}>
+            <strong>O WhatsApp da clínica está desconectado.</strong>
+            <span>Contatos novos não entram no funil e não dá para conversar até reconectar.</span>
+          </p>
+          <Link className={btn.secondary} href="/configuracoes?tab=whatsapp">Reconectar</Link>
         </div>
       )}
 
       {isLoading ? (
-        <p className={styles.loading}>Carregando leads…</p>
+        <CrmBoardSkeleton />
       ) : isError ? (
-        <p className={styles.errorBox} role="alert">Não foi possível carregar os leads. Atualize a página.</p>
+        <ErrorNotice message="Não foi possível carregar os leads." onRetry={() => { refetch() }} retrying={isRefetching} />
       ) : (
         <>
           {leads.length === 0 && (
-            <div className={styles.emptyBox}>
-              <h2 className={styles.emptyTitle}>Nenhum lead ainda</h2>
-              <p className={styles.emptyText}>
-                {waState
+            <div className={styles.emptyCard}>
+              <EmptyState
+                icon="crm"
+                title="Nenhum lead ainda"
+                description={waState
                   ? 'Quando alguém que ainda não é paciente escrever para o WhatsApp da clínica, o contato aparece aqui sozinho, na etapa Novo. Você também pode cadastrar um lead à mão.'
                   : 'Conecte o WhatsApp da clínica para os contatos novos entrarem aqui sozinhos. Você também pode cadastrar leads à mão, como os que vêm do Instagram.'}
-              </p>
-              {!waState && <Link className={styles.emptyLink} href="/configuracoes?tab=whatsapp">Conectar o WhatsApp</Link>}
+                action={!waState ? <Link className={btn.primary} href="/configuracoes?tab=whatsapp">Conectar o WhatsApp</Link> : undefined}
+              />
             </div>
           )}
           <CrmBoard
@@ -328,17 +346,26 @@ function CrmContent() {
   const plan = useAuthStore(s => s.clinic?.plan)
   const hasAI = hasWhatsAppAI(plan)
   const [tab, setTab] = useState<'funil' | 'ia'>('funil')
+  const tabs = hasAI ? (
+    <div>
+      <PillTabs
+        label="Seções do CRM"
+        value={tab}
+        onChange={setTab}
+        options={[{ value: 'funil', label: 'Funil' }, { value: 'ia', label: 'Atendente virtual' }]}
+      />
+    </div>
+  ) : null
 
   return (
     <div className={styles.root}>
-      <PageTitle title="CRM" subtitle="Acompanhe cada contato até virar paciente" />
-      {hasAI && (
-        <div className={styles.tabs} role="tablist" aria-label="Seções do CRM">
-          <button type="button" role="tab" aria-selected={tab === 'funil'} className={`${styles.tab} ${tab === 'funil' ? styles.tabOn : ''}`} onClick={() => setTab('funil')}>Funil</button>
-          <button type="button" role="tab" aria-selected={tab === 'ia'} className={`${styles.tab} ${tab === 'ia' ? styles.tabOn : ''}`} onClick={() => setTab('ia')}>Atendente virtual</button>
-        </div>
-      )}
-      {tab === 'ia' && hasAI ? <LegacyAiLeads /> : <Funnel />}
+      {tab === 'ia' && hasAI ? (
+        <>
+          <PageHeader title="CRM" subtitle="Acompanhe cada contato até virar paciente" />
+          {tabs}
+          <LegacyAiLeads />
+        </>
+      ) : <Funnel tabs={tabs} />}
     </div>
   )
 }

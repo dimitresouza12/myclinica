@@ -8,6 +8,7 @@
 // É idempotente: rodar duas vezes seguidas não muda nada na segunda.
 
 import { getAdminClient } from '@/lib/supabaseAdmin'
+import { demoClinicIds } from '@/lib/demoGuard'
 import { phoneKeys } from '../whatsapp/phone'
 import { hasUpcomingAppointment, idleToLost, stageFromAppointments, type ApptFact, type StageChange } from './automation'
 import type { Stage } from './model'
@@ -121,7 +122,12 @@ export async function syncClinicLeads(clinicId: string, now = new Date()): Promi
 export async function syncAllClinics(budgetMs = 4 * 60_000): Promise<{ clinics: number; linked: number; moved: number; skipped: number }> {
   const started = Date.now()
   const { data } = await getAdminClient().from('crm_leads').select('clinic_id').neq('stage', 'compareceu').limit(20000)
-  const clinicIds = [...new Set((data ?? []).map(r => r.clinic_id as string))]
+  const allIds = [...new Set((data ?? []).map(r => r.clinic_id as string))]
+  // A conta de demonstração não é movida pela rotina: o funil dela só muda pela mão de quem a opera.
+  // demoClinicIds falha aberto (coluna ausente ou erro de leitura = ninguém é demo), então uma
+  // clínica real nunca deixa de ser sincronizada por causa disso.
+  const demoIds = await demoClinicIds(allIds)
+  const clinicIds = allIds.filter(id => !demoIds.has(id))
 
   const total = { clinics: 0, linked: 0, moved: 0, skipped: 0 }
   for (const id of clinicIds) {

@@ -49,7 +49,7 @@ function sampleAppointmentAt(tz: string): Date {
   return zonedTimeToUtc(n('year'), n('month'), n('day'), 14, 0, tz)
 }
 
-export function WhatsAppSettingsForm({ connected }: { connected: boolean }) {
+export function WhatsAppSettingsForm({ connected, demo = false }: { connected: boolean; demo?: boolean }) {
   const [form, setForm] = useState<WhatsAppSettings | null>(null)
   const [saved, setSaved] = useState<WhatsAppSettings | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -270,9 +270,10 @@ export function WhatsAppSettingsForm({ connected }: { connected: boolean }) {
       {!msg && validation && !validation.ok && dirty && <p className={styles.error}>{validation.error}</p>}
 
       <div className={styles.actions}>
-        <button className={styles.btnPrimary} onClick={handleSave} disabled={saving || !dirty || (!!validation && !validation.ok)}>
+        <button className={styles.btnPrimary} onClick={handleSave} disabled={demo || saving || !dirty || (!!validation && !validation.ok)} aria-describedby={demo ? 'wa-settings-demo-note' : undefined}>
           {saving ? 'Salvando…' : 'Salvar configurações'}
         </button>
+        {demo && <span id="wa-settings-demo-note" className={styles.muted}>Envio de mensagens desativado na conta de demonstração.</span>}
         {dirty && !saving && <span className={styles.muted}>Há alterações não salvas.</span>}
       </div>
     </div>

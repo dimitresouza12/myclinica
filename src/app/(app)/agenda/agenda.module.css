@@ -130,7 +130,7 @@
   gap: 8px;
   margin-left: auto;
 }
-.headerCta { flex-shrink: 0; }
+.headerCta, .teamCta { flex-shrink: 0; }
 .statusSelect { min-width: 190px; }
 
 /* Search bar */
@@ -161,18 +161,20 @@
 /* GCal status */
 .gcalStatus { display:flex; align-items:center; gap:.4rem; padding:.35rem .75rem; background:rgba(16,185,129,0.1); border:none; border-radius:999px; font-size:.74rem; font-weight:600; color:#065F46; white-space:nowrap; }
 .gcalDot { width:6px; height:6px; border-radius:50%; background:#10B981; flex-shrink:0; }
-.gcalUnlinked { display:flex; align-items:center; gap:.4rem; padding:.35rem .75rem; background:var(--bg-tertiary); border:none; border-radius:999px; font-size:.74rem; color:var(--text-secondary); white-space:nowrap; }
 .gcalDotOff { width:6px; height:6px; border-radius:50%; background:var(--border-color); flex-shrink:0; }
 .btnGcalConnect { display:flex; align-items:center; gap:.4rem; padding:.35rem .75rem; font-size:.74rem; font-weight:600; background:var(--bg-tertiary); border:none; border-radius:999px; cursor:pointer; color:var(--text-secondary); font-family:inherit; white-space:nowrap; transition:background 0.14s, color 0.14s; }
 .btnGcalConnect:hover { background:var(--border-color); color:var(--text-primary); }
 .gcalErrorMsg { font-size:.82rem; color:#EF4444; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:.5rem .875rem; margin:0.5rem 1.25rem 0; flex-shrink:0; }
 
 .btnSecondaryAction {
-  width: 36px;
   height: 36px;
+  padding: 0 14px 0 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 7px;
+  font-size: 0.8125rem;
+  font-weight: 500;
   background: var(--surface);
   border: 1px solid var(--surface-line);
   border-radius: 999px;
@@ -183,6 +185,11 @@
   transition: background 0.14s, color 0.14s, border-color 0.14s;
 }
 .btnSecondaryAction:hover { background: var(--surface-2); color: var(--text-primary); border-color: var(--border-color); }
+/* no celular o texto sai e fica só o cadeado, com o nome lido pelo leitor de tela */
+@media (max-width: 600px) {
+  .btnSecondaryAction { width: 36px; padding: 0; }
+  .btnSecondaryLabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 
 /* Primary button (estado vazio da lista) */
 .btnPrimary {
@@ -259,7 +266,6 @@
 
 /* ─── Calendar view ──────────────────────────────────────────── */
 .calLoading { padding: 3rem; text-align: center; color: var(--text-secondary); }
-.calHint { font-size: 0.72rem; color: var(--text-secondary); text-align: center; padding: 0.5rem 0; }
 
 .calendarWrap {
   position: absolute;
@@ -841,7 +847,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: rgba(var(--bg-primary-rgb, 255,255,255), 0.55);
+  background: color-mix(in srgb, var(--bg-primary) 55%, transparent);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 }
@@ -898,6 +904,7 @@
 @media (max-width: 600px) {
   .page { border-radius: 18px; }
   .shell .headerCta { display: none; }
+  .shell .teamCta { min-height: 44px; }
   /* título da data numa linha própria: "27 de outubro de 2026" não cabe ao lado dos botões */
   .tbLeft { flex-wrap: wrap; row-gap: 6px; }
   .tbDate { order: 5; flex-basis: 100%; margin: 2px 0 0; }
@@ -1008,9 +1015,258 @@
 .waBtn:hover:not(:disabled) { background: var(--bg-tertiary); }
 .waBtn:disabled { opacity: 0.6; cursor: not-allowed; }
 .waBtn:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.waHint { font-size: 0.78rem; color: var(--text-secondary); }
+.btnWhatsApp[aria-disabled="true"], .btnChat[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; pointer-events: auto; }
 .waOk  { font-size: 0.78rem; color: #065F46; }
 .waErr { font-size: 0.78rem; color: #B91C1C; }
 .lrWa { font-size: 0.64rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; white-space: nowrap; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
 
 /* no desktop a busca fica na barra de cima; este campo só aparece no celular */
 @media (min-width: 769px) { .localSearch { display: none; } }
+
+/* ─── Próximo passo da consulta ──────────────────────────────── */
+.btnNextStep {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: .75rem;
+  padding: .6rem 1rem;
+  border: 1px solid #3CCCB4;
+  border-radius: 12px;
+  background: #4DD9C0;
+  color: #0D2421;
+  font-size: .9rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .14s, transform .1s;
+}
+.btnNextStep:hover { background: #3CCCB4; }
+.btnNextStep:active { transform: translateY(1px); }
+
+/* ─── Remarcar ───────────────────────────────────────────────── */
+.reschedFrom { margin: 0 0 .75rem; font-size: .8rem; color: var(--text-secondary); }
+.reschedDone { margin: 0; font-size: .9rem; color: var(--text-primary); line-height: 1.5; }
+
+/* ─── Resultado da busca em todas as datas ───────────────────── */
+.srHead { padding: .25rem .25rem .75rem; font-size: .8rem; font-weight: 600; color: var(--text-secondary); }
+.srRow {
+  display: flex;
+  align-items: center;
+  gap: .875rem;
+  width: 100%;
+  min-height: 56px;
+  padding: .65rem .75rem;
+  margin-bottom: .4rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .14s, background .14s;
+}
+.srRow:hover { border-color: #4DD9C0; background: rgba(77,217,192,.05); }
+.srDate { display: flex; flex-direction: column; align-items: center; min-width: 52px; font-size: .75rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.srDate strong { font-size: .9rem; color: var(--text-primary); }
+.srMain { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 2px; }
+.srName { font-size: .9rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srSub { font-size: .76rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ─── Novo agendamento rápido ────────────────────────────────── */
+.nextFreeRow { display: flex; flex-wrap: wrap; gap: .4rem; }
+.nextFreeChip {
+  min-height: 38px;
+  padding: .4rem .75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: .78rem;
+  font-weight: 600;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color .14s, background .14s, color .14s;
+}
+.nextFreeChip:hover { border-color: #4DD9C0; color: #0B9B85; background: rgba(77,217,192,.08); }
+.nextFreeChipOn { background: #4DD9C0 !important; color: #0D2421 !important; border-color: #3CCCB4 !important; }
+.moreToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  align-self: flex-start;
+  min-height: 40px;
+  padding: .35rem .25rem;
+  background: none;
+  border: none;
+  color: #0B9B85;
+  font-size: .85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.moreSummary { color: var(--text-tertiary); font-weight: 500; }
+
+/* ─── Agenda exclusiva do profissional ───────────────────────── */
+.focusBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1rem;
+  margin: 0 1rem .75rem;
+  padding: .75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--bg-secondary);
+}
+.focusAvatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; color: #fff; font-size: .75rem; font-weight: 600; flex-shrink: 0; }
+.focusInfo { display: flex; flex-direction: column; min-width: 0; flex: 1 1 160px; }
+.focusName { font-size: .95rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.focusSub { font-size: .76rem; color: var(--text-secondary); }
+.focusBack {
+  min-height: 40px;
+  padding: .4rem .9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: .8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .14s, background .14s;
+}
+.focusBack:hover { border-color: #4DD9C0; background: rgba(77,217,192,.06); }
+.focusFree { flex-basis: 100%; display: flex; flex-direction: column; gap: .4rem; }
+.focusFreeLabel { font-size: .72rem; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--text-secondary); }
+
+/* No celular os horários livres do foco ficam numa fileira que rola de lado, para o cabeçalho não ocupar a tela */
+@media (max-width: 600px) {
+  .focusBar { margin-inline: .5rem; padding: .65rem .75rem; }
+  .focusFree .nextFreeRow { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .focusFree .nextFreeRow::-webkit-scrollbar { display: none; }
+  .focusFree .nextFreeChip { flex: 0 0 auto; white-space: nowrap; }
+}
+
+.layoutToggle { margin-left: auto; }
+
+/* ─── Escala do profissional ─── */
+.timeSlotExtra { border-style: dashed; border-color: var(--st-wait, #D97706); }
+.scheduleNote { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; }
+.scheduleNote .timeGridHint { margin: 0; flex: 1 1 220px; }
+.extraToggle {
+  min-height: 36px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.extraToggle:hover { border-color: var(--brand-primary, #4DD9C0); }
+.extraToggle[aria-pressed="true"] { background: var(--bg-tertiary); border-color: var(--st-wait, #D97706); }
+.extraToggle:focus-visible { outline: 2px solid var(--brand-primary, #4DD9C0); outline-offset: 2px; }
+.extraReason { margin-top: 10px; }
+
+/* resumo da escala no cabeçalho da agenda do profissional */
+.focusSchedule { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.scheduleHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.weekStrip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.weekCell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+.weekCell b { font-size: 0.74rem; font-weight: 600; color: var(--text-primary); text-transform: capitalize; white-space: nowrap; }
+.weekCell span { line-height: 1.25; overflow-wrap: anywhere; }
+.weekCell small { font-size: 0.68rem; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+.weekCellOn { background: color-mix(in srgb, var(--brand-primary, #4DD9C0) 9%, transparent); }
+.weekCellToday { border-color: var(--brand-primary, #4DD9C0); }
+@media (max-width: 600px) {
+  .weekStrip { display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+  .weekCell { flex: 0 0 96px; }
+}
+
+/* Paciente chegou: ação secundária acima do próximo passo */
+.btnArrive {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: .5rem;
+  padding: .6rem 1rem;
+  border: 1px solid var(--brand-primary, #4DD9C0);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: .9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .14s;
+}
+.btnArrive:hover { background: color-mix(in srgb, var(--brand-primary, #4DD9C0) 12%, transparent); }
+.btnArrive:focus-visible { outline: 2px solid var(--brand-primary, #4DD9C0); outline-offset: 2px; }
+
+/* ─── Detalhe da consulta: ações enxutas ─────────────────────── */
+.detailHeader { position: sticky; top: 0; z-index: 2; background: var(--bg-primary); }
+.detailActions { display: flex; flex-direction: column; gap: .5rem; }
+.detailActions .btnNextStep, .detailActions .btnArrive { margin-bottom: 0; }
+.btnUndoArrive {
+  align-self: flex-start;
+  padding: .25rem 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: .8rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.btnUndoArrive:hover { color: var(--text-primary); }
+.statusToggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.statusToggle::after {
+  content: '';
+  width: 6px; height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform .14s;
+}
+.statusToggle[aria-expanded="true"]::after { transform: rotate(-135deg) translateY(-2px); }
+.statusToggle:hover { color: var(--text-primary); }
+.statusToggle:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.moreActions { display: flex; flex-direction: column; gap: .5rem; }
+.moreActions > * { width: 100%; }
+
+/* ─── Casa livre: agendar ou bloquear ────────────────────────── */
+.slotChoice { display: flex; flex-direction: column; gap: .625rem; }
+.slotChoiceBtn { width: 100%; justify-content: center; min-height: 44px; }
+.slotChoiceHint { margin: .25rem 0 0; font-size: .78rem; line-height: 1.45; color: var(--text-secondary); }
+
+/* consulta agendada (ainda sem confirmação): fundo neutro, só a faixa lateral leva a cor */
+
+.detailFooterActions .btnDetailEdit { min-width: 0; padding-inline: .5rem; }

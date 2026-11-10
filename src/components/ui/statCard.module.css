@@ -28,6 +28,10 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
+.deltaBtn { border: 0; font-family: inherit; cursor: pointer; transition: filter 0.15s; }
+.deltaBtn:hover { filter: brightness(1.15); }
+.deltaBtn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+@media (max-width: 768px) { .deltaBtn { height: 28px; padding: 0 11px; } }
 .bad { background: rgba(220, 38, 38, 0.1); color: #B91C1C; }
 :global([data-theme="dark"]) .bad { background: rgba(248, 113, 113, 0.14); color: #FCA5A5; }
 .hint { margin-top: 6px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

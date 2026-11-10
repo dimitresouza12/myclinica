@@ -40,6 +40,8 @@ export interface Clinic {
   next_billing_date: string | null
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
+  // conta de demonstração: o login deixa escolher a área (coluna pode não existir ainda)
+  demo_mode?: boolean
 }
 
 export interface SystemAlert {
@@ -130,6 +132,10 @@ export interface Appointment {
   notes: string | null
   created_at: string
   gcal_event_id: string | null
+  // motivo do encaixe fora da escala do profissional (coluna criada pela migration 20261104_agenda_escala.sql)
+  extra_slot_reason?: string | null
+  // quando o paciente chegou à clínica (coluna criada pela migration 20261104_agenda_escala.sql)
+  arrived_at?: string | null
   patients?: Pick<Patient, 'id' | 'name' | 'phone'>
   clinic_users?: Pick<ClinicUser, 'id' | 'display_name'>
   professionals?: Pick<Professional, 'id' | 'name'>
@@ -141,6 +147,8 @@ export interface TreatmentPlanItem {
   description: string
   value: number | null
 }
+
+export interface OdontogramHistoryEntry { at: string; tooth: number; face?: string; status: string; by: string; planned?: boolean }
 
 export interface MedicalRecord {
   id: string
@@ -157,7 +165,8 @@ export interface MedicalRecord {
   // continua existindo como observação geral, ver TabFicha.tsx.
   treatment_plan_items: TreatmentPlanItem[]
   contract_text: string | null
-  odontogram: Record<string, string | { status: string; surfaces?: Record<string, string> }>
+  // dentes pelo número FDI, mais `_history` com as mudanças salvas (data, dente, face, condição, profissional)
+  odontogram: Record<string, string | { status: string; surfaces?: Record<string, string>; note?: string; planned?: Record<string, boolean> } | OdontogramHistoryEntry[]>
   vaccinations: unknown[]
   aesthetic_protocols: unknown[]
   body_protocols: unknown[]
@@ -235,6 +244,9 @@ export interface Professional {
   // varia por conselho. Preenche automaticamente documentos como a Receita
   // de Controle Especial (ver TabDocumentos.tsx).
   registration_number: string | null
+  // true = só atende nos dias e janelas da escala; ausente/false = atende em qualquer horário (como antes).
+  // A coluna só existe depois da migration 20261104_agenda_escala.sql.
+  schedule_enabled?: boolean
   created_at: string
 }
 
@@ -414,6 +426,10 @@ export interface AuthClinic {
   monthlyRevenueGoal: number | null
   onboardingDismissed: string[]
   onboardingModalSeen: boolean
+  // true só na conta de demonstração (clinics.demo_mode): ao entrar, a pessoa escolhe a área
+  // e a sessão passa a se comportar como aquela área (ver store/auth.ts, setActiveSpecialty).
+  // false ou ausente = clínica normal. A coluna pode não existir ainda no banco.
+  demoMode?: boolean
 }
 
 export interface AuthUser {

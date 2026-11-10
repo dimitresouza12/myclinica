@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { N8N_WEBHOOK_BASE } from '@/lib/n8nConfig'
 
 // O banco n8n NÃO é acessado diretamente pelo cliente (RLS bloqueia tudo).
 // Todo acesso passa pela Edge Function `n8n-data` no projeto n8n, que valida
@@ -8,9 +9,6 @@ const N8N_FN_URL =
   process.env.NEXT_PUBLIC_N8N_FUNCTIONS_URL ??
   'https://kqwijexdskiilhfxkbvk.supabase.co/functions/v1/n8n-data'
 
-const N8N_WEBHOOK_BASE =
-  process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ??
-  'https://kqwijexdskiilhfxkbvk.supabase.co/functions/v1'
 
 type N8nAction =
   | { action: 'list_chats' }

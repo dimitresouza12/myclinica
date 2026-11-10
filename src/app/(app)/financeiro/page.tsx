@@ -1,7 +1,6 @@
 'use client'
 import { useState, useMemo, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
@@ -25,6 +24,10 @@ import { Card } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PillTabs } from '@/components/ui/PillTabs'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ErrorNotice } from '@/components/ui/ErrorNotice'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { BarList } from '@/components/ui/BarList'
 import { MoreMenu, type MoreMenuItem } from '@/components/ui/MoreMenu'
 import { Modal } from '@/components/ui/Modal'
@@ -65,7 +68,7 @@ function FinanceiroContent() {
   // Modelo de acesso por profissional (Bloco C): não-admin/recepção só vê
   // (e os totais/gráficos abaixo só somam) as próprias receitas/despesas.
   const scopeProfessionalId = myScopedProfessionalId(user)
-  const { data: finData, isLoading: loading } = useFinanceiroData(clinic?.id, scopeProfessionalId)
+  const { data: finData, isLoading: loading, isError: loadFailed, isRefetching, refetch } = useFinanceiroData(clinic?.id, scopeProfessionalId)
   const { data: procedures = [] } = useProcedures(clinic?.id)
   const records = finData?.records ?? []
   const patients = finData?.patients ?? []
@@ -90,10 +93,6 @@ function FinanceiroContent() {
   const [showPatientSuggestions, setShowPatientSuggestions] = useState(false)
   const [filterPeriod, setFilterPeriod] = useState<'diario' | 'semanal' | 'mensal' | 'geral'>('diario')
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7))
-  const [showExportModal, setShowExportModal] = useState(false)
-  const [exportPreset, setExportPreset] = useState<'this_month'|'last_month'|'3m'|'6m'|'all'|'custom'>('this_month')
-  const [exportStartMonth, setExportStartMonth] = useState(() => new Date().toISOString().slice(0, 7))
-  const [exportEndMonth, setExportEndMonth] = useState(() => new Date().toISOString().slice(0, 7))
 
   function loadData() {
     queryClient.invalidateQueries({ queryKey: ['financeiro', clinic?.id] })
@@ -359,73 +358,6 @@ function FinanceiroContent() {
     filterPeriod === 'mensal' ? 'do mês' :
     'geral'
 
-  function getExportRecords() {
-    const now = new Date()
-    switch (exportPreset) {
-      case 'this_month': {
-        const key = now.toISOString().slice(0, 7)
-        return records.filter(r => r.created_at?.startsWith(key))
-      }
-      case 'last_month': {
-        const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-        return records.filter(r => r.created_at?.startsWith(key))
-      }
-      case '3m': {
-        const start = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 7)
-        return records.filter(r => (r.created_at?.slice(0, 7) ?? '') >= start)
-      }
-      case '6m': {
-        const start = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 7)
-        return records.filter(r => (r.created_at?.slice(0, 7) ?? '') >= start)
-      }
-      case 'custom':
-        return records.filter(r => {
-          const m = r.created_at?.slice(0, 7) ?? ''
-          return m >= exportStartMonth && m <= exportEndMonth
-        })
-      default:
-        return records
-    }
-  }
-
-  async function exportXLSX() {
-    const { utils, writeFile } = await import('xlsx')
-    const recordsToExport = getExportRecords()
-    const now = new Date()
-    const yyyy = now.getFullYear()
-    const presetLabel: Record<string, string> = {
-      this_month: now.toISOString().slice(0, 7),
-      last_month: (() => { const d = new Date(now.getFullYear(), now.getMonth() - 1, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` })(),
-      '3m': 'ultimos-3m',
-      '6m': 'ultimos-6m',
-      all: `historico-${yyyy}`,
-      custom: `${exportStartMonth}_${exportEndMonth}`,
-    }
-    const periodName = presetLabel[exportPreset] ?? exportPreset
-
-    const data = [
-      ['Tipo', 'Data', 'Paciente', 'Categoria', 'Descrição', 'Método de Pagamento', 'Convênio', 'Valor (R$)'],
-      ...recordsToExport.map(r => [
-        r.type === 'receita' ? 'Receita' : 'Despesa',
-        new Date(r.created_at).toLocaleDateString('pt-BR'),
-        r.patients?.name ?? '',
-        r.category ?? '',
-        r.notes ?? '',
-        r.payment_method ? (PAYMENT_METHOD_LABELS[r.payment_method] ?? r.payment_method) : '',
-        r.convenio ?? '',
-        r.total_amount ?? 0,
-      ]),
-    ]
-
-    const ws = utils.aoa_to_sheet(data)
-    ws['!cols'] = [10, 12, 24, 16, 30, 20, 16, 14].map(wch => ({ wch }))
-    const wb = utils.book_new()
-    utils.book_append_sheet(wb, ws, 'Financeiro')
-    writeFile(wb, `financeiro-${periodName}.xlsx`)
-    setShowExportModal(false)
-  }
-
   const periodLabelText = filterPeriod === 'diario' ? 'hoje' :
     filterPeriod === 'semanal' ? 'esta semana' :
     filterPeriod === 'mensal' ? formatMonthLabel(filterMonth) :
@@ -464,10 +396,7 @@ function FinanceiroContent() {
             {/* Período fica no topo (não na tabela, lá embaixo) porque também controla os cards de totais */}
             <PillTabs label="Período" value={filterPeriod} onChange={setFilterPeriod} options={periodOptions} />
             {filterPeriod === 'mensal' && <MonthPicker value={filterMonth} onChange={setFilterMonth} />}
-            <button type="button" className={`${btn.secondary} ${styles.exportBtn}`} onClick={() => setShowExportModal(true)} disabled={records.length === 0} title="Exportar planilha Excel" aria-label="Exportar planilha Excel">
-              <Icon name="download" size={15} /> <span className={styles.exportLabel}>Exportar</span>
-            </button>
-            {canEdit && <button type="button" className={btn.secondary} onClick={() => openModal('despesa')}><Icon name="plus" size={15} /> Despesa</button>}
+            {canEdit && <button type="button" className={btn.secondary} onClick={() => openModal('despesa')}><Icon name="minus" size={15} /> Despesa</button>}
             {canEdit && <button type="button" className={btn.primary} onClick={() => openModal('receita')}><Icon name="plus" size={15} /> Receita</button>}
           </>
         }
@@ -527,32 +456,18 @@ function FinanceiroContent() {
         actions={
           <>
             <div className={styles.patientSearchBox}>
-              <Icon name="search" size={14} />
-              <input
-                className={styles.patientSearchInput}
+              <SearchInput
                 placeholder="Buscar por paciente"
-                aria-label="Buscar lançamentos por nome do paciente"
+                label="Buscar lançamentos por nome do paciente"
                 value={patientSearch}
-                onChange={e => {
-                  setPatientSearch(e.target.value)
+                onChange={v => {
+                  setPatientSearch(v)
                   setFilterPatient('')
                   setShowPatientSuggestions(true)
                 }}
                 onFocus={() => setShowPatientSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowPatientSuggestions(false), 120)}
               />
-              {patientSearch && (
-                <button
-                  type="button"
-                  className={styles.patientSearchClear}
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => { setPatientSearch(''); setFilterPatient(''); setShowPatientSuggestions(false) }}
-                  aria-label="Limpar busca"
-                  title="Limpar busca"
-                >
-                  <Icon name="close" size={12} />
-                </button>
-              )}
               {showPatientSuggestions && patientSuggestions.length > 0 && (
                 <div className={styles.patientSuggestions}>
                   {patientSuggestions.map(p => (
@@ -588,7 +503,20 @@ function FinanceiroContent() {
             <span>{patientSummary.count} lançamento{patientSummary.count === 1 ? '' : 's'} · <strong>{formatCurrency(patientSummary.paid)}</strong> pago em receitas</span>
           </div>
         )}
-        {loading ? <p className={styles.loading}>Carregando...</p> : (
+        {loadFailed && !finData ? (
+          <div className={styles.errorWrap}>
+            <ErrorNotice
+              title="Não foi possível carregar os lançamentos"
+              message="Verifique sua conexão e tente de novo."
+              onRetry={() => { void refetch() }}
+              retrying={isRefetching}
+            />
+          </div>
+        ) : loading ? (
+          <div className={styles.loading} aria-busy="true">
+            {Array.from({ length: 5 }, (_, i) => <Skeleton key={i} height={44} radius={10} />)}
+          </div>
+        ) : (
           <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
             <table className={`${t.table} resp-table`}>
               <thead>
@@ -603,7 +531,14 @@ function FinanceiroContent() {
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className={t.empty}>Nenhum lançamento encontrado.</td></tr>
+                  <tr><td colSpan={6} className={styles.emptyCell}>
+                    <EmptyState
+                      compact
+                      icon="receipt"
+                      title="Nenhum lançamento encontrado"
+                      description={patientSearch.trim() || filterType !== 'todos' ? 'Ajuste a busca ou o tipo de lançamento para ver outros resultados.' : 'Não há receitas nem despesas neste período.'}
+                    />
+                  </td></tr>
                 ) : filtered.map(r => {
                   const menu = rowMenu(r)
                   const isIn = r.type === 'receita'
@@ -643,53 +578,6 @@ function FinanceiroContent() {
           </div>
         )}
       </Card>
-
-      {/* Export period modal — portal garante position:fixed relativo ao viewport */}
-      {showExportModal && typeof document !== 'undefined' && createPortal(
-        <div className={styles.exportOverlay} onClick={() => setShowExportModal(false)}>
-          <div className={styles.exportModal} onClick={e => e.stopPropagation()}>
-            <div className={styles.exportModalHeader}>
-              <h3>Exportar planilha</h3>
-              <button className={styles.exportBtnClose} onClick={() => setShowExportModal(false)}><Icon name="close" size={16} /></button>
-            </div>
-            <div className={styles.exportModalBody}>
-              <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', margin: 0 }}>Escolha o período para exportar:</p>
-              <div className={styles.exportOptions}>
-                {([
-                  ['this_month', 'Este mês'],
-                  ['last_month', 'Mês passado'],
-                  ['3m', 'Últimos 3 meses'],
-                  ['6m', 'Últimos 6 meses'],
-                  ['all', 'Todo o histórico'],
-                  ['custom', 'Personalizado'],
-                ] as const).map(([value, label]) => (
-                  <label key={value} className={`${styles.exportOption} ${exportPreset === value ? styles.exportOptionActive : ''}`}>
-                    <input type="radio" name="exportPreset" value={value} checked={exportPreset === value} onChange={() => setExportPreset(value)} style={{ accentColor: '#4DD9C0' }} />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              {exportPreset === 'custom' && (
-                <div className={styles.exportCustomFields}>
-                  <div>
-                    <label>De</label>
-                    <MonthPicker value={exportStartMonth} onChange={setExportStartMonth} />
-                  </div>
-                  <div>
-                    <label>Até</label>
-                    <MonthPicker value={exportEndMonth} onChange={setExportEndMonth} />
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className={styles.exportModalFooter}>
-              <button type="button" className={btn.secondary} onClick={() => setShowExportModal(false)}>Cancelar</button>
-              <button type="button" className={btn.primary} onClick={exportXLSX}><Icon name="download" size={15} /> Exportar</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* Modal */}
       <Modal

@@ -27,6 +27,7 @@ import btn from '@/components/ui/button.module.css'
 import f from '@/components/ui/modalForm.module.css'
 import t from '@/components/ui/table.module.css'
 import { SelectMenu } from '@/components/ui/SelectMenu'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 interface ProfessionalRow extends Professional {
   clinic_users: { role: UserRole; is_active: boolean; specialty_type: ClinicType | null } | null
@@ -535,8 +536,7 @@ function EquipeContent() {
                 </div>
                 <div className={f.field}>
                   <label>Senha *</label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={form.password}
                     onChange={(e) => setForm(p => ({ ...p, password: e.target.value }))}
                     placeholder="mín. 6 caracteres"

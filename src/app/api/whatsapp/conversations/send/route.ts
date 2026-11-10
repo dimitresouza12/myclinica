@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireModulePerm } from '@/lib/whatsapp/auth'
+import { rejectIfDemo } from '@/lib/demoGuard'
 import { sendFromInbox } from '@/lib/whatsapp/conversations'
 import { rateLimit } from '@/lib/rateLimit'
 import { failure } from '../../_shared'
@@ -12,6 +13,9 @@ const MAX_TEXT = 4000
 export async function POST(req: Request) {
   const ctx = await requireModulePerm(req, 'crm', true)
   if (ctx instanceof NextResponse) return ctx
+
+  const demo = await rejectIfDemo(ctx.clinicId)
+  if (demo) return demo
 
   const limit = rateLimit(`wa-inbox:${ctx.userId}`, { limit: 40, windowMs: 60_000 })
   if (!limit.success) {

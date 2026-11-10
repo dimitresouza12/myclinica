@@ -14,6 +14,10 @@ import { Card } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { Gauge } from '@/components/ui/Gauge'
 import { PillTabs } from '@/components/ui/PillTabs'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Button } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { StatusDot, type StatusTone } from '@/components/ui/StatusDot'
 import type { TrendPoint } from '@/components/ui/AreaTrendChart'
 import { useDashboardData, useProcedures, useWhatsAppState } from '@/hooks/useClinicData'
@@ -36,7 +40,7 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-const AreaTrendChart = dynamic(() => import('@/components/ui/AreaTrendChart').then(m => m.AreaTrendChart), { ssr: false, loading: () => <div className={styles.chartLoading} /> })
+const AreaTrendChart = dynamic(() => import('@/components/ui/AreaTrendChart').then(m => m.AreaTrendChart), { ssr: false, loading: () => <Skeleton height={262} radius={12} /> })
 
 type IconName = ComponentProps<typeof Icon>['name']
 
@@ -316,6 +320,21 @@ function DashboardContent() {
 
   return (
     <div className={styles.page}>
+      <PageHeader
+        title={`${greeting}, ${user?.displayName?.split(' ')[0] ?? ''}`.replace(/,\s*$/, '')}
+        subtitle={new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, ch => ch.toUpperCase())}
+        actions={
+          <Button
+            variant="icon"
+            icon={hideValues ? 'eyeOff' : 'eye'}
+            className={styles.btnHide}
+            onClick={() => setHideValues((v) => !v)}
+            aria-pressed={hideValues}
+            aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+            title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+          />
+        }
+      />
       {whatsappDown && (
         <div className={styles.waDown} role="alert">
           <Icon name="alert" size={16} />
@@ -331,36 +350,6 @@ function DashboardContent() {
 
       <div className={styles.grid} aria-busy={loading}>
         <section className={styles.hero}>
-          <div className={styles.heroTop}>
-            <div>
-              <h1 className={styles.hello}>{greeting}, {user?.displayName?.split(' ')[0]}</h1>
-              <p className={styles.helloSub}>
-                {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-              </p>
-            </div>
-            <button
-              type="button"
-              className={styles.btnHide}
-              onClick={() => setHideValues((v) => !v)}
-              aria-pressed={hideValues}
-              aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
-              title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
-            >
-              {hideValues ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              )}
-            </button>
-          </div>
-
           <div className={styles.gauges}>
             <div className={styles.gaugeBox}>
               <h2 className={styles.gaugeTitle}>Meta do mês</h2>
@@ -467,7 +456,9 @@ function DashboardContent() {
           actions={<PillTabs label="Período do gráfico" value={period} onChange={setPeriod} options={PERIODS} />}
         >
           {hideValues || trendEmpty ? (
-            <div className={styles.chartHidden}>{hideValues ? 'Valores ocultos' : 'Nenhuma receita neste período'}</div>
+            hideValues
+              ? <div className={styles.chartHidden}>Valores ocultos</div>
+              : <EmptyState compact icon="reports" title="Nenhuma receita neste período" description="Escolha outro período ou registre uma receita no Financeiro." className={styles.chartEmpty} />
           ) : (
             <AreaTrendChart
               data={trend.data}
@@ -488,7 +479,7 @@ function DashboardContent() {
             actions={<Link href="/agenda" className={styles.cardLink}>Ver agenda <Icon name="chevronRight" size={13} /></Link>}
           >
             {todayAppts.length === 0 ? (
-              <p className={styles.empty}>Nenhum agendamento para hoje.</p>
+              <EmptyState compact icon="calendar" title="Nenhum agendamento para hoje" description="Os atendimentos marcados para hoje aparecem aqui." />
             ) : (
               <ul className={styles.apptList}>
                 {todayAppts.map((a) => (
@@ -546,7 +537,7 @@ function DashboardContent() {
           <div className={styles.bottom}>
             <Card title="Receita por categoria" actions={<span className={styles.cardMeta}>mês atual</span>}>
               {revenueByCategory.length === 0 ? (
-                <p className={styles.empty}>Nenhuma receita neste mês.</p>
+                <EmptyState compact icon="finance" title="Nenhuma receita neste mês" description="Quando houver lançamentos, a divisão por categoria aparece aqui." />
               ) : (
                 <ul className={styles.cats}>
                   {revenueByCategory.slice(0, 5).map(c => (

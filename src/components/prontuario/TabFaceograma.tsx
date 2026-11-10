@@ -5,46 +5,64 @@ import type { Patient, MedicalRecord } from '@/types'
 import styles from './TabFaceograma.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { FACE_TOOLS, FACE_VW, FACE_VH, faceRegion, sessionTotals, formatTotal, type FaceAnnotation, type FaceSession } from '@/lib/faceograma'
 
-const TOOLS = [
-  { key: 'toxina',         label: 'Toxina botulínica', abbr: 'Tx', color: '#3B82F6', bg: '#DBEAFE' },
-  { key: 'preenchimento',  label: 'Preenchimento',     abbr: 'Pr', color: '#8B5CF6', bg: '#EDE9FE' },
-  { key: 'bioestimulador', label: 'Bioestimulador',    abbr: 'Bi', color: '#F59E0B', bg: '#FEF3C7' },
-  { key: 'fio',            label: 'Fio tensor',        abbr: 'Fi', color: '#EC4899', bg: '#FCE7F3' },
-  { key: 'ultrassom',      label: 'Ultrassom/Micro',   abbr: 'Us', color: '#10B981', bg: '#D1FAE5' },
-]
-const tColor = (k: string) => TOOLS.find(t => t.key === k)?.color ?? '#6B7280'
-const tBg    = (k: string) => TOOLS.find(t => t.key === k)?.bg    ?? '#F3F4F6'
-const tAbbr  = (k: string) => TOOLS.find(t => t.key === k)?.abbr  ?? '?'
-const tLabel = (k: string) => TOOLS.find(t => t.key === k)?.label ?? k
+const tColor = (k: string) => FACE_TOOLS.find(t => t.key === k)?.color ?? '#6B7280'
+const tBg    = (k: string) => FACE_TOOLS.find(t => t.key === k)?.bg    ?? '#F3F4F6'
+const tAbbr  = (k: string) => FACE_TOOLS.find(t => t.key === k)?.abbr  ?? '?'
+const tLabel = (k: string) => FACE_TOOLS.find(t => t.key === k)?.label ?? k
 
-interface Annotation { id: string; x: number; y: number; type: string; qty: string; note: string }
-interface Session    { id: string; date: string; notes: string; annotations: Annotation[] }
+type Annotation = FaceAnnotation
+type Session    = FaceSession
+const VW = FACE_VW
+const VH = FACE_VH
 
 function newSession(): Session {
   return { id: crypto.randomUUID(), date: new Date().toISOString().slice(0, 10), notes: '', annotations: [] }
 }
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
+// o nome da região acompanha o ponto quando é o automático; um nome que o profissional digitou fica
+function movedPatch(a: Annotation, x: number, y: number): Partial<Annotation> {
+  const auto = !a.region || a.region === faceRegion(a.x, a.y)
+  return auto ? { x, y, region: faceRegion(x, y) } : { x, y }
+}
+const fmtSessionDate = (iso: string) =>
+  new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' })
 
-// ViewBox dimensioned to match the anatomical reference image aspect ratio (1290×1068)
-const VW = 300
-const VH = Math.round(300 * (1068 / 1290)) // ≈ 248
+interface Props { record: MedicalRecord | null; patient: Patient; clinicId: string; onSaved: () => void; onDirtyChange?: (dirty: boolean) => void }
 
-interface Props { record: MedicalRecord | null; patient: Patient; clinicId: string; onSaved: () => void }
-
-export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
-  const [sessions,  setSessions]  = useState<Session[]>([newSession()])
+export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChange }: Props) {
+  const [initial]                  = useState<Session[]>(() => [newSession()])
+  const [sessions,  setSessions]  = useState<Session[]>(initial)
+  const [savedSnap, setSavedSnap] = useState(() => JSON.stringify(initial))
+  const [undoStack, setUndoStack] = useState<{ sid: string; annotations: Annotation[] }[]>([])
   const [activeIdx, setActiveIdx] = useState(0)
   const [tool,      setTool]      = useState('toxina')
   const [selId,     setSelId]     = useState<string | null>(null)
   const [saving,    setSaving]    = useState(false)
   const [saved,     setSaved]     = useState(false)
   const sidePanelRef = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const dragRef = useRef<{ id: string; cx: number; cy: number; moved: boolean } | null>(null)
+  const nudgeRef = useRef<{ id: string; t: number } | null>(null)
 
+  // O prontuário recarrega o registro quando QUALQUER aba salva. Só reaplica aqui se o faceograma
+  // mudou de fato; senão salvar outra aba apagaria o que foi marcado aqui e ainda não foi salvo.
+  const loadedKey = useRef<string | null>(null)
   useEffect(() => {
+    const key = JSON.stringify(record?.aesthetic_protocols ?? null)
+    if (key === loadedKey.current) return
+    loadedKey.current = key
     const raw = record?.aesthetic_protocols as Session[] | undefined
-    if (Array.isArray(raw) && raw.length > 0) { setSessions(raw); setActiveIdx(0) }
-    else setSessions([newSession()])
+    const next = Array.isArray(raw) && raw.length > 0 ? raw : [newSession()]
+    setSessions(next); setActiveIdx(0); setSavedSnap(JSON.stringify(next)); setUndoStack([])
   }, [record])
+
+  // avisa o prontuário, que pergunta antes de fechar com alterações não salvas
+  const dirty = JSON.stringify(sessions) !== savedSnap
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
   // Auto-scroll to side panel on mobile when a point is selected
   useEffect(() => {
@@ -57,6 +75,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
 
   const session = sessions[activeIdx]
   const selAnn  = session?.annotations.find(a => a.id === selId) ?? null
+  const totals  = sessionTotals(session?.annotations ?? [])
 
   function updSession(fn: (s: Session) => Session) {
     setSessions(prev => prev.map((s, i) => i === activeIdx ? fn(s) : s))
@@ -64,9 +83,28 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
   function updAnn(id: string, patch: Partial<Annotation>) {
     updSession(s => ({ ...s, annotations: s.annotations.map(a => a.id === id ? { ...a, ...patch } : a) }))
   }
+  // guarda os pontos da sessão antes de uma mudança, para o "Desfazer"
+  function rememberForUndo() {
+    setUndoStack(st => [...st.slice(-29), { sid: session.id, annotations: session.annotations }])
+  }
+  function undo() {
+    const last = undoStack[undoStack.length - 1]
+    if (!last) return
+    setUndoStack(st => st.slice(0, -1))
+    const idx = sessions.findIndex(s => s.id === last.sid)
+    if (idx < 0) return
+    setSessions(prev => prev.map(s => s.id === last.sid ? { ...s, annotations: last.annotations } : s))
+    setActiveIdx(idx)
+    setSelId(null)
+  }
   function delAnn(id: string) {
+    rememberForUndo()
     updSession(s => ({ ...s, annotations: s.annotations.filter(a => a.id !== id) }))
     setSelId(null)
+  }
+  function toSvg(e: { clientX: number; clientY: number }) {
+    const r = svgRef.current!.getBoundingClientRect()
+    return { x: Math.round(((e.clientX - r.left) / r.width) * VW), y: Math.round(((e.clientY - r.top) / r.height) * VH) }
   }
 
   function handleFaceClick(e: React.MouseEvent<SVGSVGElement>) {
@@ -77,7 +115,8 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
     for (const a of session.annotations) {
       if (Math.hypot(a.x - x, a.y - y) < 14) { setSelId(a.id === selId ? null : a.id); return }
     }
-    const ann: Annotation = { id: crypto.randomUUID(), x, y, type: tool, qty: '', note: '' }
+    const ann: Annotation = { id: crypto.randomUUID(), x, y, type: tool, qty: '', note: '', region: faceRegion(x, y) }
+    rememberForUndo()
     updSession(s => ({ ...s, annotations: [...s.annotations, ann] }))
     setSelId(ann.id)
   }
@@ -88,8 +127,20 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
     setActiveIdx(sessions.length)
     setSelId(null)
   }
-  function delSession(i: number) {
+  async function delSession(i: number) {
     if (sessions.length === 1) return
+    const target = sessions[i]
+    if (target.annotations.length > 0 || target.notes.trim()) {
+      const n = target.annotations.length
+      const ok = await confirmDialog({
+        title: 'Excluir esta sessão?',
+        message: `A sessão de ${fmtSessionDate(target.date)}${n > 0 ? ` e ${n === 1 ? 'o ponto marcado' : `os ${n} pontos marcados`}` : ''} serão removidos. Isso só vale depois de salvar o faceograma.`,
+        confirmText: 'Excluir sessão',
+        cancelText: 'Manter',
+        danger: true,
+      })
+      if (!ok) return
+    }
     const next = sessions.filter((_, idx) => idx !== i)
     setSessions(next)
     setActiveIdx(Math.min(activeIdx, next.length - 1))
@@ -105,6 +156,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
     }
     if (record?.id) await supabase.from('medical_records').update(payload).eq('id', record.id)
     else            await supabase.from('medical_records').insert([payload])
+    setSavedSnap(JSON.stringify(sessions)); setUndoStack([])
     setSaved(true); setTimeout(() => setSaved(false), 2500)
     setSaving(false); onSaved()
   }
@@ -121,9 +173,10 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
             <div key={s.id}
               className={`${styles.sessionTab} ${i === activeIdx ? styles.sessionTabActive : ''}`}
               onClick={() => { setActiveIdx(i); setSelId(null) }}>
-              {new Date(s.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' })}
+              {fmtSessionDate(s.date)}
               {sessions.length > 1 && (
                 <button type="button" className={styles.sessionDel}
+                  aria-label={`Excluir a sessão de ${fmtSessionDate(s.date)}`}
                   onClick={e => { e.stopPropagation(); delSession(i) }}>×</button>
               )}
             </div>
@@ -140,7 +193,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
           {/* Tool selector */}
           <div className={styles.toolbar} data-hscroll>
             <span className={styles.toolbarLabel}>Marcar:</span>
-            {TOOLS.map(t => (
+            {FACE_TOOLS.map(t => (
               <button key={t.key} type="button"
                 aria-label={t.label}
                 aria-pressed={tool === t.key}
@@ -156,6 +209,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
           {/* Anatomical face reference + annotation overlay */}
           <div className={styles.faceWrap}>
             <svg
+              ref={svgRef}
               viewBox={`0 0 ${VW} ${VH}`}
               className={styles.faceSvg}
               onClick={handleFaceClick}
@@ -174,8 +228,52 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
                 const isSel = a.id === selId
                 const col   = tColor(a.type)
                 return (
-                  <g key={a.id} style={{ cursor: 'pointer' }}
-                    onClick={e => { e.stopPropagation(); setSelId(a.id === selId ? null : a.id) }}>
+                  <g key={a.id} className={styles.point}
+                    style={{ cursor: 'grab', touchAction: isSel ? 'none' : undefined }}
+                    role="button" tabIndex={0}
+                    aria-label={`${tLabel(a.type)}${a.region ? `, ${a.region}` : ''}${a.qty ? `, ${a.qty}` : ''}. Enter edita, setas movem, Delete remove.`}
+                    onPointerDown={e => {
+                      if (e.button !== 0) return
+                      // no toque, só arrasta o ponto que já está selecionado (senão atrapalha rolar a tela)
+                      if (e.pointerType === 'touch' && a.id !== selId) return
+                      dragRef.current = { id: a.id, cx: e.clientX, cy: e.clientY, moved: false }
+                      e.currentTarget.setPointerCapture(e.pointerId)
+                    }}
+                    onPointerMove={e => {
+                      const d = dragRef.current
+                      if (!d || d.id !== a.id) return
+                      if (!d.moved) {
+                        if (Math.hypot(e.clientX - d.cx, e.clientY - d.cy) < 5) return
+                        d.moved = true
+                        rememberForUndo()
+                      }
+                      const p = toSvg(e)
+                      updAnn(a.id, movedPatch(a, clamp(p.x, 0, VW), clamp(p.y, 0, VH)))
+                    }}
+                    onPointerUp={() => { setTimeout(() => { dragRef.current = null }, 0) }}
+                    onPointerCancel={() => { setTimeout(() => { dragRef.current = null }, 0) }}
+                    onKeyDown={e => {
+                      const step = e.shiftKey ? 8 : 2
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelId(a.id) }
+                      else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); delAnn(a.id) }
+                      else if (e.key.startsWith('Arrow')) {
+                        e.preventDefault()
+                        // setas seguidas no mesmo ponto contam como um único passo do "Desfazer"
+                        const now = Date.now()
+                        if (nudgeRef.current?.id !== a.id || now - nudgeRef.current.t > 800) rememberForUndo()
+                        nudgeRef.current = { id: a.id, t: now }
+                        updAnn(a.id, movedPatch(
+                          a,
+                          clamp(a.x + (e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0), 0, VW),
+                          clamp(a.y + (e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0), 0, VH),
+                        ))
+                      }
+                    }}
+                    onClick={e => {
+                      e.stopPropagation()
+                      if (dragRef.current?.moved) { setSelId(a.id); return }
+                      setSelId(a.id === selId ? null : a.id)
+                    }}>
                     {isSel && (
                       <circle cx={a.x} cy={a.y} r={20} fill="none"
                         stroke={col} strokeWidth="1.2" strokeDasharray="3,2" opacity="0.7"/>
@@ -197,9 +295,14 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
             </svg>
           </div>
 
-          <p className={styles.faceHint}>
-            Clique no rosto para marcar · Clique num ponto para editar
-          </p>
+          <div className={styles.faceFoot}>
+            <p className={styles.faceHint}>
+              Clique no rosto para marcar · Clique num ponto para editar · Arraste para mover
+            </p>
+            <button type="button" className={styles.undoBtn} onClick={undo} disabled={undoStack.length === 0}>
+              Desfazer
+            </button>
+          </div>
         </div>
 
         {/* ── Side panel ── */}
@@ -224,23 +327,30 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
               <div className={styles.annHeader}>
                 <span className={styles.annDot} style={{ background: tColor(selAnn.type) }}/>
                 <span className={styles.annTitle}>{tLabel(selAnn.type)}</span>
-                <button type="button" className={styles.annDel} onClick={() => delAnn(selAnn.id)}><Icon name="close" size={13} /></button>
+                <button type="button" className={styles.annDel} onClick={() => delAnn(selAnn.id)} aria-label="Remover este ponto" title="Remover este ponto"><Icon name="close" size={13} /></button>
               </div>
 
               <div className={styles.annFields}>
                 <div className={styles.annField}>
                   <p className={styles.annFieldLabel}>Tipo de tratamento</p>
                   <div className={styles.typeGrid}>
-                    {TOOLS.map(t => (
+                    {FACE_TOOLS.map(t => (
                       <button key={t.key} type="button"
                         className={`${styles.typeBtn} ${selAnn.type === t.key ? styles.typeBtnActive : ''}`}
                         style={{ '--tc': t.color, '--tbg': t.bg } as React.CSSProperties}
-                        onClick={() => updAnn(selAnn.id, { type: t.key })}>
+                        onClick={() => { if (selAnn.type !== t.key) { rememberForUndo(); updAnn(selAnn.id, { type: t.key }) } }}>
                         <span style={{ background: t.color, width: 7, height: 7, borderRadius: '50%', display: 'inline-block' }}/>
                         {t.label}
                       </button>
                     ))}
                   </div>
+                </div>
+                <div className={styles.annField}>
+                  <label className={styles.annFieldLabel} htmlFor="annRegion">Região</label>
+                  <input id="annRegion" type="text" className={styles.annInput}
+                    value={selAnn.region ?? ''}
+                    placeholder="ex: Glabela, Frontal..."
+                    onChange={e => updAnn(selAnn.id, { region: e.target.value })}/>
                 </div>
                 <div className={styles.annField}>
                   <p className={styles.annFieldLabel}>Dose / Volume</p>
@@ -260,6 +370,26 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
             </div>
           )}
 
+          {/* Total por produto na sessão */}
+          {totals.totals.length > 0 && (
+            <div className={styles.sideSec}>
+              <p className={styles.sideLabel}>Total da sessão</p>
+              <ul className={styles.totals}>
+                {totals.totals.map(t => (
+                  <li key={`${t.tool}|${t.unit}`} style={{ '--ann-color': tColor(t.tool) } as React.CSSProperties}>
+                    <span className={styles.annItemDot} style={{ background: tColor(t.tool) }}/>
+                    <span className={styles.totalName}>{tLabel(t.tool)}</span>
+                    <b>{formatTotal(t)}</b>
+                    <small>{t.points} {t.points === 1 ? 'ponto' : 'pontos'}</small>
+                  </li>
+                ))}
+              </ul>
+              {totals.semDose > 0 && (
+                <p className={styles.totalsHint}>{totals.semDose} {totals.semDose === 1 ? 'ponto sem dose preenchida' : 'pontos sem dose preenchida'} não entram na soma.</p>
+              )}
+            </div>
+          )}
+
           {/* Annotations list */}
           {session.annotations.length > 0 && (
             <div className={styles.sideSec}>
@@ -272,7 +402,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
                     onClick={() => setSelId(a.id === selId ? null : a.id)}>
                     <span className={styles.annItemDot} style={{ background: tColor(a.type) }}/>
                     <div className={styles.annItemBody}>
-                      <span className={styles.annItemName}>{tLabel(a.type)}</span>
+                      <span className={styles.annItemName}>{tLabel(a.type)}{a.region ? ` · ${a.region}` : ''}</span>
                       {a.qty  && <span className={styles.annItemQty}>{a.qty}</span>}
                       {a.note && <span className={styles.annItemNote}>{a.note}</span>}
                     </div>
@@ -295,6 +425,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved }: Props) {
 
       {/* ── Save ── */}
       <div className={styles.saveRow}>
+        {dirty && !saving && <span className={styles.unsavedMsg}>Alterações não salvas</span>}
         {saved && <span className={styles.savedMsg}><Icon name="check" size={12} /> Salvo com sucesso!</span>}
         <button type="button" className={styles.btnSave} onClick={handleSave} disabled={saving}>
           {saving ? 'Salvando...' : 'Salvar Faceograma'}

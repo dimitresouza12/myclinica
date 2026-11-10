@@ -1,31 +1,21 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { Patient, MedicalRecord } from '@/types'
+import { useAuthStore } from '@/store/auth'
+import type { Patient, MedicalRecord, OdontogramHistoryEntry } from '@/types'
 import styles from './TabOdontograma.module.css'
 import { Icon } from '@/components/ui/Icon'
-
-// ── Status ──────────────────────────────────────────────────────
-export const TOOTH_STATUS = [
-  { key: 'higido',     label: 'Hígido',       color: '#10b981', bg: '#d1fae5' },
-  { key: 'cariado',    label: 'Cariado',       color: '#ef4444', bg: '#fee2e2' },
-  { key: 'restaurado', label: 'Restaurado',    color: '#3b82f6', bg: '#dbeafe' },
-  { key: 'ausente',    label: 'Ausente',       color: '#6b7280', bg: '#f3f4f6' },
-  { key: 'implante',   label: 'Implante',      color: '#f59e0b', bg: '#fef3c7' },
-  { key: 'coroa',      label: 'Coroa',         color: '#14b8a6', bg: '#ccfbf1' },
-  { key: 'tratamento', label: 'Em Tratamento', color: '#ec4899', bg: '#fce7f3' },
-  { key: 'fraturado',  label: 'Fraturado',     color: '#ea580c', bg: '#ffedd5' },
-  { key: 'selante',    label: 'Selante',       color: '#7c3aed', bg: '#ede9fe' },
-  { key: 'extracao',   label: 'Extração Indicada', color: '#b91c1c', bg: '#fecaca' },
-  { key: 'protese',    label: 'Prótese',       color: '#0891b2', bg: '#cffafe' },
-]
-function statusColor(k: string) { return TOOTH_STATUS.find(s => s.key === k)?.color ?? '#10b981' }
-function statusBg(k: string)    { return TOOTH_STATUS.find(s => s.key === k)?.bg    ?? '#d1fae5' }
+import { Modal } from '@/components/ui/Modal'
+import btn from '@/components/ui/button.module.css'
+import { ArcadaImagem, type ToothLook, type ArcadaView } from './odontograma/ArcadaImagem'
+import {
+  TOOTH_STATUS, DEFAULT_STATUS, UPPER, LOWER, ALL_TEETH, FACE_NAME,
+  statusColor, statusBg, statusLabel, toothMarks, plannedMarks, type SurfaceKey, type MarkKey,
+} from '@/lib/odontograma'
+import { OrcamentoOdontoModal } from './odontograma/OrcamentoOdontoModal'
 
 // ── FDI ─────────────────────────────────────────────────────────
-const UPPER = [18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28]
-const LOWER = [48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38]
-const DEFAULT_STATUS = 'higido'
 function isUpper(n: number) { return n >= 11 && n <= 28 }
 
 // ── Anatomy: viewBox 0 0 56 96 ────────────────────────────────
@@ -120,7 +110,6 @@ function getAnatomy(num: number): ToothAnatomy {
 }
 
 // ── Surface data ─────────────────────────────────────────────────
-type SurfaceKey = 'v'|'l'|'m'|'d'|'o'
 const SURFACES: {key:SurfaceKey;label:string;x:number;y:number;w:number;h:number}[] = [
   {key:'v',label:'V',x:13,y:2, w:14,h:12},
   {key:'l',label:'L',x:13,y:26,w:14,h:12},
@@ -129,7 +118,13 @@ const SURFACES: {key:SurfaceKey;label:string;x:number;y:number;w:number;h:number
   {key:'o',label:'O',x:13,y:13,w:14,h:14},
 ]
 
-interface ToothData { status: string; surfaces: Record<SurfaceKey,string>; note?: string }
+interface ToothData { status: string; surfaces: Record<SurfaceKey,string>; note?: string; planned?: Partial<Record<MarkKey, boolean>> }
+// tira as chaves falsas para o dente ficar igual ao que veio do banco
+function withPlanned(d: ToothData, key: MarkKey, on: boolean): ToothData {
+  const planned = { ...d.planned }
+  if (on) planned[key] = true; else delete planned[key]
+  return { ...d, planned: Object.keys(planned).length ? planned : undefined }
+}
 function emptyTooth(): ToothData {
   return { status: DEFAULT_STATUS, surfaces: {v:'higido',l:'higido',m:'higido',d:'higido',o:'higido'}, note: '' }
 }
@@ -230,134 +225,562 @@ function SurfaceDiagram({ data, activeSurface, onSurfaceClick }: {
   )
 }
 
-// ── Props / Main ──────────────────────────────────────────────────
-interface Props { record: MedicalRecord|null; patient: Patient; clinicId: string; onSaved: ()=>void }
+// ── Textos clínicos por dente ──────────────────────────────────────
+const POSITION_NAME = ['', 'Incisivo central', 'Incisivo lateral', 'Canino', '1º pré-molar', '2º pré-molar', '1º molar', '2º molar', '3º molar (siso)']
+const QUADRANT_NAME = ['', 'Superior direito', 'Superior esquerdo', 'Inferior esquerdo', 'Inferior direito']
+// o que fazer com cada condição (usado nos cartões e nas recomendações; regra fixa, não é IA)
+const NEXT_STEP: Record<string, string> = {
+  cariado: 'Restauração recomendada', fraturado: 'Avaliar restauração ou coroa', extracao: 'Agendar a extração',
+  tratamento: 'Continuar o tratamento', implante: 'Acompanhar o implante', coroa: 'Revisar a coroa na manutenção',
+  restaurado: 'Acompanhar a restauração', selante: 'Acompanhar o selante', protese: 'Revisar a prótese',
+  ausente: 'Avaliar reposição (implante ou prótese)',
+}
+// nome do procedimento no histórico
+const PROCEDURE: Record<string, string> = {
+  higido: 'Marcado como hígido', cariado: 'Cárie registrada', restaurado: 'Restauração', ausente: 'Ausência registrada',
+  implante: 'Implante', coroa: 'Coroa', tratamento: 'Início de tratamento', fraturado: 'Fratura registrada',
+  selante: 'Selante', extracao: 'Extração indicada', protese: 'Prótese',
+}
+const DONE = new Set(['higido', 'restaurado', 'implante', 'coroa', 'selante', 'protese'])
+const URGENT = new Set(['cariado', 'fraturado', 'extracao', 'tratamento'])
 
-export function TabOdontograma({ record, patient, clinicId, onSaved }: Props) {
+function toothAlterations(d: ToothData): string[] {
+  const out: string[] = []
+  if (d.status !== DEFAULT_STATUS) out.push(d.status)
+  for (const k of Object.keys(d.surfaces) as SurfaceKey[]) {
+    const v = d.surfaces[k]
+    if (v && v !== DEFAULT_STATUS && !out.includes(v)) out.push(v)
+  }
+  return out
+}
+function affectedFaces(d: ToothData) {
+  return SURFACES.filter(s => d.surfaces[s.key] && d.surfaces[s.key] !== DEFAULT_STATUS)
+}
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(' de ', ' ').replace('.', '')
+
+/** Miniatura do dente (coroa do desenho 2D) para os cartões. */
+function ToothThumb({ num, status }: { num: number; status: string }) {
+  const { crown, detail } = getAnatomy(num)
+  const ink = status === DEFAULT_STATUS ? '#8A8272' : statusColor(status)
+  return (
+    <span className={styles.thumb} aria-hidden="true">
+      <svg viewBox="0 0 56 60" style={{ transform: isUpper(num) ? 'scaleY(-1)' : undefined }}>
+        <path d={crown} fill="#FBF8F1" stroke={ink} strokeWidth="2" strokeLinejoin="round" />
+        {status !== DEFAULT_STATUS && <path d={crown} fill={statusColor(status)} opacity="0.22" />}
+        {detail && <path d={detail} fill="none" stroke={ink} strokeWidth="1.2" strokeLinecap="round" opacity="0.45" />}
+      </svg>
+    </span>
+  )
+}
+
+// ── Props / Main ──────────────────────────────────────────────────
+interface Props { record: MedicalRecord|null; patient: Patient; clinicId: string; onSaved: ()=>void; onDirtyChange?: (dirty: boolean) => void }
+
+function readTeeth(raw: Record<string, unknown>): Record<number, ToothData> {
+  const loaded: Record<number, ToothData> = {}
+  for (const num of ALL_TEETH) {
+    const v = raw[num]
+    if (!v) loaded[num] = emptyTooth()
+    else if (typeof v === 'string') loaded[num] = { ...emptyTooth(), status: v }
+    else loaded[num] = { ...emptyTooth(), ...(v as Partial<ToothData>), surfaces: { ...emptyTooth().surfaces, ...((v as Partial<ToothData>).surfaces ?? {}) } }
+  }
+  return loaded
+}
+
+export function TabOdontograma({ record, patient, clinicId, onSaved, onDirtyChange }: Props) {
+  const router = useRouter()
+  const userName = useAuthStore(s => s.user?.displayName ?? '')
   const [teeth, setTeeth]             = useState<Record<number,ToothData>>({})
+  const [savedTeeth, setSavedTeeth]   = useState<Record<number,ToothData>>({})
+  const [history, setHistory]         = useState<OdontogramHistoryEntry[]>([])
   const [selectedTooth, setSelected]  = useState<number|null>(null)
+  const [hoverTooth, setHover]        = useState<number|null>(null)
   const [activeSurface, setActiveSurf]= useState<SurfaceKey|null>(null)
+  const [mode, setMode]               = useState<'plano'|'historico'>('plano')
+  const [zoom, setZoom]               = useState(0)
+  const [view, setView]               = useState<ArcadaView>('frente')
+  const [noImages, setNoImages]       = useState(false)
   const [saving, setSaving]           = useState(false)
   const [saved, setSaved]             = useState(false)
+  const [detailOpen, setDetailOpen]   = useState(false)
+  const [nextPlanned, setNextPlanned] = useState(false)
+  const [budgetOpen, setBudgetOpen]   = useState(false)
 
+  // O prontuário recarrega o registro quando QUALQUER aba salva. Só reaplica aqui se o odontograma
+  // mudou de fato; senão salvar o faceograma apagaria o que foi marcado aqui e ainda não foi salvo.
+  const loadedKey = useRef<string | null>(null)
   useEffect(() => {
-    const raw = (record?.odontogram??{}) as Record<string,unknown>
-    const loaded: Record<number,ToothData> = {}
-    for (const num of [...UPPER,...LOWER]) {
-      const v = raw[num]
-      if (!v) loaded[num]=emptyTooth()
-      else if (typeof v==='string') loaded[num]={...emptyTooth(),status:v}
-      else loaded[num]={...emptyTooth(),...(v as Partial<ToothData>)}
-    }
+    const key = JSON.stringify(record?.odontogram ?? null)
+    if (key === loadedKey.current) return
+    loadedKey.current = key
+    const raw = (record?.odontogram ?? {}) as Record<string, unknown>
+    const loaded = readTeeth(raw)
     setTeeth(loaded)
+    setSavedTeeth(loaded)
+    setHistory(Array.isArray(raw._history) ? (raw._history as OdontogramHistoryEntry[]) : [])
   }, [record])
 
-  function handleToothClick(num: number) {
-    if (selectedTooth===num) {
-      setSelected(null); setActiveSurf(null); return
-    }
+  function selectTooth(num: number | null) {
     setSelected(num); setActiveSurf(null)
+  }
+  // clicar num dente (na arcada ou na análise) abre o detalhe dele num modal
+  function openTooth(num: number) {
+    selectTooth(num); setDetailOpen(true)
+  }
+  function closeDetail() { setDetailOpen(false) }
+  // anterior/próximo dente da mesma arcada, de dentro do modal
+  function stepTooth(dir: -1 | 1) {
+    if (selectedTooth === null) return
+    const row = UPPER.includes(selectedTooth) ? UPPER : LOWER
+    const next = row[row.indexOf(selectedTooth) + dir]
+    if (next === undefined) return
+    if (view === 'frente' && next % 10 === 8) setView('cima')
+    selectTooth(next)
   }
   function handleSurfaceClick(s: SurfaceKey) {
     if (selectedTooth===null) return
     setActiveSurf(prev => prev===s ? null : s)
   }
   // Aplicar status nunca fecha o painel — dá pra escrever a observação ou
-  // pintar outra face em seguida sem reabrir. Só fecha ao clicar de novo
-  // no mesmo dente, em outro dente, ou no X.
+  // pintar outra face em seguida sem reabrir. Clicar de novo na condição que já
+  // está marcada desmarca; "Hígido" no dente inteiro limpa o dente e as faces.
   function applyStatus(status: string) {
     if (selectedTooth===null) return
+    const n = selectedTooth
     if (activeSurface) {
-      setTeeth(p=>({...p,[selectedTooth]:{...p[selectedTooth],surfaces:{...p[selectedTooth].surfaces,[activeSurface]:status}}}))
+      const face = activeSurface
+      setTeeth(p=>{
+        const next = p[n].surfaces[face]===status ? DEFAULT_STATUS : status
+        const d = {...p[n],surfaces:{...p[n].surfaces,[face]:next}}
+        return {...p,[n]:withPlanned(d, face, next!==DEFAULT_STATUS && nextPlanned)}
+      })
       setActiveSurf(null)
+    } else if (status===DEFAULT_STATUS) {
+      setTeeth(p=>({...p,[n]:{...p[n],status:DEFAULT_STATUS,surfaces:emptyTooth().surfaces,planned:undefined}}))
     } else {
-      setTeeth(p=>({...p,[selectedTooth]:{...p[selectedTooth],status}}))
+      setTeeth(p=>{
+        const next = p[n].status===status?DEFAULT_STATUS:status
+        return {...p,[n]:withPlanned({...p[n],status:next}, 'all', next!==DEFAULT_STATUS && nextPlanned)}
+      })
     }
   }
+  // "existente" ou "a realizar" da marcação que está em foco (dente inteiro ou a face escolhida)
+  function setPlanned(on: boolean) {
+    setNextPlanned(on)
+    if (selectedTooth===null) return
+    const n = selectedTooth
+    const key: MarkKey = activeSurface ?? 'all'
+    setTeeth(p=>{
+      const d = p[n]
+      const marked = key==='all' ? d.status!==DEFAULT_STATUS : d.surfaces[key]!==DEFAULT_STATUS
+      return marked ? {...p,[n]:withPlanned(d,key,on)} : p
+    })
+  }
+  // marca como feito um procedimento que estava no plano
+  function markDone(key: MarkKey) {
+    if (selectedTooth===null) return
+    const n = selectedTooth
+    setTeeth(p=>({...p,[n]:withPlanned(p[n],key,false)}))
+  }
+  // tira uma marcação só (o dente inteiro ou uma face)
+  function clearMark(face: SurfaceKey | null) {
+    if (selectedTooth===null) return
+    const n = selectedTooth
+    setTeeth(p=>face
+      ? {...p,[n]:withPlanned({...p[n],surfaces:{...p[n].surfaces,[face]:DEFAULT_STATUS}}, face, false)}
+      : {...p,[n]:withPlanned({...p[n],status:DEFAULT_STATUS}, 'all', false)})
+  }
+  // volta o dente ao que estava no último salvamento
+  function undoTooth() {
+    if (selectedTooth===null) return
+    const n = selectedTooth
+    setTeeth(p=>({...p,[n]:savedTeeth[n] ?? emptyTooth()}))
+    setActiveSurf(null)
+  }
+  function toothChanged(n: number) {
+    const a = teeth[n], b = savedTeeth[n]
+    if (!a || !b) return false
+    return a.status!==b.status || (a.note??'')!==(b.note??'') ||
+      (Object.keys(a.surfaces) as SurfaceKey[]).some(k=>a.surfaces[k]!==b.surfaces[k]) ||
+      (['all','v','l','m','d','o'] as MarkKey[]).some(k=>!!a.planned?.[k]!==!!b.planned?.[k])
+  }
+  const dirtyAny = ALL_TEETH.some(toothChanged)
+  // avisa o prontuário, que pergunta antes de fechar com alterações não salvas
+  useEffect(() => { onDirtyChange?.(dirtyAny) }, [dirtyAny, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
+
+  // o que mudou desde o último salvamento vira linhas do histórico
+  function pendingEntries(): OdontogramHistoryEntry[] {
+    const at = new Date().toISOString()
+    const out: OdontogramHistoryEntry[] = []
+    for (const num of ALL_TEETH) {
+      const now = teeth[num], before = savedTeeth[num]
+      if (!now || !before) continue
+      const planned = (d: ToothData, k: MarkKey, status: string) => status !== DEFAULT_STATUS && !!d.planned?.[k]
+      if (now.status !== before.status || planned(now, 'all', now.status) !== planned(before, 'all', before.status)) {
+        out.push({ at, tooth: num, status: now.status, by: userName, ...(planned(now, 'all', now.status) ? { planned: true } : {}) })
+      }
+      for (const k of Object.keys(now.surfaces) as SurfaceKey[]) {
+        if (now.surfaces[k] !== before.surfaces[k] || planned(now, k, now.surfaces[k]) !== planned(before, k, before.surfaces[k])) {
+          out.push({ at, tooth: num, face: k, status: now.surfaces[k], by: userName, ...(planned(now, k, now.surfaces[k]) ? { planned: true } : {}) })
+        }
+      }
+    }
+    return out
+  }
+
   async function handleSave() {
     setSaving(true)
+    const nextHistory = [...history, ...pendingEntries()]
     const payload={clinic_id:clinicId,patient_id:patient.id,
-      odontogram:teeth as Record<string,{status:string;surfaces?:Record<string,string>}>,
+      odontogram:{ ...teeth, _history: nextHistory } as MedicalRecord['odontogram'],
       updated_at:new Date().toISOString()}
     if (record?.id) await supabase.from('medical_records').update(payload).eq('id',record.id)
     else await supabase.from('medical_records').insert([payload])
+    setHistory(nextHistory)
+    setSavedTeeth(teeth)
     setSaved(true); setTimeout(()=>setSaved(false),2500)
     setSaving(false); onSaved()
   }
 
+  // aparência de cada dente na arcada
+  const looks = useMemo(() => {
+    const touched = new Set(history.map(h => h.tooth))
+    const out: Record<number, ToothLook> = {}
+    for (const num of ALL_TEETH) {
+      const d = teeth[num] ?? emptyTooth()
+      const ghost = d.status === 'ausente'
+      if (mode === 'historico') { out[num] = { color: touched.has(num) ? '#2BC4A9' : null, ghost }; continue }
+      // o que já existe manda na cor; o que só está planejado aparece mais suave e tracejado
+      const marks = toothMarks(num, d)
+      const main = marks.find(m => !m.planned) ?? marks[0]
+      out[num] = { color: ghost || !main ? null : statusColor(main.status), ghost, planned: !!main?.planned }
+    }
+    return out
+  }, [teeth, history, mode])
+
+  const analysis = ALL_TEETH.filter(n => teeth[n] && (toothAlterations(teeth[n]).length > 0 || teeth[n].note?.trim()))
+  const urgent = ALL_TEETH.filter(n => teeth[n] && toothAlterations(teeth[n]).some(a => URGENT.has(a)))
+  const risk = urgent.some(n => toothAlterations(teeth[n]).some(a => a === 'extracao' || a === 'fraturado')) || urgent.length >= 3
+    ? 'alto' : urgent.length > 0 ? 'moderado' : 'baixo'
+  // legenda: só as condições que aparecem neste odontograma, com a contagem de dentes
+  const legend = TOOTH_STATUS.filter(s => s.key !== DEFAULT_STATUS)
+    .map(s => ({ ...s, count: ALL_TEETH.filter(n => teeth[n] && toothAlterations(teeth[n]).includes(s.key)).length }))
+    .filter(s => s.count > 0)
+  const plannedList = plannedMarks(teeth)
+  const byStatus = (k: string) => ALL_TEETH.filter(n => teeth[n] && toothAlterations(teeth[n]).includes(k))
+
   const selData = selectedTooth!==null ? teeth[selectedTooth] : null
+  const hoverData = hoverTooth !== null ? teeth[hoverTooth] : null
+
+  // teclado no palco: setas andam pelos dentes, para cima e para baixo trocam de arcada
+  function onStageKey(e: React.KeyboardEvent) {
+    const cur = selectedTooth ?? 11
+    const row = UPPER.includes(cur) ? UPPER : LOWER
+    const i = row.indexOf(cur)
+    let next: number | null = null
+    if (e.key === 'ArrowRight') next = row[Math.min(row.length - 1, i + 1)]
+    else if (e.key === 'ArrowLeft') next = row[Math.max(0, i - 1)]
+    else if (e.key === 'ArrowDown' && row === UPPER) next = LOWER[i]
+    else if (e.key === 'ArrowUp' && row === LOWER) next = UPPER[i]
+    else if ((e.key === 'Enter' || e.key === ' ') && selectedTooth !== null) { setDetailOpen(true); e.preventDefault(); return }
+    else if (e.key === 'Escape' && selectedTooth !== null) { selectTooth(null); e.preventDefault(); return }
+    if (next !== null) {
+      e.preventDefault()
+      if (view === 'frente' && next % 10 === 8) setView('cima')
+      selectTooth(next)
+    }
+  }
+
+  const risco = { alto: 'Risco alto', moderado: 'Risco moderado', baixo: 'Risco baixo' }[risk]
+  const recTitle = { alto: 'Atenção imediata', moderado: 'Tratamento indicado', baixo: 'Cuidado preventivo' }[risk]
+  const recParts: string[] = []
+  const carie = byStatus('cariado'), frat = byStatus('fraturado'), ext = byStatus('extracao'), trat = byStatus('tratamento')
+  if (carie.length) recParts.push(`${carie.length} ${carie.length > 1 ? 'dentes com cárie' : 'dente com cárie'} (${carie.join(', ')})`)
+  if (frat.length) recParts.push(`${frat.length} ${frat.length > 1 ? 'fraturados' : 'fraturado'} (${frat.join(', ')})`)
+  if (ext.length) recParts.push(`extração indicada em ${ext.join(', ')}`)
+  if (trat.length) recParts.push(`tratamento em andamento em ${trat.join(', ')}`)
+  const recText = recParts.length
+    ? `${recParts.join('; ').replace(/^./, c => c.toUpperCase())}. Vale agendar o tratamento nas próximas semanas.`
+    : 'Nenhuma alteração pedindo tratamento agora. Recomendado manter a limpeza e a revisão a cada 6 meses.'
 
   return (
-    <div className={styles.wrap}>
-      {/* Arcade */}
-      <div className={styles.arcade} data-hscroll>
-        <div className={styles.arcadeLabel}>Superior</div>
-        <div className={styles.teethRow}>
-          {UPPER.map(n=><ToothSVG key={n} num={n} data={teeth[n]??emptyTooth()} selected={selectedTooth===n} onClick={()=>handleToothClick(n)}/>)}
+    <div className={styles.board}>
+      {/* ── Palco da arcada ── */}
+      <section className={styles.stageCard}>
+        <div className={styles.viewTabs} role="group" aria-label="Ângulo da arcada">
+          <button type="button" aria-pressed={view === 'frente'} className={`${styles.viewTab} ${view === 'frente' ? styles.viewTabOn : ''}`} onClick={() => setView('frente')}>Frente</button>
+          <button type="button" aria-pressed={view === 'cima'} className={`${styles.viewTab} ${view === 'cima' ? styles.viewTabOn : ''}`} onClick={() => setView('cima')}>Vista de cima</button>
         </div>
-        <div className={styles.midline}/>
-        <div className={styles.teethRow}>
-          {LOWER.map(n=><ToothSVG key={n} num={n} data={teeth[n]??emptyTooth()} selected={selectedTooth===n} onClick={()=>handleToothClick(n)}/>)}
+        <div className={styles.modeTabs} role="group" aria-label="Visão da arcada">
+          <button type="button" aria-pressed={mode === 'plano'} className={`${styles.modeTab} ${mode === 'plano' ? styles.modeTabOn : ''}`} onClick={() => setMode('plano')}>Plano de tratamento</button>
+          <button type="button" aria-pressed={mode === 'historico'} className={`${styles.modeTab} ${mode === 'historico' ? styles.modeTabOn : ''}`} onClick={() => setMode('historico')}>Histórico</button>
         </div>
-        <div className={styles.arcadeLabel}>Inferior</div>
-      </div>
 
-      {/* Selection panel */}
-      {selectedTooth!==null && selData && (
-        <div className={styles.selPanel}>
-          <div className={styles.selPanelHeader}>
-            <span className={styles.selPanelTitle}>Dente {selectedTooth}</span>
-            <button type="button" className={styles.selPanelClose} onClick={()=>{setSelected(null);setActiveSurf(null)}}><Icon name="close" size={16} /></button>
-          </div>
-          <div className={styles.selPanelBody}>
-            <div className={styles.selPanelLeft}>
-              <p className={styles.selPanelSub}>Faces</p>
-              <SurfaceDiagram data={selData} activeSurface={activeSurface} onSurfaceClick={handleSurfaceClick}/>
-              <p className={styles.selPanelHint}>{activeSurface?`Face: ${SURFACES.find(s=>s.key===activeSurface)?.label} — clique de novo pra desmarcar`:'Clique numa face pra pintar só ela'}</p>
+        {noImages ? (
+          <div className={styles.arcade} data-hscroll>
+            <div className={styles.teethRow}>
+              {UPPER.map(n=><ToothSVG key={n} num={n} data={teeth[n]??emptyTooth()} selected={selectedTooth===n} onClick={()=>openTooth(n)}/>)}
             </div>
-            <div className={styles.selPanelRight}>
-              <p className={styles.selPanelSub}>{activeSurface?`Status da face ${SURFACES.find(s=>s.key===activeSurface)?.label}`:'Status do dente inteiro'}</p>
-              <div className={styles.statusGrid}>
-                {TOOTH_STATUS.map(s=>{
-                  const isCurr=activeSurface?selData.surfaces[activeSurface]===s.key:selData.status===s.key
-                  return (
-                    <button key={s.key} type="button"
-                      className={`${styles.statusBtn} ${isCurr?styles.statusBtnActive:''}`}
-                      style={{'--st-color':s.color,'--st-bg':s.bg} as React.CSSProperties}
-                      onClick={()=>applyStatus(s.key)}>
-                      <span className={styles.statusDot} style={{background:s.color}}/>{s.label}
-                    </button>
-                  )
-                })}
-              </div>
-              {!activeSurface && (
-                <div className={styles.noteField}>
-                  <p className={styles.selPanelSub}>Observação do dente</p>
-                  <textarea
-                    className={styles.noteTextarea}
-                    rows={2}
-                    value={selData.note ?? ''}
-                    placeholder="Ex: extrair e colocar implante"
-                    onChange={e => setTeeth(p => ({ ...p, [selectedTooth]: { ...p[selectedTooth], note: e.target.value } }))}
-                  />
+            <div className={styles.midline}/>
+            <div className={styles.teethRow}>
+              {LOWER.map(n=><ToothSVG key={n} num={n} data={teeth[n]??emptyTooth()} selected={selectedTooth===n} onClick={()=>openTooth(n)}/>)}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className={styles.zoom}>
+              <button type="button" className={styles.zoomBtn} aria-label="Aproximar" onClick={() => setZoom(z => Math.min(1, z + 0.15))}><span aria-hidden="true">+</span></button>
+              <input
+                type="range" min={0} max={100} value={Math.round(zoom * 100)}
+                onChange={e => setZoom(Number(e.target.value) / 100)}
+                className={styles.zoomRange} aria-label="Aproximar a arcada"
+              />
+              <button type="button" className={styles.zoomBtn} aria-label="Afastar" onClick={() => setZoom(z => Math.max(0, z - 0.15))}><span aria-hidden="true">−</span></button>
+            </div>
+            <div
+              className={styles.stage}
+              tabIndex={0}
+              role="application"
+              aria-roledescription="arcada dentária"
+              aria-label="Arcada dentária. Setas escolhem o dente, Enter abre o detalhe, para cima e para baixo trocam de arcada, Esc tira a seleção."
+              onKeyDown={onStageKey}
+            >
+              <ArcadaImagem
+                view={view}
+                looks={looks}
+                selected={selectedTooth}
+                hovered={hoverTooth}
+                zoom={zoom}
+                onPick={openTooth}
+                onHover={setHover}
+                onUnavailable={() => setNoImages(true)}
+              />
+              {hoverTooth !== null && hoverData && (
+                <div className={styles.hoverTip} aria-hidden="true">
+                  <b>{hoverTooth}</b> {POSITION_NAME[hoverTooth % 10]} · {statusLabel(toothAlterations(hoverData)[0] ?? hoverData.status)}
                 </div>
               )}
             </div>
+            <div className={styles.stageFoot}>
+              <span className={styles.sideLabel}>Direito do paciente</span>
+              <span className={styles.stageHint}>{view === 'frente' ? 'Clique num dente para ver e editar. Os sisos aparecem na vista de cima.' : 'Clique num dente para ver e editar'}</span>
+              <span className={styles.sideLabel}>Esquerdo</span>
+            </div>
+          </>
+        )}
+        <ul className={styles.legend} aria-label="Legenda das cores">
+          {mode === 'historico' ? (
+            <>
+              <li><span className={styles.legendDot} style={{ background: '#2BC4A9' }} />Dente com registro no histórico</li>
+              <li><span className={styles.legendDot} data-ghost="true" />Ausente</li>
+            </>
+          ) : legend.length === 0 ? (
+            <li className={styles.legendNone}>Nenhuma alteração marcada. Os dentes hígidos ficam sem cor.</li>
+          ) : (
+            <>
+              {legend.map(s => (
+                <li key={s.key}><span className={styles.legendDot} style={{ background: s.color }} />{s.label} <small>{s.count}</small></li>
+              ))}
+              {plannedList.length > 0 && <li><span className={styles.legendDot} data-planned="true" />A realizar, contorno tracejado <small>{plannedList.length}</small></li>}
+              <li className={styles.legendNone}>Hígido: sem cor</li>
+            </>
+          )}
+        </ul>
+        <p className={styles.srOnly} aria-live="polite">
+          {selectedTooth !== null && selData ? `Dente ${selectedTooth}, ${POSITION_NAME[selectedTooth % 10]}, ${statusLabel(selData.status)}` : ''}
+        </p>
+      </section>
+
+      {/* ── Análise dos dentes ── */}
+      <section className={`${styles.card} ${styles.analysis}`}>
+        <h3 className={styles.cardTitle}>Análise dos dentes</h3>
+        {analysis.length === 0 ? (
+          <p className={styles.empty}>Nenhum dente com alteração. Clique num dente da arcada para registrar.</p>
+        ) : (
+          <ul className={styles.analysisList}>
+            {analysis.map(n => {
+              const d = teeth[n]
+              const alt = toothAlterations(d)
+              const main = alt[0] ?? d.status
+              return (
+                <li key={n}>
+                  <button type="button" className={`${styles.toothCard} ${selectedTooth === n ? styles.toothCardOn : ''}`} onClick={() => openTooth(n)}>
+                    <ToothThumb num={n} status={main} />
+                    <span className={styles.toothCardGrid}>
+                      <span><small>Dente</small><b>#{n}</b></span>
+                      <span><small>Posição</small><b>{QUADRANT_NAME[Math.floor(n / 10)]}</b></span>
+                    </span>
+                    <span className={styles.statusChip} style={{ '--st-color': statusColor(main), '--st-bg': statusBg(main) } as React.CSSProperties}>{statusLabel(main)}{toothMarks(n, d).every(m => m.planned) ? ' · a realizar' : ''}</span>
+                    <span className={styles.toothCardNote}>{d.note?.trim() || NEXT_STEP[main] || 'Acompanhar na próxima revisão'}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* ── Histórico de tratamento ── */}
+      <section className={`${styles.card} ${styles.history}`}>
+        <h3 className={styles.cardTitle}>Histórico de tratamento</h3>
+        {history.length === 0 ? (
+          <p className={styles.empty}>As mudanças salvas no odontograma aparecem aqui, com data e profissional.</p>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead><tr><th>Data</th><th>Procedimento</th><th>Dente</th><th>Profissional</th><th>Status</th></tr></thead>
+              <tbody>
+                {[...history].reverse().slice(0, 30).map((h, i) => (
+                  <tr key={`${h.at}-${h.tooth}-${h.face ?? ''}-${i}`}>
+                    <td>{fmtDate(h.at)}</td>
+                    <td>{h.planned ? 'Planejado: ' : ''}{PROCEDURE[h.status] ?? statusLabel(h.status)}{h.face ? ` (${FACE_NAME[h.face as SurfaceKey] ?? h.face})` : ''}</td>
+                    <td>#{h.tooth}</td>
+                    <td>{h.by || '—'}</td>
+                    <td>{h.planned ? 'A realizar' : DONE.has(h.status) ? 'Concluído' : h.status === 'tratamento' ? 'Em andamento' : h.status === 'extracao' ? 'Indicado' : 'Registrado'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        )}
+      </section>
+
+      {/* ── Recomendações ── */}
+      <section className={`${styles.card} ${styles.recs}`}>
+        <h3 className={styles.cardTitle}>Recomendações</h3>
+        <div className={styles.recHead}>
+          <b>{recTitle}</b>
+          <span className={`${styles.riskChip} ${styles[`risk_${risk}`]}`}>{risco}</span>
         </div>
+        <p className={styles.recText}>{recText}</p>
+        {plannedList.length > 0 && (
+          <button type="button" className={styles.recBtn} onClick={() => setBudgetOpen(true)}>Gerar orçamento ({plannedList.length})</button>
+        )}
+        <button type="button" className={styles.recBtn} onClick={() => router.push('/agenda')}>Agendar consulta</button>
+      </section>
+
+      {/* ── Detalhe do dente (abre ao clicar no dente) ── */}
+      {detailOpen && selectedTooth !== null && selData && (() => {
+        const row = UPPER.includes(selectedTooth) ? UPPER : LOWER
+        const idx = row.indexOf(selectedTooth)
+        const dirty = dirtyAny
+        const changedHere = toothChanged(selectedTooth)
+        const faces = affectedFaces(selData)
+        return (
+          <Modal
+            open
+            onClose={closeDetail}
+            size="lg"
+            title={`Dente ${selectedTooth}`}
+            subtitle={`${POSITION_NAME[selectedTooth % 10]} · ${QUADRANT_NAME[Math.floor(selectedTooth / 10)]}`}
+            leading={<span className={styles.modalThumb}><ToothThumb num={selectedTooth} status={toothAlterations(selData)[0] ?? selData.status} /></span>}
+            actions={
+              <span className={styles.stepper}>
+                <button type="button" className={styles.iconBtn} aria-label="Dente anterior" disabled={idx <= 0} onClick={() => stepTooth(-1)}><Icon name="chevronLeft" size={18} /></button>
+                <button type="button" className={styles.iconBtn} aria-label="Próximo dente" disabled={idx >= row.length - 1} onClick={() => stepTooth(1)}><Icon name="chevronRight" size={18} /></button>
+              </span>
+            }
+            footer={
+              <>
+                {changedHere && <button type="button" className={styles.undoBtn} onClick={undoTooth}>Desfazer alterações</button>}
+                {saved && <span className={styles.savedMsg}><Icon name="check" size={12} /> Salvo com sucesso!</span>}
+                <button type="button" className={btn.secondary} onClick={closeDetail}>{dirty ? 'Fechar sem salvar' : 'Fechar'}</button>
+                <button type="button" className={styles.btnSave} onClick={async () => { await handleSave(); closeDetail() }} disabled={saving}>
+                  {saving ? 'Salvando...' : 'Salvar'}
+                </button>
+              </>
+            }
+          >
+            <dl className={styles.facts}>
+              <div><dt>Localização</dt><dd>{QUADRANT_NAME[Math.floor(selectedTooth / 10)]} (quadrante {Math.floor(selectedTooth / 10)})</dd></div>
+              <div><dt>Número</dt><dd>#{selectedTooth}</dd></div>
+              <div><dt>Condição</dt><dd>{statusLabel(selData.status)}</dd></div>
+            </dl>
+            <div className={styles.marks}>
+              <p className={styles.miniLabel}>Marcações deste dente</p>
+              {selData.status === DEFAULT_STATUS && faces.length === 0 ? (
+                <p className={styles.marksEmpty}>Nenhuma. O dente está hígido.</p>
+              ) : (
+                <ul className={styles.markList}>
+                  {selData.status !== DEFAULT_STATUS && (
+                    <li className={styles.markChip} style={{ '--st-color': statusColor(selData.status), '--st-bg': statusBg(selData.status) } as React.CSSProperties}>
+                      <span className={styles.statusDot} style={{ background: statusColor(selData.status) }} />
+                      {statusLabel(selData.status)} <small>dente inteiro{selData.planned?.all ? ' · a realizar' : ''}</small>
+                      {selData.planned?.all && <button type="button" className={styles.doneBtn} onClick={() => markDone('all')}>Realizado</button>}
+                      <button type="button" aria-label={`Tirar ${statusLabel(selData.status)} do dente inteiro`} onClick={() => clearMark(null)}><Icon name="close" size={12} /></button>
+                    </li>
+                  )}
+                  {faces.map(f => (
+                    <li key={f.key} className={styles.markChip} style={{ '--st-color': statusColor(selData.surfaces[f.key]), '--st-bg': statusBg(selData.surfaces[f.key]) } as React.CSSProperties}>
+                      <span className={styles.statusDot} style={{ background: statusColor(selData.surfaces[f.key]) }} />
+                      {statusLabel(selData.surfaces[f.key])} <small>face {FACE_NAME[f.key].toLowerCase()}{selData.planned?.[f.key] ? ' · a realizar' : ''}</small>
+                      {selData.planned?.[f.key] && <button type="button" className={styles.doneBtn} onClick={() => markDone(f.key)}>Realizado</button>}
+                      <button type="button" aria-label={`Tirar ${statusLabel(selData.surfaces[f.key])} da face ${FACE_NAME[f.key].toLowerCase()}`} onClick={() => clearMark(f.key)}><Icon name="close" size={12} /></button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className={styles.editor}>
+              <div className={styles.facesCol}>
+                <SurfaceDiagram data={selData} activeSurface={activeSurface} onSurfaceClick={handleSurfaceClick}/>
+                <p className={styles.facesHint}>{activeSurface ? `Face ${FACE_NAME[activeSurface]}` : 'Toque numa face para pintar só ela'}</p>
+              </div>
+              <div className={styles.statusCol}>
+                <p className={styles.miniLabel}>{activeSurface ? `Condição da face ${FACE_NAME[activeSurface].toLowerCase()}` : 'Condição do dente inteiro'}</p>
+                <p className={styles.statusHint}>{activeSurface ? 'Clique de novo na condição marcada para desmarcar a face.' : 'Clique de novo na condição marcada para desmarcar. Hígido limpa o dente e as faces.'}</p>
+                <div className={styles.seg} role="group" aria-label="Situação desta marcação">
+                  {([[false, 'Existente'], [true, 'A realizar']] as const).map(([v, label]) => {
+                    const key: MarkKey = activeSurface ?? 'all'
+                    const marked = key === 'all' ? selData.status !== DEFAULT_STATUS : selData.surfaces[key] !== DEFAULT_STATUS
+                    const on = (marked ? !!selData.planned?.[key] : nextPlanned) === v
+                    return <button key={label} type="button" aria-pressed={on} className={`${styles.segBtn} ${on ? styles.segBtnOn : ''}`} onClick={() => setPlanned(v)}>{label}</button>
+                  })}
+                </div>
+                <div className={styles.statusGrid}>
+                  {TOOTH_STATUS.map(s => {
+                    const isCurr = activeSurface ? selData.surfaces[activeSurface] === s.key : selData.status === s.key
+                    return (
+                      <button key={s.key} type="button" aria-pressed={isCurr}
+                        className={`${styles.statusBtn} ${isCurr ? styles.statusBtnActive : ''}`}
+                        style={{ '--st-color': s.color, '--st-bg': s.bg } as React.CSSProperties}
+                        onClick={() => applyStatus(s.key)}>
+                        <span className={styles.statusDot} style={{ background: s.color }}/>{s.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+            <label className={styles.miniLabel} htmlFor="toothNote">Observação do dente</label>
+            <textarea
+              id="toothNote"
+              className={styles.noteTextarea}
+              rows={3}
+              value={selData.note ?? ''}
+              placeholder="Ex: extrair e colocar implante"
+              onChange={e => setTeeth(p => ({ ...p, [selectedTooth]: { ...p[selectedTooth], note: e.target.value } }))}
+            />
+          </Modal>
+        )
+      })()}
+
+      {budgetOpen && (
+        <OrcamentoOdontoModal
+          marks={plannedList}
+          record={record}
+          patient={patient}
+          clinicId={clinicId}
+          dirty={dirtyAny}
+          onClose={() => setBudgetOpen(false)}
+          onSaved={onSaved}
+        />
       )}
 
-      {/* Legend */}
-      <div className={styles.legend}>
-        {TOOTH_STATUS.map(s=>(
-          <span key={s.key} className={styles.legendItem}>
-            <span className={styles.legendDot} style={{background:s.color}}/>{s.label}
-          </span>
-        ))}
-      </div>
-
-      {/* Save */}
+      {/* ── Salvar ── */}
       <div className={styles.saveRow}>
+        {dirtyAny&&!saving&&<span className={styles.unsavedMsg}>Alterações não salvas</span>}
         {saved&&<span className={styles.savedMsg}><Icon name="check" size={12} /> Salvo com sucesso!</span>}
         <button type="button" className={styles.btnSave} onClick={handleSave} disabled={saving}>
           {saving?'Salvando...':'Salvar Odontograma'}

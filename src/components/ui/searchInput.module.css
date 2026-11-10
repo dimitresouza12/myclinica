@@ -1,0 +1,56 @@
+.wrap { position: relative; display: block; width: 100%; min-width: 0; }
+
+.icon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.input {
+  display: block;
+  width: 100%;
+  height: 40px;
+  padding: 0 40px 0 38px;
+  border: 1px solid var(--surface-line);
+  border-radius: var(--radius-field);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-md);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input::placeholder { color: var(--text-tertiary); }
+.input:focus { border-color: var(--brand-primary); box-shadow: 0 0 0 3px var(--brand-light); }
+/* remove o "x" nativo do WebKit: o botão de limpar é nosso */
+.input::-webkit-search-cancel-button,
+.input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
+
+.clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.clear:hover { background: var(--track); color: var(--text-primary); }
+.clear:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: -2px; }
+
+@media (max-width: 768px) {
+  .input { height: 44px; }
+  .clear { width: 40px; height: 40px; right: 2px; }
+}

@@ -8,6 +8,8 @@ interface Delta {
   label: string
   /** variação ruim fica em pílula vermelha suave; o resto em pílula escura */
   bad?: boolean
+  /** com ação, a pílula vira botão (ex.: "Ver produtos") */
+  onClick?: () => void
 }
 
 interface Props {
@@ -31,7 +33,9 @@ export function StatCard({ title, value, delta, hint, spark, actions, compact, c
         <div className={styles.main}>
           <div className={styles.line}>
             <span className={[styles.value, compact && styles.compact].filter(Boolean).join(' ')}>{value}</span>
-            {delta && <span className={[styles.delta, delta.bad && styles.bad].filter(Boolean).join(' ')}>{delta.label}</span>}
+            {delta && (delta.onClick
+              ? <button type="button" className={[styles.delta, styles.deltaBtn, delta.bad && styles.bad].filter(Boolean).join(' ')} onClick={delta.onClick}>{delta.label}</button>
+              : <span className={[styles.delta, delta.bad && styles.bad].filter(Boolean).join(' ')}>{delta.label}</span>)}
           </div>
           {hint && <div className={styles.hint}>{hint}</div>}
         </div>

@@ -1,18 +1,22 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { usePermissionsStore } from '@/store/permissions'
 import { useTheme } from '@/hooks/useTheme'
 import { Icon, type IconName } from '@/components/ui/Icon'
-import { Portal } from '@/components/ui/Portal'
 import type { AuthClinic, AuthUser } from '@/types'
 import styles from './AppSidebar.module.css'
+import { Logotype } from '@/components/login/Logotype'
 import { hasWhatsAppAI } from '@/lib/planGates'
 import { useWhatsAppState } from '@/hooks/useClinicData'
 import { useUnreadTotal, useWhatsAppRealtime } from '@/hooks/useWhatsAppInbox'
 import { userRoleLabel, userInitials } from '@/lib/roleLabel'
+import { CLINIC_TYPE_LABELS } from '@/lib/specialtyConfig'
 import { logout } from '@/lib/logout'
+import { useDemoPicker } from '@/store/demoPicker'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { useSidebarRail } from '@/hooks/useSidebarRail'
 
 interface NavItem { path: string; label: string; icon: IconName; plusOnly?: boolean; module?: string }
 
@@ -56,10 +60,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   const pathname = usePathname()
   const { permissions, loaded: permsLoaded } = usePermissionsStore()
   const { theme, toggle: toggleTheme } = useTheme()
-  const [collapsed, setCollapsed] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
-  // dica de nome no modo recolhido (posição fixa: a barra tem overflow hidden e cortaria um balão em CSS puro)
-  const [tip, setTip] = useState<{ label: string; top: number; left: number } | null>(null)
+  const openSwitchSpecialty = useDemoPicker(s => s.openSwitch)
   // "agora" fixado na montagem: o aviso de teste conta dias, não precisa mudar a cada render
   const [now] = useState(() => Date.now())
   const isAdmin = user.role === 'admin' || user.isSuperAdmin
@@ -69,29 +70,11 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   const { data: unreadTotal = 0 } = useUnreadTotal(clinic.id, !!waState)
   const roleLabel = userRoleLabel(user, clinic)
 
-  useEffect(() => {
-    const saved = localStorage.getItem('sidebar-collapsed')
-    if (saved === 'true') setCollapsed(true)
-  }, [])
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px)')
-    setIsMobile(mq.matches)
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-
-  // No mobile a sidebar sempre abre expandida (collapsed só vale no desktop)
-  const isCollapsed = isMobile ? false : collapsed
-
-  function toggleCollapse() {
-    setCollapsed(prev => {
-      const next = !prev
-      localStorage.setItem('sidebar-collapsed', String(next))
-      return next
-    })
-  }
+  // Desktop com mouse: trilho estreito que se estende no hover/foco. Celular, toque e tablet seguem como antes
+  const isRail = useMediaQuery('(min-width: 769px) and (hover: hover) and (pointer: fine)')
+  const { expanded, handlers: railHandlers } = useSidebarRail(isRail)
+  // true quando só os ícones aparecem (trilho encolhido): serve para dicas de nome e rótulos
+  const isCollapsed = isRail && !expanded
 
   const handleLogout = logout
 
@@ -117,13 +100,6 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
 
   const initials = userInitials(user.displayName)
 
-  function showTip(e: React.MouseEvent<HTMLElement> | React.FocusEvent<HTMLElement>, label: string) {
-    if (!isCollapsed) return
-    const r = e.currentTarget.getBoundingClientRect()
-    setTip({ label, top: r.top + r.height / 2, left: r.right + 10 })
-  }
-  const hideTip = () => setTip(null)
-
   // Aviso de período de teste: só para clínica em teste e que ainda não assinou
   const trialDaysLeft = clinic.status === 'trial' && !clinic.billingPaid && clinic.trialEndsAt
     ? Math.max(0, Math.ceil((new Date(clinic.trialEndsAt).getTime() - now) / 86_400_000))
@@ -137,19 +113,16 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
         href={item.path}
         className={`${styles.navItem} ${active ? styles.active : ''}`}
         aria-current={active ? 'page' : undefined}
+        title={isCollapsed ? item.label : undefined}
         onClick={onMobileClose}
-        onMouseEnter={e => showTip(e, item.label)}
-        onMouseLeave={hideTip}
-        onFocus={e => showTip(e, item.label)}
-        onBlur={hideTip}
       >
         <span className={styles.iconWrap}>
           <Icon name={item.icon} size={16} />
         </span>
-        <span className={`${styles.navLabel} ${isCollapsed ? styles.navLabelHidden : ''}`}>{item.label}</span>
+        <span className={styles.navLabel}>{item.label}</span>
         {item.path === '/mensagens' && unreadTotal > 0 && (
-          <span className={`${styles.navBadge} ${isCollapsed ? styles.navBadgeDot : ''}`} aria-label={`${unreadTotal} mensagens não lidas`}>
-            {isCollapsed ? '' : unreadTotal > 99 ? '99+' : unreadTotal}
+          <span className={styles.navBadge} aria-label={`${unreadTotal} mensagens não lidas`}>
+            {unreadTotal > 99 ? '99+' : unreadTotal}
           </span>
         )}
       </Link>
@@ -157,71 +130,75 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   }
 
   return (
+    <div className={styles.slot}>
     <aside
       className={[
         styles.sidebar,
-        isCollapsed ? styles.collapsed : '',
+        isRail ? styles.rail : '',
+        isRail && expanded ? styles.railOpen : '',
         mobileOpen ? styles.mobileOpen : '',
       ].join(' ')}
       style={{ '--clinic-color': clinic.color } as React.CSSProperties}
+      {...railHandlers}
     >
-      <div className={`${styles.brand} ${isCollapsed ? styles.brandCollapsed : ''}`}>
-        {isCollapsed ? (
-          <img src="/favicon.svg" alt="MyClinica" className={styles.brandIcon} />
-        ) : (
-          <>
-            <span className={styles.logoText}>My<strong>Clinica</strong></span>
-            <div className={styles.clinic}>
-              {clinic.logo
-                ? <img src={clinic.logo} alt="" className={styles.clinicMark} />
-                : <span className={styles.clinicMark} aria-hidden>{clinic.name.trim().charAt(0).toUpperCase()}</span>}
-              <span className={styles.clinicText}>
-                <b>{clinic.name}</b>
-              </span>
-            </div>
-          </>
-        )}
+      <div className={styles.brand}>
+        <div className={styles.brandTop}>
+          <img src="/favicon.svg" alt="" className={styles.brandIcon} />
+          <Logotype className={styles.brandLogotype} />
+        </div>
+        <div className={styles.clinic}>
+          {clinic.logo
+            ? <img src={clinic.logo} alt="" className={styles.clinicMark} />
+            : <span className={styles.clinicMark} aria-hidden>{clinic.name.trim().charAt(0).toUpperCase()}</span>}
+          <span className={styles.clinicText}>
+            <b>{clinic.name}</b>
+          </span>
+        </div>
       </div>
 
       <nav className={styles.nav} aria-label="Menu principal">
         {groups.map((g, i) => (
           <div key={g.title ?? i} className={styles.group}>
-            {g.title && (
-              <span className={`${styles.groupTitle} ${isCollapsed ? styles.groupTitleCollapsed : ''}`}>{g.title}</span>
-            )}
+            {g.title && <span className={styles.groupTitle}>{g.title}</span>}
             {g.items.map(renderItem)}
           </div>
         ))}
       </nav>
 
       <div className={styles.bottom}>
-        {trialDaysLeft !== null && !isCollapsed && (
-          <Link href="/configuracoes?tab=plano" className={styles.trialNote} onClick={onMobileClose}>
-            <b>{trialDaysLeft === 0 ? 'Seu teste termina hoje' : `Teste: ${trialDaysLeft} ${trialDaysLeft === 1 ? 'dia restante' : 'dias restantes'}`}</b>
-            <span>Ver planos</span>
+        {trialDaysLeft !== null && (
+          <Link href="/configuracoes?tab=plano" className={styles.trialNote} title={isCollapsed ? 'Período de teste: ver planos' : undefined} onClick={onMobileClose}>
+            <span className={styles.trialIcon} aria-hidden><Icon name="clock" size={16} /></span>
+            <span className={styles.trialText}>
+              <b>{trialDaysLeft === 0 ? 'Seu teste termina hoje' : `Teste: ${trialDaysLeft} ${trialDaysLeft === 1 ? 'dia restante' : 'dias restantes'}`}</b>
+              <span>Ver planos</span>
+            </span>
           </Link>
         )}
         {bottomItems.map(renderItem)}
+      </div>
+
+      {/* ── Conta de demonstração: trocar de especialidade (no desktop o item fica no menu do perfil, na barra de cima) ── */}
+      {clinic.demoMode && (
         <button
           type="button"
-          className={styles.collapseBtn}
-          onClick={toggleCollapse}
-          aria-label={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
-          onMouseEnter={e => showTip(e, 'Expandir menu')}
-          onMouseLeave={hideTip}
-          onFocus={e => showTip(e, 'Expandir menu')}
-          onBlur={hideTip}
+          className={styles.themeRow}
+          onClick={() => { onMobileClose?.(); openSwitchSpecialty() }}
+          title="Trocar especialidade"
         >
-          <span className={styles.iconWrap}>
-            <Icon name={isCollapsed ? 'chevronRight' : 'chevronLeft'} size={16} />
+          <span className={styles.themeIconWrap}>
+            <Icon name="swap" size={16} />
           </span>
-          <span className={`${styles.navLabel} ${isCollapsed ? styles.navLabelHidden : ''}`}>Recolher menu</span>
+          <span className={styles.sideItemLabel}>
+            Trocar especialidade
+            <small className={styles.demoNow}>Agora: {CLINIC_TYPE_LABELS[clinic.type]}</small>
+          </span>
         </button>
-      </div>
+      )}
 
       {/* ── Tema — elemento único, label some com CSS ── */}
       <button
-        className={`${styles.themeRow} ${isCollapsed ? styles.sideItemCollapsed : ''}`}
+        className={styles.themeRow}
         onClick={toggleTheme}
         title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
       >
@@ -236,7 +213,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
         href="https://wa.me/5588920020570?text=Ol%C3%A1%2C+preciso+de+suporte+com+o+MyClinica."
         target="_blank"
         rel="noopener noreferrer"
-        className={`${styles.supportRow} ${isCollapsed ? styles.sideItemCollapsed : ''}`}
+        className={styles.supportRow}
         title="Suporte via WhatsApp"
       >
         <span className={styles.supportIcon}>
@@ -248,7 +225,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
       </a>
 
       {/* ── Footer ── */}
-      <div className={`${styles.footer} ${isCollapsed ? styles.footerCollapsed : ''}`}>
+      <div className={styles.footer}>
         <div className={styles.avatar}>{initials}</div>
         <div className={styles.userInfo}>
           <span className={styles.userName}>{user.displayName}</span>
@@ -258,11 +235,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
           <Icon name="logout" size={15} />
         </button>
       </div>
-      {tip && isCollapsed && (
-        <Portal>
-          <div role="tooltip" className={styles.tip} style={{ top: tip.top, left: tip.left }}>{tip.label}</div>
-        </Portal>
-      )}
     </aside>
+    </div>
   )
 }

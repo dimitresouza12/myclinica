@@ -2,6 +2,8 @@ import type { Patient, MedicalRecord, RecordEntry, FinancialRecord, ClinicType, 
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import { formatBrPhone } from '@/lib/phoneFormat'
 import { formatCpf } from '@/lib/numericFormat'
+import { ALL_TEETH, UPPER, LOWER, FACE_NAME, FACE_KEYS, DEFAULT_STATUS, statusLabel, statusColor, statusBg, type SurfaceKey } from '@/lib/odontograma'
+import { FACE_TOOLS, FACE_VW, FACE_VH, sessionTotals, formatTotal, type FaceSession } from '@/lib/faceograma'
 
 interface ClinicInfo {
   name: string
@@ -51,6 +53,122 @@ function formatDateBR(iso: string | null | undefined): string {
   return d.length === 3 ? `${d[2]}/${d[1]}/${d[0]}` : iso
 }
 
+// Texto digitado pelo usuário vai para dentro de HTML escrito à mão: escapa antes.
+const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+interface PrintTooth { status?: string; surfaces?: Partial<Record<SurfaceKey, string>>; note?: string; planned?: Record<string, boolean> }
+
+/** Odontograma: mapa das 32 posições (cor = condição) e tabela dos dentes com alteração ou observação. */
+function odontogramaSection(record: MedicalRecord | null): string {
+  const raw = (record?.odontogram ?? {}) as Record<string, unknown>
+  const teeth: Record<number, PrintTooth> = {}
+  for (const n of ALL_TEETH) {
+    const v = raw[n]
+    if (typeof v === 'string') teeth[n] = { status: v }
+    else if (v && typeof v === 'object') teeth[n] = v as PrintTooth
+  }
+  const marks = (t: PrintTooth) => {
+    const out: string[] = []
+    if (t.status && t.status !== DEFAULT_STATUS) out.push(t.status)
+    for (const k of FACE_KEYS) {
+      const v = t.surfaces?.[k]
+      if (v && v !== DEFAULT_STATUS && !out.includes(v)) out.push(v)
+    }
+    return out
+  }
+  const rows = ALL_TEETH.filter(n => teeth[n] && (marks(teeth[n]).length > 0 || teeth[n].note?.trim()))
+  if (rows.length === 0) return ''
+
+  const cell = (n: number) => {
+    const t = teeth[n]
+    const main = t ? marks(t)[0] : undefined
+    const style = !main
+      ? 'border:1px solid #ccc;background:#fff;color:#555'
+      : main === 'ausente'
+        ? 'border:1px dashed #888;background:#f3f4f6;color:#6b7280'
+        : `border:1px solid ${statusColor(main)};background:${statusBg(main)};color:${statusColor(main)}`
+    return `<div style="${style};border-radius:4px;text-align:center;font-size:10px;font-weight:700;padding:5px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact">${n}</div>`
+  }
+  const rowOf = (list: number[]) => `<div style="display:grid;grid-template-columns:repeat(16,1fr);gap:3px;margin-bottom:6px">${list.map(cell).join('')}</div>`
+  const used = Array.from(new Set(rows.flatMap(n => marks(teeth[n]))))
+
+  return `
+    <div style="page-break-inside:avoid">
+      <h3>Odontograma</h3>
+      ${rowOf(UPPER)}${rowOf(LOWER)}
+      <div style="display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:#555;margin-bottom:10px">
+        ${used.map(k => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${statusColor(k)};margin-right:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact"></span>${esc(statusLabel(k))}</span>`).join('')}
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          ${['Dente', 'Condição', 'Faces', 'Observação'].map(h => `<th style="text-align:left;padding:5px 4px;border-bottom:2px solid #333;font-size:11px;text-transform:uppercase;color:#555">${h}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${rows.map(n => {
+            const t = teeth[n]
+            const whole = t.status && t.status !== DEFAULT_STATUS ? `${statusLabel(t.status)}${t.planned?.all ? ' (a realizar)' : ''}` : '—'
+            const faces = FACE_KEYS.filter(k => t.surfaces?.[k] && t.surfaces[k] !== DEFAULT_STATUS)
+              .map(k => `${FACE_NAME[k]}: ${statusLabel(t.surfaces![k]!)}${t.planned?.[k] ? ' (a realizar)' : ''}`).join('; ') || '—'
+            return `<tr>
+              <td style="padding:5px 4px;border-bottom:1px solid #eee;font-weight:700">${n}</td>
+              <td style="padding:5px 4px;border-bottom:1px solid #eee">${esc(whole)}</td>
+              <td style="padding:5px 4px;border-bottom:1px solid #eee">${esc(faces)}</td>
+              <td style="padding:5px 4px;border-bottom:1px solid #eee;white-space:pre-wrap">${esc(t.note?.trim() || '—')}</td>
+            </tr>`
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`
+}
+
+/** Faceograma: uma figura por sessão com os pontos numerados, e a lista com produto, dose e nota. */
+function faceogramaSection(record: MedicalRecord | null): string {
+  const raw = record?.aesthetic_protocols as FaceSession[] | undefined
+  const sessions = (Array.isArray(raw) ? raw : [])
+    .filter(s => s.annotations?.length > 0 || s.notes?.trim())
+    .sort((a, b) => a.date.localeCompare(b.date))
+  if (sessions.length === 0) return ''
+  const tool = (k: string) => FACE_TOOLS.find(t => t.key === k)
+  const faceSrc = `${typeof window !== 'undefined' ? window.location.origin : ''}/rosto.webp`
+
+  return `
+    <h3>Faceograma</h3>
+    ${sessions.map(s => `
+      <div style="page-break-inside:avoid;margin-bottom:16px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px">Sessão de ${formatDateBR(s.date)}</div>
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <div style="position:relative;width:260px;flex:none">
+            <img src="${faceSrc}" style="width:100%;display:block;border:1px solid #ddd;border-radius:6px" />
+            ${s.annotations.map((a, i) => `<span style="position:absolute;left:${(a.x / FACE_VW) * 100}%;top:${(a.y / FACE_VH) * 100}%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:${tool(a.type)?.bg ?? '#f3f4f6'};border:1.5px solid ${tool(a.type)?.color ?? '#6b7280'};color:${tool(a.type)?.color ?? '#6b7280'};font-size:9px;font-weight:700;text-align:center;line-height:15px;-webkit-print-color-adjust:exact;print-color-adjust:exact">${i + 1}</span>`).join('')}
+          </div>
+          <div style="flex:1;min-width:0">
+            ${s.annotations.length > 0 ? `
+              <table style="width:100%;border-collapse:collapse">
+                <thead><tr>
+                  ${['#', 'Tratamento', 'Região', 'Dose / volume', 'Nota'].map(h => `<th style="text-align:left;padding:4px;border-bottom:2px solid #333;font-size:10px;text-transform:uppercase;color:#555">${h}</th>`).join('')}
+                </tr></thead>
+                <tbody>
+                  ${s.annotations.map((a, i) => `<tr>
+                    <td style="padding:4px;border-bottom:1px solid #eee;font-weight:700">${i + 1}</td>
+                    <td style="padding:4px;border-bottom:1px solid #eee">${esc(tool(a.type)?.label ?? a.type)}</td>
+                    <td style="padding:4px;border-bottom:1px solid #eee">${esc(a.region || '—')}</td>
+                    <td style="padding:4px;border-bottom:1px solid #eee">${esc(a.qty || '—')}</td>
+                    <td style="padding:4px;border-bottom:1px solid #eee;white-space:pre-wrap">${esc(a.note || '—')}</td>
+                  </tr>`).join('')}
+                </tbody>
+              </table>` : ''}
+            ${(() => {
+              const { totals } = sessionTotals(s.annotations)
+              return totals.length > 0
+                ? `<div style="margin-top:8px;font-size:12px"><b>Total da sessão:</b> ${totals.map(t => `${esc(tool(t.tool)?.label ?? t.tool)} ${esc(formatTotal(t))}`).join(' · ')}</div>`
+                : ''
+            })()}
+            ${s.notes?.trim() ? `<div class="field" style="margin-top:8px"><div class="field-label">Observações</div><div class="field-value">${esc(s.notes)}</div></div>` : ''}
+          </div>
+        </div>
+      </div>`).join('')}`
+}
+
 // area: qual namespace do jsonb (anamnesis/clinical_exam por área — ver Bloco B)
 // imprimir. Os rótulos vêm de getSpecialtyConfig(area), então o impresso
 // mostra os campos certos da área do profissional, não mais fixo em odonto
@@ -86,6 +204,8 @@ export function printProntuario(clinic: ClinicInfo, patient: Patient, record: Me
       ${specialty.clinicalExamFields.map(([k, label]) => field(label, ex[k])).join('')}
     </div>
     ${record?.treatment_plan ? `<h3>Plano de Tratamento</h3><div class="field-value">${record.treatment_plan}</div>` : ''}
+    ${odontogramaSection(record)}
+    ${faceogramaSection(record)}
     ${entries.length > 0 ? `
       <h3>Evolução Clínica</h3>
       ${entries.map((e) => `
