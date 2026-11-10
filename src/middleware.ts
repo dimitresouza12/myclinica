@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { isLegacyTrialLogin } from '@/lib/legacyTrialLink'
 
 // Definido inline para não importar crypto (Node.js) no Edge Runtime
 const CSRF_PROTECTED_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
@@ -57,6 +58,14 @@ export async function middleware(request: NextRequest) {
         return blockResponse(403, 'Origem inválida')
       }
     }
+  }
+
+  // Links antigos do "Testar grátis" (/login?quiz=true, ?plan=..., ?mode=register) vão direto para a demonstração,
+  // sem passar pela tela de login. clone() mantém a query inteira; 307 preserva o método.
+  if (isLegacyTrialLogin(request.nextUrl)) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/experimentar'
+    return addSecurityHeaders(NextResponse.redirect(url, 307))
   }
 
   let supabaseResponse = NextResponse.next({ request })

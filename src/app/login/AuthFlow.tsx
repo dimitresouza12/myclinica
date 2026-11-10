@@ -24,6 +24,7 @@ import { Logotype } from '@/components/login/Logotype'
 import { LoginShowcase } from '@/components/login/LoginShowcase'
 import { LiveTicker } from '@/components/login/LiveTicker'
 import { HeartbeatProgress } from '@/components/login/HeartbeatProgress'
+import { hasLegacyTrialParams } from '@/lib/legacyTrialLink'
 
 // Fonte da tela de login (título, formulário e vitrine). Variável: um arquivo por estilo.
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], style: ['normal', 'italic'], variable: '--font-jakarta', display: 'swap' })
@@ -289,7 +290,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
   })
 
   // Links antigos (site, anúncios) para /login?quiz=true, ?plan=... ou ?mode=register agora vão para a demonstração.
-  const legacyTrialLink = searchParams.get('quiz') === 'true' || searchParams.get('mode') === 'register' || !!searchParams.get('plan')
+  const legacyTrialLink = hasLegacyTrialParams(searchParams)
   useEffect(() => {
     if (variant === 'login' && legacyTrialLink) router.replace(`/experimentar?${searchParams.toString()}`)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -523,6 +524,12 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
   }
   function clearRateLimit(cred: string) {
     try { localStorage.removeItem(getRateLimitKey(cred)) } catch { /* ignore */ }
+  }
+
+  // O middleware já redireciona no servidor; aqui cobre a navegação client-side: não pinta a tela de login
+  // enquanto o router.replace acontece. Fica depois de todos os hooks.
+  if (variant === 'login' && legacyTrialLink) {
+    return <div className={styles.page} style={{ minHeight: '100dvh' }} />
   }
 
   if (!SUPABASE_URL || !SUPABASE_KEY) {
