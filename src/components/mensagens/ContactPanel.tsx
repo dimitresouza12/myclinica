@@ -16,6 +16,8 @@ import { contactDisplayName, formatJidPhone } from '@/lib/whatsapp/inbox'
 import { ContactAvatar } from './ConversationList'
 import type { WaConversation } from '@/hooks/useWhatsAppInbox'
 import styles from './Inbox.module.css'
+import { patientHref } from '@/lib/prontuario/navigation'
+import { patientOpenLabel } from '@/lib/pacientes/cadastro'
 
 function usePatientInfo(patientId: string | null) {
   return useQuery({
@@ -50,6 +52,7 @@ export function ContactPanel({ conversation, open }: { conversation: WaConversat
   const clinicId = useAuthStore(s => s.clinic?.id)
   const qc = useQueryClient()
   const { canEdit: canRegister } = usePermissions('pacientes')
+  const openLabel = patientOpenLabel(usePermissions('prontuario').canView)
   const { data: lead } = useLeadFor(clinicId, conversation?.phone_key ?? null, !conversation?.patient_id)
   const { data: patient } = usePatientInfo(conversation?.patient_id ?? null)
   const [registering, setRegistering] = useState(false)
@@ -107,7 +110,7 @@ export function ContactPanel({ conversation, open }: { conversation: WaConversat
           </dl>
           <div className={styles.stack}>
             <Link className={`${styles.btn} ${styles.btnPrimary}`} href="/agenda"><Icon name="calendar" size={16} />Abrir a agenda</Link>
-            <Link className={styles.linkRow} href={`/pacientes?patient=${c.patient_id}`}><Icon name="patients" size={16} /><span>Abrir prontuário</span><Icon name="chevronRight" size={16} /></Link>
+            <Link className={styles.linkRow} href={patientHref(c.patient_id)}><Icon name="patients" size={16} /><span>{openLabel}</span><Icon name="chevronRight" size={16} /></Link>
           </div>
         </>
       ) : (

@@ -12,12 +12,16 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: 224px minmax(0, 1fr);
+  gap: 14px;
 }
-.side { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding-bottom: 2px; }
+/* painel lateral recolhido: a grade ocupa a largura toda */
+.layoutNoSide { grid-template-columns: minmax(0, 1fr); }
+.layoutNoSide .side { display: none; }
+.shell .sideToggle { display: none; }
+.side { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-bottom: 2px; }
 .miniCard {
-  padding: 20px 18px 14px;
+  padding: 12px 10px 8px;
   border-radius: var(--radius-card);
   background: var(--surface);
   border: 1px solid var(--surface-edge);
@@ -217,21 +221,14 @@
   display: none;
 }
 
-/* ─── Filtro de profissionais (só mobile): mesmos avatares do desktop ── */
-/* a barra lateral cobre o filtro; abaixo de 1100px ela some e entra esta faixa de avatares */
-.profFiltersMobile { display: none; }
+/* abaixo de 1100px a barra lateral some; o botão de profissionais (ProfessionalChips) fica na barra de cima ou na faixa de filtros */
 @media (max-width: 1100px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
   .side { display: none; }
-  .profFiltersMobile {
-    display: flex;
-    gap: 7px;
-    padding: 10px 14px 12px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    border-bottom: 1px solid var(--surface-line);
-  }
-  .profFiltersMobile::-webkit-scrollbar { display: none; }
+}
+
+@media (min-width: 1101px) {
+  .shell .sideToggle { display: flex; }
 }
 
 /* ─── Filters bar (list view) ────────────────────────────────── */
@@ -264,6 +261,40 @@
   overflow: hidden;
 }
 
+/* nenhum profissional marcado: cobre a grade (que continua montada, para não perder a data) */
+.noProf {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  text-align: center;
+}
+.noProf svg { opacity: 0.4; }
+.noProf strong { color: var(--text-primary); font-size: 0.95rem; font-weight: 600; }
+.noProfBtn {
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand-primary);
+  color: #0D2421;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.noProfBtn:hover { background: var(--brand-secondary); }
+.noProfBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+
 /* ─── Calendar view ──────────────────────────────────────────── */
 .calLoading { padding: 3rem; text-align: center; color: var(--text-secondary); }
 
@@ -274,34 +305,6 @@
   -webkit-overflow-scrolling: touch;
   padding: 10px;
 }
-.profFilterBtn {
-  border: none;
-  background: none;
-  padding: 0;
-  cursor: pointer;
-  flex-shrink: 0;
-  line-height: 0;
-  border-radius: 50%;
-}
-.profAvatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.62rem;
-  font-weight: 600;
-  color: #fff;
-  transition: opacity 0.15s, filter 0.15s, transform 0.15s;
-}
-.profFilterBtn:hover .profAvatar { transform: scale(1.08); }
-.profAvatarNone { background: var(--bg-tertiary); color: var(--text-tertiary); }
-.profFilterBtn[data-active="false"] .profAvatar {
-  filter: grayscale(1);
-  opacity: 0.4;
-}
-
 /* ─── List view ──────────────────────────────────────────────── */
 .listScroll {
   position: absolute;
@@ -376,6 +379,9 @@
   transition: background 0.14s;
 }
 .lrCard:hover { background: color-mix(in srgb, var(--surface-2) 70%, var(--border-subtle)); }
+/* fluxo de atendimento: realce leve de quem aguarda e de quem está em atendimento */
+.lrCardWaiting { background: color-mix(in srgb, var(--st-wait) 10%, var(--surface-2)); box-shadow: inset 3px 0 0 var(--st-wait); }
+.lrCardNow { background: color-mix(in srgb, var(--st-now) 10%, var(--surface-2)); box-shadow: inset 3px 0 0 var(--st-now); }
 .lrCard:focus-visible {
   outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
@@ -449,9 +455,11 @@
 .lrGcal:hover { opacity: 0.9; background: var(--surface); }
 
 /* Situação em pílula suave (painel de detalhe): cor do status só no fundo, texto no tom do tema */
-.badge_agendado, .badge_confirmado, .badge_concluido, .badge_cancelado, .badge_faltou, .badge_bloqueado { color: var(--text-primary); }
+.badge_arrived, .badge_in_progress, .badge_agendado, .badge_confirmado, .badge_concluido, .badge_cancelado, .badge_faltou, .badge_bloqueado { color: var(--text-primary); }
 .badge_agendado   { background: color-mix(in srgb, var(--st-wait) 16%, var(--surface)); }
 .badge_confirmado { background: color-mix(in srgb, var(--st-ok) 16%, var(--surface)); }
+.badge_arrived { background: color-mix(in srgb, var(--st-wait) 22%, var(--surface)); }
+.badge_in_progress { background: color-mix(in srgb, var(--st-now) 18%, var(--surface)); }
 .badge_concluido  { background: color-mix(in srgb, var(--st-idle) 18%, var(--surface)); }
 .badge_cancelado  { background: color-mix(in srgb, var(--st-bad) 14%, var(--surface)); }
 .badge_faltou     { background: color-mix(in srgb, var(--st-warn) 16%, var(--surface)); }
@@ -1019,6 +1027,9 @@
 .btnWhatsApp[aria-disabled="true"], .btnChat[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; pointer-events: auto; }
 .waOk  { font-size: 0.78rem; color: #065F46; }
 .waErr { font-size: 0.78rem; color: #B91C1C; }
+.lrChip { display: inline-flex; align-items: center; gap: 3px; font-size: 0.64rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; white-space: nowrap; background: var(--bg-tertiary); color: var(--text-secondary); }
+.lrChipWarn { background: #FFFBEB; color: #92400E; }
+.pkgWarn { margin: .75rem 0 0; padding: .5rem .75rem; border-radius: 10px; background: #FFFBEB; color: #92400E; font-size: .8rem; font-weight: 600; line-height: 1.4; }
 .lrWa { font-size: 0.64rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; white-space: nowrap; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
 
 /* no desktop a busca fica na barra de cima; este campo só aparece no celular */
@@ -1270,3 +1281,20 @@
 /* consulta agendada (ainda sem confirmação): fundo neutro, só a faixa lateral leva a cor */
 
 .detailFooterActions .btnDetailEdit { min-width: 0; padding-inline: .5rem; }
+
+/* ─── Teleconsulta: link no formulário e no detalhe ──────────── */
+.meetRow { display: flex; gap: .5rem; align-items: stretch; }
+.meetRow input { flex: 1; min-width: 0; }
+.meetGen { flex-shrink: 0; min-height: 44px; padding: 0 .875rem; border-radius: var(--radius-field, 10px); border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: border-color .14s, background .14s; }
+.meetGen:hover { background: var(--bg-tertiary); border-color: var(--brand-primary, #4DD9C0); }
+.meetGen:focus-visible, .meetBtn:focus-visible, .meetBtnPrimary:focus-visible { outline: 2px solid var(--brand-primary, #4DD9C0); outline-offset: 2px; }
+.meetBox { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; padding: .25rem 0 .75rem; min-width: 0; }
+.meetBox .detailActionsLabel { margin-bottom: 0; }
+.meetLink { display: block; min-width: 0; font-size: .82rem; color: var(--text-secondary); overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 2px; }
+.meetActions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.meetBtn, .meetBtnPrimary { flex: 1 1 8rem; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 .875rem; border-radius: 12px; font: inherit; font-size: .85rem; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; transition: border-color .14s, background .14s, opacity .14s; }
+.meetBtn { border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); }
+.meetBtn:hover { background: var(--bg-tertiary); }
+.meetBtnPrimary { border: 1px solid transparent; background: var(--brand-primary, #4DD9C0); color: #0D2421; }
+.meetBtnPrimary:hover { opacity: .9; }
+.meetBtn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }

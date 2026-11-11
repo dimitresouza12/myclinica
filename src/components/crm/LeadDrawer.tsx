@@ -9,6 +9,8 @@ import { SelectMenu } from '@/components/ui/SelectMenu'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { PHONE_HINT, toInputValue } from '@/lib/phoneFormat'
 import { useScrollLock } from '@/hooks/useScrollLock'
+import { usePermissions } from '@/hooks/usePermissions'
+import { patientOpenLabel } from '@/lib/pacientes/cadastro'
 import { useDialogFocus } from '@/hooks/useDialogFocus'
 import type { CrmMember } from '@/hooks/useCrmLeads'
 import {
@@ -57,6 +59,7 @@ export function LeadDrawer({
   onSave, onClose, onTalk, onSchedule, onConvert, onOpenPatient, onDelete,
 }: Props) {
   const creating = !lead
+  const openLabel = patientOpenLabel(usePermissions('prontuario').canView)
   const [form, setForm] = useState<LeadFormInput>(() => ({
     name: lead?.name ?? '',
     phone: toInputValue(lead?.phone),
@@ -136,7 +139,7 @@ export function LeadDrawer({
                 <Button icon="chat" onClick={onTalk} disabled={!canEdit}>Conversar</Button>
                 <Button icon="calendar" onClick={onSchedule} disabled={!canEdit || (!lead.patient_id && !canCreatePatient)}>Agendar</Button>
                 {lead.patient_id
-                  ? <Button icon="patients" onClick={onOpenPatient}>Abrir prontuário</Button>
+                  ? <Button icon="patients" onClick={onOpenPatient}>{openLabel}</Button>
                   : <Button icon="patients" onClick={onConvert} disabled={!canEdit || !canCreatePatient} title={canCreatePatient ? undefined : 'Você não tem permissão para cadastrar pacientes'}>Cadastrar como paciente</Button>}
               </div>
             )}

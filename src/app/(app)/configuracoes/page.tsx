@@ -5,10 +5,14 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { connectGoogleCalendar, disconnectGoogleCalendar, isGCalConnected } from '@/lib/googleCalendar'
 import type { AuthClinic, ClinicDocumentTemplate, DocumentTemplateType, FieldPosition, ClinicUser, UserRole, AuditLog, ClinicType } from '@/types'
-import { mergeSpecialtyConfigs, specialtyRoleLabel, roleForSpecialty, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
+import { councilForAreas } from '@/lib/professionalCouncil'
+import { roleOrAreaValue, specialtyOptions, specialtyPlaceholder } from '@/lib/clinicAreas'
+import { registerClinicArea } from '@/lib/registerClinicArea'
+import { mergeSpecialtyConfigs, specialtyRoleLabel, roleForSpecialty, resolveDocumentOptions, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { hasWhatsAppAI } from '@/lib/planGates'
 import { professionalLimitFor, getPlanEntry, PLAN_CATALOG } from '@/lib/planCatalog'
-import { MODULES, MODULE_EXTRAS, presetPermissions, blankPermissions, type PermissionsForm } from '@/lib/permissionPresets'
+import { MODULES, MODULE_EXTRAS, presetPermissions, blankPermissions, isEditBlockedForRole, isAdminOnlyModule, blockedEditViolations, blockedEditMessage, type PermissionsForm } from '@/lib/permissionPresets'
+import { clearAllModules, markAllModules, permissionSummary, permissionWarnings, restoreRolePreset, sanitizeForSave } from '@/lib/permissionSummary'
 import { normalizeUsername } from '@/lib/username'
 import { audit } from '@/lib/audit'
 import styles from './configuracoes.module.css'
@@ -104,13 +108,11 @@ function isClinicalRole(role: UserRole) {
 }
 
 function ConfiguracoesContent() {
-  const { clinic, user, setSession, setClinicLogo, addClinicSpecialty } = useAuthStore()
+  const { clinic, user, setSession, setClinicLogo } = useAuthStore()
   // Clínica multi-área usa a união das áreas que ela já tem (specialties[]),
   // não só a principal — senão o cargo dropdown ficaria travado na área do
   // cadastro mesmo depois de ela ganhar profissionais de outras áreas.
   const specialty = mergeSpecialtyConfigs(clinic?.specialties?.length ? clinic.specialties : [clinic?.type ?? 'odonto'])
-  const clinicAreaOptions = CLINIC_TYPE_OPTIONS.filter(o => (clinic?.specialties?.length ? clinic.specialties : [clinic?.type ?? 'odonto']).includes(o.value))
-  const DOC_TEMPLATE_TYPES = specialty.documents
   const roleLabel = (role: string) => specialty.roles.find(r => r.value === role)?.label ?? ROLE_LABELS[role as UserRole] ?? role
   // Rótulo de um membro específico: se ele tem área salva (specialty_type),
   // isso manda — é o que diferencia "Nutricionista" de "Esteticista" quando
@@ -241,6 +243,14 @@ function ConfiguracoesContent() {
   const [pwMsg, setPwMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const [docTemplates, setDocTemplates] = useState<ClinicDocumentTemplate[]>([])
+  // Sem professionalType/userType de propósito: aqui o admin gerencia os modelos
+  // da clínica inteira (união das áreas). savedTypes mantém acessível o modelo
+  // já salvo de um tipo que a área não lista mais (ex.: atestado em estética pura).
+  const DOC_TEMPLATE_TYPES = resolveDocumentOptions({
+    clinicType: clinic?.type,
+    clinicSpecialties: clinic?.specialties,
+    savedTypes: docTemplates.map(t => t.type),
+  })
   const [docUploading, setDocUploading] = useState<DocumentTemplateType | null>(null)
   const [docMsg, setDocMsg] = useState<{ type: DocumentTemplateType; ok: boolean; errorText?: string } | null>(null)
   const docInputRefs = useRef<Partial<Record<DocumentTemplateType, HTMLInputElement | null>>>({})
@@ -452,6 +462,25 @@ function ConfiguracoesContent() {
     setUserMsg(null)
   }
 
+  // Traduz o erro cru dos RPCs de membros (raise exception 'codigo') pra português.
+  function memberErrorMessage(raw: string, fallbackPrefix: string): string {
+    const known: Array<[string, string]> = [
+      ['cannot_delete_self', 'Você não pode excluir sua própria conta.'],
+      ['cannot_deactivate_self', 'Você não pode desativar sua própria conta.'],
+      ['cannot_delete_last_admin', 'Não é possível excluir o último administrador da clínica.'],
+      ['cannot_demote_last_admin', 'Não é possível remover o último administrador da clínica.'],
+      ['cannot_deactivate_last_admin', 'Não é possível desativar o último administrador da clínica.'],
+      ['member_not_found', 'Usuário não encontrado.'],
+      ['user_limit_reached', 'Limite de usuários do plano atingido. Desative outro usuário ou fale com o suporte para migrar de plano.'],
+      ['email_taken', 'Este e-mail já está em uso.'],
+      ['username_taken', 'Este nome de usuário já está em uso.'],
+      ['username_invalid', 'Nome de usuário inválido (3-30 chars: letras, números, _ . -).'],
+      ['unauthorized', 'Você não tem permissão para realizar esta ação.'],
+    ]
+    for (const [code, text] of known) if (raw.includes(code)) return text
+    return fallbackPrefix + 'tente novamente em instantes.'
+  }
+
   async function handleConfirmAction() {
     if (!confirmModal) return
     setConfirmLoading(true)
@@ -460,8 +489,8 @@ function ConfiguracoesContent() {
       if (type === 'delete') {
         const { error } = await supabase.rpc('delete_clinic_member', { p_member_id: target.id })
         if (error) {
-          const msg = error.message.includes('cannot_delete_self') ? 'Você não pode excluir sua própria conta.'
-            : 'Erro ao excluir usuário: ' + error.message
+          const msg = error.message.includes('unauthorized') ? 'Você não tem permissão para excluir usuários.'
+            : memberErrorMessage(error.message, 'Não foi possível excluir o usuário: ')
           showToast('error', msg)
         } else {
           if (user && clinic) audit({ action: 'user.delete', user_id: user.id, clinic_id: clinic.id, module: 'configuracoes', resource_id: target.id })
@@ -476,9 +505,7 @@ function ConfiguracoesContent() {
           p_display_name: target.display_name,
         })
         if (error) {
-          showToast('error', error.message.includes('user_limit_reached')
-            ? 'Limite de usuários do plano atingido. Desative outro usuário ou fale com o suporte para migrar de plano.'
-            : 'Erro: ' + error.message)
+          showToast('error', memberErrorMessage(error.message, 'Não foi possível concluir a ação: '))
         } else {
           if (user && clinic) audit({ action: isActive ? 'user.reactivate' : 'user.deactivate', user_id: user.id, clinic_id: clinic.id, module: 'configuracoes', resource_id: target.id })
           await loadUsers()
@@ -506,10 +533,22 @@ function ConfiguracoesContent() {
     return error ? error.message : null
   }
 
+  // Configurações e Metas são só do administrador: nunca gravam Editar para outro cargo
+  function permissionsToSave(): PermissionsForm {
+    return userForm.role === 'admin' ? permissionsForm : sanitizeForSave(permissionsForm)
+  }
+
   async function handleSaveUser() {
     setUserMsg(null)
     if (!userForm.display_name.trim()) return setUserMsg({ type: 'error', text: 'Nome é obrigatório.' })
     if (!userForm.username.trim())     return setUserMsg({ type: 'error', text: 'Usuário é obrigatório.' })
+    // Recepção/auxiliar não recebem edição de Equipe, Configurações e Financeiro (nem por clique manual)
+    const blocked = blockedEditViolations(userForm.role, permissionsForm)
+    if (blocked.length > 0) {
+      const text = blockedEditMessage(blocked)
+      showToast('error', text)
+      return setUserMsg({ type: 'error', text })
+    }
 
     setUserSaving(true)
 
@@ -524,13 +563,11 @@ function ConfiguracoesContent() {
         p_clear_specialty_type: !userForm.specialty_type,
       })
       if (error) {
-        const msg = error.message.includes('cannot_deactivate_self')
-          ? 'Você não pode desativar sua própria conta.'
-          : 'Erro ao atualizar usuário: ' + error.message
+        const msg = memberErrorMessage(error.message, 'Não foi possível atualizar o usuário: ')
         setUserMsg({ type: 'error', text: msg })
       } else {
-        if (userForm.specialty_type) addClinicSpecialty(userForm.specialty_type)
-        const permErr = await savePermissions(editingUser.id, permissionsForm)
+        if (userForm.specialty_type) await registerClinicArea(userForm.specialty_type)
+        const permErr = await savePermissions(editingUser.id, permissionsToSave())
         if (user && clinic) audit({ action: 'user.update', user_id: user.id, clinic_id: clinic.id, module: 'configuracoes', resource_id: editingUser.id })
         closeUserModal()
         await loadUsers()
@@ -562,14 +599,11 @@ function ConfiguracoesContent() {
         p_specialty_type: userForm.specialty_type || null,
       })
       if (error) {
-        const msg = error.message.includes('email_taken')    ? 'Este e-mail já está em uso.'
-          : error.message.includes('username_taken')         ? 'Este nome de usuário já está em uso.'
-          : error.message.includes('username_invalid')       ? 'Nome de usuário inválido (3-30 chars: letras, números, _ . -).'
-          : 'Erro ao criar usuário: ' + error.message
+        const msg = memberErrorMessage(error.message, 'Não foi possível criar o usuário: ')
         setUserMsg({ type: 'error', text: msg })
       } else {
-        if (userForm.specialty_type) addClinicSpecialty(userForm.specialty_type)
-        const permErr = newCuId ? await savePermissions(newCuId as string, permissionsForm) : null
+        if (userForm.specialty_type) await registerClinicArea(userForm.specialty_type)
+        const permErr = newCuId ? await savePermissions(newCuId as string, permissionsToSave()) : null
         if (user && clinic) audit({ action: 'user.create', user_id: user.id, clinic_id: clinic.id, module: 'configuracoes', resource_id: newCuId as string | undefined })
         // Caminho inverso do que existe em Equipe: criar um usuário com
         // cargo clínico aqui também pode já deixá-lo agendável, sem
@@ -1246,6 +1280,7 @@ function ConfiguracoesContent() {
             type={calibratingType}
             pdfUrl={tpl.pdf_url}
             initialFields={tpl.field_positions ?? []}
+            council={councilForAreas(clinic?.specialties?.length ? clinic.specialties : [clinic?.type])}
             onSave={fields => handleSaveFieldPositions(calibratingType, fields)}
             onClose={() => setCalibratingType(null)}
           />
@@ -1406,6 +1441,7 @@ function ConfiguracoesContent() {
           </>
         }
       >
+        {userMsg?.type === 'error' && <p className={f.error} role="alert">{userMsg.text}</p>}
         <div className={f.field}>
           <label>Nome completo *</label>
           <input
@@ -1448,45 +1484,29 @@ function ConfiguracoesContent() {
           </>
         )}
         <div className={f.field}>
-          <label>{clinic?.isMultiSpecialty ? 'Função / Área de atuação' : 'Função'}</label>
-          {clinic?.isMultiSpecialty ? (
-            // Clínica multi-área: a área ESCOLHE o cargo sozinha
-            // (roleForSpecialty) — evita "Esteticista" e "Nutricionista"
-            // aparecerem como a mesma opção genérica "Profissional".
-            <SelectMenu
-              variant="field"
-              ariaLabel="Função ou área de atuação"
-              value={userForm.specialty_type || userForm.role}
-              onChange={v => {
-                const isArea = CLINIC_TYPE_OPTIONS.some(o => o.value === v)
-                const role = isArea ? roleForSpecialty(v as ClinicType) : (v as UserRole)
-                const specialty_type = isArea ? (v as ClinicType) : ''
-                setUserForm(p => ({ ...p, role, specialty_type }))
-                if (!editingUser) { setPermissionsForm(presetPermissions(role)); setCreateProfessional(isClinicalRole(role)) }
-              }}
-              options={[
-                { value: 'recepcao', label: 'Recepção' },
-                { value: 'auxiliar', label: 'Auxiliar' },
-                { value: 'admin', label: 'Admin (acesso total)' },
-                ...clinicAreaOptions.map(o => ({ value: o.value, label: o.label, group: 'Área de atuação' })),
-              ]}
-            />
-          ) : (
-            <SelectMenu
-              variant="field"
-              ariaLabel="Função"
-              value={userForm.role}
-              onChange={v => {
-                const role = v as UserRole
-                setUserForm(p => ({ ...p, role }))
-                // Preset de permissões só é reaplicado ao criar um usuário
-                // novo — em edição, trocar o cargo não deve descartar
-                // permissões já salvas e customizadas pelo admin.
-                if (!editingUser) { setPermissionsForm(presetPermissions(role)); setCreateProfessional(isClinicalRole(role)) }
-              }}
-              options={specialty.roles.map(r => ({ value: r.value, label: r.label }))}
-            />
-          )}
+          <label>Função / Área de atuação</label>
+          {/* A área ESCOLHE o cargo sozinha (roleForSpecialty) — evita "Esteticista" e "Nutricionista"
+              aparecerem como a mesma opção genérica "Profissional". Sempre com as 9 áreas: a clínica
+              pode cadastrar profissional de qualquer uma, mesmo tendo nascido com uma só. */}
+          <SelectMenu
+            variant="field"
+            ariaLabel="Função ou área de atuação"
+            value={roleOrAreaValue(userForm.role, userForm.specialty_type, clinic?.type ?? 'odonto')}
+            onChange={v => {
+              const isArea = CLINIC_TYPE_OPTIONS.some(o => o.value === v)
+              const role = isArea ? roleForSpecialty(v as ClinicType) : (v as UserRole)
+              const specialty_type = isArea ? (v as ClinicType) : ''
+              setUserForm(p => ({ ...p, role, specialty_type }))
+              setProfessionalSpecialty('')
+              if (!editingUser) { setPermissionsForm(presetPermissions(role)); setCreateProfessional(isClinicalRole(role)) }
+            }}
+            options={[
+              { value: 'recepcao', label: 'Recepção' },
+              { value: 'auxiliar', label: 'Auxiliar' },
+              { value: 'admin', label: 'Admin (acesso total)' },
+              ...CLINIC_TYPE_OPTIONS.map(o => ({ value: o.value, label: o.label, group: 'Área de atuação' })),
+            ]}
+          />
           {!editingUser && userForm.role !== 'admin' && (
             <span className={f.hint}>Permissões abaixo já vêm pré-marcadas pro cargo — ajuste se precisar.</span>
           )}
@@ -1517,10 +1537,14 @@ function ConfiguracoesContent() {
             {createProfessional && (
               <div className={f.field}>
                 <label>Especialidade (opcional)</label>
-                <input
+                <SelectMenu
+                  variant="field"
+                  ariaLabel="Especialidade"
+                  placeholder={specialtyPlaceholder(userForm.specialty_type)}
+                  disabled={!userForm.specialty_type}
                   value={professionalSpecialty}
-                  onChange={e => setProfessionalSpecialty(e.target.value)}
-                  placeholder="Ex: Ortodontia"
+                  onChange={setProfessionalSpecialty}
+                  options={specialtyOptions(userForm.specialty_type, professionalSpecialty)}
                 />
               </div>
             )}
@@ -1528,56 +1552,96 @@ function ConfiguracoesContent() {
         )}
 
             {/* Permissões por módulo — só para não-admins */}
-            {userForm.role !== 'admin' && (
+            {userForm.role !== 'admin' && (() => {
+              const visibleModules = MODULES.filter(m => !m.plusOnly || hasWhatsAppAI(clinic?.plan))
+              const roleLabel = ROLE_LABELS[userForm.role] ?? userForm.role
+              const warnings = permissionWarnings(userForm.role, roleLabel, permissionsForm, visibleModules)
+              return (
               <div>
                 <p className={styles.permTitle}>Permissões por módulo</p>
+                <div className={styles.permHelp}>
+                  <p><b>Ver</b>: abrir e consultar o módulo.</p>
+                  <p><b>Editar</b>: criar, alterar, excluir, enviar e exportar. Precisa de Ver marcado.</p>
+                </div>
+
+                <p className={styles.permSummary} role="status" aria-live="polite">
+                  {permissionSummary(roleLabel, permissionsForm, visibleModules)}
+                </p>
+
+                {warnings.length > 0 && (
+                  <div className={styles.permWarn} role="alert">
+                    <Icon name="alert" size={16} />
+                    <div>
+                      {warnings.map(w => <p key={w}>{w}</p>)}
+                    </div>
+                  </div>
+                )}
+
+                <div className={styles.permTools}>
+                  <Button variant="secondary" onClick={() => setPermissionsForm(prev => restoreRolePreset(userForm.role, prev))}>Restaurar padrão do cargo</Button>
+                  <Button variant="secondary" onClick={() => setPermissionsForm(prev => markAllModules(userForm.role, prev, visibleModules))}>Marcar tudo</Button>
+                  <Button variant="secondary" onClick={() => setPermissionsForm(prev => clearAllModules(prev, visibleModules))}>Limpar</Button>
+                </div>
+
                 <div className={styles.permTable}>
                   <div className={styles.permHeader}>
                     <span className={styles.permModuleCol}>Módulo</span>
                     <span className={styles.permCheckCol}>Ver</span>
                     <span className={styles.permCheckCol}>Editar</span>
                   </div>
-                  {MODULES.filter(m => !m.plusOnly || hasWhatsAppAI(clinic?.plan)).map(m => {
+                  {visibleModules.map(m => {
                     const perm = permissionsForm[m.key] ?? { can_view: false, can_edit: false, metadata: {} }
                     const extras = MODULE_EXTRAS[m.key] ?? []
+                    const adminOnly = isAdminOnlyModule(m.key)
+                    const editBlocked = isEditBlockedForRole(userForm.role, m.key)
                     return (
                       <div key={m.key}>
                         <div className={styles.permRow}>
-                          <span className={styles.permModuleCol}>
-                            <span className={styles.permIcon}>{m.icon}</span>
-                            {m.label}
+                          <span className={styles.permModuleText}>
+                            <span className={styles.permName}>{m.label}</span>
+                            <span className={styles.permDesc}>{m.desc}</span>
+                            {m.note && <span className={styles.permDesc}>{m.note}</span>}
                           </span>
-                          <span className={styles.permCheckCol}>
-                            <input
-                              type="checkbox"
-                              className={styles.permCheck}
-                              checked={perm.can_view}
-                              onChange={e => setPermissionsForm(prev => ({
-                                ...prev,
-                                [m.key]: { ...prev[m.key], can_view: e.target.checked, can_edit: e.target.checked ? prev[m.key].can_edit : false }
-                              }))}
-                            />
-                          </span>
-                          <span className={styles.permCheckCol}>
-                            <input
-                              type="checkbox"
-                              className={styles.permCheck}
-                              checked={perm.can_edit}
-                              disabled={!perm.can_view}
-                              onChange={e => setPermissionsForm(prev => ({
-                                ...prev,
-                                [m.key]: { ...prev[m.key], can_edit: e.target.checked }
-                              }))}
-                            />
-                          </span>
+                          {adminOnly ? (
+                            <span className={styles.permAdminOnly} title="Este módulo é gerenciado só pelo administrador da clínica">Somente administrador</span>
+                          ) : (
+                            <>
+                              <span className={styles.permCheckCol}>
+                                <input
+                                  type="checkbox"
+                                  className={styles.permCheck}
+                                  aria-label={`Ver ${m.label}`}
+                                  checked={perm.can_view}
+                                  onChange={e => setPermissionsForm(prev => ({
+                                    ...prev,
+                                    [m.key]: { ...prev[m.key], can_view: e.target.checked, can_edit: e.target.checked ? prev[m.key].can_edit : false }
+                                  }))}
+                                />
+                              </span>
+                              <span className={styles.permCheckCol}>
+                                <input
+                                  type="checkbox"
+                                  className={styles.permCheck}
+                                  aria-label={`Editar ${m.label}`}
+                                  checked={perm.can_edit}
+                                  disabled={!perm.can_view || editBlocked}
+                                  title={editBlocked ? 'Recepção e auxiliar só podem ver este módulo' : !perm.can_view ? 'Marque Ver primeiro' : undefined}
+                                  onChange={e => setPermissionsForm(prev => ({
+                                    ...prev,
+                                    [m.key]: { ...prev[m.key], can_edit: e.target.checked }
+                                  }))}
+                                />
+                              </span>
+                            </>
+                          )}
                         </div>
                         {/* Opções extras do módulo (ex: Ver totais no Financeiro) */}
-                        {perm.can_view && extras.map(extra => (
+                        {!adminOnly && perm.can_view && extras.map(extra => (
                           <label key={extra.key} className={styles.permExtra}>
                             <input
                               type="checkbox"
                               className={styles.permCheck}
-                              checked={(perm.metadata?.[extra.key] as boolean) ?? true}
+                              checked={(perm.metadata?.[extra.key] as boolean) ?? extra.defaultOn}
                               onChange={e => setPermissionsForm(prev => ({
                                 ...prev,
                                 [m.key]: {
@@ -1586,7 +1650,10 @@ function ConfiguracoesContent() {
                                 }
                               }))}
                             />
-                            <span>{extra.label}</span>
+                            <span className={styles.permExtraText}>
+                              <span>{extra.label}</span>
+                              {extra.hint && <span className={styles.permDesc}>{extra.hint}</span>}
+                            </span>
                           </label>
                         ))}
                       </div>
@@ -1598,7 +1665,8 @@ function ConfiguracoesContent() {
                   Desmarcar &quot;Ver&quot; também remove o &quot;Editar&quot;.
                 </p>
               </div>
-            )}
+              )
+            })()}
 
         {editingUser && editingUser.user_id !== user?.id && (
           <div className={f.switches}>

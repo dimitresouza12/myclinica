@@ -1,0 +1,22 @@
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.group { display: flex; flex-direction: column; gap: 10px; }
+.groupTitle { margin: 0; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-secondary); }
+.checks { display: flex; flex-direction: column; border: 1px solid var(--surface-line); border-radius: var(--radius-inner); background: var(--surface-2); }
+.check { display: flex; gap: 12px; align-items: flex-start; min-height: 52px; padding: 10px 14px; cursor: pointer; }
+.check + .check { border-top: 1px solid var(--surface-line); }
+.check input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+.check span { display: flex; flex-direction: column; min-width: 0; }
+.check b { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+.check small { font-size: 0.78rem; color: var(--text-secondary-strong); }
+.docCard { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--surface-line); border-radius: var(--radius-inner); }
+.docText { min-height: 180px; line-height: 1.5; }
+.urlRow { display: flex; gap: 8px; flex-wrap: wrap; }
+.urlInput { flex: 1 1 220px; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: var(--radius-field); background: var(--surface-2); color: var(--text-primary); font: inherit; font-size: 0.82rem; }
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.actions a { text-decoration: none; }
+.history { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--surface-line); display: flex; flex-direction: column; gap: 10px; }
+.histRow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius-inner); }
+.histMain { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.histMain b { font-size: 0.88rem; font-weight: 600; overflow-wrap: anywhere; }
+.histMain small { font-size: 0.76rem; color: var(--text-secondary-strong); }
+@media (max-width: 480px) { .histRow { flex-direction: column; align-items: stretch; } }

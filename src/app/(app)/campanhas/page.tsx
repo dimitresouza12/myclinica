@@ -19,8 +19,10 @@ import { ErrorNotice } from '@/components/ui/ErrorNotice'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { showToast } from '@/components/ui/Toast'
+import { birthdaysOfMonth, withoutReturn, MAX_RETURN_WINDOW_DAYS, type AudienceAppt } from '@/lib/campanhas/audience'
+import { fetchAllPages } from '@/lib/campanhas/paginate'
 
-interface Patient { id: string; name: string; phone: string | null; created_at: string }
+interface Patient { id: string; name: string; phone: string | null; created_at: string; birth_date: string | null }
 
 interface Campaign {
   id: string
@@ -57,6 +59,7 @@ const AUDIENCE_DAYS: Record<string, number> = {
 
 const DEMO_SEND_NOTICE = 'Envio de mensagens desativado na conta de demonstração.'
 const READ_ONLY_NOTICE = 'Você pode consultar as campanhas, mas não tem permissão para criar ou enviar.'
+const AUDIENCE_BLOCKED_NOTICE = 'Não foi possível carregar a lista de pacientes e consultas. Por segurança, criar e enviar campanhas fica bloqueado até a lista carregar por completo. Use Tentar novamente na página.'
 
 function CampanhasContent() {
   const { clinic, user } = useAuthStore()
@@ -67,10 +70,13 @@ function CampanhasContent() {
   const [creating, setCreating]     = useState(false)
   const [campaigns, setCampaigns]   = useState<Campaign[]>([])
   const [patients, setPatients]     = useState<Patient[]>([])
+  const [appts, setAppts]           = useState<AudienceAppt[]>([])
   const [loading, setLoading]       = useState(true)
   const [sending, setSending]       = useState(false)
   const [error, setError]           = useState('')
   const [loadError, setLoadError]   = useState(false)
+  // pacientes ou consultas não vieram completos: o público calculado estaria errado, então nada é criado nem enviado
+  const [audienceFailed, setAudienceFailed] = useState(false)
 
   const [form, setForm] = useState({
     name: '',
@@ -84,24 +90,53 @@ function CampanhasContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinic?.id])
 
+  // Consultas dos últimos 90 dias (e as marcadas pra frente): é o que decide quem está "sem retorno".
+  // O banco devolve no máximo 1000 linhas por consulta, então lê em páginas.
+  function loadRecentAppointments(clinicId: string) {
+    const since = new Date(Date.now() - MAX_RETURN_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    return fetchAllPages<AudienceAppt>((from, to) => supabase.from('appointments')
+      .select('patient_id, scheduled_at, status')
+      .eq('clinic_id', clinicId)
+      .not('patient_id', 'is', null)
+      .gte('scheduled_at', since)
+      .order('scheduled_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to))
+  }
+
+  // Pacientes ativos com telefone, também em páginas (clínica com mais de 1000 pacientes).
+  async function loadActivePatients(clinicId: string) {
+    const res = await fetchAllPages<Patient>((from, to) => supabase.from('patients')
+      .select('id,name,phone,created_at,birth_date')
+      .eq('clinic_id', clinicId)
+      .eq('is_active', true)
+      .not('phone', 'is', null)
+      .neq('phone', '')
+      .order('id', { ascending: true })
+      .range(from, to))
+    // telefone só com espaços também não dá para enviar
+    return { rows: res.rows.filter(p => !!p.phone?.trim()), failed: res.failed }
+  }
+
   async function loadData() {
     if (!clinic) return
     setLoading(true)
     setLoadError(false)
-    const [patRes, campRes] = await Promise.all([
-      supabase.from('patients')
-        .select('id,name,phone,created_at')
-        .eq('clinic_id', clinic.id)
-        .eq('is_active', true)
-        .not('phone', 'is', null),
+    const [patRes, campRes, apptRes] = await Promise.all([
+      loadActivePatients(clinic.id),
       supabase.from('campaigns')
         .select('*')
         .eq('clinic_id', clinic.id)
         .order('created_at', { ascending: false })
         .limit(20),
+      loadRecentAppointments(clinic.id),
     ])
-    if (patRes.error || campRes.error) setLoadError(true)
-    setPatients((patRes.data ?? []) as Patient[])
+    // sem a lista de consultas, "sem retorno" listaria quem voltou há pouco: melhor bloquear do que disparar errado
+    const incomplete = patRes.failed || apptRes.failed
+    setAudienceFailed(incomplete)
+    if (incomplete || campRes.error) setLoadError(true)
+    setPatients(incomplete ? [] : patRes.rows)
+    setAppts(incomplete ? [] : apptRes.rows)
     setCampaigns((campRes.data ?? []) as Campaign[])
     setLoading(false)
   }
@@ -109,27 +144,18 @@ function CampanhasContent() {
   // Filtra audiência com base no tipo selecionado
   const audience = useMemo(() => {
     if (!patients.length) return []
-    const now = new Date()
 
     if (form.audienceType === 'todos') return patients
 
-    if (form.audienceType === 'aniversariantes') {
-      // Para aniversariantes precisaríamos do birth_date — retorna todos por simplicidade
-      return patients.filter(p => {
-        // placeholder — idealmente buscar birth_date
-        return !!p.phone
-      }).slice(0, 50)
-    }
+    // aniversariantes: mês de nascimento igual ao mês atual (Brasília); sem data de nascimento não entra
+    if (form.audienceType === 'aniversariantes') return birthdaysOfMonth(patients)
 
+    // sem retorno: última consulta (ou o cadastro, se nunca veio) mais antiga que o corte
     const days = AUDIENCE_DAYS[form.audienceType]
-    if (days) {
-      const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString()
-      // Pacientes cujo cadastro é anterior ao corte (proxy de "sem retorno recente")
-      return patients.filter(p => p.created_at < cutoff)
-    }
+    if (days) return withoutReturn(patients, appts, days)
 
     return patients
-  }, [patients, form.audienceType])
+  }, [patients, appts, form.audienceType])
 
   function handleAudienceChange(value: string) {
     setForm(f => ({
@@ -158,6 +184,7 @@ function CampanhasContent() {
     if (!clinic || !user) return
     if (!canEdit) return setError(READ_ONLY_NOTICE)
     if (clinic.demoMode) return setError(DEMO_SEND_NOTICE)
+    if (audienceFailed) return setError(AUDIENCE_BLOCKED_NOTICE)
 
     setSending(true)
     setError('')
@@ -227,6 +254,7 @@ function CampanhasContent() {
     if (!form.name.trim()) return setError('Dê um nome para a campanha.')
     if (!clinic || !user) return
     if (!canEdit) return setError(READ_ONLY_NOTICE)
+    if (audienceFailed) return setError(AUDIENCE_BLOCKED_NOTICE)
     setError('')
     const { error: draftErr } = await supabase.from('campaigns').insert([{
       clinic_id: clinic.id,
@@ -249,7 +277,7 @@ function CampanhasContent() {
         title="Campanhas"
         subtitle="Envie mensagens segmentadas pelo WhatsApp para seus pacientes"
         actions={
-          <Button variant="primary" icon="plus" onClick={() => { setCreating(true); setError('') }} disabled={!canEdit} aria-describedby={!canEdit ? 'campanha-readonly-note' : undefined}>
+          <Button variant="primary" icon="plus" onClick={() => { setCreating(true); setError('') }} disabled={!canEdit || audienceFailed} title={canEdit ? undefined : 'Seu perfil só pode visualizar'} aria-describedby={!canEdit ? 'campanha-readonly-note' : audienceFailed ? 'campanha-blocked-note' : undefined}>
             Nova campanha
           </Button>
         }
@@ -257,7 +285,11 @@ function CampanhasContent() {
 
       {!canEdit && <p id="campanha-readonly-note" className={styles.demoNote}>{READ_ONLY_NOTICE}</p>}
 
-      {loadError && <ErrorNotice message="Não foi possível carregar suas campanhas." onRetry={loadData} retrying={loading} />}
+      {loadError && (
+        <div id={audienceFailed ? 'campanha-blocked-note' : undefined}>
+          <ErrorNotice message={audienceFailed ? AUDIENCE_BLOCKED_NOTICE : 'Não foi possível carregar suas campanhas.'} onRetry={loadData} retrying={loading} />
+        </div>
+      )}
 
       {/* Histórico */}
       <Card title="Histórico de campanhas" flush className={styles.history}>
@@ -278,7 +310,7 @@ function CampanhasContent() {
             icon="campaigns"
             title="Nenhuma campanha ainda"
             description="Crie a primeira para chamar pacientes sem retorno, aniversariantes ou toda a base pelo WhatsApp."
-            action={<Button variant="primary" icon="plus" onClick={() => { setCreating(true); setError('') }} disabled={!canEdit} aria-describedby={!canEdit ? 'campanha-readonly-note' : undefined}>Nova campanha</Button>}
+            action={<Button variant="primary" icon="plus" onClick={() => { setCreating(true); setError('') }} disabled={!canEdit || audienceFailed} title={canEdit ? undefined : 'Seu perfil só pode visualizar'} aria-describedby={!canEdit ? 'campanha-readonly-note' : audienceFailed ? 'campanha-blocked-note' : undefined}>Nova campanha</Button>}
           />
         ) : (
           <div className={styles.historyList}>
@@ -312,8 +344,8 @@ function CampanhasContent() {
         footer={
           <>
             <Button variant="secondary" onClick={closeBuilder} disabled={sending}>Cancelar</Button>
-            <Button variant="secondary" onClick={saveDraft} disabled={sending || !canEdit}>Salvar rascunho</Button>
-            <Button variant="primary" icon="send" onClick={handleSend} loading={sending} disabled={audience.length === 0 || demo || !canEdit} aria-describedby={demo ? 'campanha-demo-note' : undefined}>
+            <Button variant="secondary" onClick={saveDraft} disabled={sending || !canEdit || audienceFailed} title={canEdit ? undefined : 'Seu perfil só pode visualizar'}>Salvar rascunho</Button>
+            <Button variant="primary" icon="send" onClick={handleSend} loading={sending} disabled={audience.length === 0 || demo || !canEdit || audienceFailed} aria-describedby={demo ? 'campanha-demo-note' : audienceFailed ? 'campanha-blocked-note-modal' : undefined}>
               {sending ? 'Enviando...' : `Enviar para ${audience.length} ${audience.length === 1 ? 'paciente' : 'pacientes'}`}
             </Button>
           </>
@@ -343,6 +375,9 @@ function CampanhasContent() {
             <div className={styles.audienceBox}>
               <div className={styles.audienceCount}>{audience.length}</div>
               <div className={styles.audienceLabel}>{audience.length === 1 ? 'paciente será atingido' : 'pacientes serão atingidos'}</div>
+              {form.audienceType === 'aniversariantes' && (
+                <div className={styles.audienceLabel}>Só entram pacientes com data de nascimento cadastrada.</div>
+              )}
               {audience.length > 0 && (
                 <div className={styles.audienceList}>
                   {audience.slice(0, 6).map(p => (
@@ -380,6 +415,10 @@ function CampanhasContent() {
               <p id="campanha-demo-note" className={styles.demoNote}>
                 {DEMO_SEND_NOTICE} Você pode montar a campanha e salvar como rascunho, mas nenhuma mensagem é enviada.
               </p>
+            )}
+
+            {audienceFailed && (
+              <p id="campanha-blocked-note-modal" className={styles.demoNote}>{AUDIENCE_BLOCKED_NOTICE}</p>
             )}
 
             {error && <ErrorNotice message={error} />}

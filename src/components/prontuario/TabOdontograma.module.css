@@ -5,14 +5,14 @@
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 16px;
 }
-.stageCard { grid-column: span 8; }
-.analysis  { grid-column: span 4; }
-.history   { grid-column: span 8; }
-.recs      { grid-column: span 4; }
+.stageCard { grid-column: 1 / -1; }
+.analysis  { grid-column: span 7; }
+.recs      { grid-column: span 5; }
+.history   { grid-column: 1 / -1; }
 .saveRow   { grid-column: 1 / -1; }
 
 @container (max-width: 900px) {
-  .stageCard, .analysis, .history, .recs { grid-column: 1 / -1; }
+  .analysis, .recs { grid-column: 1 / -1; }
 }
 
 .card {
@@ -37,22 +37,21 @@
 .miniLabel { margin: 0; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); }
 .srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* ── Palco 3D ── */
+/* ── Palco da arcada ── */
 .stageCard {
   position: relative;
   display: flex;
   flex-direction: column;
+  gap: 8px;
   min-width: 0;
-  padding: 12px 14px 10px;
+  padding: 12px 14px 12px;
   border: 1px solid var(--border-subtle);
   border-radius: 20px;
-  background:
-    radial-gradient(90% 70% at 50% 100%, var(--brand-light), transparent 70%),
-    radial-gradient(60% 50% at 0% 0%, var(--brand-glow), transparent 70%),
-    var(--surface);
+  background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
-.modeTabs { display: flex; justify-content: center; gap: 4px; position: relative; z-index: 1; }
+.stageHead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; }
+.modeTabs { display: flex; gap: 4px; position: relative; z-index: 1; }
 .modeTab {
   min-height: 36px; padding: 0 16px; border: none; border-radius: 10px; background: transparent;
   font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); cursor: pointer;
@@ -61,50 +60,48 @@
 .modeTab:hover { color: var(--text-primary); }
 .modeTabOn { background: var(--brand-light); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--glass-border); }
 .modeTab:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.headTools { display: flex; align-items: center; gap: 8px; }
+.zoomBox { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: 10px; }
+.zoomBtn { display: grid; place-items: center; width: 34px; height: 30px; border: none; border-radius: 8px; background: none; color: var(--text-secondary); cursor: pointer; }
+.zoomBtn:hover:not(:disabled) { background: var(--surface); color: var(--text-primary); }
+.zoomBtn:disabled { opacity: 0.35; cursor: default; }
+.zoomBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+.jsonBtn {
+  min-height: 36px; padding: 0 14px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--surface);
+  color: var(--text-primary); font-size: 0.78rem; font-weight: 600; cursor: pointer;
+}
+.jsonBtn:hover { border-color: var(--text-tertiary); }
+.jsonBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+@media (pointer: coarse) { .zoomBtn { width: 44px; height: 38px; } .jsonBtn { min-height: 44px; } .modeTab { min-height: 44px; } }
 
-.stage { position: relative; height: clamp(360px, 58dvh, 660px); margin: 0 0 0 34px; border-radius: 14px; outline: none; }
-.stage:focus-visible { box-shadow: 0 0 0 2px var(--brand-accent); }
-.stageFoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0 0 34px; }
-.stageHint { text-align: center; font-size: 0.72rem; color: var(--text-secondary); }
-.sideLabel { flex: none; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-tertiary); }
+/* "placa" sobre a qual os dentes ficam: leve tom frio, para o esmalte claro se destacar */
+.plate {
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 10px 10px 8px;
+  border: 1px solid var(--border-subtle); border-radius: 18px;
+  background: linear-gradient(180deg, #F5F8FA 0%, #ECF1F4 100%);
+}
+:global([data-theme="dark"]) .plate { background: linear-gradient(180deg, #1A1D21 0%, #121416 100%); }
+.archBlock { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.archSep { padding-top: 12px; border-top: 1px dashed var(--border-color); }
+.selBar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-height: 40px; padding: 4px 6px; }
+.selText { font-size: 0.8125rem; color: var(--text-secondary); }
+.selText b { color: var(--text-primary); }
+.selBtn {
+  min-height: 36px; padding: 0 14px; border: none; border-radius: 10px; background: var(--brand-light); color: var(--text-primary);
+  font-size: 0.78rem; font-weight: 700; cursor: pointer; box-shadow: inset 0 0 0 1px var(--glass-border);
+}
+.selBtn:hover { background: var(--brand-primary); color: #06312B; }
+.selBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+@media (pointer: coarse) { .selBtn { min-height: 44px; } }
+.stageHint { font-size: 0.74rem; line-height: 1.45; color: var(--text-secondary); }
 .unsavedMsg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
 .unsavedMsg::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #d97706; }
-.legend { list-style: none; margin: 6px 0 0 34px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.74rem; color: var(--text-secondary); }
+.legend { list-style: none; margin: 2px 0 0; padding: 0 6px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.74rem; color: var(--text-secondary); }
 .legend li { display: inline-flex; align-items: center; gap: 6px; }
 .legend small { font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .legendDot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .legendDot[data-ghost] { background: transparent; border: 1.5px dashed var(--text-tertiary); }
 .legendNone { color: var(--text-secondary); }
-.viewTabs {
-  position: absolute; top: 12px; right: 14px; z-index: 2; display: flex; gap: 2px; padding: 3px;
-  background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: 10px;
-}
-.viewTab { min-height: 30px; padding: 0 10px; border: none; border-radius: 8px; background: none; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
-.viewTabOn { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm); }
-.viewTab:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
-@media (pointer: coarse) { .viewTab { min-height: 40px; } }
-.hoverTip {
-  position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
-  padding: 5px 10px; border-radius: 999px; white-space: nowrap; pointer-events: none;
-  background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: var(--shadow-md);
-  font-size: 0.75rem; color: var(--text-primary);
-}
-
-.zoom {
-  position: absolute; left: 12px; top: 56px; z-index: 1;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-}
-.zoomRange {
-  writing-mode: vertical-lr; direction: rtl;
-  width: 24px; height: 120px; margin: 4px 0; accent-color: var(--brand-accent); cursor: pointer;
-}
-.zoomBtn {
-  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
-  border: 1px solid var(--border-color); background: var(--surface); color: var(--text-primary);
-  font-size: 1rem; line-height: 1; cursor: pointer;
-}
-.zoomBtn:hover { border-color: var(--brand-primary); }
-@media (pointer: coarse) { .zoomBtn { width: 44px; height: 44px; } }
 
 /* ── Análise dos dentes ── */
 .analysisList { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; max-height: clamp(360px, 58dvh, 660px); overflow-y: auto; }
@@ -118,7 +115,7 @@
 .toothCardOn { border-color: var(--brand-accent); background: var(--brand-light); }
 .toothCard:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
 .thumb { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--surface); }
-.thumb svg { width: 26px; height: 28px; }
+.thumb svg { width: 28px; height: 30px; }
 .toothCardGrid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; min-width: 0; }
 .toothCardGrid span { display: grid; min-width: 0; }
 .toothCardGrid small { font-size: 0.66rem; color: var(--text-secondary); }
@@ -131,7 +128,7 @@
 
 /* ── Modal do detalhe do dente ── */
 .modalThumb { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: var(--surface-2); }
-.modalThumb svg { width: 32px; height: 34px; }
+.modalThumb svg { width: 34px; height: 36px; }
 .stepper { display: flex; gap: 2px; }
 .marks { display: flex; flex-direction: column; gap: 8px; }
 .marksEmpty { margin: 0; font-size: 0.8125rem; color: var(--text-secondary); }
@@ -164,8 +161,6 @@
 .facts dd { margin: 1px 0 0; font-size: 0.84rem; font-weight: 600; color: var(--text-primary); }
 .editor { display: flex; gap: 18px; align-items: flex-start; padding-top: 4px; border-top: 1px solid var(--border-subtle); }
 .facesCol { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; padding-top: 6px; }
-.facesHint { margin: 0; max-width: 132px; text-align: center; font-size: 0.66rem; color: var(--text-secondary); }
-.surfaceDiagram { width: 132px; height: 132px; cursor: pointer; }
 .statusCol { flex: 1; min-width: 0; padding-top: 6px; }
 .statusGrid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .statusBtn {
@@ -215,38 +210,14 @@
 .btnSave:hover:not(:disabled) { opacity: 0.88; }
 .btnSave:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* ── Arcada 2D (sem WebGL no aparelho) ── */
-.arcade {
-  display: flex; flex-direction: column; align-items: center; gap: 0.25rem; margin-top: 8px;
-  padding: 0.75rem; overflow-x: auto; -webkit-overflow-scrolling: touch;
-}
-.teethRow { display: flex; gap: 3px; align-items: flex-end; }
-.midline { width: 100%; height: 2px; margin: 0.2rem 0; background: linear-gradient(to right, transparent, var(--border-color) 20%, var(--border-color) 80%, transparent); }
-.toothBtn {
-  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px;
-  background: none; border: none; border-radius: 6px; cursor: pointer; transition: transform 0.1s;
-}
-.toothBtn:hover { transform: translateY(-2px); }
-.toothBtnSelected { transform: translateY(-3px) !important; }
-.toothSvg { display: block; width: 32px; height: 52px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.28)) drop-shadow(0 1px 1px rgba(0,0,0,0.16)); }
-.toothBtnSelected .toothSvg { filter: drop-shadow(0 0 6px rgba(77,217,192,0.75)) drop-shadow(0 2px 4px rgba(0,0,0,0.24)); }
-.toothNumber { position: relative; font-size: 0.58rem; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; line-height: 1; }
-.noteMarker { position: absolute; top: -5px; right: -7px; width: 6px; height: 6px; border-radius: 50%; background: #0891b2; border: 1px solid var(--bg-primary); }
-
 @media (max-width: 640px) {
   .editor { flex-direction: column; align-items: center; }
   .statusCol { width: 100%; }
-  .stage { height: 260px; margin-left: 0; }
-  .stageFoot { margin-left: 0; }
-  .legend { margin-left: 0; }
-  .viewTabs { position: static; align-self: center; margin-bottom: 6px; }
-  .zoom { display: none; }
-  .toothSvg { width: 26px; height: 42px; }
-  .teethRow { gap: 2px; }
-  .arcade { align-items: flex-start; }
+  .stageCard { padding: 10px 8px; }
+  .plate { padding: 8px 4px 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .toothBtn, .statusBtn { transition: none; }
+  .statusBtn { transition: none; }
 }
 
 .legendDot[data-planned] { background: transparent; border: 1.5px dashed var(--brand-accent); }
@@ -255,6 +226,8 @@
 .segBtnOn { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm); }
 .segBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
 .doneBtn { min-height: 24px; padding: 0 8px; border: 1px solid var(--st-color); border-radius: 999px; background: var(--surface); color: var(--st-color); font-size: 0.68rem; font-weight: 700; cursor: pointer; }
+/* vence `.markChip button` (círculo de 26px) em qualquer largura e tipo de ponteiro */
+.markChip .doneBtn { width: auto; height: auto; padding: 0 8px; border: 1px solid var(--st-color); border-radius: 999px; background: var(--surface); }
 @media (pointer: coarse) { .segBtn { min-height: 44px; } .doneBtn { min-height: 36px; } }
 
 @media (max-width: 640px) {
@@ -263,4 +236,30 @@
   .markChip button { width: 36px; height: 36px; }
   .markChip .doneBtn { width: auto; height: 44px; padding: 0 14px; border-radius: 22px; }
   .recBtn { min-height: 44px; }
+}
+
+/* ── Dentição (permanente, decídua, mista) ── */
+.dentRow { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.dentLabel { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-tertiary); }
+.dentTabs { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: 10px; }
+.dentTab { min-height: 32px; padding: 0 14px; border: none; border-radius: 8px; background: none; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.dentTab:hover { color: var(--text-primary); }
+.dentTabOn { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+.dentTab:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+@media (pointer: coarse) { .dentTab { min-height: 44px; } }
+
+.hiddenNote { margin: 8px 0 0; font-size: 0.74rem; color: var(--text-secondary); }
+.hiddenNote button { min-height: 32px; padding: 0 4px; border: none; background: none; color: var(--text-primary); font-size: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+@media (pointer: coarse) { .hiddenNote button { min-height: 44px; } }
+
+
+/* alvos de toque de 44px em tela de toque (fica no fim para vencer as regras de 640px acima) */
+@media (pointer: coarse) {
+  .zoomBtn { width: 44px; height: 44px; }
+  .markChip { min-height: 44px; }
+  .markChip button { width: 44px; height: 44px; }
+  .markChip .doneBtn { width: auto; height: 44px; min-height: 44px; }
+  .undoBtn, .recBtn { min-height: 44px; }
+  .statusBtn { min-height: 44px; }
+  .stepper .iconBtn { width: 44px; height: 44px; }
 }

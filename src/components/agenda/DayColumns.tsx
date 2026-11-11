@@ -2,6 +2,7 @@
 import { useMemo } from 'react'
 import type { Appointment } from '@/types'
 import { buildBusyMap } from '@/lib/agenda/slots'
+import { gridTemplate, ROW_PX as ROW_BY_DENSITY, type Density } from '@/lib/agenda/dayGrid'
 import styles from './dayColumns.module.css'
 
 export interface DayColumn { id: string; name: string; initials: string; color: string }
@@ -21,16 +22,19 @@ interface Props {
   onFreeSlot: (professionalId: string, time: string) => void
   /** casa dentro da escala do profissional? Ausente = sempre (sem escala configurada) */
   isOpen?: (professionalId: string, time: string) => boolean
+  /** normal: bloco com horário, nome e detalhes; compacta: uma linha com hora e paciente */
+  density?: Density
 }
 
-const ROW_PX = 48
 const STEP = 30
 const pad = (n: number) => String(n).padStart(2, '0')
 const toLabel = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`
 const toMin = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5))
 
 /** Dia em colunas: um profissional por coluna, consultas no horário e as casas livres clicáveis. */
-export function DayColumns({ dateStr, columns, appointments, slots, statusLabels, onOpenAppt, onFreeSlot, isOpen }: Props) {
+export function DayColumns({ dateStr, columns, appointments, slots, statusLabels, onOpenAppt, onFreeSlot, isOpen, density = 'normal' }: Props) {
+  const ROW_PX = ROW_BY_DENSITY[density]
+  const compact = density === 'compacta'
   const shown = useMemo(() => appointments.filter(a => a.status !== 'cancelado'), [appointments])
 
   // a grade cobre o horário da clínica e, se houver consulta fora dele, estica até ela
@@ -58,7 +62,10 @@ export function DayColumns({ dateStr, columns, appointments, slots, statusLabels
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.grid} style={{ gridTemplateColumns: `56px repeat(${columns.length}, minmax(168px, 1fr))` }}>
+      <div
+        className={`${styles.grid}${compact ? ` ${styles.compact}` : ''}`}
+        style={{ gridTemplateColumns: gridTemplate(columns.length), ['--row' as string]: `${ROW_PX}px` }}
+      >
         {/* cabeçalho das colunas */}
         <div className={styles.corner} />
         {columns.map(c => {
@@ -93,6 +100,8 @@ export function DayColumns({ dateStr, columns, appointments, slots, statusLabels
             startMin={startMin}
             endMin={endMin}
             pxPerMin={pxPerMin}
+            rowPx={ROW_PX}
+            compact={compact}
             statusLabels={statusLabels}
             onOpenAppt={onOpenAppt}
             onFreeSlot={onFreeSlot}
@@ -104,7 +113,7 @@ export function DayColumns({ dateStr, columns, appointments, slots, statusLabels
   )
 }
 
-function Column({ col, dateStr, all, rows, slots, dayStartMs, startMin, endMin, pxPerMin, statusLabels, onOpenAppt, onFreeSlot, isOpen }: {
+function Column({ col, dateStr, all, rows, slots, dayStartMs, startMin, endMin, pxPerMin, rowPx, compact, statusLabels, onOpenAppt, onFreeSlot, isOpen }: {
   col: DayColumn
   dateStr: string
   all: Appointment[]
@@ -114,11 +123,14 @@ function Column({ col, dateStr, all, rows, slots, dayStartMs, startMin, endMin, 
   startMin: number
   endMin: number
   pxPerMin: number
+  rowPx: number
+  compact: boolean
   statusLabels: Record<string, string>
   onOpenAppt: (a: Appointment) => void
   onFreeSlot: (professionalId: string, time: string) => void
   isOpen?: (professionalId: string, time: string) => boolean
 }) {
+  const ROW_PX = rowPx
   // casas ocupadas desse profissional (os bloqueios da clínica toda contam)
   const busy = useMemo(
     () => (col.id ? buildBusyMap(all, { dateStr, professionalId: col.id, slots }) : new Map<string, string>()),
@@ -160,7 +172,7 @@ function Column({ col, dateStr, all, rows, slots, dayStartMs, startMin, endMin, 
         const to = Math.min(startRel + dur, endMin)
         if (to <= from) return null
         const top = (from - startMin) * pxPerMin
-        const height = Math.max((to - from) * pxPerMin - 2, 22)
+        const height = Math.max((to - from) * pxPerMin - 2, compact ? 18 : 22)
         const blocked = a.status === 'bloqueado'
         return (
           <button
@@ -171,11 +183,20 @@ function Column({ col, dateStr, all, rows, slots, dayStartMs, startMin, endMin, 
             style={{ top, height, ['--accent' as string]: col.color }}
             onClick={() => onOpenAppt(a)}
           >
-            <span className={styles.apptTime}>{toLabel(startRel)} · {dur} min</span>
-            <strong className={styles.apptName}>{blocked ? 'Horário bloqueado' : (a.patients?.name ?? '-')}</strong>
-            {height >= 64 && (
+            {compact ? (
+              <span className={styles.apptLine}>
+                <span className={styles.apptTime}>{toLabel(startRel)}</span>
+                <strong className={styles.apptName}>{blocked ? 'Bloqueado' : (a.patients?.name ?? '-')}</strong>
+              </span>
+            ) : (
+              <>
+                <span className={styles.apptTime}>{toLabel(startRel)} · {dur} min</span>
+                <strong className={styles.apptName}>{blocked ? 'Horário bloqueado' : (a.patients?.name ?? '-')}</strong>
+              </>
+            )}
+            {!compact && height >= 64 && (
               <span className={styles.apptSub}>
-                {blocked ? (a.notes || 'Indisponível') : `${a.procedure_name ?? 'Consulta'} · ${statusLabels[a.status ?? ''] ?? a.status}${a.arrived_at ? ' · Chegou' : ''}${a.extra_slot_reason ? ' · Encaixe' : ''}`}
+                {blocked ? (a.notes || 'Indisponível') : `${a.procedure_name ?? 'Consulta'} · ${statusLabels[a.status ?? ''] ?? a.status}${a.arrived_at && a.status !== 'arrived' && a.status !== 'in_progress' ? ' · Chegou' : ''}${a.extra_slot_reason ? ' · Encaixe' : ''}`}
               </span>
             )}
           </button>

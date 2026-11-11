@@ -32,6 +32,7 @@ import { hasWhatsAppAI } from '@/lib/planGates'
 import { formatMoney, leadPhoneLabel, leadTitle, openLeadCount, stagePatch, type Lead, type Stage } from '@/lib/crm/model'
 import { phoneKeys } from '@/lib/whatsapp/phone'
 import styles from '@/components/crm/Crm.module.css'
+import { patientHref } from '@/lib/prontuario/navigation'
 
 type DrawerState = { mode: 'edit'; leadId: string } | { mode: 'create'; stage: Stage } | null
 
@@ -332,7 +333,7 @@ function Funnel({ tabs }: { tabs: ReactNode }) {
           onTalk={() => editing && talk(editing)}
           onSchedule={() => editing && schedule(editing)}
           onConvert={() => editing && convert(editing)}
-          onOpenPatient={() => editing?.patient_id && router.push(`/pacientes?patient=${editing.patient_id}`)}
+          onOpenPatient={() => editing?.patient_id && router.push(patientHref(editing.patient_id))}
           onDelete={() => editing && removeLead(editing)}
         />
       )}

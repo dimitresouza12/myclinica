@@ -22,8 +22,8 @@
 .sessionTab {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.28rem 0.75rem;
+  gap: 0.2rem;
+  padding: 0 0.4rem 0 0;
   border: 1.5px solid var(--border-subtle);
   border-radius: 999px;
   background: transparent;
@@ -34,6 +34,19 @@
   transition: all 0.12s;
 }
 .sessionTab:hover { background: var(--bg-secondary); }
+.sessionTabBtn {
+  padding: 0.28rem 0.35rem 0.28rem 0.75rem;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.sessionTab:not(:has(.sessionDel)) { padding-right: 0; }
+.sessionTab:not(:has(.sessionDel)) .sessionTabBtn { padding-right: 0.75rem; }
+.sessionTabBtn:focus-visible, .sessionDel:focus-visible, .annItem:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+.annPoint:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
 .sessionTabActive {
   background: var(--brand-primary) !important;
   color: #0D2421 !important;
@@ -167,6 +180,7 @@
 }
 
 .bodyWrap {
+  position: relative;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -456,3 +470,103 @@
 
 .unsavedMsg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
 .unsavedMsg::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #d97706; }
+
+/* ── Desfazer, soma da sessão (paridade com o faceograma) ── */
+.bodyFoot { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.bodyFoot .bodyHint { padding: 0; text-align: left; }
+.undoBtn {
+  flex: none; min-height: 30px; padding: 0 0.75rem; border-radius: 8px;
+  border: 1px solid var(--border-subtle); background: var(--bg-secondary);
+  font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer;
+}
+.undoBtn:hover:not(:disabled) { background: var(--border-color); }
+.undoBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.undoBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+@media (pointer: coarse), (max-width: 680px) { .undoBtn { min-height: 44px; } }
+.totals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.totals li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: var(--text-primary); }
+.totals b { font-variant-numeric: tabular-nums; margin-left: auto; }
+.totals small { color: var(--text-tertiary); font-size: 0.7rem; min-width: 3.4rem; text-align: right; }
+.totalName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.totalsHint { margin-top: 0.4rem; font-size: 0.7rem; color: var(--text-secondary); }
+
+/* ── Modo Dor (fisioterapia): EVA 0 a 10 por ponto ── */
+.modeBar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.modeLabel { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); }
+.evaQuick {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem;
+  background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+}
+.evaQuickLabel { flex: none; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
+.evaSelect {
+  flex: 1; min-width: 0; min-height: 32px; padding: 0 0.4rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-md);
+  background: var(--bg-primary); color: var(--text-primary); font-size: 0.8rem; font-family: inherit;
+}
+@media (max-width: 680px) { .evaSelect { min-height: 44px; font-size: 0.9rem; } }
+.evaLegend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.2rem 0.75rem; font-size: 0.68rem; color: var(--text-secondary); }
+.evaLegend li { display: inline-flex; align-items: center; gap: 0.3rem; }
+.legendBar { width: 12px; height: 8px; border-radius: 3px; flex: none; }
+
+.evaGrid { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 3px; }
+.evaBtn {
+  min-height: 34px; padding: 0; border: 1.5px solid var(--border-subtle); border-radius: 8px;
+  background: var(--bg-primary); color: var(--text-primary); font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.evaBtn:hover { border-color: var(--ev); color: var(--ev); }
+.evaBtnOn { background: var(--ev) !important; border-color: var(--ev) !important; color: #fff !important; }
+.evaBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+@media (max-width: 680px), (pointer: coarse) {
+  .evaGrid { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+  .evaBtn { min-height: 44px; }
+}
+.evaRead { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-primary); }
+.evaHint { margin: 0.25rem 0 0; font-size: 0.68rem; color: var(--text-secondary); }
+
+.painStats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; margin: 0; }
+.painStats dt { font-size: 0.68rem; color: var(--text-secondary); }
+.painStats dd { margin: 1px 0 0; font-size: 1.15rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.trend { margin: 0 0 0.5rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-md); font-size: 0.78rem; font-weight: 600; line-height: 1.4; }
+.trend_melhora { background: #E7F8C8; color: #3F6212; }
+.trend_piora { background: #FEE2E2; color: #991B1B; }
+.trend_estavel { background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-subtle); }
+.painChart { display: block; width: 100%; max-width: 440px; height: auto; margin-bottom: 0.4rem; }
+.chartGrid { stroke: var(--border-color); stroke-width: 1; stroke-dasharray: 3 3; }
+.chartTick { fill: var(--text-secondary); font-size: 9px; font-variant-numeric: tabular-nums; }
+.chartLine { stroke: var(--text-secondary); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.painRows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.painRow {
+  display: flex; align-items: center; gap: 0.5rem; width: 100%; min-height: 36px; padding: 0.25rem 0.5rem; text-align: left;
+  border: 1.5px solid transparent; border-radius: var(--radius-md); background: none; color: var(--text-primary); cursor: pointer;
+}
+.painRow:hover { background: var(--bg-primary); }
+.painRowOn { background: var(--bg-primary); border-color: var(--border-color); }
+.painRow:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+.painRow small { margin-left: auto; font-size: 0.7rem; color: var(--text-secondary); }
+.painDate { font-size: 0.8rem; font-weight: 600; }
+.painChip { display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 6px; border-radius: 999px; color: #fff; font-size: 0.75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 680px) { .painRow { min-height: 44px; } }
+@media (max-width: 680px) {
+  /* nomes mais longos do modo Dor quebram em duas linhas em vez de ficarem cortados */
+  .toolbarPain .toolBtn { min-width: 76px; }
+  .toolbarPain .toolLabel { white-space: normal; max-width: 80px; overflow: visible; text-overflow: clip; line-height: 1.15; }
+}
+
+/* alvos de toque de 44px em tela de toque */
+@media (pointer: coarse) {
+  .sessionTabBtn, .viewBtn, .typeBtn, .annItem, .toolBtn, .btnNewSession { min-height: 44px; }
+  .sessionDel { width: 44px; height: 44px; margin: 0 -0.4rem 0 -0.35rem; font-size: 1.05rem; background: none; }
+  .annDel { width: 44px; height: 44px; }
+  .painRow { min-height: 44px; }
+  .btnSave, .evaSelect, .annInput { min-height: 44px; }
+}
+
+/* ── Tela cheia (ZoomCanvas): mesmo estado, painel de ferramentas em alvos de 44px ── */
+.fsPanel { display: flex; flex-direction: column; gap: 0.6rem; }
+.fsPanel .toolbar { padding: 0.4rem 0.5rem; }
+.fsPanel .toolBtn, .fsPanel .typeBtn, .fsPanel .undoBtn, .fsPanel .viewBtn { min-height: 44px; }
+.fsPanel .annDel { width: 44px; height: 44px; }
+.fsPanel .annInput, .fsPanel .evaSelect { min-height: 44px; }
+.fsPanel .evaGrid { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+.fsPanel .evaBtn { min-height: 44px; }
+.fsPanel .bodyHint { text-align: left; padding: 0; font-size: 0.78rem; }

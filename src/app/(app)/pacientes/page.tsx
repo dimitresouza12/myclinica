@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency } from '@/lib/utils'
@@ -8,12 +8,17 @@ import { formatBrPhone } from '@/lib/phoneFormat'
 import { syncLeadAppointments } from '@/lib/sync-leads'
 import { hasWhatsAppAI } from '@/lib/planGates'
 import { usePacientesData, usePatientCreditsData } from '@/hooks/useClinicData'
+import { isScopedProfessional } from '@/lib/professionalScope'
 import { avatarTone } from '@/lib/ui/avatarTone'
 import { addDays, lastDays, patientsSeries, startOfDay } from '@/lib/dashboard/metrics'
 import { exportRows, filterPatients, matchesFilter, summarizePatients, toCsv, type PatientFilter } from '@/lib/pacientes/summary'
 import type { Patient } from '@/types'
-import { ProntuarioModal } from '@/components/prontuario/ProntuarioModal'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
+import { PatientPackagesModal } from '@/components/pacientes/PatientPackagesModal'
+import { usePatientPackages } from '@/hooks/usePatientPackages'
+import { usePetVacinaAlertas } from '@/hooks/usePetVacinaAlertas'
+import { packageUsage } from '@/lib/agenda/packages'
+import { hojeBrasil } from '@/lib/brasilDate'
 import { PetIcon } from '@/components/ui/PetIcon'
 import { Icon } from '@/components/ui/Icon'
 import { Avatar } from '@/components/ui/Avatar'
@@ -25,10 +30,13 @@ import { StatusDot } from '@/components/ui/StatusDot'
 import { MoreMenu } from '@/components/ui/MoreMenu'
 import btn from '@/components/ui/button.module.css'
 import t from '@/components/ui/table.module.css'
-import { useScrollLock } from '@/hooks/useScrollLock'
+import { loadListFilter, patientHref, saveListState } from '@/lib/prontuario/navigation'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
 import styles from './pacientes.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { usePermissions } from '@/hooks/usePermissions'
+import { patientOpenLabel } from '@/lib/pacientes/cadastro'
+import { canSeeFinancialTotals } from '@/lib/permissionPresets'
 
 const dayShort = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 const nextFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -40,8 +48,19 @@ function nextLabel(iso: string): string {
 }
 
 function PacientesContent() {
-  const { clinic } = useAuthStore()
+  const { clinic, user } = useAuthStore()
+  // sem o módulo Prontuário, /pacientes/[id] abre só o cadastro: o atalho muda de nome
+  const openLabel = patientOpenLabel(usePermissions('prontuario').canView)
+  // "Editar" = criar, alterar, enviar, exportar; sem ele a tela é só de consulta
+  const { canEdit } = usePermissions('pacientes')
+  // Saldo de pacotes é valor em R$: só com Ver no Financeiro (e "Ver totais financeiros" ligado)
+  const canSeeBalance = canSeeFinancialTotals(usePermissions('financeiro'))
+  const readOnlyTitle = 'Seu perfil só pode visualizar'
+  // clínica com acesso por profissional + usuário que não é admin/recepção: o paciente que ele criasse
+  // sumiria da lista dele (RLS), então o cadastro direto fica só com a recepção
+  const cannotCreatePatient = isScopedProfessional(clinic, user)
   const searchParams = useSearchParams()
+  const router = useRouter()
   const queryClient = useQueryClient()
   const { data: pacientesData, isLoading: loading } = usePacientesData(clinic?.id)
   const patients = useMemo(() => pacientesData?.patients ?? [], [pacientesData])
@@ -59,12 +78,34 @@ function PacientesContent() {
     return map
   }, [creditsData])
 
-  const [prontuarioPatient, setProntuarioPatient] = useState<Patient | null>(null)
+  // Veterinária: selo de vacina vencida ou a vencer por pet (vazio enquanto a carteira não existe no banco)
+  const isVet = clinic?.type === 'vet' || !!clinic?.specialties?.includes('vet')
+  const { data: vacinaAlertas } = usePetVacinaAlertas(clinic?.id, isVet)
+
+  // Pacotes de sessões: o pacote em andamento de cada paciente ("3/10 sessões"), quando o banco já suporta
+  const { data: pkgData } = usePatientPackages(clinic?.id)
+  const packageByPatient = useMemo(() => {
+    const map = new Map<string, { used: number; total: number; remaining: number; low: boolean }>()
+    if (!pkgData?.available) return map
+    const today = hojeBrasil()
+    for (const p of pkgData.packages) {
+      const u = packageUsage(p, pkgData.linked, today)
+      if (u.state !== 'ativo' || map.has(p.patient_id)) continue
+      map.set(p.patient_id, { used: u.used, total: u.total, remaining: u.remaining, low: u.low })
+    }
+    return map
+  }, [pkgData])
+  const [packagesPatient, setPackagesPatient] = useState<Patient | null>(null)
+
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
-  const [filter, setFilter] = useState<PatientFilter>('todos')
-
-  useScrollLock(!!prontuarioPatient || !!editPatient || showNewPatient)
+  // o filtro volta como estava depois de abrir um prontuário e clicar em Voltar (guardado na sessão)
+  const [filter, setFilter] = useState<PatientFilter>(() => loadListFilter() ?? 'todos')
+  function changeFilter(f: PatientFilter) { setFilter(f); saveListState(f) }
+  function openProntuario(p: Patient) {
+    saveListState(filter)
+    router.push(patientHref(p.id))
+  }
 
   // Fire-and-forget sync in background
   useEffect(() => {
@@ -72,13 +113,11 @@ function PacientesContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinic?.id])
 
-  // Open prontuário directly if ?patient=<id> is in URL
+  // Links antigos (/pacientes?patient=<id>, de avisos e favoritos) levam ao prontuário, que agora é uma página
+  const legacyPatientId = searchParams.get('patient')
   useEffect(() => {
-    const targetId = searchParams.get('patient')
-    if (!targetId || !patients.length) return
-    const target = patients.find(p => p.id === targetId)
-    if (target) setProntuarioPatient(target)
-  }, [patients, searchParams])
+    if (legacyPatientId) router.replace(patientHref(legacyPatientId))
+  }, [legacyPatientId, router])
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['pacientes', clinic?.id] })
@@ -128,7 +167,6 @@ function PacientesContent() {
     URL.revokeObjectURL(url)
   }
 
-  const isVet = clinic?.type === 'vet'
   const filterLabels: Record<PatientFilter, string> = { todos: 'Todos', agendados: 'Com consulta marcada', sem_retorno: 'Sem retorno', com_saldo: 'Com saldo' }
 
   return (
@@ -140,17 +178,26 @@ function PacientesContent() {
           <>
             {/* no desktop a busca de pacientes fica na barra de cima */}
             <div className={styles.mobileSearch}><GlobalSearch /></div>
-            <button type="button" className={btn.secondary} onClick={exportCsv} disabled={visible.length === 0}>
+            <button type="button" className={btn.secondary} onClick={exportCsv} disabled={visible.length === 0 || !canEdit} title={canEdit ? undefined : readOnlyTitle}>
               <Icon name="download" size={15} /> Exportar
             </button>
-            <button type="button" className={btn.primary} onClick={() => setShowNewPatient(true)}>
-              <Icon name="plus" size={15} /> Novo paciente
-            </button>
+            {!cannotCreatePatient && (
+              <button type="button" className={btn.primary} onClick={() => setShowNewPatient(true)} disabled={!canEdit} title={canEdit ? undefined : readOnlyTitle}>
+                <Icon name="plus" size={15} /> Novo paciente
+              </button>
+            )}
           </>
         }
       />
 
-      <div className={styles.stats}>
+      {cannotCreatePatient && (
+        <p className={styles.scopeNote} role="note">
+          <Icon name="info" size={15} />
+          <span>Pacientes novos são cadastrados pela recepção ao agendar.</span>
+        </p>
+      )}
+
+      <div className={`${styles.stats} ${canSeeBalance ? '' : styles.stats3}`}>
         <StatCard
           title="Pacientes ativos"
           value={patients.length}
@@ -160,7 +207,7 @@ function PacientesContent() {
         />
         <StatCard title="Com consulta marcada" value={counts.agendados} hint={`de ${patients.length} no cadastro`} />
         <StatCard title="Sem retorno" value={counts.sem_retorno} hint="45 dias ou mais sem voltar" />
-        <StatCard title="Saldo de pacotes" value={formatCurrency(stats.balance)} compact hint={`${counts.com_saldo} ${counts.com_saldo === 1 ? 'paciente com saldo' : 'pacientes com saldo'}`} />
+        {canSeeBalance && <StatCard title="Saldo de pacotes" value={formatCurrency(stats.balance)} compact hint={`${counts.com_saldo} ${counts.com_saldo === 1 ? 'paciente com saldo' : 'pacientes com saldo'}`} />}
       </div>
 
       <Card
@@ -170,7 +217,7 @@ function PacientesContent() {
           <PillTabs
             label="Filtrar pacientes"
             value={filter}
-            onChange={setFilter}
+            onChange={changeFilter}
             options={(Object.keys(filterLabels) as PatientFilter[]).map(v => ({ value: v, label: filterLabels[v], count: counts[v] }))}
           />
         }
@@ -196,8 +243,9 @@ function PacientesContent() {
                 ) : visible.map(p => {
                   const s = summary.get(p.id)
                   const balance = creditBalances.get(p.id)
+                  const pkg = packageByPatient.get(p.id)
                   return (
-                    <tr key={p.id} className={`${t.clickable} ${styles.row}`} onClick={() => setProntuarioPatient(p)}>
+                    <tr key={p.id} className={`${t.clickable} ${styles.row}`} onClick={() => openProntuario(p)}>
                       <td>
                         <div className={styles.person}>
                           {isVet ? (
@@ -206,10 +254,15 @@ function PacientesContent() {
                             <Avatar url={p.avatar_url} name={p.name} size={36} className={`${styles.avatar} ${styles[`tone${avatarTone(p.name)}`]}`} />
                           )}
                           <div className={styles.who}>
-                            <button type="button" className={styles.name} onClick={e => { e.stopPropagation(); setProntuarioPatient(p) }}>{p.name}</button>
+                            <button type="button" className={styles.name} onClick={e => { e.stopPropagation(); openProntuario(p) }}>{p.name}</button>
                             <span className={styles.sub}>
                               {isVet && p.pet_name ? p.pet_name : formatBrPhone(p.phone) || 'Sem telefone'}
                             </span>
+                            {isVet && vacinaAlertas?.get(p.id) && (
+                              <StatusDot tone={vacinaAlertas.get(p.id)!.tom === 'vencida' ? 'bad' : 'warn'}>
+                                Vacina: {vacinaAlertas.get(p.id)!.selo}
+                              </StatusDot>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -218,22 +271,31 @@ function PacientesContent() {
                       <td data-label="Próxima consulta">
                         {s?.nextAt ? nextLabel(s.nextAt) : s?.noReturn ? <StatusDot tone="warn">Sem retorno</StatusDot> : <span className={t.muted}>-</span>}
                       </td>
-                      <td data-label="Saldo" className={`${t.num} ${balance ? styles.balance : t.muted}`}>{balance ? formatCurrency(balance) : '-'}</td>
+                      <td data-label="Saldo" className={`${t.num} ${balance ? styles.balance : t.muted}`}>{balance ? formatCurrency(balance) : pkg ? '' : '-'}
+                        {pkg && (
+                          <button type="button" className={`${styles.pkgChip}${pkg.low ? ` ${styles.pkgChipLow}` : ''}`} onClick={e => { e.stopPropagation(); setPackagesPatient(p) }} title={pkg.low ? `Restam ${pkg.remaining} sessões: avise para renovar` : 'Ver pacote de sessões'}>
+                            Pacote {pkg.used}/{pkg.total}
+                          </button>
+                        )}
+                      </td>
                       <td className={styles.actionsCell}>
                         <div className={t.rowActions} onClick={e => e.stopPropagation()}>
                           <span className={`${t.hoverOnly} ${styles.shortcuts}`}>
-                            <button type="button" className={styles.shortcut} title="Abrir prontuário" aria-label={`Abrir prontuário de ${p.name}`} onClick={() => setProntuarioPatient(p)}>
+                            <button type="button" className={styles.shortcut} title={openLabel} aria-label={`${openLabel} de ${p.name}`} onClick={() => openProntuario(p)}>
                               <Icon name="procedures" size={15} />
                             </button>
-                            <button type="button" className={styles.shortcut} title="Editar cadastro" aria-label={`Editar cadastro de ${p.name}`} onClick={() => setEditPatient(p)}>
-                              <Icon name="edit" size={15} />
-                            </button>
+                            {canEdit && (
+                              <button type="button" className={styles.shortcut} title="Editar cadastro" aria-label={`Editar cadastro de ${p.name}`} onClick={() => setEditPatient(p)}>
+                                <Icon name="edit" size={15} />
+                              </button>
+                            )}
                           </span>
                           <MoreMenu
                             label={`Mais ações de ${p.name}`}
                             items={[
-                              { label: 'Abrir prontuário', icon: 'procedures', onClick: () => setProntuarioPatient(p) },
-                              { label: 'Editar cadastro', icon: 'edit', onClick: () => setEditPatient(p) },
+                              { label: openLabel, icon: 'procedures', onClick: () => openProntuario(p) },
+                              ...(canEdit ? [{ label: 'Editar cadastro', icon: 'edit' as const, onClick: () => setEditPatient(p) }] : []),
+                              ...(pkgData?.available ? [{ label: canEdit ? 'Pacotes de sessões' : 'Ver pacotes de sessões', icon: 'receipt' as const, onClick: () => setPackagesPatient(p) }] : []),
                             ]}
                           />
                         </div>
@@ -247,15 +309,11 @@ function PacientesContent() {
         )}
       </Card>
 
-      {prontuarioPatient && (
-        <ProntuarioModal
-          patient={prontuarioPatient}
-          clinic={clinic!}
-          onClose={() => setProntuarioPatient(null)}
-        />
+      {packagesPatient && clinic && (
+        <PatientPackagesModal open onClose={() => setPackagesPatient(null)} clinicId={clinic.id} userId={user?.id} patient={{ id: packagesPatient.id, name: packagesPatient.name }} readOnly={!canEdit} />
       )}
 
-      {(editPatient || showNewPatient) && (
+      {canEdit && (editPatient || (showNewPatient && !cannotCreatePatient)) && (
         <PatientFormModal
           patient={editPatient}
           clinicId={clinic!.id}

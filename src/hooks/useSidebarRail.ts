@@ -15,13 +15,16 @@ export function useSidebarRail(enabled: boolean) {
     return () => { c.dispose(); ctl.current = null }
   }, [])
 
-  // ao sair do modo desktop (redimensionar), zera o estado
-  useEffect(() => { if (!enabled) ctl.current?.collapse() }, [enabled])
+  // ao sair do modo desktop (e na hidratação, quando enabled ainda é false) zera o estado.
+  // Não pode usar collapse(): ele trava o hover até o mouse sair e voltar, e a primeira passada não abria.
+  useEffect(() => { if (!enabled) ctl.current?.reset() }, [enabled])
 
   const handlers = useMemo(() => {
     if (!enabled) return {}
     return {
       onPointerEnter: (e: React.PointerEvent) => { if (e.pointerType !== 'touch') ctl.current?.pointerEnter() },
+      // mouse já estava em cima quando a barra ficou ativa (carregou a página, trocou de rota): nenhum enter dispara
+      onPointerMove: (e: React.PointerEvent) => { if (e.pointerType !== 'touch') ctl.current?.pointerEnter() },
       onPointerLeave: (e: React.PointerEvent) => { if (e.pointerType !== 'touch') ctl.current?.pointerLeave() },
       onFocus: (e: React.FocusEvent<HTMLElement>) => {
         // só foco de teclado abre: o clique do mouse também foca o link e não deve prender a barra

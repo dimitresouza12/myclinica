@@ -17,7 +17,6 @@ export function ImpersonationBanner() {
 
   return (
     <div className={styles.banner}>
-      <span className={styles.stripe} />
       <span className={styles.icon}><Icon name="eye" size={14} /></span>
       <span className={styles.msg}>
         Modo suporte ativo — visualizando como <strong>{impersonatedClinicName}</strong>

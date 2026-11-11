@@ -1,0 +1,46 @@
+/* Convênios: operadoras, produção, Receita Saúde. Cores e raios vêm dos tokens do app. */
+.page { display:flex; flex-direction:column; gap:18px; width:100%; max-width:1260px; min-width:0; animation:fadeUp .35s cubic-bezier(0.22,1,0.36,1) backwards; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+.stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:18px; }
+.wrap { padding:0 10px 10px; }
+.toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 22px 14px; }
+.toolbarSpacer { flex:1 1 auto; }
+.toolBtn { display:inline-flex; align-items:center; gap:6px; }
+.dates { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+.who { display:flex; flex-direction:column; min-width:0; text-align:left; }
+.name { font-weight:600; color:var(--text-primary); overflow-wrap:anywhere; }
+.sub { font-size:.78rem; color:var(--text-secondary); overflow-wrap:anywhere; }
+.actionsCell { width:1%; white-space:nowrap; }
+.warn { color:var(--st-warn); }
+
+.notice { margin:0 22px 14px; padding:10px 12px; border-radius:var(--radius-field); background:var(--surface-2); font-size:.8125rem; color:var(--text-secondary); line-height:1.5; }
+.noticeWarn { color:var(--st-warn); }
+
+.section { display:flex; flex-direction:column; gap:12px; padding-top:12px; border-top:1px solid var(--surface-line); }
+.sectionTitle { margin:0; font-size:.82rem; font-weight:600; color:var(--text-primary); }
+.sectionHint { margin:0; font-size:.76rem; color:var(--text-secondary); line-height:1.45; }
+.priceList { display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; }
+.priceRow { display:grid; grid-template-columns:minmax(0, 1fr) 140px; gap:10px; align-items:center; }
+.priceName { font-size:.875rem; color:var(--text-primary); overflow-wrap:anywhere; }
+.priceRow input { width:100%; min-height:44px; padding:.6rem .875rem; border:1px solid var(--border-color); border-radius:var(--radius-field); background:var(--surface); color:var(--text-primary); font:inherit; font-size:.9rem; text-align:right; }
+.priceRow input:focus { outline:none; border-color:var(--brand-primary); box-shadow:0 0 0 3px var(--brand-light); }
+
+.guiaBox { margin:0; padding:10px 12px; border-radius:var(--radius-field); background:var(--surface-2); font-size:.82rem; color:var(--text-primary); line-height:1.5; }
+
+@media (max-width:1100px) { .stats { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+@media (max-width:768px) {
+  .stats { gap:12px; }
+  .wrap { padding:0; }
+  .toolbar { padding:0 0 12px; }
+  .toolbarSpacer { display:none; }
+  .notice { margin:0 0 14px; }
+  .actionsCell { position:absolute; top:8px; right:6px; width:auto; display:block; padding:0 !important; }
+  .row { position:relative; }
+  .row .who { padding-right:36px; }
+}
+@media (max-width:480px) {
+  .stats { grid-template-columns:minmax(0, 1fr); }
+  .priceRow { grid-template-columns:minmax(0, 1fr) 110px; }
+}

@@ -1,34 +1,59 @@
 'use client'
 import { formatBrPhone } from '@/lib/phoneFormat'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
-import { printDocumento } from '@/lib/print'
+import { buildDocumentoHtml, printDocumento, printHtmlInWindow } from '@/lib/print'
 import { exportNodeAsImage, exportNodeAsPdf, safeFilename } from '@/lib/documentExport'
 import { composeCalibratedDoc, downloadBlob, openPrintWindow, printBlobInWindow, DocumentRenderError, EXPORT_PDF_TARGET_WIDTH, type RenderableField } from '@/lib/documentRender'
-import { getSpecialtyConfig } from '@/lib/specialtyConfig'
+import { resolveDocumentOptions } from '@/lib/specialtyConfig'
+import { councilForProfessional, formatRqe } from '@/lib/professionalCouncil'
+import { buildDefaultTemplate, buildLetterheadPatientBlock, escapeHtml, syncSignerBlocks } from '@/lib/documentHtml'
 import { useProfessionals } from '@/hooks/useClinicData'
 import { useTemplateBackground, renderPdfPageToDataUrl, isImageUrl, type TemplateBackground } from '@/hooks/useTemplateBackground'
 import { Portal } from '@/components/ui/Portal'
 import { Icon } from '@/components/ui/Icon'
 import { TemplateFieldCanvas } from '@/components/documentos/TemplateFieldCanvas'
 import { getTemplateCanvasSize } from '@/lib/templateCanvasSize'
-import type { Patient, ClinicDocumentTemplate, DocumentTemplateType, FieldPosition } from '@/types'
+import { REVIEW_NOTE } from '@/lib/documentBodyTemplates'
+import { contentHash } from '@/lib/assinatura/hash'
+import { buildVerificationStamp } from '@/lib/assinatura/carimbo'
+import { formatCode, isVerifiableDocType } from '@/lib/assinatura/tipos'
+import { qrDataUri } from '@/lib/qr/qr'
+import { emitVerifiable } from './portal/portalApi'
+import { PillTabs } from '@/components/ui/PillTabs'
+import { hojeBrasil } from '@/lib/brasilDate'
+import { resolveDocFields } from '@/lib/documentos/campos'
+import { isStructuredKind, textToBodyHtml } from '@/lib/documentos/atestado'
+import { AtestadoEstruturado } from './documentos/AtestadoEstruturado'
+import { ImportarModelo } from './documentos/ImportarModelo'
+import { listarModelosDaClinica, modelosComoMapa, type ModeloClinicaItem } from './documentos/modelosApi'
+import { usePermissions } from '@/hooks/usePermissions'
+import { ContratosPaciente } from './contratos/ContratosPaciente'
+import type { Patient, ClinicDocumentTemplate, DocumentTemplateType, FieldPosition, TreatmentPlanItem } from '@/types'
 import styles from './TabDocumentos.module.css'
+import structured from './documentos/atestadoEstruturado.module.css'
 import { SelectMenu } from '@/components/ui/SelectMenu'
+import btn from '@/components/ui/button.module.css'
+import { showToast } from '@/components/ui/Toast'
+import { usePrintActions } from './print/PrintRegistry'
 
 interface Props {
   patient: Patient
+  /** Texto do contrato que já estava salvo na Ficha (leitura; o contrato não é mais editado lá). */
+  contractText?: string | null
+  /** Itens do orçamento da Ficha: base do valor e do serviço sugeridos ao criar um contrato. */
+  planItems?: TreatmentPlanItem[]
 }
 
-export function TabDocumentos({ patient }: Props) {
+export function TabDocumentos({ patient, contractText, planItems = [] }: Props) {
   const { clinic, user } = useAuthStore()
-  const DOC_TYPES = getSpecialtyConfig(clinic?.type).documents
 
   // Profissional responsável pelo documento — assina e empresta o registro
-  // (CRO/CRM) pro cabeçalho, em vez de assumir que é sempre quem está
-  // logado (a recepção pode estar preenchendo em nome de outro profissional).
-  const { data: professionals = [] } = useProfessionals(clinic?.id)
+  // (CRO, CRM, CRMV, CREFITO, CRP...) pro cabeçalho, em vez de assumir que é
+  // sempre quem está logado (a recepção pode estar preenchendo em nome de
+  // outro profissional).
+  const { data: professionals = [], isLoading: professionalsLoading } = useProfessionals(clinic?.id)
   const loggedInProfessional = user?.professionalId ? professionals.find(p => p.id === user.professionalId) : undefined
   const [manualProfessionalId, setManualProfessionalId] = useState('')
   // Só mostra o seletor quando quem logou não é profissional E existe mais
@@ -43,9 +68,67 @@ export function TabDocumentos({ patient }: Props) {
     loggedInProfessional
     ?? (manualProfessionalId ? professionals.find(p => p.id === manualProfessionalId) : undefined)
     ?? (professionals.length === 1 ? professionals[0] : undefined)
-  const [selectedType, setSelectedType] = useState<DocumentTemplateType>(DOC_TYPES[0]?.type ?? 'declaracao_comparecimento')
+  // Só semeia o editor depois que os profissionais carregaram (e, com seletor,
+  // depois de ele ter um valor) — senão o 1º documento sairia com o nome de
+  // quem está logado e o registro em branco.
+  const professionalsReady = !professionalsLoading && (!needsProfessionalPicker || !!manualProfessionalId)
+  // Modelos de TEXTO próprios da clínica (importados por foto): o formulário estruturado usa o da clínica no lugar do
+  // padrão. Sem a tabela ou sem rede segue com o padrão do sistema, sem ruído na tela.
+  const { canEdit: canEditProntuario } = usePermissions('prontuario')
+  const [clinicModels, setClinicModels] = useState<ModeloClinicaItem[]>([])
+  const reloadClinicModels = useCallback(() => {
+    listarModelosDaClinica().then(setClinicModels).catch(() => setClinicModels([]))
+  }, [])
+  useEffect(() => { if (clinic?.id) reloadClinicModels() }, [clinic?.id, reloadClinicModels])
+  const clinicModelMap = useMemo(() => modelosComoMapa(clinicModels), [clinicModels])
   const [templates, setTemplates] = useState<ClinicDocumentTemplate[]>([])
   const [templatesLoaded, setTemplatesLoaded] = useState(false)
+  // Documentos seguem a ÁREA do profissional responsável (em clínica multi-área,
+  // o fisio e o psicólogo veem cada um os seus); sem ela, a do usuário e, por
+  // fim, a união das áreas da clínica. Tipos que a clínica já tem modelo salvo
+  // nunca somem. Ver resolveDocumentOptions.
+  const savedTypesKey = templates.map(t => t.type).sort().join(',')
+  const clinicSpecialties = clinic?.specialties
+  const DOC_TYPES = useMemo(() => resolveDocumentOptions({
+    clinicType: clinic?.type,
+    clinicSpecialties,
+    professionalType: responsibleProfessional?.specialty_type,
+    professionalSpecialty: responsibleProfessional?.specialty,
+    userType: user?.specialtyType,
+    savedTypes: savedTypesKey ? (savedTypesKey.split(',') as DocumentTemplateType[]) : [],
+  }), [clinic?.type, clinicSpecialties, responsibleProfessional?.specialty_type, responsibleProfessional?.specialty, user?.specialtyType, savedTypesKey])
+  const council = councilForProfessional({
+    specialtyType: responsibleProfessional?.specialty_type,
+    specialty: responsibleProfessional?.specialty,
+    clinicType: clinic?.type,
+  })
+  const [section, setSection] = useState<'documentos' | 'contratos'>(() => {
+    try { return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('secao') === 'contratos' ? 'contratos' : 'documentos' } catch { return 'documentos' }
+  })
+  // Atestado, declaração e laudo genéricos nascem de um formulário curto; o editor livre fica recolhido (avançado)
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [bodyRequest, setBodyRequest] = useState<{ seq: number; text: string } | null>(null)
+  const appliedSeqRef = useRef(0)
+  const requestSeqRef = useRef(0)
+  const [pickedType, setPickedType] = useState<DocumentTemplateType>(DOC_TYPES[0]?.type ?? 'declaracao_comparecimento')
+  function setSelectedType(t: DocumentTemplateType) {
+    setPickedType(t)
+    setEditorOpen(false)
+    setBodyRequest(null)
+  }
+  // Trocou de profissional/área e o tipo escolhido não existe mais na lista → cai no primeiro.
+  const selectedType: DocumentTemplateType = DOC_TYPES.some(d => d.type === pickedType)
+    ? pickedType
+    : (DOC_TYPES[0]?.type ?? 'declaracao_comparecimento')
+  const selectedDocInfo = DOC_TYPES.find(d => d.type === selectedType)
+  const structuredKind = isStructuredKind(selectedType) && !selectedDocInfo?.body ? selectedType : null
+  const editorHidden = structuredKind !== null && !editorOpen
+  const structuredFields = useMemo(() => resolveDocFields({
+    patientName: patient.name, patientCpf: patient.cpf, guardianName: patient.guardian_name, guardianCpf: patient.guardian_cpf, clinicName: clinic?.name,
+    professionalName: responsibleProfessional?.name ?? user?.displayName,
+    registrationNumber: responsibleProfessional?.registration_number, rqe: responsibleProfessional?.rqe,
+    council, today: hojeBrasil(),
+  }), [patient.name, patient.cpf, patient.guardian_name, patient.guardian_cpf, clinic?.name, responsibleProfessional, user?.displayName, council])
   // Guarda também o tamanho NATURAL do papel timbrado (imagem enviada ou
   // página de PDF renderizada) — sem isso, o CSS não tem como saber a
   // altura real necessária (corta o fundo) nem evitar ampliar além da
@@ -77,6 +160,8 @@ export function TabDocumentos({ patient }: Props) {
   // um clique que simplesmente não faz nada (D5 da auditoria).
   const [exportError, setExportError] = useState<string | null>(null)
   const [printing, setPrinting] = useState(false)
+  // QR verificador (atestado, declaração, laudo, receita comum): cada impressão/download registra o documento emitido
+  const [includeQr, setIncludeQr] = useState(true)
 
   // Menu "Baixar" (PDF ou imagem) — popover posicionado, mesmo padrão do SelectMenu
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false)
@@ -135,6 +220,30 @@ export function TabDocumentos({ patient }: Props) {
     return activeFields.map(f => ({ ...f, html: fieldRefs.current[f.key]?.innerHTML ?? '' }))
   }
 
+  // Selo de verificação (QR + código + hash curto). Registra o documento emitido no servidor e devolve o HTML do
+  // selo; null quando o tipo não recebe QR ou a opção está desligada. Falha vira erro visível (nunca imprime sem
+  // avisar que o QR não saiu).
+  async function buildStamp(): Promise<string | null> {
+    if (!isVerifiableDocType(selectedType) || !includeQr || !clinic) return null
+    const text = hasCalibratedFields
+      ? activeFields.map(f => fieldRefs.current[f.key]?.innerText ?? '').join('\n')
+      : (editorRef.current?.innerText ?? '')
+    const hash = await contentHash(text)
+    const r = await emitVerifiable({ patientId: patient.id, docType: selectedType, contentHash: hash, professionalId: responsibleProfessional?.id })
+    return buildVerificationStamp({ qrDataUri: qrDataUri(r.url), url: r.url, code: formatCode(r.code), contentHash: hash })
+  }
+
+  function stampFailureMessage(err: unknown): string {
+    const base = err instanceof Error ? err.message : 'Não foi possível gerar o QR de verificação.'
+    return `${base} Desmarque "QR de verificação" para continuar sem ele.`
+  }
+
+  // O selo entra como um campo extra no rodapé do papel timbrado (mesmo gerador do download e da impressão).
+  function withStampField(fields: RenderableField[], stampHtml: string | null): RenderableField[] {
+    if (!stampHtml) return fields
+    return [...fields, { key: '__verificacao', label: 'Verificação', kind: 'body', xPct: 6, yPct: 90, widthPct: 70, fontPt: 7, align: 'left', bold: false, html: stampHtml }]
+  }
+
   async function handleDownload(kind: 'pdf' | 'image') {
     setDownloadMenuOpen(false)
     setExportError(null)
@@ -143,18 +252,27 @@ export function TabDocumentos({ patient }: Props) {
     const filename = safeFilename([patient.name, docInfo?.title ?? 'Documento', dateStr], kind === 'pdf' ? 'pdf' : 'png')
     setExporting(kind)
     try {
+      let stamp: string | null = null
+      try { stamp = await buildStamp() } catch (err) { setExportError(stampFailureMessage(err)); return }
       if (hasCalibratedFields) {
         // Gerador único (documentRender.ts) — o mesmo PDF que sai daqui é o
         // que a impressão usa, em resolução de impressão de verdade (300dpi,
         // encaixado numa A4 física), não uma captura da tela.
         const bg = await resolveExportBg()
-        const { pdfBlob, pngBlob } = await composeCalibratedDoc(bg.url, bg.naturalW, bg.naturalH, currentRenderableFields())
+        const { pdfBlob, pngBlob } = await composeCalibratedDoc(bg.url, bg.naturalW, bg.naturalH, withStampField(currentRenderableFields(), stamp))
         downloadBlob(kind === 'pdf' ? pdfBlob : pngBlob, filename)
       } else {
         const node = editorRef.current
         if (!node) throw new DocumentRenderError('unknown', 'O editor não está pronto.')
-        if (kind === 'pdf') await exportNodeAsPdf(node, filename)
-        else await exportNodeAsImage(node, filename)
+        // selo só durante a captura: sai do editor logo depois, sem sujar o rascunho
+        const stampEl = stamp ? document.createElement('div') : null
+        if (stampEl && stamp) { stampEl.innerHTML = stamp; node.appendChild(stampEl) }
+        try {
+          if (kind === 'pdf') await exportNodeAsPdf(node, filename)
+          else await exportNodeAsImage(node, filename)
+        } finally {
+          stampEl?.remove()
+        }
       }
     } catch (err) {
       setExportError(exportErrorMessage(err))
@@ -169,11 +287,13 @@ export function TabDocumentos({ patient }: Props) {
   function resolveFieldValue(key: string): string {
     const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
     switch (key) {
-      case 'paciente': return patient.name
+      // Vira innerHTML do campo (fillFieldEl) — todo dado de usuário escapado.
+      case 'paciente': return escapeHtml(patient.name)
       case 'data': return hoje
-      case 'medico': return responsibleProfessional?.name ?? user?.displayName ?? ''
-      case 'registro': return responsibleProfessional?.registration_number ?? ''
-      case 'endereco_paciente': return patient.address ?? ''
+      case 'medico': return escapeHtml(responsibleProfessional?.name ?? user?.displayName ?? '')
+      case 'registro': return escapeHtml(responsibleProfessional?.registration_number ?? '')
+      case 'rqe': return escapeHtml(formatRqe(responsibleProfessional?.rqe))
+      case 'endereco_paciente': return escapeHtml(patient.address ?? '')
       default: return ''
     }
   }
@@ -210,15 +330,15 @@ export function TabDocumentos({ patient }: Props) {
   }, [activeTpl?.pdf_url, loadTemplateBg])
 
   // Preenche o editor com o template padrão do tipo (sobrescreve o conteúdo atual)
-  const seedEditor = useCallback((type: DocumentTemplateType) => {
+  const seedEditor = useCallback((type: DocumentTemplateType, bodyHtml?: string) => {
     if (!editorRef.current) return
-    const docInfo = DOC_TYPES.find(d => d.type === type)!
+    const docInfo = DOC_TYPES.find(d => d.type === type) ?? DOC_TYPES[0]
     const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
     const tpl = templates.find(t => t.type === type)
 
     if (tpl) {
       // Com modelo PDF: conteúdo mínimo por cima do fundo
-      editorRef.current.innerHTML = `<p><strong>Paciente:</strong> ${patient.name}</p><p><strong>Data:</strong> ${hoje}</p><br><p></p>`
+      editorRef.current.innerHTML = buildLetterheadPatientBlock(patient.name, hoje) + (bodyHtml ?? '')
     } else {
       // Sem modelo: template HTML padrão do sistema (letterhead clínico-editorial)
       editorRef.current.innerHTML = buildDefaultTemplate({
@@ -233,10 +353,14 @@ export function TabDocumentos({ patient }: Props) {
         clinicColor: clinic?.color || '#4DD9C0',
         doctorName: responsibleProfessional?.name ?? user?.displayName ?? '',
         registrationNumber: responsibleProfessional?.registration_number ?? '',
+        council,
+        rqe: responsibleProfessional?.rqe ?? '',
+        professionalId: responsibleProfessional?.id,
+        body: bodyHtml ?? docInfo.body ?? '',
         clinicLogo: clinic?.logo,
       })
     }
-  }, [templates, patient.name, patient.address, clinic?.name, clinic?.address, clinic?.phone, clinic?.color, clinic?.logo, user?.displayName, responsibleProfessional])
+  }, [templates, patient.name, patient.address, clinic?.name, clinic?.address, clinic?.phone, clinic?.color, clinic?.logo, user?.displayName, responsibleProfessional, DOC_TYPES, council])
 
   // Ao trocar de tipo (ou na 1ª carga): restaura rascunho salvo ou semeia o template.
   // Só roda quando o TIPO muda — nunca em reloads de `templates` — para não apagar a edição.
@@ -252,7 +376,7 @@ export function TabDocumentos({ patient }: Props) {
       seededTypeRef.current = null
       return
     }
-    if (!templatesLoaded || !editorRef.current) return
+    if (!templatesLoaded || !professionalsReady || !editorRef.current) return
     if (seededTypeRef.current === selectedType) return
     seededTypeRef.current = selectedType
 
@@ -264,7 +388,28 @@ export function TabDocumentos({ patient }: Props) {
       seedEditor(selectedType)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedType, templatesLoaded, hasCalibratedFields])
+  }, [selectedType, templatesLoaded, professionalsReady, hasCalibratedFields])
+
+  // Trocou o profissional responsável (ou os profissionais terminaram de
+  // carregar depois do seed) no editor padrão: troca SÓ o bloco de assinatura
+  // (nome + conselho/registro) — o resto do texto, já editado, fica intacto.
+  // Os blocos levam o id do profissional que os gerou (data-prof), então isso
+  // também corrige rascunhos restaurados de outro responsável. Rascunho antigo
+  // sem essas marcas não é tocado (não há como separar a assinatura do texto).
+  useEffect(() => {
+    if (hasCalibratedFields || !templatesLoaded || !professionalsReady) return
+    const root = editorRef.current
+    if (!root || seededTypeRef.current !== selectedType) return
+    syncSignerBlocks(root, {
+      doctorName: responsibleProfessional?.name ?? user?.displayName ?? '',
+      registrationNumber: responsibleProfessional?.registration_number ?? '',
+      council,
+      rqe: responsibleProfessional?.rqe ?? '',
+      professionalId: responsibleProfessional?.id,
+      clinicAddress: clinic?.address ?? '',
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responsibleProfessional?.id, selectedType, templatesLoaded, professionalsReady, hasCalibratedFields])
 
   // Autosave do conteúdo (debounce) — protege contra "saiu e perdeu"
   function handleInput() {
@@ -328,8 +473,10 @@ export function TabDocumentos({ patient }: Props) {
       }
       setPrinting(true)
       try {
+        let stamp: string | null = null
+        try { stamp = await buildStamp() } catch (err) { printWin.close(); setExportError(stampFailureMessage(err)); return }
         const bg = await resolveExportBg()
-        const { pdfBlob } = await composeCalibratedDoc(bg.url, bg.naturalW, bg.naturalH, currentRenderableFields())
+        const { pdfBlob } = await composeCalibratedDoc(bg.url, bg.naturalW, bg.naturalH, withStampField(currentRenderableFields(), stamp))
         printBlobInWindow(printWin, pdfBlob)
       } catch (err) {
         printWin.close()
@@ -339,7 +486,26 @@ export function TabDocumentos({ patient }: Props) {
       }
     } else {
       if (!editorRef.current) return
-      printDocumento(editorRef.current.innerHTML, bgImage?.url ?? null)
+      if (!(isVerifiableDocType(selectedType) && includeQr)) {
+        printDocumento(editorRef.current.innerHTML, bgImage?.url ?? null)
+        return
+      }
+      // Com QR há uma chamada ao servidor antes de imprimir: a aba abre AGORA, ainda dentro do clique.
+      const printWin = openPrintWindow()
+      if (!printWin) {
+        setExportError('Não abriu a impressão — seu navegador bloqueou o pop-up. Libere pop-ups para este site e tente de novo.')
+        return
+      }
+      setPrinting(true)
+      try {
+        const stamp = await buildStamp()
+        await printHtmlInWindow(printWin, buildDocumentoHtml(editorRef.current.innerHTML + (stamp ?? ''), bgImage?.url ?? null))
+      } catch (err) {
+        printWin.close()
+        setExportError(stampFailureMessage(err))
+      } finally {
+        setPrinting(false)
+      }
     }
   }
 
@@ -418,13 +584,58 @@ export function TabDocumentos({ patient }: Props) {
     if (lastProfessionalIdRef.current === profId) return
     lastProfessionalIdRef.current = profId
     for (const f of activeFields) {
-      if (f.key === 'medico' || f.key === 'registro') fillFieldEl(f.key, resolveFieldValue(f.key))
+      if (f.key === 'medico' || f.key === 'registro' || f.key === 'rqe') fillFieldEl(f.key, resolveFieldValue(f.key))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasCalibratedFields, selectedType, responsibleProfessional?.id])
 
+  // "Gerar documento" do formulário estruturado: abre o editor e, assim que ele (ou o canvas calibrado) estiver pronto,
+  // escreve o texto no corpo. Em papel timbrado calibrado o texto vai para o campo "Texto do documento".
+  useEffect(() => {
+    if (!bodyRequest || appliedSeqRef.current === bodyRequest.seq || !editorOpen || !templatesLoaded || !professionalsReady) return
+    const html = textToBodyHtml(bodyRequest.text)
+    if (hasCalibratedFields) {
+      if (seededFieldsTypeRef.current !== selectedType || !fieldRefs.current.corpo) {
+        if (!activeFields.some(f => f.key === 'corpo')) {
+          appliedSeqRef.current = bodyRequest.seq
+          showToast('error', 'O papel timbrado deste documento não tem o campo "Texto do documento". Calibre-o em Configurações ou use o editor livre.')
+        }
+        return
+      }
+      fillFieldEl('corpo', html)
+      handleFieldInput()
+    } else {
+      if (!editorRef.current || seededTypeRef.current !== selectedType) return
+      seedEditor(selectedType, html)
+      handleInput()
+    }
+    appliedSeqRef.current = bodyRequest.seq
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bodyRequest, editorOpen, templatesLoaded, professionalsReady, hasCalibratedFields, bgCanvasSize.width, selectedType])
+
+  // A impressão do documento em edição vai para o menu "Imprimir" do prontuário (não há botão próprio aqui)
+  const docLabel = DOC_TYPES.find(d => d.type === selectedType)?.label ?? 'Documento'
+  const docBusy = exporting !== null || printing
+  usePrintActions('documentos', [{
+    id: 'documento-editor',
+    label: `Documento em edição: ${docLabel}`,
+    includes: [
+      'O texto como está no editor agora, com o papel timbrado da clínica quando houver',
+      ...(isVerifiableDocType(selectedType) && includeQr ? ['QR de verificação do documento'] : []),
+    ],
+    disabledReason: editorHidden ? 'Preencha o formulário e clique em Gerar documento' : docBusy ? 'Gerando o documento, aguarde' : hasCalibratedFields && loadingBg ? 'Aguardando o papel timbrado carregar' : undefined,
+    run: handlePrint,
+  }])
+
   return (
     <div className={styles.wrap}>
+      <PillTabs
+        label="Documentos e contratos"
+        options={[{ value: 'documentos', label: 'Documentos clínicos' }, { value: 'contratos', label: 'Contratos' }]}
+        value={section}
+        onChange={setSection}
+      />
+      <div style={{ display: section === 'documentos' ? undefined : 'none' }} className={styles.wrap}>
       {/* Seletor de tipo */}
       <div className={styles.typeTabs}>
         {DOC_TYPES.map(d => (
@@ -451,6 +662,25 @@ export function TabDocumentos({ patient }: Props) {
         </div>
       )}
 
+      {structuredKind && (
+        <>
+          <AtestadoEstruturado
+            key={structuredKind}
+            kind={structuredKind}
+            fields={structuredFields}
+            modelos={clinicModelMap}
+            loading={!templatesLoaded || !professionalsReady}
+            onApply={text => { setBodyRequest({ seq: ++requestSeqRef.current, text }); setEditorOpen(true) }}
+          />
+          <ImportarModelo kind={structuredKind} modelos={clinicModels} canEdit={canEditProntuario} onChanged={reloadClinicModels} />
+          <div className={structured.advanced}>
+            <p className={structured.advancedHint}>{editorOpen ? 'Documento pronto abaixo. Você pode ajustar o texto direto no editor.' : 'Quer escrever o documento por conta própria? O editor livre fica recolhido.'}</p>
+            <button type="button" className={btn.secondary} aria-expanded={editorOpen} onClick={() => setEditorOpen(o => !o)}>{editorOpen ? 'Recolher o editor livre' : 'Abrir o editor livre (avançado)'}</button>
+          </div>
+        </>
+      )}
+
+      <div className={editorHidden ? structured.hiddenKeepMounted : undefined}>
       {/* Toolbar */}
       <div className={styles.toolbar}>
         <button className={styles.toolBtn} onMouseDown={e => { e.preventDefault(); execCmd('bold') }} title="Negrito"><b>N</b></button>
@@ -465,23 +695,21 @@ export function TabDocumentos({ patient }: Props) {
         </select>
         <div className={styles.toolSep} />
         <button className={styles.toolBtn} onClick={handleClear} title="Limpar e recomeçar do modelo">Limpar</button>
+        {isVerifiableDocType(selectedType) && (
+          <label className={styles.qrToggle} title="Imprime um QR que leva à página pública de verificação (clínica, tipo, data, profissional e hash). Não mostra o conteúdo.">
+            <input type="checkbox" checked={includeQr} onChange={e => setIncludeQr(e.target.checked)} />
+            QR de verificação
+          </label>
+        )}
         <button
           ref={downloadTriggerRef}
           className={styles.btnDownload}
           onClick={() => setDownloadMenuOpen(o => !o)}
-          disabled={exporting !== null || printing || (hasCalibratedFields && loadingBg)}
+          disabled={editorHidden || exporting !== null || printing || (hasCalibratedFields && loadingBg)}
           title={hasCalibratedFields && loadingBg ? 'Aguardando o papel timbrado carregar...' : undefined}
         >
           <Icon name="download" size={14} />
           {exporting ? 'Gerando...' : 'Baixar'}
-        </button>
-        <button
-          className={styles.btnPrint}
-          onClick={handlePrint}
-          disabled={exporting !== null || printing || (hasCalibratedFields && loadingBg)}
-          title={hasCalibratedFields && loadingBg ? 'Aguardando o papel timbrado carregar...' : undefined}
-        >
-          {printing ? 'Gerando...' : 'Imprimir'}
         </button>
       </div>
 
@@ -501,6 +729,12 @@ export function TabDocumentos({ patient }: Props) {
             <button className={styles.downloadOption} onClick={() => handleDownload('image')}>Baixar como imagem</button>
           </div>
         </Portal>
+      )}
+
+      {DOC_TYPES.find(d => d.type === selectedType)?.reviewNote && !hasCalibratedFields && (
+        <p className={styles.reviewNote} role="note">
+          <Icon name="info" size={14} /> {REVIEW_NOTE}
+        </p>
       )}
 
       {/* Área de edição */}
@@ -547,125 +781,12 @@ export function TabDocumentos({ patient }: Props) {
           </p>
         )}
       </div>
+      </div>
+      </div>
+      {/* Contratos do paciente (com status). Fica montado para o menu Imprimir enxergar os assinados. */}
+      <div style={{ display: section === 'contratos' ? undefined : 'none' }}>
+        <ContratosPaciente patient={patient} legacyText={contractText ?? ''} planItems={planItems} defaultProfessionalId={responsibleProfessional?.id ?? null} />
+      </div>
     </div>
   )
-}
-
-interface DefaultTemplateArgs {
-  type: DocumentTemplateType
-  title: string
-  patientName: string
-  patientAddress: string
-  date: string
-  clinicName: string
-  clinicAddress: string
-  clinicPhone: string
-  clinicColor: string
-  doctorName: string
-  registrationNumber: string
-  clinicLogo?: string
-}
-
-// Linha de campo — quando tem valor, mostra "Rótulo: valor"; sem valor,
-// mostra "Rótulo:" com um traço em branco pra preencher à mão.
-function fieldLine(label: string, value: string) {
-  return value
-    ? `<p style="margin:0 0 9px">${label}: <strong>${value}</strong></p>`
-    : `<p style="margin:0 0 9px">${label}: <span style="display:inline-block;min-width:140px;border-bottom:1px solid #5B665F">&nbsp;</span></p>`
-}
-
-// Modelo padrão do sistema (sem PDF próprio cadastrado) — direção
-// "clínico-editorial": letterhead com filete na cor da clínica, título em
-// caixa alta, corpo em serif (reforça "documento oficial"), rodapé de
-// contato. Mesma estrutura de dados de sempre (paciente/data/assinatura),
-// só a apresentação mudou.
-function buildDefaultTemplate({ type, title, patientName, patientAddress, date, clinicName, clinicAddress, clinicPhone, clinicColor, doctorName, registrationNumber, clinicLogo }: DefaultTemplateArgs) {
-  const initials = clinicName.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || 'C'
-  const contactLine = [clinicAddress, clinicPhone].filter(Boolean).join(' · ')
-
-  const letterhead = `
-    <div style="height:3px;width:100%;background:${clinicColor};margin-bottom:22px"></div>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:16px;border-bottom:1px solid #E1E6E2;margin-bottom:24px;font-family:-apple-system,sans-serif">
-      <div style="display:flex;align-items:center;gap:12px">
-        ${clinicLogo
-          ? `<img src="${clinicLogo}" alt="Logo" style="height:40px;width:auto;max-width:80px;object-fit:contain" />`
-          : `<div style="width:38px;height:38px;border-radius:50%;background:${clinicColor};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0">${initials}</div>`
-        }
-        <p style="font-size:16px;font-weight:700;margin:0;color:#1D2421;font-family:Georgia,'Times New Roman',serif">${clinicName}</p>
-      </div>
-      ${contactLine ? `<div style="font-size:11px;line-height:1.5;color:#5B665F;text-align:right;white-space:nowrap">${contactLine}</div>` : ''}
-    </div>`
-
-  const footer = contactLine ? `
-    <div style="height:1px;background:${clinicColor};opacity:.55;margin:30px 0 10px"></div>
-    <p style="font-family:-apple-system,sans-serif;font-size:10px;color:#5B665F;text-align:center;margin:0">${clinicName} · ${contactLine}</p>
-  ` : ''
-
-  if (type === 'receita_especial') {
-    // Estrutura legal da receita de controle especial: identificação do
-    // emitente (com registro profissional), paciente, prescrição, e os
-    // blocos de comprador/fornecedor que a farmácia preenche na hora da
-    // compra (sempre em branco — não tem como o sistema saber isso antes).
-    return `
-      ${letterhead}
-      <h2 style="text-align:center;font-size:14px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#1D2421;margin:4px 0 2px;font-family:Georgia,'Times New Roman',serif">${title}</h2>
-      <p style="font-family:-apple-system,sans-serif;font-size:11px;color:#5B665F;text-align:right;line-height:1.5;margin:0 0 16px">1ª via — Retenção da farmácia ou drogaria<br>2ª via — Orientação ao paciente</p>
-
-      <div style="border:1px solid #5B665F;border-radius:2px;margin-bottom:14px">
-        <div style="font-family:-apple-system,sans-serif;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#F3F6F4;color:#1D2421;padding:5px 10px;border-bottom:1px solid #5B665F">Identificação do emitente</div>
-        <div style="padding:10px 12px 12px;font-family:-apple-system,sans-serif;font-size:12px;color:#2B3430">
-          ${fieldLine('Nome completo', doctorName)}
-          ${registrationNumber ? fieldLine('Registro profissional', registrationNumber) : `<p style="margin:0 0 9px">CRO/CRM: <span style="display:inline-block;min-width:70px;border-bottom:1px solid #5B665F">&nbsp;</span> &nbsp;&nbsp; UF: <span style="display:inline-block;min-width:70px;border-bottom:1px solid #5B665F">&nbsp;</span></p>`}
-          ${fieldLine('Endereço', clinicAddress)}
-        </div>
-      </div>
-
-      <div style="font-family:-apple-system,sans-serif;font-size:12px;color:#2B3430">
-        ${fieldLine('Paciente', patientName)}
-        ${fieldLine('Endereço', patientAddress)}
-      </div>
-
-      <p style="font-family:-apple-system,sans-serif;font-size:12px;font-weight:700;color:#1D2421;margin:12px 0 6px">Prescrição</p>
-      <div style="border:1px solid #E1E6E2;border-radius:2px;min-height:170px;padding:8px"><p><br></p></div>
-
-      <p style="text-align:right;font-family:Georgia,'Times New Roman',serif;font-size:13px;color:#2B3430;margin:14px 0 16px">Data ____ / ____ / ${new Date().getFullYear()}</p>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div style="border:1px solid #5B665F;border-radius:2px">
-          <div style="font-family:-apple-system,sans-serif;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#F3F6F4;color:#1D2421;padding:5px 10px;border-bottom:1px solid #5B665F">Identificação do comprador</div>
-          <div style="padding:10px 12px 12px;font-family:-apple-system,sans-serif;font-size:11px;color:#2B3430">
-            <p style="margin:0 0 8px">Nome: <span style="display:inline-block;min-width:60%;border-bottom:1px solid #5B665F">&nbsp;</span></p>
-            <p style="margin:0 0 8px">Ident.: <span style="display:inline-block;min-width:55%;border-bottom:1px solid #5B665F">&nbsp;</span></p>
-            <p style="margin:0 0 8px">Órgão emissor: <span style="display:inline-block;min-width:40%;border-bottom:1px solid #5B665F">&nbsp;</span></p>
-            <p style="margin:0 0 8px">Endereço: <span style="display:inline-block;min-width:55%;border-bottom:1px solid #5B665F">&nbsp;</span></p>
-            <p style="margin:0 0 8px">Cidade: <span style="display:inline-block;min-width:35%;border-bottom:1px solid #5B665F">&nbsp;</span> &nbsp; UF: <span style="display:inline-block;min-width:12%;border-bottom:1px solid #5B665F">&nbsp;</span></p>
-            <p style="margin:0">Telefone: <span style="display:inline-block;min-width:50%;border-bottom:1px solid #5B665F">&nbsp;</span></p>
-          </div>
-        </div>
-        <div style="border:1px solid #5B665F;border-radius:2px;display:flex;flex-direction:column">
-          <div style="font-family:-apple-system,sans-serif;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#F3F6F4;color:#1D2421;padding:5px 10px;border-bottom:1px solid #5B665F">Identificação do fornecedor</div>
-          <div style="padding:10px 12px 12px;flex:1;display:flex;align-items:flex-end">
-            <p style="width:100%;display:flex;justify-content:space-between;font-family:-apple-system,sans-serif;font-size:10px;color:#5B665F;margin:0;padding-top:8px;border-top:1px solid #5B665F">
-              <span>Assinatura do farmacêutico</span><span>Data ___/___/___</span>
-            </p>
-          </div>
-        </div>
-      </div>
-      ${footer}
-    `
-  }
-
-  return `
-    ${letterhead}
-    <h2 style="text-align:center;font-size:14px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#1D2421;margin:0 0 26px">${title}</h2>
-    <p style="font-family:-apple-system,sans-serif;font-size:12px;color:#5B665F;margin:0 0 4px"><strong style="color:#2B3430">Paciente:</strong> ${patientName}</p>
-    <p style="font-family:-apple-system,sans-serif;font-size:12px;color:#5B665F;margin:0 0 24px"><strong style="color:#2B3430">Data:</strong> ${date}</p>
-    <p></p>
-    <br><br><br>
-    <div style="margin:0 auto 4px;padding-top:10px;border-top:1px solid #1D2421;width:62%;text-align:center">
-      <p style="margin:0;font-size:13px">${doctorName}</p>
-      <p style="font-family:-apple-system,sans-serif;font-size:10px;color:#5B665F;margin-top:2px">Assinatura e carimbo</p>
-    </div>
-    ${footer}
-  `
 }

@@ -1,0 +1,52 @@
+/* Lote e validade no Estoque: aba de lotes, busca de paciente e janela de recall. Cores e raios vêm dos tokens do app. */
+
+.toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:0 22px 14px; }
+.toolbarSpacer { flex:1 1 auto; }
+.check { display:inline-flex; align-items:center; gap:8px; min-height:44px; font-size:.8125rem; color:var(--text-secondary); cursor:pointer; }
+.check input { width:18px; height:18px; accent-color:var(--brand-primary); }
+.toolBtn { display:inline-flex; align-items:center; gap:6px; }
+
+.lotCode { font-weight:600; color:var(--text-primary); word-break:break-word; }
+.lotSub { font-size:.78rem; color:var(--text-secondary); }
+.warnNote { display:flex; align-items:flex-start; gap:6px; font-size:.78rem; color:var(--st-warn); }
+.warnNote svg { flex-shrink:0; margin-top:2px; }
+
+/* trecho do formulário de entrada */
+.section { display:flex; flex-direction:column; gap:12px; padding-top:12px; border-top:1px solid var(--surface-line); }
+.sectionTitle { margin:0; font-size:.82rem; font-weight:600; color:var(--text-primary); }
+.sectionHint { margin:0; font-size:.76rem; color:var(--text-secondary); line-height:1.45; }
+.plan { margin:0; padding:10px 12px; border-radius:var(--radius-field); background:var(--surface-2); font-size:.82rem; color:var(--text-primary); line-height:1.5; }
+.planWarn { margin:0; font-size:.78rem; color:var(--st-warn); line-height:1.45; }
+
+/* busca de paciente */
+.pick { display:flex; flex-direction:column; gap:6px; }
+.pickList { display:flex; flex-direction:column; border:1px solid var(--surface-line); border-radius:var(--radius-field); overflow:hidden; background:var(--surface); }
+.pickItem { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:1px; min-height:44px; padding:6px 12px; border:0; border-bottom:1px solid var(--surface-line); background:transparent; color:var(--text-primary); font:inherit; font-size:.875rem; text-align:left; cursor:pointer; }
+.pickItem:last-child { border-bottom:0; }
+.pickItem:hover { background:var(--surface-2); }
+.pickItem:focus-visible { outline:2px solid var(--brand-primary); outline-offset:-2px; }
+.pickItem small { color:var(--text-secondary); font-size:.75rem; }
+.pickNone { padding:10px 12px; font-size:.8125rem; color:var(--text-secondary); }
+.chosen { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; padding:6px 6px 6px 12px; border:1px solid var(--border-color); border-radius:var(--radius-field); background:var(--surface); font-size:.9rem; }
+.chosen span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chosenClear { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; margin:-6px 0; border:0; border-radius:999px; background:transparent; color:var(--text-secondary); cursor:pointer; flex-shrink:0; }
+.chosenClear:hover { background:var(--surface-line); color:var(--text-primary); }
+.chosenClear:focus-visible { outline:2px solid var(--brand-primary); outline-offset:-2px; }
+
+/* recall */
+.recallHead { display:flex; flex-direction:column; gap:2px; margin:0 0 12px; font-size:.84rem; color:var(--text-secondary); line-height:1.5; }
+.recallHead b { color:var(--text-primary); font-weight:600; }
+.recallList { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
+.recallRow { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid var(--surface-line); }
+.recallRow:last-child { border-bottom:0; }
+.recallWho { display:flex; flex-direction:column; min-width:0; }
+.recallName { font-weight:600; color:var(--text-primary); overflow-wrap:anywhere; }
+.recallMeta { font-size:.78rem; color:var(--text-secondary); }
+.recallQty { flex-shrink:0; font-variant-numeric:tabular-nums; font-weight:600; color:var(--text-primary); white-space:nowrap; }
+.recallEmpty { padding:24px 0; text-align:center; color:var(--text-secondary); font-size:.875rem; }
+.recallNote { margin:12px 0 0; padding:10px 12px; border-radius:var(--radius-field); background:var(--surface-2); font-size:.8125rem; color:var(--text-secondary); line-height:1.5; }
+
+@media (max-width:768px) {
+  .toolbar { padding:0 0 12px; }
+  .toolbarSpacer { display:none; }
+}

@@ -1,0 +1,47 @@
+/* ── Barra de ferramentas clínicas do odontograma ── */
+/* O fundo atrás da barra é o do cartão do palco (--surface), onde ela mora; --bg-page criava uma faixa de outra cor. */
+.wrap { position: sticky; top: 0; z-index: 6; display: flex; flex-direction: column; gap: 4px; padding: 6px 0 4px; margin: 0 -2px; background: linear-gradient(var(--surface) calc(100% - 8px), transparent); }
+.bar {
+  display: flex; align-items: center; gap: 10px; padding: 6px;
+  background: var(--glass-bg); border: 1px solid var(--border-subtle); border-radius: 16px; box-shadow: var(--shadow-md);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.tools { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.tools::-webkit-scrollbar { display: none; }
+.sep { flex: none; width: 1px; height: 22px; margin: 0 4px; background: var(--border-color); }
+
+.tool {
+  flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 12px;
+  border: 1.5px solid transparent; border-radius: 12px; background: transparent; color: var(--text-secondary);
+  font-size: 0.8125rem; font-weight: 600; white-space: nowrap; cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.tool svg { color: var(--tool); flex: none; }
+.tool:hover:not(:disabled) { background: var(--surface-2); color: var(--text-primary); }
+.tool:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+.tool:disabled { opacity: 0.4; cursor: not-allowed; }
+.toolOn, .toolOn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--tool) 14%, var(--surface)); color: var(--text-primary);
+  border-color: var(--tool); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tool) 16%, transparent);
+}
+.toolSmall { min-height: 34px; padding: 0 10px; font-size: 0.76rem; font-weight: 500; }
+
+.seg { flex: none; display: inline-flex; gap: 2px; padding: 3px; background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: 11px; }
+.segBtn { min-height: 34px; padding: 0 12px; border: none; border-radius: 8px; background: none; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; cursor: pointer; }
+.segBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.segOn { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+.segBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+
+.hint { display: flex; align-items: baseline; gap: 7px; margin: 0; padding: 0 6px; font-size: 0.76rem; line-height: 1.4; color: var(--text-secondary); }
+.hint b { color: var(--text-primary); font-weight: 700; }
+.hintDot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tool); transform: translateY(0); }
+
+@media (pointer: coarse) {
+  .tool { min-height: 44px; } .toolSmall { min-height: 44px; } .segBtn { min-height: 44px; }
+}
+@media (max-width: 720px) {
+  .bar { flex-direction: column; align-items: stretch; gap: 6px; }
+  .seg { align-self: flex-start; }
+  .hint { align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+@media (prefers-reduced-motion: reduce) { .tool { transition: none; } }

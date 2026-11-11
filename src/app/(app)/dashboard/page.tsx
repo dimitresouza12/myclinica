@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
@@ -23,18 +24,24 @@ import type { TrendPoint } from '@/components/ui/AreaTrendChart'
 import { useDashboardData, useProcedures, useWhatsAppState } from '@/hooks/useClinicData'
 import type { DashboardAlert, DashboardInsights, RevenueByCategory } from '@/hooks/useClinicData'
 import { usePermissions } from '@/hooks/usePermissions'
+import { usePermissionsStore } from '@/store/permissions'
+import { DEFAULT_HOME_ROUTE, firstAllowedRoute } from '@/lib/homeRoute'
+import { canSeeFinancialTotals } from '@/lib/permissionPresets'
 import { showToast } from '@/components/ui/Toast'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { STATUS_LABELS } from '@/lib/appointmentStatus'
 import { ensureRevenueForAppointment, notifyRevenuePending, promptCreditUsage } from '@/lib/appointmentRevenue'
+import { lookupAppointmentPackageId } from '@/lib/agenda/packagesApi'
 import type { Appointment, AppointmentStatus } from '@/types'
 import type { ComponentProps } from 'react'
 import styles from './dashboard.module.css'
+import { AtendimentoMetricsCard } from './AtendimentoMetricsCard'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { OnboardingChecklist } from './OnboardingChecklist'
 import { OnboardingModal } from './OnboardingModal'
 import { WelcomeModal } from './WelcomeModal'
 import { moneyShort, axisMoney, statMoney } from '@/lib/ui/money'
+import { patientHref } from '@/lib/prontuario/navigation'
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -59,7 +66,7 @@ interface Stats {
 }
 
 const STATUS_TONE: Record<AppointmentStatus, StatusTone> = {
-  agendado: 'wait', confirmado: 'ok', concluido: 'idle', faltou: 'warn', cancelado: 'bad', bloqueado: 'idle',
+  agendado: 'wait', confirmado: 'ok', arrived: 'wait', in_progress: 'now', concluido: 'idle', faltou: 'warn', cancelado: 'bad', bloqueado: 'idle',
 }
 
 type Period = 'semana' | 'mes' | 'seis'
@@ -204,7 +211,13 @@ function DashboardContent() {
   const [period, setPeriod] = useState<Period>('semana')
 
   const queryClient = useQueryClient()
-  const { canEdit: canEditAgenda } = usePermissions('agenda')
+  const { canEdit: canEditAgenda, canView: canViewAgenda } = usePermissions('agenda')
+  const { canView: canViewPacientes } = usePermissions('pacientes')
+  // Nome do paciente só aparece pra quem tem Ver em Agenda ou Pacientes
+  const canSeePatientName = canViewAgenda || canViewPacientes
+  // Receita, caixa, ticket médio e meta só aparecem com Ver no Financeiro e "Ver totais financeiros" ligado
+  const finPerm = usePermissions('financeiro')
+  const canSeeFinance = canSeeFinancialTotals(finPerm)
 
   const { data, isLoading: loading } = useDashboardData(clinic?.id)
   const { data: procedures = [] } = useProcedures(clinic?.id)
@@ -282,7 +295,11 @@ function DashboardContent() {
     if (!appt) return
 
     const linkedProc = procedures.find(p => p.id === appt.procedure_id)
-    const priceIsPending = !(appt.procedure_price && appt.procedure_price > 0) && !linkedProc?.is_free
+    // consulta de pacote de sessões não tem preço próprio: a venda do pacote já foi lançada
+    // o valor guardado na lista do dia pode estar velho: confere no banco uma vez e passa adiante (evita 3 consultas iguais depois)
+    const freshPackageId = await lookupAppointmentPackageId(clinic.id, appt.id)
+    const inPackage = !!freshPackageId
+    const priceIsPending = !inPackage && !(appt.procedure_price && appt.procedure_price > 0) && !linkedProc?.is_free
     if (priceIsPending) {
       const confirmed = await confirmDialog({
         message: 'Este procedimento está sem preço definido — nenhuma receita será lançada no Financeiro ao concluir. Deseja continuar mesmo assim?',
@@ -300,13 +317,14 @@ function DashboardContent() {
         .eq('clinic_id', clinic.id)
         .select('id')
       if (error || !updated?.length) throw error ?? new Error('no_rows')
-      const concludedAppt = { ...appt, status: 'concluido' as const }
-      const creditUsage = await promptCreditUsage(clinic.id, concludedAppt.patient_id)
+      const concludedAppt = { ...appt, package_id: freshPackageId, status: 'concluido' as const }
+      const creditUsage = await promptCreditUsage(clinic.id, concludedAppt.patient_id, concludedAppt)
       const result = await ensureRevenueForAppointment(clinic.id, concludedAppt, creditUsage)
       notifyRevenuePending(result, concludedAppt)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['dashboard', clinic.id] }),
         queryClient.invalidateQueries({ queryKey: ['agenda', clinic.id] }),
+        queryClient.invalidateQueries({ queryKey: ['packages', clinic.id] }),
         ...(creditUsage.useCredit ? [queryClient.invalidateQueries({ queryKey: ['patient-credits', clinic.id] })] : []),
       ])
     } catch {
@@ -351,6 +369,7 @@ function DashboardContent() {
       <div className={styles.grid} aria-busy={loading}>
         <section className={styles.hero}>
           <div className={styles.gauges}>
+            {canSeeFinance ? (
             <div className={styles.gaugeBox}>
               <h2 className={styles.gaugeTitle}>Meta do mês</h2>
               <Gauge value={goal && !hideValues ? stats.monthRevenue / goal : 0} label={goal ? `Meta do mês: ${Math.round((stats.monthRevenue / goal) * 100)}% atingido` : 'Meta do mês não definida'}>
@@ -365,6 +384,12 @@ function DashboardContent() {
                 <p className={styles.gaugeHint}><Link href="/metas" className={styles.gaugeLink}>Definir meta</Link></p>
               )}
             </div>
+            ) : (
+              <div className={styles.gaugeBox}>
+                <h2 className={styles.gaugeTitle}>Meta do mês</h2>
+                <p className={styles.gaugeHint}>Valores financeiros não liberados para o seu perfil.</p>
+              </div>
+            )}
             <div className={styles.gaugeBox}>
               <h2 className={styles.gaugeTitle}>Confirmação da semana</h2>
               <Gauge value={ins?.confirmation.rate ?? 0} label={ins?.confirmation.rate != null ? `Confirmação da semana: ${pct(ins.confirmation.rate)}%` : 'Sem consultas nesta semana'}>
@@ -382,10 +407,10 @@ function DashboardContent() {
                 <span className={styles.nextTime}>{fmtTime(next.scheduled_at)}</span>
                 <div className={styles.nextWho}>
                   <small>Próximo atendimento</small>
-                  <b>{next.patients?.name ?? '-'}</b>
+                  <b>{canSeePatientName ? (next.patients?.name ?? '-') : 'Paciente'}</b>
                   {next.procedure_name && <span>{next.procedure_name}</span>}
                 </div>
-                {next.patient_id && <Link className={styles.nextGo} href={`/pacientes?patient=${next.patient_id}`}>Abrir</Link>}
+                {next.patient_id && canViewPacientes && <Link className={styles.nextGo} href={patientHref(next.patient_id)}>Abrir</Link>}
               </>
             ) : (
               <div className={styles.nextWho}>
@@ -435,22 +460,27 @@ function DashboardContent() {
             hint={needsConfirm > 0 ? `${needsConfirm} para confirmar` : `${confirmedToday} confirmada(s)`}
             spark={ins ? { values: ins.sparks.appointments, label: `Consultas por dia nos últimos 7 dias: ${ins.sparks.appointments.join(', ')}` } : undefined}
           />
-          <StatCard
+          {canSeeFinance && <StatCard
             title="Receita do mês"
             value={moneyCompact(stats.monthRevenue)}
             compact
             delta={mtdPct != null && !hideValues ? { label: `${mtdPct > 0 ? '+' : ''}${mtdPct}%`, bad: mtdPct < 0 } : undefined}
             hint={mtdPct != null ? 'comparado ao mês passado' : `lucro de ${moneyCompact(monthProfit)}`}
-          />
-          <StatCard
+          />}
+          {canSeeFinance && <StatCard
             title="Ticket médio"
             value={moneyCompact(stats.avgTicket)}
             compact
             hint={stats.treatmentsCompleted === 1 ? '1 atendimento concluído' : `${stats.treatmentsCompleted} atendimentos concluídos`}
-          />
+          />}
         </div>
 
-        <Card
+        {!canSeeFinance && (
+          <Card className={styles.chartCard} title="Resultados financeiros">
+            <EmptyState compact icon="info" title="Valores financeiros ocultos" description="O seu perfil não tem acesso aos totais financeiros. Fale com o administrador da clínica se precisar deles." />
+          </Card>
+        )}
+        {canSeeFinance && <Card
           className={styles.chartCard}
           title={trend.title}
           actions={<PillTabs label="Período do gráfico" value={period} onChange={setPeriod} options={PERIODS} />}
@@ -471,7 +501,7 @@ function DashboardContent() {
               label={`${trend.title}: ${trend.valueName.toLowerCase()} comparada com ${trend.compareName.toLowerCase()}`}
             />
           )}
-        </Card>
+        </Card>}
 
         <div className={styles.bottom}>
           <Card
@@ -486,7 +516,7 @@ function DashboardContent() {
                   <li key={a.id} className={styles.appt}>
                     <time className={styles.apptTime}>{fmtTime(a.scheduled_at)}</time>
                     <div className={styles.apptWho}>
-                      <b>{a.patients?.name ?? '-'}</b>
+                      <b>{canSeePatientName ? (a.patients?.name ?? '-') : 'Paciente'}</b>
                       <span>{a.procedure_name ?? '-'}</span>
                     </div>
                     <div className={styles.apptEnd}>
@@ -508,7 +538,7 @@ function DashboardContent() {
             )}
           </Card>
 
-          <Card title="Caixa de hoje">
+          {canSeeFinance && <Card title="Caixa de hoje">
             <div className={styles.cash}>
               <div className={styles.cashRow}>
                 <span>Recebido</span>
@@ -530,10 +560,12 @@ function DashboardContent() {
                 <span className={styles.cashNum}>{money(todayCash.previsto)}</span>
               </div>
             </div>
-          </Card>
+          </Card>}
+
+          {clinic && <AtendimentoMetricsCard clinicId={clinic.id} />}
         </div>
 
-        {(revenueByCategory.length > 0 || insights.length > 0) && (
+        {canSeeFinance && (revenueByCategory.length > 0 || insights.length > 0) && (
           <div className={styles.bottom}>
             <Card title="Receita por categoria" actions={<span className={styles.cardMeta}>mês atual</span>}>
               {revenueByCategory.length === 0 ? (
@@ -570,5 +602,14 @@ function DashboardContent() {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const clinic = useAuthStore(s => s.clinic)
+  const { permissions, loaded, error } = usePermissionsStore()
+  const { canView, isAdmin } = usePermissions('dashboard')
+  // Sem Dashboard liberado (ex.: recepção só com Agenda e Pacientes), a rota inicial é o primeiro módulo permitido do menu
+  const home = firstAllowedRoute(permissions, { isAdmin, isPlus: hasWhatsAppAI(clinic?.plan) })
+  const redirecting = loaded && !error && !canView && home !== DEFAULT_HOME_ROUTE
+  useEffect(() => { if (redirecting) router.replace(home) }, [redirecting, home, router])
+  if (redirecting) return null
   return <PermissionGuard module="dashboard"><DashboardContent /></PermissionGuard>
 }

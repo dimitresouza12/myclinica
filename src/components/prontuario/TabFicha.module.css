@@ -232,3 +232,40 @@
   vertical-align: middle;
 }
 .btnRemoveCustomField:hover { color: #dc2626; }
+
+/* Medicina: calculadoras clínicas (IMC, IG/DPP) */
+.calcBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+.calcTitle { margin: 0; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
+.calcRow { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+@media (max-width: 480px) { .calcRow { grid-template-columns: 1fr; } }
+.calcResult { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.calcHint { margin: 0; font-size: 0.75rem; color: var(--text-secondary); }
+.fieldHelp { color: var(--text-secondary); font-size: 0.75rem; }
+
+.psicoNotice {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--brand-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* contrato: só um aviso apontando para a aba Documentos */
+.contractNote { margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary); }
+.contractLink {
+  min-height: 44px; padding: 0 4px; border: none; background: none; color: var(--brand-text); font: inherit; font-weight: 700;
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.contractLink:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; border-radius: 4px; }

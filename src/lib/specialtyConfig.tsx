@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react'
 import type { ClinicType, DocumentTemplateType, UserRole } from '@/types'
+import {
+  FISIO_LAUDO_BODY, FONO_LAUDO_BODY, TO_LAUDO_BODY, NUTRI_EXAMES_SUPLEMENTOS_BODY, NUTRI_LAUDO_BODY,
+  PSICO_DECLARACAO_BODY, PSICO_RELATORIO_BODY, VET_TERMO_BODY, ESTETICA_TCLE_BODY, ESTETICA_TERMO_IMAGEM_BODY,
+} from '@/lib/documentBodyTemplates'
 
 interface RoleOption {
   value: UserRole
@@ -10,6 +14,11 @@ interface DocTypeOption {
   type: DocumentTemplateType
   label: string
   title: string
+  // Corpo-modelo (HTML) semeado no editor quando não há papel timbrado
+  // calibrado — roteiro genérico e editável, ver documentBodyTemplates.ts.
+  body?: string
+  // true = mostra na tela o aviso "revisar com o conselho" (modelo genérico).
+  reviewNote?: boolean
 }
 
 interface ProcedureSuggestion {
@@ -18,8 +27,10 @@ interface ProcedureSuggestion {
 }
 
 // Abas extras do prontuário que só fazem sentido pra certas áreas
-// (odontograma pra odonto/estética, faceograma/corpograma pra estética).
-export type RecordTab = 'odontograma' | 'faceograma' | 'corpograma'
+// (odontograma pra odonto, faceograma pra odonto/estética, corpograma pra estética).
+// 'metas' = plano terapêutico por metas (fono, TO, fisio e psico): ver src/components/prontuario/metas.
+// 'vet' = carteira de vacinas, curva de peso e dose por peso do pet: ver src/components/prontuario/vet.
+export type RecordTab = 'odontograma' | 'faceograma' | 'corpograma' | 'metas' | 'nutri' | 'vet' | 'comparador'
 
 interface SpecialtyConfig {
   roles: RoleOption[]
@@ -53,7 +64,8 @@ const BASE_ROLES: RoleOption[] = [
 const ADMIN_ROLE: RoleOption = { value: 'admin', label: 'Admin (acesso total)' }
 
 // Os tipos de documento existem como slot fixo no banco (clinic_document_templates.type
-// tem CHECK constraint pros valores possíveis — hoje 5, ver Especialidades Bloco A).
+// tem CHECK constraint pros valores possíveis — hoje 5, ver Especialidades Bloco A;
+// 'tcle'/'termo_imagem' dependem da migration 20261112_document_types_estetica.sql).
 // Cada especialidade escolhe só os que fazem sentido pro seu conselho profissional
 // emitir, com rótulo e título de impressão corretos — evita, por ex., um psicólogo
 // (que não pode prescrever medicamento) ver "RECEITA MÉDICA".
@@ -73,6 +85,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       { type: 'receita_especial', label: 'Receita Especial', title: 'RECEITA DE CONTROLE ESPECIAL' },
       DOC_DECLARACAO,
       { type: 'atestado', label: 'Atestado', title: 'ATESTADO ODONTOLÓGICO' },
+      DOC_LAUDO,
     ],
     stockCategories: ['material', 'medicamento', 'descartavel', 'equipamento', 'outro'],
     financeCategoriasReceita: ['Consulta', 'Procedimento', 'Exame', 'Plano', 'Outros'],
@@ -130,7 +143,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-hipotese', 'Hipótese diagnóstica / Plano radiográfico'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: ['odontograma', 'faceograma'],
+    recordTabs: ['odontograma', 'faceograma', 'comparador'],
     color: '37,99,235',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c-2 0-3.5.9-4.6.9C5.6 3.9 4 5 4 7.4c0 1.7.4 2.7.9 4 .3.9.6 2 .7 3.4.2 2.7.6 6.2 3 6.2 1.9 0 2.2-1.8 2.5-3.6.2-1.1.3-2.2 1-2.2s.8 1.1 1 2.2c.3 1.8.6 3.6 2.5 3.6 2.4 0 2.8-3.5 3-6.2.1-1.4.4-2.5.7-3.4.5-1.3.9-2.3.9-4 0-2.4-1.6-3.5-3.4-3.5C15.5 3.9 14 3 12 3z"/></svg>
@@ -217,10 +230,10 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
   estetica: {
     roles: [...BASE_ROLES, { value: 'profissional', label: 'Esteticista' }, ADMIN_ROLE],
     documents: [
-      { type: 'receita_comum', label: 'Receita', title: 'RECEITA' },
-      DOC_RECEITA_ESPECIAL_MEDICO,
+      // Estética não emite receita de controle especial nem atestado médico
+      // (Lei 13.643/2018) — só orientação de home care, declaração e laudo.
+      { type: 'receita_comum', label: 'Prescrição Home Care', title: 'PRESCRIÇÃO HOME CARE' },
       DOC_DECLARACAO,
-      { type: 'atestado', label: 'Atestado', title: 'ATESTADO' },
       DOC_LAUDO,
     ],
     stockCategories: ['cosmetico', 'injetavel', 'descartavel', 'equipamento', 'outro'],
@@ -279,7 +292,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-contraindicacoes', 'Contraindicações identificadas'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: ['odontograma', 'faceograma', 'corpograma'],
+    recordTabs: ['faceograma', 'corpograma', 'comparador'],
     color: '219,39,119',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 6.6L20.5 10l-6.6 1.9L12 18.5l-1.9-6.6L3.5 10l6.6-1.9L12 2z"/></svg>
@@ -292,6 +305,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       { type: 'receita_especial', label: 'Receita de Controle Especial', title: 'RECEITA VETERINÁRIA DE CONTROLE ESPECIAL' },
       DOC_DECLARACAO,
       { type: 'atestado', label: 'Atestado', title: 'ATESTADO VETERINÁRIO' },
+      { type: 'laudo', label: 'Termo de Consentimento', title: 'TERMO DE CONSENTIMENTO', body: VET_TERMO_BODY, reviewNote: true },
     ],
     stockCategories: ['medicamento', 'racao', 'vacina', 'descartavel', 'equipamento', 'outro'],
     financeCategoriasReceita: ['Consulta', 'Procedimento', 'Vacinação', 'Banho & Tosa', 'Exame', 'Outros'],
@@ -333,7 +347,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-hipotese', 'Hipótese diagnóstica / Exames solicitados'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: [],
+    recordTabs: ['vet'],
     color: '180,83,9',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="6.8" cy="9.3" r="2.1"/><circle cx="12" cy="6.6" r="2.1"/><circle cx="17.2" cy="9.3" r="2.1"/><path d="M12 12c-3.1 0-5.6 2.3-5.6 5 0 1.7 1.3 2.7 3 2.7.9 0 1.7-.3 2.6-.3s1.7.3 2.6.3c1.7 0 3-1 3-2.7 0-2.7-2.5-5-5.6-5z"/></svg>
@@ -344,6 +358,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
     documents: [
       DOC_DECLARACAO,
       { type: 'atestado', label: 'Atestado', title: 'ATESTADO FISIOTERAPÊUTICO' },
+      { type: 'laudo', label: 'Laudo / Relatório', title: 'LAUDO / RELATÓRIO FISIOTERAPÊUTICO', body: FISIO_LAUDO_BODY, reviewNote: true },
     ],
     stockCategories: ['material', 'equipamento', 'descartavel', 'outro'],
     financeCategoriasReceita: ['Sessão', 'Avaliação', 'Pacote', 'Plano', 'Outros'],
@@ -386,7 +401,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-hipotese', 'Diagnóstico fisioterapêutico'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: [],
+    recordTabs: ['corpograma', 'metas'],
     color: '234,88,12',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><rect x="1" y="9.5" width="3" height="5" rx="1.2"/><rect x="20" y="9.5" width="3" height="5" rx="1.2"/><rect x="4.3" y="7.5" width="2.6" height="9" rx="1.2"/><rect x="17.1" y="7.5" width="2.6" height="9" rx="1.2"/><rect x="6.7" y="11" width="10.6" height="2" rx="1"/></svg>
@@ -395,8 +410,9 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
   psico: {
     roles: [...BASE_ROLES, { value: 'profissional', label: 'Psicólogo(a)' }, ADMIN_ROLE],
     documents: [
-      DOC_DECLARACAO,
+      { ...DOC_DECLARACAO, body: PSICO_DECLARACAO_BODY, reviewNote: true },
       { type: 'atestado', label: 'Atestado', title: 'ATESTADO PSICOLÓGICO' },
+      { type: 'laudo', label: 'Relatório / Laudo', title: 'RELATÓRIO PSICOLÓGICO', body: PSICO_RELATORIO_BODY, reviewNote: true },
     ],
     stockCategories: ['material', 'outro'],
     financeCategoriasReceita: ['Sessão', 'Avaliação Psicológica', 'Terapia de Casal', 'Pacote', 'Outros'],
@@ -435,7 +451,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-plano', 'Plano terapêutico / Abordagem utilizada'],
       ['e-obs', 'Observações da sessão'],
     ],
-    recordTabs: [],
+    recordTabs: ['metas'],
     color: '124,58,237',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4.5h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9.6L6 22v-4.5H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/></svg>
@@ -446,6 +462,10 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
     documents: [
       { type: 'receita_comum', label: 'Prescrição Dietética', title: 'PRESCRIÇÃO DIETÉTICA' },
       DOC_DECLARACAO,
+      { type: 'laudo', label: 'Exames e Suplementos', title: 'SOLICITAÇÃO DE EXAMES E SUPLEMENTAÇÃO', body: NUTRI_EXAMES_SUPLEMENTOS_BODY, reviewNote: true },
+      // Laudo Nutricional: o slot 'laudo' já é o de Exames e Suplementos, e novos tipos exigiriam alargar a CHECK de
+      // clinic_document_templates.type; o slot 'atestado' (já aceito pelo banco) leva o rótulo e o modelo do laudo.
+      { type: 'atestado', label: 'Laudo Nutricional', title: 'LAUDO NUTRICIONAL', body: NUTRI_LAUDO_BODY, reviewNote: true },
     ],
     stockCategories: ['material', 'outro'],
     financeCategoriasReceita: ['Consulta', 'Avaliação Nutricional', 'Plano Alimentar', 'Retorno', 'Outros'],
@@ -488,7 +508,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-plano', 'Plano alimentar / Orientações prescritas'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: [],
+    recordTabs: ['nutri'],
     color: '22,163,74',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><rect x="11.2" y="2" width="1.6" height="3.6" rx="0.8"/><path d="M13 4c1.6-1.1 3.3-.7 4 .6-1.5.9-3 .6-4-.6z"/><circle cx="12" cy="14.5" r="7.2"/></svg>
@@ -499,6 +519,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
     documents: [
       DOC_DECLARACAO,
       { type: 'atestado', label: 'Atestado', title: 'ATESTADO FONOAUDIOLÓGICO' },
+      { type: 'laudo', label: 'Laudo / Relatório', title: 'LAUDO / RELATÓRIO FONOAUDIOLÓGICO', body: FONO_LAUDO_BODY, reviewNote: true },
     ],
     stockCategories: ['material', 'equipamento', 'descartavel', 'outro'],
     financeCategoriasReceita: ['Sessão', 'Avaliação Fonoaudiológica', 'Pacote', 'Plano', 'Outros'],
@@ -538,7 +559,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-freio_lingual', 'Avaliação do frênulo lingual (Teste da Linguinha) — classificação'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: [],
+    recordTabs: ['metas'],
     color: '79,70,229',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="10" width="2" height="4" rx="1"/><rect x="6" y="7" width="2" height="10" rx="1"/><rect x="10" y="4" width="2" height="16" rx="1"/><rect x="14" y="8" width="2" height="8" rx="1"/><rect x="18" y="11" width="2" height="2.5" rx="1"/></svg>
@@ -549,6 +570,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
     documents: [
       DOC_DECLARACAO,
       { type: 'atestado', label: 'Atestado', title: 'ATESTADO DE TERAPIA OCUPACIONAL' },
+      { type: 'laudo', label: 'Laudo / Relatório', title: 'LAUDO / RELATÓRIO DE TERAPIA OCUPACIONAL', body: TO_LAUDO_BODY, reviewNote: true },
     ],
     stockCategories: ['material', 'equipamento', 'descartavel', 'outro'],
     financeCategoriasReceita: ['Sessão', 'Avaliação', 'Pacote', 'Plano', 'Outros'],
@@ -582,12 +604,101 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-orteses', 'Uso de órtese/adaptação'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: [],
+    recordTabs: ['metas'],
     color: '13,148,136',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 2a2 2 0 00-2 2v6.5a1.5 1.5 0 01-3 0V9a1 1 0 00-2 0v1.5a3.5 3.5 0 003.5 3.5H8v6a2 2 0 002 2h4a2 2 0 002-2v-6h1.5a3.5 3.5 0 003.5-3.5V9a1 1 0 00-2 0v1.5a1.5 1.5 0 01-3 0V4a2 2 0 00-2-2H8z"/></svg>
     ),
   },
+}
+
+// Conjunto completo de documentos que a estética sempre teve antes de a área
+// pura perder receita especial e atestado. Continua valendo quando quem emite
+// é médico/biomédico/dentista ou a clínica tem outra área junto — ver
+// resolveDocumentOptions.
+export const ESTETICA_FULL_DOCUMENTS: DocTypeOption[] = [
+  { type: 'receita_comum', label: 'Receita', title: 'RECEITA' },
+  DOC_RECEITA_ESPECIAL_MEDICO,
+  DOC_DECLARACAO,
+  { type: 'atestado', label: 'Atestado', title: 'ATESTADO' },
+  DOC_LAUDO,
+]
+
+// FLAG: TCLE e Termo de uso de imagem da estética. A tabela clinic_document_templates tem CHECK
+// no `type` (5 valores); com os tipos novos fora dela, subir papel timbrado deles falharia.
+// Só virar true DEPOIS de aplicar supabase/migrations/20261112_document_types_estetica.sql.
+// (Modelo já salvo de um desses tipos continua visível mesmo com a flag desligada.)
+export const ESTETICA_EXTRA_DOCUMENTS_ENABLED = true
+
+export const ESTETICA_EXTRA_DOCUMENTS: DocTypeOption[] = [
+  { type: 'tcle', label: 'TCLE', title: 'TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO', body: ESTETICA_TCLE_BODY, reviewNote: true },
+  { type: 'termo_imagem', label: 'Termo de uso de imagem', title: 'TERMO DE AUTORIZAÇÃO DE USO DE IMAGEM', body: ESTETICA_TERMO_IMAGEM_BODY, reviewNote: true },
+]
+
+// Especialidade (texto livre do cadastro do profissional) de quem pode emitir
+// receita controlada/atestado mesmo numa clínica de estética.
+const ESTETICA_CLINICAL_SPECIALTY = /dermatolog|biomedic|m[eé]dic|dentist|odont|orofacial/i
+
+function documentsFor(area: ClinicType, esteticaFull: boolean, extras = false): DocTypeOption[] {
+  if (area !== 'estetica') return getSpecialtyConfig(area).documents
+  const base = esteticaFull ? ESTETICA_FULL_DOCUMENTS : getSpecialtyConfig(area).documents
+  return extras ? [...base, ...ESTETICA_EXTRA_DOCUMENTS] : base
+}
+
+/**
+ * Documentos exibidos na aba Documentos do prontuário. Regra de ouro: nenhum
+ * tipo que a clínica já usava some.
+ * - Área do documento: a do profissional responsável; sem ela, a do usuário
+ *   logado; sem ela, a UNIÃO das áreas da clínica (clinic.type + specialties).
+ * - Estética pura (sem outra área na clínica e sem profissional
+ *   médico/biomédico/dentista) fica sem receita especial/atestado; em clínica
+ *   estética+outra área, ou com esse tipo de profissional, vale o conjunto
+ *   completo de antes.
+ * - Tipos que a clínica já tem modelo salvo (`savedTypes`) continuam visíveis.
+ */
+export function resolveDocumentOptions(args: {
+  clinicType?: ClinicType | null
+  clinicSpecialties?: ClinicType[] | null
+  professionalType?: ClinicType | null
+  professionalSpecialty?: string | null
+  userType?: ClinicType | null
+  savedTypes?: Iterable<DocumentTemplateType>
+  /** TCLE/termo de imagem da estética; padrão = ESTETICA_EXTRA_DOCUMENTS_ENABLED (só nos testes se muda). */
+  esteticaExtras?: boolean
+}): DocTypeOption[] {
+  const extras = args.esteticaExtras ?? ESTETICA_EXTRA_DOCUMENTS_ENABLED
+  const clinicAreas: ClinicType[] = []
+  for (const a of [args.clinicType, ...(args.clinicSpecialties ?? [])]) {
+    if (a && !clinicAreas.includes(a)) clinicAreas.push(a)
+  }
+  if (clinicAreas.length === 0) clinicAreas.push('odonto')
+
+  const esteticaFull =
+    clinicAreas.some(a => a !== 'estetica') ||
+    ESTETICA_CLINICAL_SPECIALTY.test(args.professionalSpecialty ?? '')
+
+  const own = args.professionalType ?? args.userType ?? null
+  const areas = own ? [own] : clinicAreas
+
+  const out: DocTypeOption[] = []
+  const seen = new Set<string>()
+  const push = (d: DocTypeOption) => { if (!seen.has(d.type)) { seen.add(d.type); out.push(d) } }
+  for (const area of areas) documentsFor(area, esteticaFull, extras).forEach(push)
+
+  // Modelo já salvo de um tipo que a área atual não lista: mantém visível,
+  // com o rótulo da área da clínica (ou, no limite, de qualquer área).
+  for (const type of args.savedTypes ?? []) {
+    if (seen.has(type)) continue
+    const pools = [
+      ...clinicAreas.map(a => documentsFor(a, true)),
+      ESTETICA_FULL_DOCUMENTS,
+      ESTETICA_EXTRA_DOCUMENTS,
+      ...(Object.keys(SPECIALTY_CONFIG) as ClinicType[]).map(a => SPECIALTY_CONFIG[a].documents),
+    ]
+    const found = pools.flat().find(d => d.type === type)
+    if (found) push(found)
+  }
+  return out
 }
 
 export function getSpecialtyConfig(type: ClinicType | undefined): SpecialtyConfig {

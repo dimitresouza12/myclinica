@@ -96,3 +96,53 @@
 .btnDelete:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
 .btnDelete:disabled { opacity: 0.45; cursor: not-allowed; }
 @media (max-width: 768px) { .btnDelete { height: 44px; } }
+
+/* Tutor escolhido na busca (novo pet de um tutor já cadastrado) */
+.tutorChip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--surface-line);
+  border-radius: var(--radius-inner);
+  background: var(--surface-2);
+}
+.tutorChipText { display: flex; flex-direction: column; min-width: 0; }
+.tutorChipText b { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); overflow-wrap: anywhere; }
+.tutorChipText small { font-size: 0.78rem; line-height: 1.4; color: var(--text-secondary-strong); }
+.tutorChipClear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-secondary-strong);
+  cursor: pointer;
+}
+.tutorChipClear:hover { background: var(--surface); }
+.tutorChipClear:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.tutorHitMeta { display: block; font-size: 0.78rem; color: var(--text-secondary-strong); overflow-wrap: anywhere; }
+
+/* Responsável legal: bloco destacado nas áreas em que é parte do cadastro (fono, TO, psico, vet) */
+.guardianSection {
+  padding: 14px;
+  border: 1px solid var(--surface-line);
+  border-left: 3px solid var(--brand-primary);
+  border-radius: var(--radius-inner);
+  background: var(--surface);
+}
+.guardianSuggest {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-inner);
+  background: var(--surface-2);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--text-secondary-strong);
+}
+.moreGroup { display: flex; flex-direction: column; gap: 14px; }

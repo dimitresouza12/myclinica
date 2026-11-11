@@ -1,22 +1,23 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { clientIpFromHeaders } from '@/lib/portal/clientIp'
 import { isLegacyTrialLogin } from '@/lib/legacyTrialLink'
 
 // Definido inline para não importar crypto (Node.js) no Edge Runtime
 const CSRF_PROTECTED_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 function getClientIp(req: NextRequest): string {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    req.headers.get('x-real-ip') ??
-    'unknown'
-  )
+  return clientIpFromHeaders(req.headers)
 }
 
 function addSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set('X-Request-ID', crypto.randomUUID())
   return response
+}
+
+function isPatientPublicPath(pathname: string): boolean {
+  return pathname.startsWith('/p/') || pathname.startsWith('/verificar/') || pathname.startsWith('/api/p/')
 }
 
 function blockResponse(status: number, message: string, retryAfter?: number): NextResponse {
@@ -67,6 +68,11 @@ export async function middleware(request: NextRequest) {
     url.pathname = '/experimentar'
     return addSecurityHeaders(NextResponse.redirect(url, 307))
   }
+
+  // Páginas e API públicas do paciente (link mágico) e do verificador de documentos: sem sessão e SEM cliente
+  // Supabase aqui, para a resposta nunca carregar nem renovar cookie. A autorização é o token do link (ver
+  // lib/portal/server.ts) e o limite por IP acima continua valendo para /api/p.
+  if (isPatientPublicPath(pathname)) return addSecurityHeaders(NextResponse.next({ request }))
 
   let supabaseResponse = NextResponse.next({ request })
 

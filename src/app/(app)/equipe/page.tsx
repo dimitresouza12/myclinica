@@ -2,11 +2,16 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
+import { usePermissions } from '@/hooks/usePermissions'
 import { formatDate } from '@/lib/utils'
-import { getSpecialtyConfig, mergeSpecialtyConfigs, specialtyRoleLabel, roleForSpecialty, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
+import { getSpecialtyConfig, specialtyRoleLabel, roleForSpecialty, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
+import { isClinicalRole, isMultiArea, defaultProfessionalArea, clinicalRoleForArea, specialtyPlaceholder, specialtyHint, specialtyOptions } from '@/lib/clinicAreas'
+import { registerClinicArea } from '@/lib/registerClinicArea'
 import { presetPermissions } from '@/lib/permissionPresets'
 import { normalizeUsername } from '@/lib/username'
 import { professionalLimitFor } from '@/lib/planCatalog'
+import { councilForProfessional, registrationFieldLabel } from '@/lib/professionalCouncil'
+import { useProfessionalRqeColumn } from '@/lib/professionalColumns'
 import type { Professional, UserRole, ClinicType } from '@/types'
 import styles from './equipe.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
@@ -45,13 +50,15 @@ interface NewProf {
   // pra preencher automaticamente documentos como a Receita de Controle
   // Especial (ver TabDocumentos.tsx).
   registrationNumber: string
+  // RQE (só médicos) — texto livre; só vai pro banco se a coluna professionals.rqe existir.
+  rqe: string
   hasAccess: boolean
   role: UserRole
   username: string
   email: string
   password: string
 }
-const BLANK: NewProf = { name: '', specialty: '', specialty_type: '', defaultDuration: '', registrationNumber: '', hasAccess: false, role: 'recepcao', username: '', email: '', password: '' }
+const BLANK: NewProf = { name: '', specialty: '', specialty_type: '', defaultDuration: '', registrationNumber: '', rqe: '', hasAccess: false, role: 'recepcao', username: '', email: '', password: '' }
 
 const ROLE_LABELS_FALLBACK: Record<string, string> = {
   recepcao: 'Recepção', auxiliar: 'Auxiliar', dentista: 'Dentista', medico: 'Médico',
@@ -59,21 +66,22 @@ const ROLE_LABELS_FALLBACK: Record<string, string> = {
 }
 
 function EquipeContent() {
-  const { clinic, user, addClinicSpecialty } = useAuthStore()
+  const { clinic, user } = useAuthStore()
   const isAdmin = user?.role === 'admin' || user?.isSuperAdmin
-  const specialtyRoles = mergeSpecialtyConfigs(clinic?.specialties?.length ? clinic.specialties : [clinic?.type ?? 'odonto']).roles
-  const clinicAreaOptions = CLINIC_TYPE_OPTIONS.filter(o => (clinic?.specialties?.length ? clinic.specialties : [clinic?.type ?? 'odonto']).includes(o.value))
+  // "Editar" = cadastrar, alterar e remover profissionais; sem ele a tela é só de consulta
+  const { canEdit } = usePermissions('equipe')
   const [professionals, setProfessionals] = useState<ProfessionalRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<NewProf>(BLANK)
-  // Sugestões de sub-especialidade seguem a ÁREA escolhida no formulário
-  // (ex: "Ortodontia" não faz sentido sugerir pra quem marcou Nutrição) —
-  // só cai pra clínica principal antes de qualquer área ser escolhida.
-  const specialtySuggestions = getSpecialtyConfig(form.specialty_type || clinic?.type).professionalSpecialties
+  // Conselho (rótulo do campo de registro) segue a área escolhida no formulário.
+  const formCouncil = councilForProfessional({ specialtyType: form.specialty_type || null, specialty: form.specialty, clinicType: clinic && !isMultiArea(clinic) ? clinic.type : null })
+  const rqeColumnExists = useProfessionalRqeColumn()
+  const formAreaIsMedico = form.specialty_type === 'medico'
+  const showRqeField = rqeColumnExists && formAreaIsMedico
+  const rqePayload = showRqeField ? { rqe: form.rqe.trim() || null } : {}
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [showSpecialtySuggestions, setShowSpecialtySuggestions] = useState(false)
   const [activeUserCount, setActiveUserCount] = useState(0)
   const [createdCredentials, setCreatedCredentials] = useState<{ displayName: string; username: string; email: string; password: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProfessionalRow | null>(null)
@@ -92,16 +100,8 @@ function EquipeContent() {
   // só entrar em jogo quando tem login (aí sim pode ser recepção/auxiliar).
   const professionalLimit = professionalLimitFor(clinic?.plan, clinic?.maxUsers)
   const professionalLimitReached = professionalLimit !== null && professionals.length >= professionalLimit
-  const clinicalRole = specialtyRoles.find(r => !['recepcao', 'auxiliar', 'admin'].includes(r.value))?.value as UserRole | undefined
-  function isClinicalRole(role: UserRole) {
-    return !['recepcao', 'auxiliar', 'admin'].includes(role)
-  }
   const willCreateProfessional = !form.hasAccess || isClinicalRole(form.role)
   const blockedByProfessionalLimit = professionalLimitReached && willCreateProfessional
-
-  const filteredSpecialtySuggestions = specialtySuggestions.filter(s =>
-    s.toLowerCase().includes(form.specialty.trim().toLowerCase())
-  )
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -136,29 +136,29 @@ function EquipeContent() {
   }
 
   function openNewModal() {
-    // Clínica multi-área: NÃO pré-selecionar um cargo clínico aqui. `role`
-    // e `specialty_type` são ClinicType/UserRole com valores em comum (ex:
-    // 'medico' é os dois) — se role já nascesse 'medico', o <select> de
-    // "Cargo / Área de atuação" (value={specialty_type || role}) mostraria
-    // "Medicina" pré-marcado sem specialty_type ter sido de fato escolhido,
-    // e o profissional seria salvo com specialty_type null (ficha por área
-    // e agenda/pacientes por área nunca resolvem a área dele). Força
-    // "Recepção" como ponto de partida — sem ambiguidade — só clínica de
-    // uma área só (sem esse seletor) mantém o atalho de já vir preenchido.
-    setForm({ ...BLANK, role: clinic?.isMultiSpecialty ? 'recepcao' : (clinicalRole ?? 'recepcao') })
+    if (!canEdit) return
+    // A área de atuação sempre aparece, com as 9 áreas (a clínica pode cadastrar profissional de
+    // qualquer uma). Clínica de uma área só já abre com a área dela marcada; clínica multi-área
+    // abre sem área, pra pessoa escolher de propósito (specialty_type vazio = ficha/agenda por
+    // área nunca resolvem a área do profissional). O cargo do login acompanha a área escolhida.
+    const area = clinic ? defaultProfessionalArea(clinic) : ''
+    setForm({ ...BLANK, specialty_type: area, role: clinicalRoleForArea(area) })
     setEditingProf(null)
     setErrorMsg(null)
     setShowModal(true)
   }
 
   function openEditModal(p: ProfessionalRow) {
+    if (!canEdit) return
     setForm({
       ...BLANK,
       name: p.name,
       specialty: p.specialty ?? '',
-      specialty_type: (p.specialty_type ?? '') as ClinicType | '',
+      // Cadastro antigo sem área: em clínica de uma área só, vale a da clínica.
+      specialty_type: (p.specialty_type ?? (clinic ? defaultProfessionalArea(clinic) : '')) as ClinicType | '',
       defaultDuration: p.default_duration_minutes != null ? String(p.default_duration_minutes) : '',
       registrationNumber: p.registration_number ?? '',
+      rqe: p.rqe ?? '',
     })
     setEditingProf(p)
     setErrorMsg(null)
@@ -177,18 +177,24 @@ function EquipeContent() {
         specialty_type: form.specialty_type || null,
         default_duration_minutes: form.defaultDuration ? Number(form.defaultDuration) : null,
         registration_number: form.registrationNumber.trim() || null,
+        ...rqePayload,
       }).eq('id', editingProf.id).eq('clinic_id', clinic.id)
       if (error) { setSaving(false); setErrorMsg('Erro ao salvar profissional: ' + error.message); return }
       // Profissional com login vinculado — resincroniza o nome de exibição
       // também no login, senão diverge do que aparece em Configurações → Equipe.
+      // Se a área mudou, o login acompanha (specialty_type e, quando é cargo clínico, o cargo da área).
       if (editingProf.clinic_user_id && editingProf.clinic_users) {
+        const loginRole = editingProf.clinic_users.role
+        const areaChanged = !!form.specialty_type && form.specialty_type !== editingProf.clinic_users.specialty_type
         await supabase.rpc('update_clinic_member', {
           p_member_id: editingProf.clinic_user_id,
-          p_role: editingProf.clinic_users.role,
+          p_role: areaChanged && isClinicalRole(loginRole) ? roleForSpecialty(form.specialty_type as ClinicType) : loginRole,
           p_is_active: editingProf.clinic_users.is_active,
           p_display_name: form.name.trim(),
+          ...(areaChanged ? { p_specialty_type: form.specialty_type } : {}),
         })
       }
+      if (form.specialty_type) await registerClinicArea(form.specialty_type)
       setSaving(false)
       setShowModal(false)
       setForm(BLANK)
@@ -202,6 +208,9 @@ function EquipeContent() {
     // e auxiliar com login não esbarram nesse teto. Checagem no cliente só
     // pra mensagem amigável; quem garante o limite de verdade é o trigger
     // no banco (enforce_clinic_professional_limit).
+    if (willCreateProfessional && !form.specialty_type) {
+      return setErrorMsg('Escolha a área de atuação do profissional.')
+    }
     if (blockedByProfessionalLimit) {
       return setErrorMsg(`Seu plano permite até ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'}. Fale com o suporte para migrar de plano ou liberar uma exceção.`)
     }
@@ -215,12 +224,13 @@ function EquipeContent() {
         specialty_type: form.specialty_type || null,
         default_duration_minutes: form.defaultDuration ? Number(form.defaultDuration) : null,
         registration_number: form.registrationNumber.trim() || null,
+        ...rqePayload,
       }])
       setSaving(false)
       if (error) { setErrorMsg('Erro ao salvar profissional: ' + error.message); return }
+      if (form.specialty_type) await registerClinicArea(form.specialty_type)
       setShowModal(false)
       setForm(BLANK)
-      setShowSpecialtySuggestions(false)
       loadData()
       return
     }
@@ -238,7 +248,8 @@ function EquipeContent() {
       p_display_name: form.name.trim(),
       p_username:     normalizeUsername(form.username),
       p_role:         form.role,
-      p_specialty_type: form.specialty_type || null,
+      // Recepção/auxiliar não têm área (não atendem paciente).
+      p_specialty_type: (willCreateProfessional && form.specialty_type) || null,
     })
     if (error) {
       setSaving(false)
@@ -267,10 +278,11 @@ function EquipeContent() {
           specialty_type: form.specialty_type || null,
           default_duration_minutes: form.defaultDuration ? Number(form.defaultDuration) : null,
           registration_number: form.registrationNumber.trim() || null,
+        ...rqePayload,
           clinic_user_id: newCuId,
         }])).error
       : null
-    if (form.specialty_type) addClinicSpecialty(form.specialty_type)
+    if (willCreateProfessional && form.specialty_type) await registerClinicArea(form.specialty_type)
 
     setSaving(false)
     if (profErr) { setErrorMsg('Login criado, mas houve erro ao vincular na agenda: ' + profErr.message); return }
@@ -284,12 +296,12 @@ function EquipeContent() {
     if (permErr) showToast('error', 'Login criado, mas houve erro ao salvar as permissões. Ajuste em Configurações → Equipe.')
     setShowModal(false)
     setForm(BLANK)
-    setShowSpecialtySuggestions(false)
     loadData()
     loadUserCount()
   }
 
   async function handleDelete(p: ProfessionalRow) {
+    if (!canEdit) return
     if (!p.clinic_user_id) {
       if (!(await confirmDialog({ title: `Remover ${p.name}?`, message: 'O profissional é removido da equipe. Os agendamentos e registros passados são mantidos, mas ficam sem profissional atribuído. Esta ação não pode ser desfeita.', confirmText: 'Remover', danger: true }))) return
       await supabase.from('professionals').delete().eq('id', p.id).eq('clinic_id', clinic!.id)
@@ -334,7 +346,7 @@ function EquipeContent() {
         subtitle={professionalLimit === null
           ? `${professionals.length} ${professionals.length === 1 ? 'profissional' : 'profissionais'} (plano sem limite)`
           : `${professionals.length} de ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'} do plano`}
-        actions={<button type="button" className={btn.primary} onClick={openNewModal}><Icon name="plus" size={15} /> Novo profissional</button>}
+        actions={<button type="button" className={btn.primary} onClick={openNewModal} disabled={!canEdit} title={canEdit ? undefined : 'Seu perfil só pode visualizar'}><Icon name="plus" size={15} /> Novo profissional</button>}
       />
 
       <div className={styles.stats}>
@@ -365,7 +377,7 @@ function EquipeContent() {
                 {professionals.length === 0 ? (
                   <tr><td colSpan={4} className={t.empty}>Nenhum profissional cadastrado.</td></tr>
                 ) : professionals.map(p => (
-                  <tr key={p.id} className={`${t.clickable} ${styles.row}`} onClick={() => openEditModal(p)}>
+                  <tr key={p.id} className={`${canEdit ? t.clickable : ''} ${styles.row}`} onClick={() => openEditModal(p)}>
                     <td>
                       <div className={styles.person}>
                         <Avatar name={p.name} size={36} className={`${styles.avatar} ${styles[`tone${avatarTone(p.name)}`]}`} />
@@ -389,13 +401,15 @@ function EquipeContent() {
                     <td data-label="Cadastrado em" className={t.muted}>{formatDate(p.created_at, true)}</td>
                     <td className={styles.actionsCell}>
                       <div className={t.rowActions} onClick={e => e.stopPropagation()}>
-                        <MoreMenu
-                          label={`Mais ações de ${p.name}`}
-                          items={[
-                            { label: 'Editar', icon: 'edit', onClick: () => openEditModal(p) },
-                            { label: 'Remover', icon: 'trash', danger: true, onClick: () => handleDelete(p) },
-                          ]}
-                        />
+                        {canEdit && (
+                          <MoreMenu
+                            label={`Mais ações de ${p.name}`}
+                            items={[
+                              { label: 'Editar', icon: 'edit', onClick: () => openEditModal(p) },
+                              { label: 'Remover', icon: 'trash', danger: true, onClick: () => handleDelete(p) },
+                            ]}
+                          />
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -422,7 +436,7 @@ function EquipeContent() {
         {!editingProf && blockedByProfessionalLimit && (
           <p className={f.hint}>
             Limite de profissionais do plano atingido ({professionals.length}/{professionalLimit}). Fale com o suporte para migrar de plano ou liberar uma exceção
-            {!form.hasAccess ? '' : ' — recepção e auxiliar continuam sem limite, mude o cargo acima'}.
+            {!form.hasAccess ? '' : ' — recepção e auxiliar continuam sem limite, mude o cargo abaixo'}.
           </p>
         )}
         <div className={f.field}>
@@ -430,30 +444,40 @@ function EquipeContent() {
           <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
         </div>
         <div className={f.field}>
-          <label>Especialidade</label>
-          <input
-            value={form.specialty}
-            onChange={(e) => { setForm((p) => ({ ...p, specialty: e.target.value })); setShowSpecialtySuggestions(true) }}
-            onFocus={() => setShowSpecialtySuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSpecialtySuggestions(false), 150)}
-            placeholder="Ex: Ortodontia, Clínico Geral..."
-            autoComplete="off"
+          <label>Área de atuação{!form.hasAccess || isClinicalRole(form.role) ? ' *' : ''}</label>
+          <SelectMenu
+            variant="field"
+            ariaLabel="Área de atuação"
+            placeholder="Selecione a área"
+            value={form.specialty_type}
+            onChange={v => setForm(p => {
+              const area = v as ClinicType
+              // Troca a área: o cargo clínico do login acompanha, e uma especialidade que era só
+              // sugestão da área anterior (ex: Ortodontia) não fica pra trás na nova.
+              const wasSuggestion = !!p.specialty_type && getSpecialtyConfig(p.specialty_type).professionalSpecialties.includes(p.specialty)
+              return {
+                ...p,
+                specialty_type: area,
+                role: isClinicalRole(p.role) ? roleForSpecialty(area) : p.role,
+                specialty: wasSuggestion ? '' : p.specialty,
+              }
+            })}
+            options={CLINIC_TYPE_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
           />
-          {showSpecialtySuggestions && filteredSpecialtySuggestions.length > 0 && (
-            <div className={styles.suggestionsDropdown}>
-              {filteredSpecialtySuggestions.map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  className={styles.suggestionItem}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { setForm(p => ({ ...p, specialty: s })); setShowSpecialtySuggestions(false) }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
+          <p className={f.hint}>Define o conselho profissional, as especialidades disponíveis e a duração padrão.</p>
+        </div>
+        <div className={f.field}>
+          <label>Especialidade</label>
+          <SelectMenu
+            variant="field"
+            ariaLabel="Especialidade"
+            placeholder={specialtyPlaceholder(form.specialty_type)}
+            disabled={!form.specialty_type}
+            value={form.specialty}
+            onChange={v => setForm(p => ({ ...p, specialty: v }))}
+            options={specialtyOptions(form.specialty_type, form.specialty)}
+          />
+          {specialtyHint(form.specialty_type) && <p className={f.hint}>{specialtyHint(form.specialty_type)}</p>}
         </div>
 
         <div className={f.field}>
@@ -468,14 +492,26 @@ function EquipeContent() {
         </div>
 
         <div className={f.field}>
-          <label>Registro profissional (CRO/CRM/CRMV...)</label>
+          <label>{registrationFieldLabel(formCouncil)}</label>
           <input
             value={form.registrationNumber}
             onChange={(e) => setForm((p) => ({ ...p, registrationNumber: e.target.value }))}
-            placeholder="Ex: CRO-SP 12345"
+            placeholder={formCouncil.code ? `Ex: ${formCouncil.code}-SP 12345` : 'Ex: número do registro'}
           />
           <p className={f.hint}>Preenche automaticamente documentos como a Receita de Controle Especial.</p>
         </div>
+
+        {showRqeField && (
+          <div className={f.field}>
+            <label>RQE (Registro de Qualificação de Especialista)</label>
+            <input
+              value={form.rqe}
+              onChange={(e) => setForm((p) => ({ ...p, rqe: e.target.value }))}
+              placeholder="Ex: 12345"
+            />
+            <p className={f.hint}>Opcional. Aparece ao lado do CRM nos documentos, só quando preenchido.</p>
+          </div>
+        )}
 
         {!editingProf && isAdmin && (
           <div className={styles.accessSection}>
@@ -491,31 +527,23 @@ function EquipeContent() {
             {form.hasAccess && (
               <>
                 <div className={f.field}>
-                  <label>{clinic?.isMultiSpecialty ? 'Cargo / Área de atuação' : 'Cargo'}</label>
-                  {clinic?.isMultiSpecialty ? (
-                    <SelectMenu
-                      variant="field"
-                      ariaLabel="Cargo ou área de atuação"
-                      value={form.specialty_type || form.role}
-                      onChange={v => {
-                        const isArea = CLINIC_TYPE_OPTIONS.some(o => o.value === v)
-                        setForm(p => ({
-                          ...p,
-                          role: isArea ? roleForSpecialty(v as ClinicType) : (v as UserRole),
-                          specialty_type: isArea ? (v as ClinicType) : '',
-                        }))
-                      }}
-                      options={[
-                        { value: 'recepcao', label: 'Recepção' },
-                        { value: 'auxiliar', label: 'Auxiliar' },
-                        ...clinicAreaOptions.map(o => ({ value: o.value, label: o.label, group: 'Área de atuação' })),
-                      ]}
-                    />
-                  ) : (
-                    <SelectMenu variant="field" ariaLabel="Cargo" value={form.role}
-                      onChange={v => setForm(p => ({ ...p, role: v as UserRole }))}
-                      options={specialtyRoles.filter(r => r.value !== 'admin').map(r => ({ value: r.value, label: r.label }))} />
-                  )}
+                  <label>Cargo</label>
+                  {/* A área vem do campo "Área de atuação" acima; aqui só se decide se a pessoa atende
+                      paciente (cargo clínico da área) ou se é recepção/auxiliar. */}
+                  <SelectMenu
+                    variant="field"
+                    ariaLabel="Cargo"
+                    value={isClinicalRole(form.role) ? 'clinico' : form.role}
+                    onChange={v => setForm(p => ({
+                      ...p,
+                      role: v === 'clinico' ? clinicalRoleForArea(p.specialty_type) : (v as UserRole),
+                    }))}
+                    options={[
+                      { value: 'clinico', label: form.specialty_type ? specialtyRoleLabel(form.specialty_type) : 'Profissional da área', group: 'Atende pacientes' },
+                      { value: 'recepcao', label: 'Recepção', group: 'Sem atendimento' },
+                      { value: 'auxiliar', label: 'Auxiliar', group: 'Sem atendimento' },
+                    ]}
+                  />
                 </div>
                 <div className={f.field}>
                   <label>Nome de usuário (login) *</label>

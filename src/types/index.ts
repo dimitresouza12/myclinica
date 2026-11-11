@@ -1,6 +1,7 @@
 export type ClinicType = 'odonto' | 'medico' | 'estetica' | 'vet' | 'fisio' | 'psico' | 'nutri' | 'fono' | 'to'
 export type UserRole = 'recepcao' | 'auxiliar' | 'dentista' | 'medico' | 'profissional' | 'admin' | 'superadmin'
-export type AppointmentStatus = 'agendado' | 'confirmado' | 'concluido' | 'cancelado' | 'faltou' | 'bloqueado'
+// 'arrived' (paciente chegou, aguardando) e 'in_progress' (em atendimento) são o fluxo de atendimento (migration 20261119_atendimento_fluxo.sql)
+export type AppointmentStatus = 'agendado' | 'confirmado' | 'arrived' | 'in_progress' | 'concluido' | 'cancelado' | 'faltou' | 'bloqueado'
 export type PaymentMethod = 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'convenio' | 'outro'
 
 export type ClinicStatus = 'active' | 'inactive' | 'suspended' | 'pending' | 'trial'
@@ -87,10 +88,21 @@ export interface Patient {
   referred_by: string | null
   registration_status: 'pending' | 'approved' | 'rejected' | null
   self_registered: boolean | null
-  // Convênio/plano de saúde — só registro informativo (não gera guia TISS).
-  // Serve de valor padrão ao lançar receita com forma de pagamento = convênio.
+  // Convênio/plano de saúde (texto livre + número da carteirinha). Serve de valor padrão ao lançar receita com
+  // forma de pagamento = convênio e alimenta as guias TISS impressas e a produção (Financeiro > Convênios).
   convenio: string | null
   convenio_carteirinha: string | null
+  // Colunas da migration 20261116_convenios.sql (ausentes até ela ser aplicada)
+  insurance_plan_id?: string | null
+  convenio_validade?: string | null
+  convenio_titular?: string | null
+  payer_name?: string | null
+  payer_cpf?: string | null
+  // Colunas da migration 20261120_patients_responsavel_legal.sql (ausentes até ela ser aplicada)
+  guardian_name?: string | null
+  guardian_cpf?: string | null
+  guardian_relationship?: string | null
+  guardian_phone?: string | null
   // vet fields
   pet_name: string | null
   pet_species: string | null
@@ -99,6 +111,10 @@ export interface Patient {
   pet_age: string | null
   pet_coat: string | null
   pet_neutered: boolean | null
+  // Colunas da migration 20261111_vet_pet_fields_professional_rqe.sql (ausentes até ela ser aplicada)
+  pet_sex?: 'macho' | 'femea' | null
+  pet_birth_date?: string | null
+  pet_microchip?: string | null
   notes: string | null
   avatar_url: string | null
   is_active: boolean
@@ -136,7 +152,19 @@ export interface Appointment {
   extra_slot_reason?: string | null
   // quando o paciente chegou à clínica (coluna criada pela migration 20261104_agenda_escala.sql)
   arrived_at?: string | null
-  patients?: Pick<Patient, 'id' | 'name' | 'phone'>
+  // fluxo de atendimento (migration 20261119_atendimento_fluxo.sql; ausentes até ela ser aplicada). Nunca vão para o portal do paciente.
+  called_at?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  started_by?: string | null
+  finished_by?: string | null
+  // série recorrente e pacote de sessões (colunas da migration 20261113_agenda_series_pacotes.sql; ausentes até ela ser aplicada)
+  series_id?: string | null
+  series_index?: number | null
+  package_id?: string | null
+  // link da teleconsulta (migration 20261120_appointments_meeting_url.sql; ausente até ela ser aplicada)
+  meeting_url?: string | null
+  patients?: Pick<Patient, 'id' | 'name' | 'phone'> & { pet_name?: string | null }
   clinic_users?: Pick<ClinicUser, 'id' | 'display_name'>
   professionals?: Pick<Professional, 'id' | 'name'>
   procedures?: Pick<Procedure, 'id' | 'name' | 'price'>
@@ -166,7 +194,7 @@ export interface MedicalRecord {
   treatment_plan_items: TreatmentPlanItem[]
   contract_text: string | null
   // dentes pelo número FDI, mais `_history` com as mudanças salvas (data, dente, face, condição, profissional)
-  odontogram: Record<string, string | { status: string; surfaces?: Record<string, string>; note?: string; planned?: Record<string, boolean> } | OdontogramHistoryEntry[]>
+  odontogram: Record<string, string | { status: string; surfaces?: Record<string, string>; note?: string; planned?: Record<string, boolean>; endo?: number[]; pin?: number[]; bracket?: boolean } | OdontogramHistoryEntry[]>
   vaccinations: unknown[]
   aesthetic_protocols: unknown[]
   body_protocols: unknown[]
@@ -189,6 +217,11 @@ export interface RecordEntry {
   entry_type: string
   photo_url: string | null
   photo_urls: string[]
+  // Sigilo de psicologia (Res. CFP 001/2009): nota sigilosa só o autor lê.
+  // Contrato em docs/psico-sigilo-record-entries.md. Opcionais até o banco
+  // ser confirmado; author_user_id é preenchido pelo gatilho, nunca enviado.
+  is_confidential?: boolean
+  author_user_id?: string | null
   created_at: string
 }
 
@@ -244,6 +277,9 @@ export interface Professional {
   // varia por conselho. Preenche automaticamente documentos como a Receita
   // de Controle Especial (ver TabDocumentos.tsx).
   registration_number: string | null
+  // RQE (Registro de Qualificação de Especialista, médicos) — texto livre. A coluna só existe
+  // depois da migration 20261111_vet_pet_fields_professional_rqe.sql.
+  rqe?: string | null
   // true = só atende nos dias e janelas da escala; ausente/false = atende em qualquer horário (como antes).
   // A coluna só existe depois da migration 20261104_agenda_escala.sql.
   schedule_enabled?: boolean
@@ -355,9 +391,15 @@ export interface StockMovement {
   user_name: string | null
   created_at: string
   stock_items?: Pick<StockItem, 'id' | 'name' | 'unit'>
+  // só existem depois de supabase/migrations/20261114_estoque_lotes.sql
+  lot_id?: string | null
+  patient_id?: string | null
+  appointment_id?: string | null
 }
 
-export type DocumentTemplateType = 'receita_comum' | 'receita_especial' | 'declaracao_comparecimento' | 'atestado' | 'laudo'
+// 'tcle' e 'termo_imagem' (estética) só podem ser gravados em clinic_document_templates depois da
+// migration 20261112_document_types_estetica.sql (a CHECK do tipo aceita só os 5 primeiros hoje).
+export type DocumentTemplateType = 'receita_comum' | 'receita_especial' | 'declaracao_comparecimento' | 'atestado' | 'laudo' | 'tcle' | 'termo_imagem'
 
 // Posição calibrada de um campo sobre o papel timbrado do próprio cliente —
 // coordenadas em % da imagem (não px), pra continuar batendo com o campo
@@ -430,6 +472,9 @@ export interface AuthClinic {
   // e a sessão passa a se comportar como aquela área (ver store/auth.ts, setActiveSpecialty).
   // false ou ausente = clínica normal. A coluna pode não existir ainda no banco.
   demoMode?: boolean
+  // clinics.professional_scoped_access: com true, profissional que não é admin/recepção só vê
+  // pacientes da própria área (RLS). Carregado em (app)/layout.tsx; ausente = false.
+  professionalScopedAccess?: boolean
 }
 
 export interface AuthUser {

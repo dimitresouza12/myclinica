@@ -1,0 +1,122 @@
+/* Tela cheia do faceograma/corpograma. Tokens de design-system.css; claro e escuro vêm das variáveis. */
+
+/* botão no canto do desenho (o pai tem position: relative) */
+.expand {
+  position: absolute; top: 6px; right: 6px; z-index: 2;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  min-height: 36px; padding: 0 0.7rem; border-radius: 999px;
+  border: 1px solid var(--border-color); background: var(--surface); color: var(--text-primary);
+  font: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-sm);
+  touch-action: manipulation;
+}
+.expand:hover { border-color: var(--brand-accent); color: var(--brand-text); }
+.expand:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+@media (pointer: coarse), (max-width: 680px) { .expand { min-height: 44px; padding: 0 0.85rem; } }
+
+.overlay {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1250;
+  height: 100vh; height: 100dvh;
+  display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--bg-primary); color: var(--text-primary);
+  overscroll-behavior: contain; outline: none;
+}
+
+/* ── Barra ── */
+.bar {
+  flex: none; display: flex; align-items: center; gap: 0.5rem;
+  min-height: 56px; padding: 0 0.75rem;
+  background: var(--surface); border-bottom: 1px solid var(--border-color);
+}
+.title { flex: 1; min-width: 0; margin: 0; font-size: 0.95rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zoomCtl { display: flex; align-items: center; gap: 0.3rem; flex: none; }
+.zoomPct { min-width: 3.1rem; text-align: center; font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.iconBtn, .textBtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
+  min-width: 44px; min-height: 44px; border-radius: 999px;
+  border: 1px solid var(--border-color); background: var(--surface); color: var(--text-primary);
+  font: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; touch-action: manipulation;
+}
+.textBtn { padding: 0 0.85rem; }
+.iconBtn:hover:not(:disabled), .textBtn:hover { background: var(--surface-2); border-color: var(--brand-accent); }
+.iconBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.iconBtn:focus-visible, .textBtn:focus-visible, .chip:focus-visible, .confirmOk:focus-visible, .confirmNo:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.closeBtn { flex: none; background: var(--brand-primary); border-color: var(--brand-primary); color: #0D2421; }
+.closeBtn:hover { background: var(--brand-primary); filter: brightness(0.95); }
+
+/* ── Corpo: quadro à esquerda, ferramentas à direita (em pé, embaixo) ── */
+.body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.stage { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
+.chips {
+  flex: none; display: flex; gap: 0.4rem; padding: 0.5rem 0.75rem;
+  overflow-x: auto; scrollbar-width: none; background: var(--surface); border-bottom: 1px solid var(--border-subtle);
+}
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; min-height: 40px; padding: 0 0.9rem; border-radius: 999px;
+  border: 1.5px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary);
+  font: inherit; font-size: 0.8rem; font-weight: 600; white-space: nowrap; cursor: pointer; touch-action: manipulation;
+}
+.chip:hover { border-color: var(--brand-accent); color: var(--brand-text); }
+@media (pointer: coarse), (max-width: 680px) { .chip { min-height: 44px; } }
+
+.viewportWrap { position: relative; flex: 1; min-height: 160px; overflow: hidden; }
+/* touch-action: none SÓ aqui: o dedo move o desenho em vez de rolar a página */
+.viewport {
+  position: absolute; inset: 0; overflow: hidden;
+  background: var(--surface-2);
+  touch-action: none; cursor: crosshair;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.panning { cursor: grabbing; }
+.svg { position: absolute; top: 0; left: 0; display: block; }
+
+.hint {
+  position: absolute; left: 0.5rem; bottom: 0.5rem; max-width: calc(100% - 1rem); margin: 0; padding: 0.25rem 0.6rem;
+  border-radius: 999px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--border-subtle);
+  font-size: 0.68rem; color: var(--text-secondary); pointer-events: none;
+}
+.hintCoarse { display: none; }
+@media (pointer: coarse) { .hintFine { display: none; } .hintCoarse { display: inline; } }
+
+/* mira: branca com contorno escuro, aparece sobre qualquer imagem, nos dois temas */
+.reticle {
+  position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 0 0 1.5px rgba(0,0,0,0.7), inset 0 0 0 1.5px rgba(0,0,0,0.7);
+  pointer-events: none;
+}
+.reticle::before, .reticle::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 0 0.75px rgba(0,0,0,0.7); }
+.reticle::before { left: 50%; top: 4px; bottom: 4px; width: 1.5px; margin-left: -0.75px; }
+.reticle::after { top: 50%; left: 4px; right: 4px; height: 1.5px; margin-top: -0.75px; }
+
+.confirm {
+  position: absolute; left: 50%; bottom: 3rem; transform: translateX(-50%);
+  display: flex; gap: 0.5rem; padding: 0.4rem; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border-color); box-shadow: var(--shadow-lg);
+}
+.confirmOk, .confirmNo {
+  min-height: 48px; padding: 0 1.1rem; border-radius: 999px; border: 1px solid var(--border-color);
+  font: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; touch-action: manipulation; white-space: nowrap;
+}
+.confirmOk { background: var(--brand-primary); border-color: var(--brand-primary); color: #0D2421; }
+.confirmNo { background: var(--bg-primary); color: var(--text-primary); }
+
+/* ── Painel de ferramentas (o mesmo conteúdo da tela normal) ── */
+.panel {
+  flex: none; max-height: 44dvh; overflow-y: auto; overscroll-behavior: contain;
+  padding: 0.6rem 0.75rem; display: flex; flex-direction: column; gap: 0.6rem;
+  background: var(--bg-primary); border-top: 1px solid var(--border-color);
+}
+
+@media (min-width: 640px) {
+  .body { flex-direction: row; }
+  .panel { width: 340px; max-height: none; border-top: 0; border-left: 1px solid var(--border-color); padding: 0.75rem; }
+}
+
+@media (max-width: 520px) {
+  .title { display: none; }
+  .zoomCtl { flex: 1; justify-content: flex-start; }
+  .bar { padding: 0 0.5rem; gap: 0.35rem; }
+  .textBtn { padding: 0 0.7rem; }
+}

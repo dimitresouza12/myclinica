@@ -1,0 +1,186 @@
+/* Aba "Vacinas e peso" (veterinária). Mesma linguagem do módulo de Nutrição: cartões, campos de 44px, avisos neutros. */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* ── Aviso (tabela ainda não ativa, erro de leitura) ── */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-field);
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+}
+.notice svg { flex-shrink: 0; margin-top: 2px; color: var(--st-wait); }
+
+/* ── Cartão de seção ── */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  min-width: 0;
+}
+.cardTitle {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--brand-text);
+}
+.cardHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.cardSub { font-size: var(--fs-xs); color: var(--text-secondary); line-height: 1.4; }
+
+/* ── Campos ── */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: var(--space-3); }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field > label, .label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wide { grid-column: 1 / -1; }
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-base);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input:focus { border-color: var(--brand-primary); }
+.input:disabled { opacity: 0.6; }
+.inputErr { border-color: var(--danger); }
+.textarea { composes: input; min-height: 72px; resize: vertical; }
+.errMsg { font-size: var(--fs-xs); color: var(--danger-text); line-height: 1.35; }
+.hint { font-size: var(--fs-xs); color: var(--text-secondary); line-height: 1.4; }
+.unit { font-size: var(--fs-xs); color: var(--text-tertiary); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.rowEnd { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
+.warn { font-size: var(--fs-xs); color: var(--text-primary); background: var(--surface-2); border-left: 3px solid var(--st-wait); padding: var(--space-2) var(--space-3); border-radius: var(--radius-xs); line-height: 1.4; }
+.warnStrong { composes: warn; font-size: var(--fs-md); border-left-color: var(--st-bad); }
+
+/* ── Sugestões do catálogo (chips) ── */
+.chips { display: flex; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
+.chip {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  text-align: left;
+}
+.chip:hover { background: var(--surface-2); }
+.chip:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+.chipOn, .chipOn:hover { background: var(--brand-primary); border-color: var(--brand-primary); color: #0D2421; }
+
+/* ── Situação da carteira ── */
+.alertList { display: flex; flex-direction: column; gap: var(--space-2); }
+.alertRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-field);
+  background: var(--surface-2);
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+}
+.alertName { min-width: 0; overflow-wrap: anywhere; font-weight: var(--fw-semibold); }
+.alertWhen { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; font-size: var(--fs-sm); color: var(--text-secondary-strong); }
+
+/* ── Lista cronológica ── */
+.list { display: flex; flex-direction: column; }
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-3);
+  align-items: start;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.item:last-child { border-bottom: none; }
+.itemMain { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.itemTitle { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-primary); overflow-wrap: anywhere; }
+.itemMeta { font-size: var(--fs-sm); color: var(--text-secondary-strong); line-height: 1.45; overflow-wrap: anywhere; }
+.itemActions { display: flex; gap: var(--space-1); }
+.iconBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; padding: 0;
+  border: 1px solid var(--border-color); border-radius: 999px;
+  background: var(--surface); color: var(--text-secondary);
+  cursor: pointer; transition: color 0.12s, border-color 0.12s;
+}
+.iconBtn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+.iconBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+
+/* ── Resultados ── */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: var(--space-2); }
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border-radius: var(--radius-field);
+  background: var(--surface-2);
+  min-width: 0;
+}
+.statLabel { font-size: var(--fs-2xs); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary-strong); }
+.statValue { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); line-height: 1.2; overflow-wrap: anywhere; }
+.statValue small { font-size: var(--fs-xs); font-weight: 500; color: var(--text-secondary-strong); margin-left: 3px; }
+.statSub { font-size: var(--fs-xs); color: var(--text-secondary-strong); line-height: 1.3; }
+.result {
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--brand-light);
+  border: 1px solid var(--brand-accent);
+}
+.resultLabel { font-size: var(--fs-xs); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: 0.05em; color: var(--brand-text); }
+.resultValue { font-size: 1.75rem; font-weight: 800; color: var(--text-primary); line-height: 1.15; overflow-wrap: anywhere; }
+.resultValue small { font-size: var(--fs-md); font-weight: 600; color: var(--text-secondary-strong); margin-left: 4px; }
+.resultSub { font-size: var(--fs-sm); color: var(--text-secondary-strong); line-height: 1.4; }
+.avisos { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.saveRow { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
+
+/* ── Gráfico de peso ── */
+.chartSvg { width: 100%; height: auto; display: block; overflow: visible; color: var(--brand-accent); }
+.chartLine { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.chartDot { fill: var(--surface); stroke: currentColor; stroke-width: 2.2; }
+.chartLabel { font-size: 9.5px; fill: var(--text-primary); font-weight: 600; text-anchor: middle; }
+.chartAxis { font-size: 9px; fill: var(--text-secondary-strong); }
+.chartGridLine { stroke: var(--border-subtle); stroke-width: 1; }
+.chartEmpty { font-size: var(--fs-xs); color: var(--text-secondary); padding: var(--space-4) 0; text-align: center; }
+
+@media (max-width: 520px) {
+  .item { grid-template-columns: minmax(0, 1fr); }
+  .itemActions { justify-content: flex-end; }
+  .resultValue { font-size: 1.5rem; }
+}

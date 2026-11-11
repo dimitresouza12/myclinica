@@ -106,6 +106,8 @@
 }
 .fc .fc-event.ev-agendado   { --ev: var(--st-wait); }
 .fc .fc-event.ev-confirmado { --ev: var(--st-ok); }
+.fc .fc-event.ev-arrived { --ev: var(--st-wait); }
+.fc .fc-event.ev-in_progress { --ev: var(--st-now); }
 .fc .fc-event.ev-concluido  { --ev: var(--st-idle); }
 .fc .fc-event.ev-cancelado  { --ev: var(--st-bad); }
 .fc .fc-event.ev-faltou     { --ev: var(--st-warn); }
@@ -152,6 +154,35 @@
 }
 .fc .fc-timegrid-event[class*="ev-"] { border-left: 3px solid var(--ev); }
 .fc .fc-timegrid-event .fc-event-main { padding: 2px; color: var(--text-primary); }
+
+/* Semana: nada passa da borda do card. Hora e título sempre com reticências no fim, nunca cortados no meio do caractere. */
+.fc .fc-timegrid-event { overflow: hidden; }
+.fc .fc-timegrid-event .fc-event-main,
+.fc .fc-timegrid-event .fc-event-main-frame { min-width: 0; max-width: 100%; overflow: hidden; }
+.fc .fc-timegrid-event .fc-event-time,
+.fc .fc-timegrid-event .fc-event-title { display: block; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fc .fc-timegrid-event .fc-event-title-container { min-width: 0; flex: 1 1 auto; overflow: hidden; }
+/* card curto: uma linha só, "08:00 Nome" (o FullCalendar já põe a hora e o título lado a lado; aqui tira o hífen e deixa o nome encolher) */
+.fc .fc-timegrid-event-short { padding: 0 6px; }
+.fc .fc-timegrid-event-short .fc-event-main { padding: 0 2px; }
+.fc .fc-timegrid-event-short .fc-event-main-frame { display: flex; flex-direction: row; align-items: center; height: 100%; gap: 5px; }
+.fc .fc-timegrid-event-short .fc-event-time { flex: 0 0 auto; width: auto; overflow: visible; text-overflow: clip; }
+.fc .fc-timegrid-event-short .fc-event-time::after { content: none; }
+.fc .fc-timegrid-event-short .fc-event-title-container { display: flex; align-items: center; }
+
+/* chip "+N mais" da Semana (consultas simultâneas além de 2) */
+.fc .fc-timegrid-more-link {
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--brand-text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+}
+.fc .fc-timegrid-more-link:hover { background: var(--brand-light); }
+.fc .fc-timegrid-more-link-inner { padding: 1px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Hora no eixo */
 .fc .fc-timegrid-slot-label-cushion {

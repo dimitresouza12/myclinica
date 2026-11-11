@@ -4,6 +4,8 @@ import dynamic from 'next/dynamic'
 import { useAuthStore } from '@/store/auth'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
+import { usePermissions } from '@/hooks/usePermissions'
+import { canSeeFinancialTotals } from '@/lib/permissionPresets'
 import { useProfessionals, useProcedures, useRelatoriosRawData, useCommissionsData } from '@/hooks/useClinicData'
 import styles from './relatorios.module.css'
 import { Icon } from '@/components/ui/Icon'
@@ -34,7 +36,15 @@ function RelatoriosContent() {
   const { clinic } = useAuthStore()
   const { data: cachedProfessionals = [] } = useProfessionals(clinic?.id)
   const { data: cachedProcedures = [] }    = useProcedures(clinic?.id)
-  const [tab, setTab]           = useState<ReportTab>('financeiro')
+  // abas Financeiro e Comissões só aparecem para quem tem esses módulos liberados
+  const finPerm = usePermissions('financeiro')
+  const comPerm = usePermissions('comissoes')
+  const canSeeFinTab = canSeeFinancialTotals(finPerm)
+  const canSeeComTab = comPerm.canView
+  // exportar planilha conta como "Editar" no módulo Relatórios
+  const { canEdit: canExport } = usePermissions('relatorios')
+  const [tabChoice, setTab]     = useState<ReportTab>('financeiro')
+  const tab: ReportTab = (tabChoice === 'financeiro' && !canSeeFinTab) || (tabChoice === 'comissoes' && !canSeeComTab) ? 'clinico' : tabChoice
   const [period, setPeriod]     = useState<PeriodKind>('mensal')
   const [month, setMonth]       = useState(() => ymd(new Date()).slice(0, 7))
   const [customFrom, setCustomFrom] = useState(() => defaultCustomRange().from)
@@ -232,11 +242,11 @@ function RelatoriosContent() {
   const maxProc = useMemo(() => procRank[0]?.count ?? 1, [procRank])
 
   const TABS: { value: ReportTab; label: string }[] = [
-    { value: 'financeiro', label: 'Financeiro' },
+    ...(canSeeFinTab ? [{ value: 'financeiro' as const, label: 'Financeiro' }] : []),
     { value: 'clinico',    label: 'Clínico'    },
     { value: 'pacientes',  label: 'Pacientes'  },
     { value: 'equipe',     label: 'Equipe'     },
-    { value: 'comissoes',  label: 'Comissões'  },
+    ...(canSeeComTab ? [{ value: 'comissoes' as const, label: 'Comissões' }] : []),
   ]
   const PERIODS: { value: PeriodKind; label: string }[] = [
     { value: 'diario',        label: 'Diário'      },
@@ -270,7 +280,7 @@ function RelatoriosContent() {
                 <div className={styles.rangeField}><DatePicker value={customTo} onChange={setCustomTo} min={customFrom} ariaLabel="Data final" placeholder="Até" /></div>
               </div>
             )}
-            <button type="button" className={btn.secondary} onClick={exportXLSX} disabled={exporting || loading}>
+            <button type="button" className={btn.secondary} onClick={exportXLSX} disabled={exporting || loading || !canExport} title={canExport ? undefined : 'Seu perfil só pode visualizar'}>
               <Icon name="download" size={15} /> {exporting ? 'Exportando...' : 'Exportar planilha'}
             </button>
           </>

@@ -1,0 +1,124 @@
+/* Aba "Antes e depois" (estética e odontologia). Mesma linguagem das abas Nutrição/Vacinas: cartões, campos de 44px, avisos neutros. */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.loading { font-size: var(--fs-md); color: var(--text-secondary); padding: var(--space-4) 0; }
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-field);
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+}
+.notice svg { flex-shrink: 0; margin-top: 2px; color: var(--st-wait); }
+.warn { font-size: var(--fs-xs); color: var(--text-primary); background: var(--surface-2); border-left: 3px solid var(--st-bad); padding: var(--space-2) var(--space-3); border-radius: var(--radius-xs); line-height: 1.4; }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  min-width: 0;
+}
+.cardHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.cardTitle { font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brand-text); }
+
+.pickers { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3); }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.label { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-base);
+  outline: none;
+  text-overflow: ellipsis;
+}
+.select:focus { border-color: var(--brand-primary); }
+.interval { font-size: var(--fs-sm); color: var(--text-secondary-strong); }
+.swapBtn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  min-height: 44px; padding: 0 var(--space-4);
+  border: 1.5px solid var(--border-subtle); border-radius: 999px;
+  background: transparent; color: var(--text-secondary);
+  font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-semibold);
+  cursor: pointer; transition: background 0.12s;
+}
+.swapBtn:hover { background: var(--surface-2); }
+.swapBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+
+/* ── Slider ── */
+.sliderWrap { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.stage {
+  position: relative;
+  width: min(100%, calc(70vh * 0.75));
+  aspect-ratio: 3 / 4;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  user-select: none;
+  -webkit-user-select: none;
+  /* Só neste elemento: o arrasto horizontal é do slider, a rolagem vertical da página continua livre. */
+  touch-action: pan-y;
+  cursor: ew-resize;
+}
+.img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; -webkit-user-drag: none; }
+.imgBefore { z-index: 1; }
+.tag {
+  position: absolute; top: var(--space-2); z-index: 2;
+  display: flex; flex-direction: column; gap: 1px;
+  max-width: 44%;
+  padding: 4px var(--space-2);
+  border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: var(--fs-xs);
+  line-height: 1.25;
+  pointer-events: none;
+}
+.tag strong { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.06em; }
+.tagBefore { left: var(--space-2); }
+.tagAfter { right: var(--space-2); text-align: right; }
+.handle {
+  position: absolute; top: 0; bottom: 0; z-index: 3;
+  width: 44px; margin-left: -22px;
+  display: flex; align-items: center; justify-content: center;
+  outline: none;
+}
+.handle::before { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.knob {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 999px;
+  background: #fff; color: #1c1c1c;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+.handle:focus-visible .knob { outline: 3px solid var(--brand-accent); outline-offset: 2px; }
+.imgError { position: absolute; inset: auto var(--space-2) var(--space-2); z-index: 4; padding: var(--space-2) var(--space-3); border-radius: var(--radius-xs); background: rgba(0, 0, 0, 0.78); color: #fff; font-size: var(--fs-xs); line-height: 1.4; }
+.hint { font-size: var(--fs-xs); color: var(--text-secondary); text-align: center; line-height: 1.4; }
+
+/* ── Lado a lado ── */
+.side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.sideItem { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.sideImg { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: var(--radius-md); background: var(--surface-2); }
+.sideCap { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; font-size: var(--fs-sm); color: var(--text-secondary-strong); }
+.sideCap strong { color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.06em; }
+.sideProc { font-size: var(--fs-xs); color: var(--text-secondary); overflow-wrap: anywhere; }

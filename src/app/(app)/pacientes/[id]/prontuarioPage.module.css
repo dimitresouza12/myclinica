@@ -1,0 +1,3 @@
+.loading { padding: 2rem 0; color: var(--text-secondary); }
+.state { display: flex; justify-content: center; padding: 2rem 0; }
+.state a { text-decoration: none; }

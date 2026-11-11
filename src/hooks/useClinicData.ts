@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { probeAgendaExtras } from '@/lib/agenda/extrasSchema'
 import { pickLatest, type ConfirmationInfo } from '@/lib/whatsapp/labels'
 import { isPaused, PAUSE_WINDOW_MS, type FailureRow } from '@/lib/whatsapp/safety'
 import {
@@ -83,7 +84,7 @@ export interface DashboardInsights {
   trend: { week: TrendSeries; month: TrendSeries }
 }
 
-const OPEN_STATUSES = ['agendado', 'confirmado', 'em_atendimento']
+const OPEN_STATUSES = ['agendado', 'confirmado', 'em_atendimento', 'arrived', 'in_progress']
 const NO_SHOW_WINDOW_MS = 30 * 24 * 60 * 60 * 1000   // faltas dos últimos 30 dias
 const NO_RETURN_WINDOW_MS = 45 * 24 * 60 * 60 * 1000 // sem retorno após 45 dias do último atendimento concluído
 
@@ -101,6 +102,8 @@ export function useDashboardData(clinicId: string | undefined) {
       const twoHundredDaysAgo = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString()
       const last7 = lastDays(today, 7)
       const week = weekDays(today)
+      // package_id só existe com a migration de pacotes: sem ela o select inteiro falharia
+      const { packages: hasPackages } = await probeAgendaExtras()
 
       const [
         patientsRes, todayApptRowsRes, pendingRes, allFinRes, newPatientsRes, todayFinRes,
@@ -108,7 +111,7 @@ export function useDashboardData(clinicId: string | undefined) {
         recentApptsRes, recentPatientsRes,
       ] = await Promise.all([
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true),
-        supabase.from('appointments').select('id, patient_id, professional_id, procedure_name, procedure_id, procedure_price, status, scheduled_at, duration_minutes, patients(id, name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', startOfDay).lte('scheduled_at', endOfDay).order('scheduled_at', { ascending: true }),
+        supabase.from('appointments').select('id, patient_id, professional_id, procedure_name, procedure_id, procedure_price, status, scheduled_at, duration_minutes' + (hasPackages ? ', package_id' : '') + ', patients(id, name, phone)').eq('clinic_id', clinicId).neq('status', 'bloqueado').gte('scheduled_at', startOfDay).lte('scheduled_at', endOfDay).order('scheduled_at', { ascending: true }),
         supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('status', 'agendado'),
         supabase.from('financial_records').select('total_amount, type, created_at, patient_id, procedure_id').eq('clinic_id', clinicId).gte('created_at', sixMonthsAgo),
         supabase.from('patients').select('id', { count: 'exact', head: true }).eq('clinic_id', clinicId).eq('is_active', true).gte('created_at', startOfMonth),
@@ -361,7 +364,7 @@ export function useAgendaData(clinicId: string | undefined, scopeProfessionalId:
         const PAGE = 1000
         const out: Appointment[] = []
         for (let from = 0; from < PAGE * 20; from += PAGE) {
-          let q = supabase.from('appointments').select('*, patients(id, name, phone), professionals(id, name)').eq('clinic_id', clinicId).gte('scheduled_at', threeMonthsAgo.toISOString()).order('scheduled_at', { ascending: true }).order('id', { ascending: true })
+          let q = supabase.from('appointments').select('*, patients(id, name, phone, pet_name), professionals(id, name)').eq('clinic_id', clinicId).gte('scheduled_at', threeMonthsAgo.toISOString()).order('scheduled_at', { ascending: true }).order('id', { ascending: true })
           if (scopeProfessionalId) q = q.or(`professional_id.eq.${scopeProfessionalId},and(professional_id.is.null,status.eq.bloqueado)`)
           const { data, error } = await q.range(from, from + PAGE - 1)
           if (error) break
@@ -374,7 +377,7 @@ export function useAgendaData(clinicId: string | undefined, scopeProfessionalId:
       const sinceConf = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
       const [appointments, patRes, confRes] = await Promise.all([
         fetchAppointments(),
-        supabase.from('patients').select('id, name, phone').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
+        supabase.from('patients').select('id, name, phone, pet_name').eq('clinic_id', clinicId).eq('is_active', true).order('name'),
         supabase.from('appointment_confirmations')
           .select('appointment_id, kind, status, sent_at, answered_at, error, created_at')
           .eq('clinic_id', clinicId).gte('appointment_at', sinceConf),

@@ -1,0 +1,5 @@
+.suggest { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 4px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-secondary); font-size: 0.82rem; color: var(--text-primary); }
+.suggest span { flex: 1 1 200px; min-width: 0; }
+.info { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; padding: 10px 12px; border-radius: 10px; background: var(--bg-secondary); font-size: 0.8rem; color: var(--text-secondary); }
+.info strong { font-size: 0.9rem; color: var(--text-primary); }
+.warn { color: var(--st-warn, #B45309); font-weight: 600; }

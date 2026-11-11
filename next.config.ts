@@ -45,6 +45,16 @@ const nextConfig: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy',      value: 'same-origin-allow-popups' },
         ],
       },
+      // Páginas públicas do paciente (link mágico) e verificador de documentos: nunca em cache nem em buscador,
+      // e sem repassar o endereço (que carrega o token) como Referer.
+      ...['/p/:path*', '/verificar/:path*', '/api/p/:path*'].map(source => ({
+        source,
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, max-age=0' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+        ],
+      })),
       // Permite carregar recursos do Supabase Storage (imagens, PDFs)
       {
         source: '/api/:path*',

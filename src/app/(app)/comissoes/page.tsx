@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
+import { usePermissions } from '@/hooks/usePermissions'
 import { Modal } from '@/components/ui/Modal'
 import f from '@/components/ui/modalForm.module.css'
 import { useProcedures, useCommissionsData } from '@/hooks/useClinicData'
@@ -39,6 +40,8 @@ const BLANK: RecipientForm = { name: '', role_label: '', is_active: true, genera
 
 function ComissoesContent() {
   const { clinic } = useAuthStore()
+  // "Editar" = criar, alterar e remover beneficiários e regras; sem ele a tela é só de consulta
+  const { canEdit } = usePermissions('comissoes')
   const { data: procedures = [] } = useProcedures(clinic?.id)
   const activeProcedures = procedures.filter(p => p.is_active)
 
@@ -119,6 +122,7 @@ function ComissoesContent() {
   }
 
   function openNew() {
+    if (!canEdit) return
     setEditingId(null)
     setForm(BLANK)
     setNewRuleProc('')
@@ -127,6 +131,7 @@ function ComissoesContent() {
   }
 
   function openEdit(recipient: CommissionRecipient) {
+    if (!canEdit) return
     const mine = rulesFor(recipient.id)
     const general = mine.find(r => r.procedure_id === null)
     const specific = mine.filter(r => r.procedure_id !== null)
@@ -248,7 +253,7 @@ function ComissoesContent() {
       <PageHeader
         title="Comissões"
         subtitle={`${recipients.length} ${recipients.length === 1 ? 'beneficiário' : 'beneficiários'}, calculado automaticamente a cada procedimento concluído`}
-        actions={<button type="button" className={btn.primary} onClick={openNew}><Icon name="plus" size={15} /> Novo beneficiário</button>}
+        actions={<button type="button" className={btn.primary} onClick={openNew} disabled={!canEdit} title={canEdit ? undefined : 'Seu perfil só pode visualizar'}><Icon name="plus" size={15} /> Novo beneficiário</button>}
       />
 
       <div className={styles.stats}>
@@ -295,7 +300,7 @@ function ComissoesContent() {
       {loading ? (
         <p className={styles.loading}>Carregando...</p>
       ) : recipients.length === 0 ? (
-        <Card><p className={styles.empty}>Nenhum beneficiário cadastrado. Clique em &quot;Novo beneficiário&quot; para começar.</p></Card>
+        <Card><p className={styles.empty}>{canEdit ? 'Nenhum beneficiário cadastrado. Clique em "Novo beneficiário" para começar.' : 'Nenhum beneficiário cadastrado.'}</p></Card>
       ) : (
         <div className={styles.cardsGrid}>
           {recipients.map(r => {
@@ -310,13 +315,15 @@ function ComissoesContent() {
                     <div className={styles.recipientName}>{r.name}</div>
                     <div className={styles.recipientLabel}>{r.role_label ?? 'Sem função'}</div>
                   </div>
-                  <MoreMenu
-                    label={`Mais ações de ${r.name}`}
-                    items={[
-                      { label: 'Editar', icon: 'edit', onClick: () => openEdit(r) },
-                      { label: 'Remover', icon: 'trash', danger: true, onClick: () => handleDelete(r) },
-                    ]}
-                  />
+                  {canEdit && (
+                    <MoreMenu
+                      label={`Mais ações de ${r.name}`}
+                      items={[
+                        { label: 'Editar', icon: 'edit', onClick: () => openEdit(r) },
+                        { label: 'Remover', icon: 'trash', danger: true, onClick: () => handleDelete(r) },
+                      ]}
+                    />
+                  )}
                 </div>
                 <div className={styles.recipientPercent}>
                   <span className={styles.recipientPercentValue}>{general ? `${general.percent}%` : '-'}</span>

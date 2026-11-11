@@ -1,0 +1,57 @@
+.wrap { display: inline-flex; }
+
+.menu {
+  position: fixed;
+  z-index: 1300; /* acima das janelas (até 1200), abaixo dos avisos, como o MoreMenu */
+  width: min(320px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: var(--radius-inner);
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  animation: pop 0.14s ease both;
+}
+@keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+.group { display: flex; flex-direction: column; }
+.group + .group { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-color); }
+.groupTitle { margin: 4px 12px 2px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-tertiary); }
+
+.item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.item:hover:not(:disabled), .item:focus-visible { background: var(--surface-2); outline: none; }
+.item:disabled { cursor: not-allowed; color: var(--text-tertiary); }
+.itemHint { font-size: 0.72rem; font-weight: 400; line-height: 1.3; color: var(--text-tertiary); }
+
+/* confirmação */
+.confirm { display: flex; flex-direction: column; gap: 12px; }
+.question { margin: 0; font-size: 0.95rem; line-height: 1.45; color: var(--text-primary); }
+.question strong { font-weight: 700; }
+.listTitle { margin: 0; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); }
+.list { margin: 0; padding: 0 0 0 1.1rem; display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; line-height: 1.4; color: var(--text-secondary); }
+.notice {
+  display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 12px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border-color); font-size: 0.8rem; line-height: 1.4; color: var(--text-secondary);
+}
+.notice svg { flex-shrink: 0; margin-top: 1px; }
+
+@media (prefers-reduced-motion: reduce) { .menu { animation: none; } .item { transition: none; } }

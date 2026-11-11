@@ -92,8 +92,10 @@ export const useAuthStore = create<AuthState>()(
             ? {}
             : { demoBase: { ...s.demoBase, specialties: [...s.demoBase.specialties, type] } }
         }
+        // Mais de uma área = clínica multi-área (os RPCs de membro só acrescentam a área, não
+        // mexem em is_multi_specialty; ver registerClinicArea, que grava os dois no banco).
         return !s.clinic.specialties.includes(type)
-          ? { clinic: { ...s.clinic, specialties: [...s.clinic.specialties, type] } }
+          ? { clinic: { ...s.clinic, specialties: [...s.clinic.specialties, type], isMultiSpecialty: true } }
           : {}
       }),
       // (s.clinic.onboardingDismissed ?? []): sessões salvas no navegador antes

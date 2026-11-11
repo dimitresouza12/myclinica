@@ -22,6 +22,8 @@ export interface RailController {
   focusOut(leftBar: boolean): void
   /** clique numa aba (ou Esc): encolhe já e só reabre depois de o mouse sair e voltar */
   collapse(): void
+  /** zera o estado (ex.: saiu do modo desktop) sem travar o hover: a primeira passada do mouse abre */
+  reset(): void
   dispose(): void
 }
 
@@ -83,6 +85,12 @@ export function createRailController(
       clearTimers()
       keyboardFocus = false
       suppressed = true
+      set(false)
+    },
+    reset() {
+      clearTimers()
+      keyboardFocus = false
+      suppressed = false
       set(false)
     },
     dispose() { clearTimers() },

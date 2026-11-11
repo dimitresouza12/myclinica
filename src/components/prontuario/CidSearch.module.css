@@ -1,0 +1,51 @@
+.wrap { position: relative; }
+.inputWrap { position: relative; display: flex; align-items: center; }
+.inputWrap svg { position: absolute; left: 0.65rem; color: var(--text-tertiary); pointer-events: none; }
+.inputWrap input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.65rem 0.5rem 2rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+}
+.inputWrap input:focus { border-color: var(--brand-primary); }
+.drop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-inner);
+  box-shadow: var(--shadow-card);
+  z-index: 30;
+}
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: none;
+  text-align: left;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.item:not(:last-child) { border-bottom: 1px solid var(--surface-line); }
+.item:hover, .item:focus-visible { background: var(--surface-2); }
+.item b { flex-shrink: 0; min-width: 3.4rem; font-variant-numeric: tabular-nums; color: var(--brand-text); }
+.item span { min-width: 0; color: var(--text-secondary-strong); overflow-wrap: anywhere; }
+.empty { padding: 0.75rem; font-size: 0.82rem; color: var(--text-secondary); }

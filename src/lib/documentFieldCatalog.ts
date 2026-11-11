@@ -1,4 +1,5 @@
 import type { DocumentTemplateType, FieldPosition } from '@/types'
+import { registrationFieldLabel, type CouncilInfo } from '@/lib/professionalCouncil'
 
 // Catálogo de campos disponíveis pra calibrar em cima do papel timbrado
 // próprio de cada clínica — mesmos nomes já usados em DefaultTemplateArgs
@@ -11,13 +12,12 @@ export interface FieldCatalogEntry {
   kind: 'text' | 'body'
 }
 
-const BASE_FIELDS: FieldCatalogEntry[] = [
+const BASE_FIELDS_BEFORE_REGISTRO: FieldCatalogEntry[] = [
   { key: 'paciente', label: 'Nome do paciente', kind: 'text' },
   { key: 'data', label: 'Data', kind: 'text' },
   { key: 'medico', label: 'Nome do profissional', kind: 'text' },
-  { key: 'registro', label: 'Registro (CRO/CRM)', kind: 'text' },
-  { key: 'corpo', label: 'Texto do documento', kind: 'body' },
 ]
+const BODY_FIELD: FieldCatalogEntry = { key: 'corpo', label: 'Texto do documento', kind: 'body' }
 
 const RECEITA_ESPECIAL_EXTRA: FieldCatalogEntry[] = [
   { key: 'endereco_paciente', label: 'Endereço do paciente', kind: 'text' },
@@ -26,8 +26,22 @@ const RECEITA_ESPECIAL_EXTRA: FieldCatalogEntry[] = [
   { key: 'fornecedor_nome', label: 'Fornecedor — nome', kind: 'text' },
 ]
 
-export function getFieldCatalog(type: DocumentTemplateType): FieldCatalogEntry[] {
-  return type === 'receita_especial' ? [...BASE_FIELDS, ...RECEITA_ESPECIAL_EXTRA] : BASE_FIELDS
+/**
+ * Campos calibráveis do tipo de documento. O rótulo do registro segue o
+ * conselho da área (`council`, ver professionalCouncil.ts); sem conselho
+ * informado fica genérico. O campo RQE só entra quando o conselho da área
+ * tem RQE (medicina) — nas demais áreas seria só ruído no calibrador.
+ */
+export function getFieldCatalog(type: DocumentTemplateType, council?: CouncilInfo): FieldCatalogEntry[] {
+  const registro: FieldCatalogEntry = {
+    key: 'registro',
+    label: council ? registrationFieldLabel(council) : 'Registro profissional',
+    kind: 'text',
+  }
+  const base = [...BASE_FIELDS_BEFORE_REGISTRO, registro]
+  if (council && /RQE/i.test(council.label)) base.push({ key: 'rqe', label: 'RQE', kind: 'text' })
+  base.push(BODY_FIELD)
+  return type === 'receita_especial' ? [...base, ...RECEITA_ESPECIAL_EXTRA] : base
 }
 
 // Posição/estilo inicial ao adicionar um campo novo no calibrador — usuário

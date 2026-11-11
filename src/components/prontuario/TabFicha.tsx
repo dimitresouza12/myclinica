@@ -1,57 +1,72 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { usePermissions } from '@/hooks/usePermissions'
 import { ownProfessionalLookup } from '@/lib/professionalScope'
-import type { Patient, MedicalRecord, RecordEntry, ClinicType, TreatmentPlanItem } from '@/types'
+import type { Patient, MedicalRecord, ClinicType, TreatmentPlanItem } from '@/types'
 import type { AuthClinic } from '@/types'
-import { printProntuario, printContrato, printOrcamento } from '@/lib/print'
 import styles from './TabFicha.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { showToast } from '@/components/ui/Toast'
-import { CpfInput, DateInput, DecimalInput, MoneyInput } from '@/components/ui/NumericInput'
+import { CpfInput, DateInput, DecimalInput, IntegerInput, MoneyInput } from '@/components/ui/NumericInput'
 import { cpfInputError, cpfToInputValue, dateBRToISO, dateInputError, isoToDateBR, previousCpfNote } from '@/lib/numericFormat'
 import { PET_SPECIES, PET_BREEDS, VET_ANAMNESIS_EXTRA_BY_SPECIES, VET_EXAM_EXTRA_BY_SPECIES } from '@/lib/vetSpecies'
-import { MEDICO_ANAMNESIS_EXTRA_BY_SPECIALTY, MEDICO_EXAM_EXTRA_BY_SPECIALTY } from '@/lib/medicoSpecialties'
+import { MEDICO_ANAMNESIS_EXTRA_BY_SPECIALTY, MEDICO_EXAM_EXTRA_BY_SPECIALTY, MEDICO_AREA_OPTIONS } from '@/lib/medicoSpecialties'
+import { genderSelectOptions } from '@/lib/pacientes/gender'
+import { PET_SEX_OPTIONS, buildPetColumns, microchipError, petAgeFromBirth, parseNeutered } from '@/lib/pacientes/pet'
+import { usePetExtraColumns } from '@/lib/pacientes/petColumns'
+import { medicoExtrasKey, medicoSelectValue } from '@/lib/medico/subspecialty'
+import { calcBmi, bmiSummary, calcGestation, gestationSummary } from '@/lib/medico/clinicalCalc'
+import { hojeBrasil } from '@/lib/brasilDate'
+import { registrarPesoDaFicha } from '@/lib/vet/storage'
 import { getSpecialtyConfig, CLINIC_TYPE_LABELS } from '@/lib/specialtyConfig'
 import { SelectMenu } from '@/components/ui/SelectMenu'
+import { CidSearch } from './CidSearch'
+import { rehydrateMap, rehydrateValue } from './fichaRehydrate'
+import { SIGILO_ATIVO } from '@/lib/sigilo'
 
 interface Props {
   patient: Patient
   record: MedicalRecord | null
-  entries: RecordEntry[]
   clinic: AuthClinic
   clinicId: string
-  clinicName: string
   onSaved: () => void
+  /** Avisa o prontuário do que está em edição (inclusive o não salvo) e da área exibida: é o que o menu Imprimir usa. */
+  onDraftChange?: (record: MedicalRecord, area: ClinicType) => void
+  /** Avisa o prontuário quando a Ficha tem alterações ainda não salvas (para o aviso de sair sem salvar). */
+  onDirtyChange?: (dirty: boolean) => void
+  /** Atalho para a aba Documentos (onde o contrato mora agora). */
+  onOpenDocuments?: () => void
 }
 
-const CONTRACT_TEMPLATE = (clinic: string, patient: string, clinicType?: string) => {
-  const serviceLabel: Record<string, string> = {
-    odonto: 'odontológicos',
-    medico: 'médicos',
-    estetica: 'estéticos',
-    vet: 'veterinários',
-    fisio: 'de fisioterapia',
-    psico: 'de psicologia',
-    nutri: 'de nutrição',
+/** Campos de identificação exibidos na Ficha, a partir do cadastro do paciente. */
+function buildPatientInfo(patient: Patient): Record<string, string> {
+  return {
+    'p-cpf':        cpfToInputValue(patient.cpf),
+    'p-rg':         patient.rg ?? '',
+    'p-nasc':       isoToDateBR(patient.birth_date),
+    'p-genero':     patient.gender ?? '',
+    'p-ocupacao':   patient.occupation ?? '',
+    'p-endereco':   patient.address ?? '',
+    'p-indicado':   patient.referred_by ?? '',
+    'p-emergencia': patient.emergency_contact ?? '',
+    'p-notes':      patient.notes ?? '',
+    // campos veterinários
+    'p-pet_nome':     patient.pet_name ?? '',
+    'p-pet_especie':  patient.pet_species ?? '',
+    'p-pet_raca':     patient.pet_breed ?? '',
+    'p-pet_idade':    patient.pet_age ?? '',
+    'p-pet_peso':     patient.pet_weight != null ? String(patient.pet_weight) : '',
+    'p-pet_castrado': patient.pet_neutered != null ? (patient.pet_neutered ? 'Sim' : 'Não') : '',
+    'p-pet_pelagem':  patient.pet_coat ?? '',
+    'p-pet_sexo':     patient.pet_sex ?? '',
+    'p-pet_nasc':     isoToDateBR(patient.pet_birth_date),
+    'p-pet_chip':     patient.pet_microchip ?? '',
   }
-  const label = serviceLabel[clinicType ?? ''] ?? 'de saúde'
-  return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS
-
-CONTRATADA: ${clinic}
-CONTRATANTE: ${patient}
-
-CLÁUSULA 1ª: O presente contrato tem por objeto a prestação de serviços ${label} conforme plano de tratamento anexo.
-CLÁUSULA 2ª: O CONTRATANTE compromete-se a comparecer nas datas e horários agendados.
-CLÁUSULA 3ª: Em caso de desistência, o CONTRATANTE deverá comunicar com antecedência mínima de 24 horas.
-
-Assinatura: __________________________________
-Data: ${new Date().toLocaleDateString('pt-BR')}`
 }
 
-export function TabFicha({ patient, record, entries, clinic, clinicId, clinicName, onSaved }: Props) {
+export function TabFicha({ patient, record, clinic, clinicId, onSaved, onDraftChange, onDirtyChange, onOpenDocuments }: Props) {
   const { user } = useAuthStore()
   const clinicSpecialties = clinic.specialties?.length ? clinic.specialties : [clinic.type]
   // Qual ficha exibir: a área do profissional logado (specialty_type),
@@ -67,6 +82,17 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
   // vê marcos do desenvolvimento). Vem de professionals.specialty (texto
   // livre), resolvido pelo clinic_user_id do login atual.
   const [myMedicoSpecialty, setMyMedicoSpecialty] = useState<string | null>(null)
+  // Sub-especialidade exibida na ficha médica (seletor no topo). Padrão: a do profissional logado, casada por
+  // aproximação ("Cardiologista" vira Cardiologia); a escolha manual fica guardada neste navegador.
+  const medicoSubStorageKey = `myclinica:medicoSub:${clinicId}:${user?.id ?? ''}`
+  const [medicoSubChoice, setMedicoSubChoice] = useState<string | null>(() => {
+    try { return typeof window === 'undefined' ? null : window.localStorage.getItem(medicoSubStorageKey) } catch { return null }
+  })
+  const medicoSub = medicoSubChoice ?? medicoSelectValue(myMedicoSpecialty)
+  function chooseMedicoSub(v: string) {
+    setMedicoSubChoice(v)
+    try { window.localStorage.setItem(medicoSubStorageKey, v) } catch { /* sem armazenamento: vale só nesta tela */ }
+  }
   // Resolvido por user.professionalId quando existe (na conta de demonstração é o profissional da
   // área escolhida; numa clínica real é o mesmo vínculo clinic_user_id de antes) e, sem ele, pelo
   // clinic_user_id do login.
@@ -124,44 +150,69 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
   // paciente. Vem sempre de `patients`, não do jsonb namespaced (Bloco B):
   // antes ficava duplicada dentro de `anamnesis`, o que não faz sentido
   // quando `anamnesis` passa a ser por área.
+  const petExtras = usePetExtraColumns()
+  const [breedOther, setBreedOther] = useState(false)
   const [patientInfo, setPatientInfo] = useState<Record<string, string>>({})
   const [anamnesis, setAnamnesis] = useState<Record<string, string>>({})
   const [clinicalExam, setClinicalExam] = useState<Record<string, string>>({})
   const [treatmentPlan, setTreatmentPlan] = useState('')
   const [treatmentPlanItems, setTreatmentPlanItems] = useState<TreatmentPlanItem[]>([])
-  const [contractText, setContractText] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  // Último valor carregado de cada parte. Recarregar (outra aba salvou) só troca o que a pessoa não editou.
+  const patientBaseRef = useRef<{ id: string; info: Record<string, string> } | null>(null)
+  const recordBaseRef = useRef<{ area: ClinicType; anamnesis: Record<string, string>; clinicalExam: Record<string, string>; treatmentPlan: string; items: TreatmentPlanItem[] } | null>(null)
+
   useEffect(() => {
-    setPatientInfo({
-      'p-cpf':        cpfToInputValue(patient.cpf),
-      'p-rg':         patient.rg ?? '',
-      'p-nasc':       isoToDateBR(patient.birth_date),
-      'p-genero':     patient.gender ?? '',
-      'p-ocupacao':   patient.occupation ?? '',
-      'p-endereco':   patient.address ?? '',
-      'p-indicado':   patient.referred_by ?? '',
-      'p-emergencia': patient.emergency_contact ?? '',
-      'p-notes':      patient.notes ?? '',
-      // campos veterinários
-      'p-pet_nome':     patient.pet_name ?? '',
-      'p-pet_especie':  patient.pet_species ?? '',
-      'p-pet_raca':     patient.pet_breed ?? '',
-      'p-pet_idade':    patient.pet_age ?? '',
-      'p-pet_peso':     patient.pet_weight != null ? String(patient.pet_weight) : '',
-      'p-pet_castrado': patient.pet_neutered != null ? (patient.pet_neutered ? 'Sim' : 'Não') : '',
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const next = buildPatientInfo(patient)
+    const base = patientBaseRef.current
+    patientBaseRef.current = { id: patient.id, info: next }
+    if (!base || base.id !== patient.id) {
+      setPatientInfo(next)
+      setBreedOther(false)
+    } else {
+      setPatientInfo((cur) => rehydrateMap(base.info, next, cur))
+    }
   }, [patient])
 
   useEffect(() => {
-    setAnamnesis(record?.anamnesis?.[viewArea] ?? {})
-    setClinicalExam(record?.clinical_exam?.[viewArea] ?? {})
-    setTreatmentPlan(record?.treatment_plan ?? '')
-    setTreatmentPlanItems(record?.treatment_plan_items ?? [])
-    setContractText(record?.contract_text ?? CONTRACT_TEMPLATE(clinicName, patient.name, viewArea))
-  }, [record, viewArea, clinicName, patient.name])
+    const next = {
+      area: viewArea,
+      anamnesis: record?.anamnesis?.[viewArea] ?? {},
+      clinicalExam: record?.clinical_exam?.[viewArea] ?? {},
+      treatmentPlan: record?.treatment_plan ?? '',
+      items: record?.treatment_plan_items ?? [],
+    }
+    const base = recordBaseRef.current
+    recordBaseRef.current = next
+    if (!base || base.area !== viewArea) {
+      setAnamnesis(next.anamnesis)
+      setClinicalExam(next.clinicalExam)
+      setTreatmentPlan(next.treatmentPlan)
+      setTreatmentPlanItems(next.items)
+    } else {
+      setAnamnesis((cur) => rehydrateMap(base.anamnesis, next.anamnesis, cur))
+      setClinicalExam((cur) => rehydrateMap(base.clinicalExam, next.clinicalExam, cur))
+      setTreatmentPlan((cur) => rehydrateValue(base.treatmentPlan, next.treatmentPlan, cur))
+      setTreatmentPlanItems((cur) => rehydrateValue(base.items, next.items, cur))
+    }
+  }, [record, viewArea])
+
+  // Alterações não salvas: compara o que está na tela com o que veio do cadastro/prontuário (ou com o último salvo).
+  // Enquanto a Ficha ainda não carregou os campos (primeira renderização), não conta como alteração.
+  const snapshot = JSON.stringify([patientInfo, anamnesis, clinicalExam, treatmentPlan, treatmentPlanItems])
+  const loadedSnapshot = JSON.stringify([
+    buildPatientInfo(patient),
+    record?.anamnesis?.[viewArea] ?? {},
+    record?.clinical_exam?.[viewArea] ?? {},
+    record?.treatment_plan ?? '',
+    record?.treatment_plan_items ?? [],
+  ])
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
+  const dirty = Object.keys(patientInfo).length > 0 && snapshot !== loadedSnapshot && snapshot !== savedSnapshot
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
   function setP(k: string, v: string) { setPatientInfo((p) => ({ ...p, [k]: v })) }
   function setA(k: string, v: string) { setAnamnesis((p) => ({ ...p, [k]: v })) }
@@ -184,6 +235,12 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
     if (cpfError) { showToast('error', cpfError); return }
     const birthError = dateInputError(patientInfo['p-nasc'])
     if (birthError) { showToast('error', birthError); return }
+    if (viewArea === 'vet' && petExtras) {
+      const chipError = microchipError(patientInfo['p-pet_chip'] ?? '')
+      if (chipError) { showToast('error', chipError); return }
+      const petBirthError = dateInputError(patientInfo['p-pet_nasc'])
+      if (petBirthError) { showToast('error', `Nascimento do pet: ${petBirthError.charAt(0).toLowerCase()}${petBirthError.slice(1)}`); return }
+    }
     // CPF antigo que o campo não mostra (incompleto) e que não foi digitado de novo: mantém, não apaga
     const keepOldCpf = !patientInfo['p-cpf'] && !!patient.cpf?.trim() && cpfToInputValue(patient.cpf) === ''
     setSaving(true)
@@ -195,13 +252,33 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
         clinical_exam: { ...(record?.clinical_exam ?? {}), [viewArea]: clinicalExam },
         treatment_plan: treatmentPlan,
         treatment_plan_items: treatmentPlanItems,
-        contract_text: contractText,
+        // contract_text não é enviado: o contrato saiu da Ficha e o texto já salvo fica intacto (leitura na aba Documentos)
         updated_at: new Date().toISOString(),
       }
       if (record?.id) {
         await supabase.from('medical_records').update(payload).eq('id', record.id)
       } else {
         await supabase.from('medical_records').insert([payload])
+      }
+
+      // Colunas do pet. Peso: só grava se mudou na Ficha; sem isso uma Ficha aberta há tempo apagaria o peso
+      // mais recente registrado na aba Vacinas e peso. Quando muda, também entra no histórico de pesagens.
+      const petCols = buildPetColumns({
+        nome: patientInfo['p-pet_nome'] ?? '',
+        especie: patientInfo['p-pet_especie'] ?? '',
+        raca: patientInfo['p-pet_raca'] ?? '',
+        sexo: patientInfo['p-pet_sexo'] ?? '',
+        nascimentoISO: petExtras ? (dateBRToISO(patientInfo['p-pet_nasc']) ?? '') : '',
+        castrado: patientInfo['p-pet_castrado'] ?? '',
+        peso: patientInfo['p-pet_peso'] ?? '',
+        pelagem: patientInfo['p-pet_pelagem'] ?? '',
+        microchip: patientInfo['p-pet_chip'] ?? '',
+        idadeTexto: patientInfo['p-pet_idade'] ?? '',
+      }, { extras: petExtras })
+      if (viewArea === 'vet') {
+        const novoPeso = (petCols.pet_weight as number | null) ?? null
+        if (novoPeso === (patient.pet_weight ?? null)) delete petCols.pet_weight
+        else if (novoPeso !== null) await registrarPesoDaFicha({ clinicId, patientId: patient.id, kg: novoPeso, hoje: hojeBrasil() })
       }
 
       // Sincroniza campos de identificação de volta para a tabela patients
@@ -215,14 +292,10 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
         referred_by:       patientInfo['p-indicado'] || null,
         emergency_contact: patientInfo['p-emergencia'] || null,
         notes:             patientInfo['p-notes'] || null,
-        pet_name:          patientInfo['p-pet_nome'] || null,
-        pet_species:       patientInfo['p-pet_especie'] || null,
-        pet_breed:         patientInfo['p-pet_raca'] || null,
-        pet_age:           patientInfo['p-pet_idade'] || null,
-        pet_weight:        patientInfo['p-pet_peso'] ? Number(patientInfo['p-pet_peso']) : null,
-        pet_neutered:      patientInfo['p-pet_castrado'] ? patientInfo['p-pet_castrado'] === 'Sim' : null,
+        ...petCols,
       }).eq('id', patient.id)
 
+      setSavedSnapshot(snapshot)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
       onSaved()
@@ -231,21 +304,17 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
     }
   }
 
-  const clinicInfo = {
-    name: clinic.name,
-    logo: clinic.logo || undefined,
-    address: clinic.address || undefined,
-    phone: clinic.phone || undefined,
-  }
-
-  const recordForPrint: MedicalRecord = {
-    ...(record ?? {} as MedicalRecord),
-    anamnesis: { ...(record?.anamnesis ?? {}), [viewArea]: anamnesis },
-    clinical_exam: { ...(record?.clinical_exam ?? {}), [viewArea]: clinicalExam },
-    treatment_plan: treatmentPlan,
-    treatment_plan_items: treatmentPlanItems,
-    contract_text: contractText,
-  }
+  // o que a Ficha tem em edição, para o menu Imprimir do prontuário
+  useEffect(() => {
+    if (!onDraftChange) return
+    onDraftChange({
+      ...(record ?? {} as MedicalRecord),
+      anamnesis: { ...(record?.anamnesis ?? {}), [viewArea]: anamnesis },
+      clinical_exam: { ...(record?.clinical_exam ?? {}), [viewArea]: clinicalExam },
+      treatment_plan: treatmentPlan,
+      treatment_plan_items: treatmentPlanItems,
+    }, viewArea)
+  }, [onDraftChange, record, viewArea, anamnesis, clinicalExam, treatmentPlan, treatmentPlanItems])
 
   const pField = (k: string, label: string) => (
     <div className={styles.field} key={k}>
@@ -253,7 +322,33 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       <input value={patientInfo[k] ?? ''} onChange={(e) => setP(k, e.target.value)} />
     </div>
   )
-  const aField = (k: string, label: string, customId?: string) => (
+  // Medicina: DUM como data (calcula IG e DPP). Texto antigo que não é data continua no campo livre.
+  function setDum(v: string) {
+    setA('a-dum', v)
+    const iso = dateBRToISO(v)
+    const summary = iso ? gestationSummary(iso, hojeBrasil()) : ''
+    if (summary && medicoExtrasKey(medicoSub) === 'Ginecologia') setA('a-semanas_gestacao', summary)
+  }
+  // Medicina: peso e altura calculam o IMC e preenchem o campo "Peso / Altura / IMC"
+  function setAnthropometry(k: 'e-peso_kg' | 'e-altura_cm', v: string) {
+    setClinicalExam(prev => {
+      const next = { ...prev, [k]: v }
+      const summary = bmiSummary(next['e-peso_kg'] ?? '', next['e-altura_cm'] ?? '')
+      if (summary) next['e-antropometria'] = summary
+      return next
+    })
+  }
+  const aField = (k: string, label: string, customId?: string) => viewArea === 'medico' && k === 'a-dum' && /^[\d/]*$/.test(anamnesis[k] ?? '') ? (
+    <div className={styles.field} key={k}>
+      <label>{label}</label>
+      <DateInput value={anamnesis[k] ?? ''} onChange={setDum} />
+      {(() => {
+        const iso = dateBRToISO(anamnesis[k])
+        const g = iso ? calcGestation(iso, hojeBrasil()) : null
+        return g ? <span className={styles.fieldHelp}>IG {g.label} · DPP {g.dpp.slice(8, 10)}/{g.dpp.slice(5, 7)}/{g.dpp.slice(0, 4)}</span> : null
+      })()}
+    </div>
+  ) : (
     <div className={styles.field} key={k}>
       <label>
         {label}
@@ -277,6 +372,9 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
         )}
       </label>
       <textarea rows={2} value={clinicalExam[k] ?? ''} onChange={(e) => setE(k, e.target.value)} />
+      {viewArea === 'medico' && k === 'e-hipotese' && (
+        <CidSearch onPick={text => setE(k, clinicalExam[k]?.trim() ? `${clinicalExam[k]!.trimEnd()}\n${text}` : text)} />
+      )}
     </div>
   )
 
@@ -286,12 +384,12 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
   const baseAnamnesisFields = viewArea === 'vet'
     ? [...specialty.anamnesisFields, ...(VET_ANAMNESIS_EXTRA_BY_SPECIES[petSpecies] ?? [])]
     : viewArea === 'medico'
-    ? [...specialty.anamnesisFields, ...(MEDICO_ANAMNESIS_EXTRA_BY_SPECIALTY[myMedicoSpecialty ?? ''] ?? [])]
+    ? [...specialty.anamnesisFields, ...(MEDICO_ANAMNESIS_EXTRA_BY_SPECIALTY[medicoExtrasKey(medicoSub) ?? ''] ?? [])]
     : specialty.anamnesisFields
   const baseClinicalExamFields = viewArea === 'vet'
     ? [...specialty.clinicalExamFields, ...(VET_EXAM_EXTRA_BY_SPECIES[petSpecies] ?? [])]
     : viewArea === 'medico'
-    ? [...specialty.clinicalExamFields, ...(MEDICO_EXAM_EXTRA_BY_SPECIALTY[myMedicoSpecialty ?? ''] ?? [])]
+    ? [...specialty.clinicalExamFields, ...(MEDICO_EXAM_EXTRA_BY_SPECIALTY[medicoExtrasKey(medicoSub) ?? ''] ?? [])]
     : specialty.clinicalExamFields
 
   // Bloco G: campos personalizados da clínica pra essa área, concatenados
@@ -303,6 +401,14 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
   return (
     <div className={styles.wrap}>
+      {viewArea === 'psico' && (
+        <p className={styles.psicoNotice} role="note">
+          A Ficha Clínica é compartilhada com a equipe autorizada da clínica.{' '}
+          {SIGILO_ATIVO
+            ? 'Registros privativos do psicólogo (Res. CFP 001/2009) devem ser feitos na aba Evolução, como anotação pessoal sigilosa.'
+            : 'Esta ficha não tem sigilo individual: evite registrar aqui anotações privativas do psicólogo (Res. CFP 001/2009).'}
+        </p>
+      )}
       {canPickArea && (
         <section className={styles.section}>
           <div className={styles.field}>
@@ -310,6 +416,18 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
             <SelectMenu variant="field" ariaLabel="Ver ficha da área" value={viewArea}
               onChange={v => setViewArea(v as ClinicType)}
               options={clinicSpecialties.map(t => ({ value: t, label: CLINIC_TYPE_LABELS[t] }))} />
+          </div>
+        </section>
+      )}
+
+      {viewArea === 'medico' && (
+        <section className={styles.section}>
+          <div className={styles.field}>
+            <label>Sub-especialidade médica</label>
+            <SelectMenu variant="field" ariaLabel="Sub-especialidade médica" value={medicoSub}
+              onChange={chooseMedicoSub}
+              options={MEDICO_AREA_OPTIONS.map(o => ({ value: o, label: o }))} />
+            <span className={styles.fieldHelp}>Muda os campos extras de anamnese e exame clínico desta ficha.</span>
           </div>
         </section>
       )}
@@ -333,13 +451,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
             <label>Gênero</label>
             <SelectMenu variant="field" ariaLabel="Gênero" value={patientInfo['p-genero'] ?? ''}
               onChange={v => setP('p-genero', v)}
-              options={[
-                { value: '', label: 'Selecionar' },
-                { value: 'Masculino', label: 'Masculino' },
-                { value: 'Feminino', label: 'Feminino' },
-                { value: 'Não binário', label: 'Não binário' },
-                { value: 'Prefiro não informar', label: 'Prefiro não informar' },
-              ]} />
+              options={genderSelectOptions(patientInfo['p-genero'])} />
           </div>
 
           {pField('p-ocupacao', 'Ocupação')}
@@ -385,8 +497,8 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
                     </div>
                   )
                 }
-                const isCustomBreed = racaValue !== '' && !breedList.includes(racaValue)
-                const selectValue = isCustomBreed ? 'Outra' : racaValue
+                // "Outra": raça fora da lista (já gravada ou escolhida agora) libera o campo de texto
+                const isOther = breedOther || (racaValue !== '' && !breedList.includes(racaValue))
                 return (
                   <>
                     <div className={styles.field}>
@@ -394,16 +506,19 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
                       <SelectMenu
                         variant="field"
                         ariaLabel="Raça"
-                        value={selectValue}
-                        onChange={v => setP('p-pet_raca', v === 'Outra' ? '' : v)}
+                        value={isOther ? 'Outra' : racaValue}
+                        onChange={v => {
+                          if (v === 'Outra') { setBreedOther(true); if (breedList.includes(racaValue)) setP('p-pet_raca', '') }
+                          else { setBreedOther(false); setP('p-pet_raca', v) }
+                        }}
                         options={[{ value: '', label: 'Selecionar' }, ...breedList.map(b => ({ value: b, label: b }))]}
                       />
                     </div>
-                    {selectValue === 'Outra' && (
+                    {isOther && (
                       <div className={styles.field}>
                         <label>Qual raça?</label>
                         <input
-                          value={isCustomBreed ? racaValue : ''}
+                          value={racaValue}
                           onChange={e => setP('p-pet_raca', e.target.value)}
                           placeholder="Digite a raça"
                         />
@@ -413,18 +528,57 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
                 )
               })()}
 
-              {[
-                ['p-pet_idade','Idade do Pet'],
-                ['p-pet_peso','Peso do Pet (kg)'],
-                ['p-pet_castrado','Castrado?'],
-              ].map(([k,l]) => (
-                <div className={styles.field} key={k}>
-                  <label>{l}</label>
-                  {k === 'p-pet_peso'
-                    ? <DecimalInput value={patientInfo[k] ?? ''} onChange={v => setP(k, v)} max={500} decimals={2} placeholder="0" />
-                    : <input value={patientInfo[k] ?? ''} onChange={e => setP(k, e.target.value)} />}
+              {petExtras && (
+                <div className={styles.field}>
+                  <label>Sexo</label>
+                  <SelectMenu variant="field" ariaLabel="Sexo do pet" value={patientInfo['p-pet_sexo'] ?? ''}
+                    onChange={v => setP('p-pet_sexo', v)}
+                    options={[{ value: '', label: 'Selecionar' }, ...PET_SEX_OPTIONS]} />
                 </div>
-              ))}
+              )}
+
+              {petExtras ? (
+                <div className={styles.field}>
+                  <label>Nascimento do pet (ou data estimada)</label>
+                  <DateInput value={patientInfo['p-pet_nasc'] ?? ''} onChange={v => setP('p-pet_nasc', v)} />
+                  {petAgeFromBirth(dateBRToISO(patientInfo['p-pet_nasc'])) && (
+                    <small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>Idade: {petAgeFromBirth(dateBRToISO(patientInfo['p-pet_nasc']))}</small>
+                  )}
+                  {!patientInfo['p-pet_nasc'] && patientInfo['p-pet_idade'] && (
+                    <small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>Idade anotada antes: {patientInfo['p-pet_idade']}. Informe o nascimento para a idade se atualizar sozinha.</small>
+                  )}
+                </div>
+              ) : (
+                <div className={styles.field}>
+                  <label>Idade do Pet</label>
+                  <input value={patientInfo['p-pet_idade'] ?? ''} onChange={e => setP('p-pet_idade', e.target.value)} />
+                </div>
+              )}
+
+              <div className={styles.field}>
+                <label>Peso do Pet (kg)</label>
+                <DecimalInput value={patientInfo['p-pet_peso'] ?? ''} onChange={v => setP('p-pet_peso', v)} max={500} decimals={2} placeholder="0" />
+              </div>
+
+              <div className={styles.field}>
+                <label>Castrado?</label>
+                <SelectMenu variant="field" ariaLabel="Castrado" value={parseNeutered(patientInfo['p-pet_castrado']) == null ? '' : parseNeutered(patientInfo['p-pet_castrado']) ? 'Sim' : 'Não'}
+                  onChange={v => setP('p-pet_castrado', v)}
+                  options={[{ value: '', label: 'Selecionar' }, { value: 'Sim', label: 'Sim' }, { value: 'Não', label: 'Não' }]} />
+              </div>
+
+              <div className={styles.field}>
+                <label>Pelagem</label>
+                <input value={patientInfo['p-pet_pelagem'] ?? ''} onChange={e => setP('p-pet_pelagem', e.target.value)} placeholder="Ex: caramelo" />
+              </div>
+
+              {petExtras && (
+                <div className={styles.field}>
+                  <label>Microchip</label>
+                  <input value={patientInfo['p-pet_chip'] ?? ''} inputMode="numeric" autoComplete="off"
+                    onChange={e => setP('p-pet_chip', e.target.value.replace(/\D/g, '').slice(0, 15))} placeholder="15 números, se houver" />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -463,6 +617,27 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
 
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Exame Clínico</h3>
+        {viewArea === 'medico' && (
+          <div className={styles.calcBox}>
+            <h4 className={styles.calcTitle}>Calculadora de IMC</h4>
+            <div className={styles.calcRow}>
+              <div className={styles.field}>
+                <label>Peso (kg)</label>
+                <DecimalInput value={clinicalExam['e-peso_kg'] ?? ''} onChange={v => setAnthropometry('e-peso_kg', v)} max={500} decimals={1} placeholder="0" />
+              </div>
+              <div className={styles.field}>
+                <label>Altura (cm)</label>
+                <IntegerInput value={clinicalExam['e-altura_cm'] ?? ''} onChange={v => setAnthropometry('e-altura_cm', v)} max={250} placeholder="0" />
+              </div>
+            </div>
+            {(() => {
+              const bmi = calcBmi(clinicalExam['e-peso_kg'] ?? '', clinicalExam['e-altura_cm'] ?? '')
+              return bmi
+                ? <p className={styles.calcResult}>IMC {bmi.text} kg/m² ({bmi.category})</p>
+                : <p className={styles.calcHint}>Informe peso e altura para calcular. O resultado preenche o campo Peso / Altura / IMC.</p>
+            })()}
+          </div>
+        )}
         <div className={styles.grid2}>
           {currentClinicalExamFields.map(([k, label]) => eField(k, label, customClinicalExamFields.find(f => f.field_key === k)?.id))}
         </div>
@@ -488,17 +663,7 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       </section>
 
       <section className={styles.section}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 className={styles.sectionTitle} style={{ border: 'none', marginBottom: 0 }}>Plano de Tratamento / Orçamento</h3>
-          <button
-            className={styles.btnPrint}
-            type="button"
-            onClick={() => printOrcamento(clinicInfo, patient, treatmentPlanItems, treatmentPlan)}
-            disabled={treatmentPlanItems.length === 0}
-          >
-            Imprimir Orçamento
-          </button>
-        </div>
+        <h3 className={styles.sectionTitle}>Plano de Tratamento / Orçamento</h3>
 
         <div className={styles.treatmentItems}>
           {treatmentPlanItems.map((item) => (
@@ -542,33 +707,15 @@ export function TabFicha({ patient, record, entries, clinic, clinicId, clinicNam
       </section>
 
       <section className={styles.section}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 className={styles.sectionTitle} style={{ border: 'none', marginBottom: 0 }}>Contrato</h3>
-          <button
-            className={styles.btnPrint}
-            onClick={() => printContrato(clinicInfo, patient, contractText)}
-            type="button"
-          >
-            Imprimir Contrato
-          </button>
-        </div>
-        <textarea
-          className={styles.bigArea}
-          rows={10}
-          value={contractText}
-          onChange={(e) => setContractText(e.target.value)}
-        />
+        <h3 className={styles.sectionTitle}>Contrato</h3>
+        <p className={styles.contractNote}>
+          O contrato não é mais editado na Ficha. O texto que já estava salvo continua guardado e pode ser consultado na aba Documentos.
+          {onOpenDocuments && <> <button type="button" className={styles.contractLink} onClick={onOpenDocuments}>Abrir Documentos</button></>}
+        </p>
       </section>
 
       <div className={styles.saveRow}>
         {saved && <span className={styles.savedMsg}><Icon name="check" size={12} /> Salvo com sucesso!</span>}
-        <button
-          className={styles.btnPrint}
-          onClick={() => printProntuario(clinicInfo, patient, recordForPrint, entries, viewArea)}
-          type="button"
-        >
-          Imprimir Prontuário
-        </button>
         <button className={styles.btnSave} onClick={handleSave} disabled={saving}>
           {saving ? 'Salvando...' : 'Salvar Ficha'}
         </button>

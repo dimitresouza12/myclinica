@@ -115,6 +115,56 @@
 }
 .btnRemovePhoto:hover { background: rgba(239, 68, 68, 0.9); }
 
+/* Anexos que não são imagem (PDF, áudio, vídeo) */
+.filePreviewWrap { width: min(100%, 280px); height: auto; }
+.fileTile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 2rem 0.6rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  min-width: 0;
+}
+.fileName {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fileName svg { flex-shrink: 0; }
+.fileLink {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brand-text);
+  text-decoration: underline;
+}
+.fileLoading { font-size: 0.78rem; color: var(--text-secondary); }
+.audioPlayer { width: 100%; max-width: 320px; height: 40px; }
+.videoPreview {
+  width: 100%;
+  max-height: 180px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: #000;
+  display: block;
+}
+.videoPlayer {
+  width: 100%;
+  max-width: 420px;
+  max-height: 320px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: #000;
+  display: block;
+}
+.itemFiles { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem; }
+.itemFile { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+
 .errorMsg {
   font-size: 0.8rem;
   color: #dc2626;
@@ -278,3 +328,56 @@
   justify-content: center;
 }
 .lightboxClose:hover { background: rgba(255, 255, 255, 0.3); }
+
+/* Sigilo de psicologia (CFP 001/2009) — só renderiza com SIGILO_ATIVO */
+.sigiloBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+.sigiloBoxOn { border-color: var(--brand-primary); }
+.sigiloSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  min-height: 44px;
+}
+.sigiloSwitch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.sigiloTrack {
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--border-color);
+  position: relative;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.sigiloThumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.sigiloSwitch input:checked + .sigiloTrack { background: var(--brand-primary); }
+.sigiloSwitch input:checked + .sigiloTrack .sigiloThumb { transform: translateX(18px); }
+.sigiloSwitch input:focus-visible + .sigiloTrack { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.sigiloSwitch input:disabled + .sigiloTrack { opacity: 0.55; }
+.sigiloLabel { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); min-width: 0; }
+.sigiloHelp { font-size: 0.78rem; line-height: 1.45; color: var(--text-secondary); margin: 0; }
+
+.immutableNote {
+  margin: 0.25rem 0 0.75rem;
+  font-size: var(--fs-xs, 0.75rem);
+  line-height: 1.4;
+  color: var(--text-secondary);
+}

@@ -4,11 +4,13 @@ import { useRouter } from 'next/navigation'
 import { callN8n } from '@/lib/supabase-n8n'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
+import { usePermissions } from '@/hooks/usePermissions'
 import { Modal } from '@/components/ui/Modal'
 import btn from '@/components/ui/button.module.css'
 import { formatDate, cleanPhone } from '@/lib/utils'
 import styles from './LegacyAiLeads.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { patientHref } from '@/lib/prontuario/navigation'
 
 interface PatientRow { id: string; phone: string }
 
@@ -73,6 +75,7 @@ const WHATSAPP_ORCAMENTO = 'https://wa.me/5588920020570?text=Ol%C3%A1%2C+gostari
  */
 export function LegacyAiLeads() {
   const { clinic } = useAuthStore()
+  const { canEdit: canEditPatients } = usePermissions('pacientes')
   const router = useRouter()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
@@ -333,14 +336,14 @@ export function LegacyAiLeads() {
                 <button
                   type="button"
                   className={btn.primary}
-                  onClick={() => router.push(`/pacientes?patient=${patientIdMap[cleanPhone(selected.phone)]}`)}
+                  onClick={() => router.push(patientHref(patientIdMap[cleanPhone(selected.phone)]))}
                 >
                   Ver atendimento
                 </button>
               )}
             </>
           ) : (
-            <button type="button" className={btn.primary} onClick={convertToPatient} disabled={converting}>
+            <button type="button" className={btn.primary} onClick={convertToPatient} disabled={converting || !canEditPatients} title={canEditPatients ? undefined : 'Seu perfil só pode visualizar'}>
               {converting ? 'Convertendo...' : 'Converter em paciente'}
             </button>
           )

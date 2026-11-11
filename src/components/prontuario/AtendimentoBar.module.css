@@ -1,0 +1,35 @@
+/* Barra de atendimento no topo do prontuário: discreta, só para o profissional */
+.bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.barRunning { border-color: color-mix(in srgb, var(--st-now, var(--brand-primary)) 45%, var(--border-color)); background: color-mix(in srgb, var(--st-now, var(--brand-primary)) 7%, var(--surface)); }
+.info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 200px; }
+.state { font-size: 0.875rem; font-weight: 600; color: var(--text-primary); }
+.sub { font-size: 0.78rem; color: var(--text-secondary); overflow-wrap: anywhere; }
+.timer {
+  font-size: 1.125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  min-width: 4.5rem;
+  text-align: right;
+}
+.action { min-height: 44px; touch-action: manipulation; }
+.pick { min-width: 0; max-width: 100%; }
+.note { margin: 0 0 12px; font-size: 0.78rem; color: var(--text-tertiary); }
+
+@media (max-width: 480px) {
+  .bar { flex-direction: column; align-items: stretch; }
+  .info { flex-basis: auto; }
+  .timer { text-align: left; }
+  .action { width: 100%; justify-content: center; }
+}

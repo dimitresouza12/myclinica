@@ -68,3 +68,89 @@
 @media (max-width: 768px) {
   .card { min-height: 44px; }
 }
+
+/* Regras restauradas: removidas no redesign anterior, ainda usadas pelo componente */
+.btnRefresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  border-radius: 10px;
+  font-size: 0.855rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btnRefresh:hover { background: var(--bg-secondary); }
+
+/* ─── Kanban ──────────────────────────────────── */
+.loading { color: var(--text-secondary); }
+
+.badgePatient {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: #ECFDF5;
+  color: #065F46;
+  border: 1px solid #A7F3D0;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.badgeProcedimento {
+  display: inline-flex;
+  align-self: flex-start;
+  font-size: 0.72rem;
+  font-weight: 500;
+  background: rgba(77,217,192,0.12);
+  color: #0B9B85;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+}
+
+/* Gate — automação não configurada */
+.gateBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1rem;
+  padding: 4rem 2rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  box-shadow: var(--shadow-sm);
+}
+
+.gateIcon { font-size: 3rem; line-height: 1; }
+
+.gateTitle { font-size: 1.15rem; font-weight: 700; color: var(--text-primary); }
+
+.gateSub { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; max-width: 360px; }
+
+.btnOrcamento {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.4rem;
+  background: #25D366;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity .15s;
+  margin-top: 0.5rem;
+}
+
+.btnOrcamento:hover { opacity: .85; }

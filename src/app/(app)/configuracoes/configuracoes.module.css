@@ -143,8 +143,8 @@ button.footerDelete:hover:not(:disabled) { background: var(--danger-soft); borde
 /* Modal de usuário */
 .permTitle { margin: 0 0 var(--space-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--text-secondary); }
 .permTable { border: 1px solid var(--surface-line); border-radius: var(--radius-inner); overflow: hidden; }
-.permHeader { display: grid; grid-template-columns: 1fr 56px 56px; padding: 0.45rem 0.75rem; background: var(--surface-2); border-bottom: 1px solid var(--surface-line); }
-.permRow { display: grid; grid-template-columns: 1fr 56px 56px; min-height: 44px; padding: 0 0.75rem; border-bottom: 1px solid var(--surface-line); align-items: center; transition: background .1s; }
+.permHeader { display: grid; grid-template-columns: minmax(0, 1fr) 56px 56px; padding: 0.45rem 0.75rem; background: var(--surface-2); border-bottom: 1px solid var(--surface-line); }
+.permRow { display: grid; grid-template-columns: minmax(0, 1fr) 56px 56px; min-height: 44px; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--surface-line); align-items: center; transition: background .1s; }
 .permRow:last-child { border-bottom: none; }
 .permRow:hover { background: var(--surface-2); }
 .permModuleCol { font-size: var(--fs-sm); color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
@@ -156,6 +156,23 @@ button.footerDelete:hover:not(:disabled) { background: var(--danger-soft); borde
 .permExtra { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 0.75rem 0 2.25rem; background: var(--surface-2); border-bottom: 1px solid var(--surface-line); font-size: var(--fs-sm); color: var(--text-secondary); cursor: pointer; }
 .permExtra:last-child { border-bottom: none; }
 .permExtra:hover { color: var(--text-primary); }
+.permExtra { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.permExtraText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.permHelp { display: flex; flex-direction: column; gap: 2px; margin: 0 0 var(--space-3); font-size: var(--fs-xs); color: var(--text-secondary); line-height: 1.5; }
+.permHelp p { margin: 0; }
+.permHelp b { color: var(--text-primary); font-weight: var(--fw-semibold); }
+.permSummary { margin: 0 0 var(--space-3); padding: var(--space-3); background: var(--surface-2); border: 1px solid var(--surface-line); border-radius: var(--radius-inner); font-size: var(--fs-sm); line-height: 1.5; color: var(--text-primary); overflow-wrap: anywhere; }
+.permWarn { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0 0 var(--space-3); padding: var(--space-3); background: #FEF3C7; border-radius: var(--radius-inner); color: #78350F; font-size: var(--fs-sm); line-height: 1.5; }
+.permWarn > svg { flex-shrink: 0; margin-top: 2px; color: #B45309; }
+.permWarn p { margin: 0; overflow-wrap: anywhere; }
+.permWarn p + p { margin-top: var(--space-2); }
+:global([data-theme="dark"]) .permWarn { background: rgba(245, 158, 11, 0.12); color: #FCD34D; }
+:global([data-theme="dark"]) .permWarn > svg { color: #FBBF24; }
+.permTools { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-3); }
+.permModuleText { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.permName { font-size: var(--fs-sm); color: var(--text-primary); font-weight: var(--fw-medium); }
+.permDesc { font-size: var(--fs-xs); color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
+.permAdminOnly { grid-column: 2 / 4; align-self: center; text-align: center; font-size: var(--fs-xs); line-height: 1.3; color: var(--text-secondary); opacity: 0.85; }
 
 @media (max-width: 600px) {
   .card { padding: var(--space-4); }
@@ -177,4 +194,126 @@ button.footerDelete:hover:not(:disabled) { background: var(--danger-soft); borde
   .userBadges { order: 3; width: 100%; margin-top: 0.3rem; }
   .userActions { order: 4; width: 100%; }
   .userActions > button { flex: 1; }
+}
+
+/* Regras restauradas: o redesign anterior removeu estas classes, mas page.tsx ainda as usa */
+.savedMsg { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.875rem; color: #059669; font-weight: 500; }
+
+.pwError { font-size: 0.82rem; color: #EF4444; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; padding: 0.5rem 0.75rem; }
+
+.btnSave { padding: 0 1.5rem; min-height: 44px; background: var(--brand-primary); color: #0D2421; border: none; border-radius: 999px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; }
+
+.btnSave:hover:not(:disabled) { background: var(--brand-secondary); }
+
+.btnSave:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Google Calendar */
+.gcalHeader { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
+
+.gcalDesc { font-size:0.82rem; color:var(--text-secondary); margin-top:0.2rem; line-height:1.5; }
+
+.waLogo { display:flex; align-items:center; justify-content:center; width:2.5rem; height:2.5rem; border-radius:10px; background:rgba(37,211,102,.12); color:#128C7E; flex-shrink:0; }
+
+.btnWaConnect { min-height:44px; padding:0 1.25rem; background:#0F766E; color:#fff; border:none; border-radius:10px; font-size:.875rem; font-weight:600; cursor:pointer; align-self:flex-start; transition:opacity .15s; }
+
+.btnWaConnect:hover { opacity:.9; }
+
+.gcalLogo { display:flex; align-items:center; justify-content:center; width:2.5rem; height:2.5rem; border-radius:10px; background:rgba(66,133,244,.1); color:#4285F4; flex-shrink:0; }
+
+.gcalWarning { background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; padding:.75rem 1rem; font-size:.82rem; color:#92400E; line-height:1.6; }
+
+.gcalConnected { display:flex; align-items:center; gap:.75rem; padding:.75rem 1rem; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px; font-size:.875rem; color:#065F46; font-weight:500; }
+
+.gcalDot { width:8px; height:8px; border-radius:50%; background:#10B981; flex-shrink:0; }
+
+.btnDisconnect { margin-left:auto; padding:.35rem .875rem; border:1px solid #A7F3D0; background:none; border-radius:10px; font-size:.78rem; color:#065F46; cursor:pointer; transition:background .15s; }
+
+.btnDisconnect:hover { background:#D1FAE5; }
+
+.gcalConnect { display:flex; flex-direction:column; gap:.625rem; }
+
+.gcalError { font-size:.82rem; color:#EF4444; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:.5rem .75rem; }
+
+.btnGConnect { padding:.65rem 1.25rem; background:#4285F4; color:#fff; border:none; border-radius:10px; font-size:.875rem; font-weight:600; cursor:pointer; transition:opacity .15s; align-self:flex-start; }
+
+.btnGConnect:hover:not(:disabled) { opacity:.9; }
+
+.btnGConnect:disabled { opacity:.6; cursor:not-allowed; }
+
+.gcalHint { font-size:.75rem; color:var(--text-secondary); }
+
+.docTemplateStatus { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; color: #059669; font-weight: 600; }
+
+.docTemplateStatusEmpty { font-size: 0.78rem; color: var(--text-secondary); }
+
+.docTemplateSaved { font-size: 0.78rem; color: #059669; font-weight: 600; }
+
+.docTemplateError { font-size: 0.78rem; color: #EF4444; }
+
+.btnDocUpload { padding: 0.35rem 0.875rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 10px; font-size: 0.82rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all .15s; white-space: nowrap; }
+
+.btnDocUpload:hover:not(:disabled) { border-color: #4DD9C0; color: #0B9B85; }
+
+.btnDocUpload:disabled { opacity: 0.5; cursor: wait; }
+
+.btnDocCalibrate { padding: 0.35rem 0.875rem; background: transparent; border: 1px solid #4DD9C0; border-radius: 10px; font-size: 0.82rem; font-weight: 600; color: #0B9B85; cursor: pointer; transition: all .15s; white-space: nowrap; }
+
+.btnDocCalibrate:hover { background: rgba(77, 217, 192, .1); }
+
+.usersTitle { font-size: 1.0625rem; font-weight: 600; color: var(--text-primary); }
+
+.btnAddUser { display: flex; align-items: center; gap: 0.4rem; padding: 0 1rem; min-height: 40px; background: var(--brand-primary); color: #0D2421; border: none; border-radius: 999px; font-size: 0.84rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, transform .1s; }
+
+.btnAddUser:hover:not(:disabled) { background: var(--brand-secondary); }
+
+.btnAddUser:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.roleChip { padding: 0.2rem 0.5rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 999px; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); }
+
+.statusDot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+.statusDotActive { background: #10B981; }
+
+.statusDotInactive { background: #9CA3AF; }
+
+.btnEditUser { padding: 0.35rem 0.7rem; min-height: 44px; background: var(--bg-tertiary); border: none; border-radius: 999px; font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all .15s; white-space: nowrap; }
+
+.btnEditUser:hover { color: #0B9B85; background: rgba(77,217,192,0.14); }
+
+.btnDeactivate { padding: 0.35rem 0.7rem; min-height: 44px; background: color-mix(in srgb, var(--st-bad) 9%, transparent); border: none; border-radius: 999px; font-size: 0.76rem; font-weight: 600; color: var(--st-bad); cursor: pointer; transition: all .15s; white-space: nowrap; }
+
+.btnDeactivate:hover { background: rgba(239,68,68,0.15); }
+
+.btnDeactivate:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btnReactivate { padding: 0.35rem 0.7rem; min-height: 44px; background: rgba(16,185,129,0.1); border: none; border-radius: 999px; font-size: 0.76rem; font-weight: 600; color: #059669; cursor: pointer; transition: all .15s; white-space: nowrap; }
+
+.btnReactivate:hover { background: rgba(16,185,129,0.18); }
+
+.btnReactivate:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btnDelete { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.55rem 1rem; min-height: 44px; background: none; border: 1px solid #FCA5A5; border-radius: 999px; font-size: 0.875rem; font-weight: 600; color: #DC2626; cursor: pointer; transition: all .15s; white-space: nowrap; margin-right: auto; }
+
+.auditModule { padding: 0.15rem 0.6rem; background: var(--surface); border: 1px solid var(--surface-line); border-radius: 999px; font-size: 0.72rem; font-weight: 500; color: var(--text-secondary); }
+
+.btnDelete:hover { background: #FEF2F2; }
+
+.btnDelete:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.selfBadge { padding: 0.15rem 0.4rem; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px; font-size: 0.65rem; font-weight: 700; color: #0D2421; }
+
+.permIcon { font-size: 0.9rem; }
+
+/* Toggle ativo/inativo */
+
+/* userRow responsivo */
+@media (max-width: 480px) {
+  .userRow { flex-wrap: wrap; }
+  /* width:100% (não só order) é o que força a quebra pra linha própria —
+     sem isso, os badges (flex-shrink:0, ~190px) ficam na mesma linha do
+     avatar+nome e espremem .userInfo (flex:1) quase a zero, colapsando o
+     nome/e-mail numa coluna de 1 caractere de largura. */
+  .userBadges { order: 3; width: 100%; margin-top: 0.3rem; }
+  .userRow > div:last-child { order: 4; width: 100%; display: flex; gap: 0.4rem; }
+  .btnEditUser, .btnDeactivate, .btnReactivate { flex: 1; justify-content: center; text-align: center; }
 }

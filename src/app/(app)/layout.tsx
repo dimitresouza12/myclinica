@@ -99,7 +99,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     async function syncClinicData() {
       const { data } = await supabase
         .from('clinics')
-        .select('gcal_connected, billing_paid, billing_overdue_since, next_billing_date, asaas_subscription_id, monthly_revenue_goal')
+        .select('gcal_connected, billing_paid, billing_overdue_since, next_billing_date, asaas_subscription_id, monthly_revenue_goal, specialties, is_multi_specialty')
         .eq('id', currentClinic.id)
         .single()
       if (!data) return
@@ -113,6 +113,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if ((data.next_billing_date ?? null) !== currentClinic.nextBillingDate) updates.nextBillingDate = data.next_billing_date ?? null
       if ((data.asaas_subscription_id ?? null) !== currentClinic.asaasSubscriptionId) updates.asaasSubscriptionId = data.asaas_subscription_id ?? null
       if ((data.monthly_revenue_goal ?? null) !== currentClinic.monthlyRevenueGoal) updates.monthlyRevenueGoal = data.monthly_revenue_goal ?? null
+      // Áreas atendidas: uma área adicionada por outro admin/dispositivo (ou o RPC de membro) chega aqui.
+      // Fora da conta de demonstração, onde specialties é um override de sessão.
+      if (!currentClinic.demoMode) {
+        const dbAreas = (data.specialties?.length ? data.specialties : [currentClinic.type]) as import('@/types').ClinicType[]
+        if (dbAreas.join(',') !== currentClinic.specialties.join(',')) updates.specialties = dbAreas
+        if ((data.is_multi_specialty ?? false) !== currentClinic.isMultiSpecialty) updates.isMultiSpecialty = data.is_multi_specialty ?? false
+      }
 
       // Parte do snapshot mais recente do store, não do capturado ao montar: na conta de
       // demonstração a pessoa pode ter escolhido a área depois que este efeito rodou.
@@ -140,8 +147,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if ((latest.clinic.demoMode ?? false) !== demo) setSession({ ...latest.clinic, demoMode: demo }, latest.user)
     }
 
+    // professional_scoped_access também em consulta separada, pelo mesmo motivo do demo_mode.
+    async function syncScopedAccess() {
+      const { data, error } = await supabase
+        .from('clinics')
+        .select('professional_scoped_access')
+        .eq('id', currentClinic.id)
+        .maybeSingle()
+      if (error || !data) return
+      const scoped = (data as { professional_scoped_access?: boolean | null }).professional_scoped_access === true
+      const latest = useAuthStore.getState()
+      if (!latest.clinic || !latest.user || latest.clinic.id !== currentClinic.id) return
+      if ((latest.clinic.professionalScopedAccess ?? false) !== scoped) setSession({ ...latest.clinic, professionalScopedAccess: scoped }, latest.user)
+    }
+
     syncClinicData()
     syncDemoMode()
+    syncScopedAccess()
 
     // Sincroniza a cada 5 min e renova token GCal a cada 45 min
     const syncInterval  = setInterval(syncClinicData, 5 * 60 * 1000)

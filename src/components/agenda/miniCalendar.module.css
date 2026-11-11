@@ -1,17 +1,17 @@
 .cal { min-width: 0; }
-.head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
-.title { font-size: 0.875rem; font-weight: 600; letter-spacing: 0; color: var(--text-primary); }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.title { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0; color: var(--text-primary); }
 .title::first-letter { text-transform: uppercase; }
 .nav { display: flex; gap: 2px; margin-right: -6px; }
-.navBtn { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--text-secondary); cursor: pointer; transition: background 0.12s, color 0.12s; }
+.navBtn { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--text-secondary); cursor: pointer; transition: background 0.12s, color 0.12s; }
 .navBtn:hover { background: var(--surface-2); color: var(--text-primary); }
 .navBtn:focus-visible, .day:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
 
 .grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; }
-.dow { height: 26px; display: grid; place-items: center; font-size: 0.7rem; color: var(--text-secondary); }
+.dow { height: 20px; display: grid; place-items: center; font-size: 0.7rem; color: var(--text-secondary); }
 .day {
   position: relative;
-  height: 34px;
+  height: 28px;
   display: grid;
   place-items: center;
   border: 0;
@@ -19,7 +19,7 @@
   background: transparent;
   color: var(--text-primary);
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background 0.12s;
@@ -33,7 +33,7 @@
 .selected:hover { background: var(--brand-primary); }
 .today { box-shadow: inset 0 0 0 1.5px var(--text-primary); font-weight: 600; }
 .today.selected { box-shadow: none; }
-.dot { position: absolute; bottom: 3px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--brand-accent); }
+.dot { position: absolute; bottom: 2px; left: 50%; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: var(--brand-accent); }
 .selected .dot, .today .dot { background: var(--text-primary); }
 [data-theme="dark"] .dot { background: var(--brand-primary); }
 [data-theme="dark"] .selected .dot, .today .dot { background: var(--text-primary); }
@@ -45,3 +45,9 @@
 .on.toneOn, .on.toneOff, .on.tonePending { background: var(--brand-light); }
 
 .selected.toneOn, .selected.toneOff, .selected.tonePending { background: var(--brand-primary); }
+
+/* tablet largo (toque): alvos maiores que no desktop com mouse */
+@media (pointer: coarse) {
+  .day { height: 40px; }
+  .navBtn { width: 36px; height: 36px; }
+}

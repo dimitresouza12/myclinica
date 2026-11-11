@@ -6,7 +6,9 @@ import styles from './TabFaceograma.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
-import { FACE_TOOLS, FACE_VW, FACE_VH, faceRegion, sessionTotals, formatTotal, type FaceAnnotation, type FaceSession } from '@/lib/faceograma'
+import { ZoomCanvas, ExpandButton } from './ZoomCanvas'
+import { roundCoord } from '@/lib/zoomView'
+import { FACE_TOOLS, FACE_VW, FACE_VH, FACE_SHORTCUTS, faceRegion, sessionTotals, formatTotal, type FaceAnnotation, type FaceSession } from '@/lib/faceograma'
 
 const tColor = (k: string) => FACE_TOOLS.find(t => t.key === k)?.color ?? '#6B7280'
 const tBg    = (k: string) => FACE_TOOLS.find(t => t.key === k)?.bg    ?? '#F3F4F6'
@@ -42,8 +44,8 @@ export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChang
   const [selId,     setSelId]     = useState<string | null>(null)
   const [saving,    setSaving]    = useState(false)
   const [saved,     setSaved]     = useState(false)
+  const [fs,        setFs]        = useState(false)
   const sidePanelRef = useRef<HTMLDivElement>(null)
-  const svgRef = useRef<SVGSVGElement>(null)
   const dragRef = useRef<{ id: string; cx: number; cy: number; moved: boolean } | null>(null)
   const nudgeRef = useRef<{ id: string; t: number } | null>(null)
 
@@ -66,12 +68,12 @@ export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChang
 
   // Auto-scroll to side panel on mobile when a point is selected
   useEffect(() => {
-    if (!selId || !sidePanelRef.current) return
+    if (!selId || !sidePanelRef.current || fs) return
     if (window.innerWidth > 680) return
     setTimeout(() => {
       sidePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }, 50)
-  }, [selId])
+  }, [selId, fs])
 
   const session = sessions[activeIdx]
   const selAnn  = session?.annotations.find(a => a.id === selId) ?? null
@@ -102,23 +104,32 @@ export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChang
     updSession(s => ({ ...s, annotations: s.annotations.filter(a => a.id !== id) }))
     setSelId(null)
   }
-  function toSvg(e: { clientX: number; clientY: number }) {
-    const r = svgRef.current!.getBoundingClientRect()
+  // coordenada do viewBox sob o ponteiro, na tela normal (sem zoom): pelo SVG que contém o ponto
+  function toSvg(e: React.PointerEvent<SVGGElement>) {
+    const r = e.currentTarget.ownerSVGElement!.getBoundingClientRect()
     return { x: Math.round(((e.clientX - r.left) / r.width) * VW), y: Math.round(((e.clientY - r.top) / r.height) * VH) }
   }
 
+  // Toque ou clique em (x, y): se pegou um ponto existente seleciona (ou fecha a seleção) e devolve true
+  function selectAt(x: number, y: number, radius: number): boolean {
+    for (const a of session.annotations) {
+      if (Math.hypot(a.x - x, a.y - y) < radius) { setSelId(a.id === selId ? null : a.id); return true }
+    }
+    return false
+  }
+  function placeAt(x: number, y: number) {
+    const ann: Annotation = { id: crypto.randomUUID(), x, y, type: tool, qty: '', note: '', region: faceRegion(x, y) }
+    rememberForUndo()
+    updSession(s => ({ ...s, annotations: [...s.annotations, ann] }))
+    setSelId(ann.id)
+  }
   function handleFaceClick(e: React.MouseEvent<SVGSVGElement>) {
     const svg  = e.currentTarget
     const rect = svg.getBoundingClientRect()
     const x    = Math.round(((e.clientX - rect.left)  / rect.width)  * VW)
     const y    = Math.round(((e.clientY - rect.top)   / rect.height) * VH)
-    for (const a of session.annotations) {
-      if (Math.hypot(a.x - x, a.y - y) < 14) { setSelId(a.id === selId ? null : a.id); return }
-    }
-    const ann: Annotation = { id: crypto.randomUUID(), x, y, type: tool, qty: '', note: '', region: faceRegion(x, y) }
-    rememberForUndo()
-    updSession(s => ({ ...s, annotations: [...s.annotations, ann] }))
-    setSelId(ann.id)
+    if (selectAt(x, y, 14)) return
+    placeAt(x, y)
   }
 
   function addSession() {
@@ -161,6 +172,166 @@ export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChang
     setSaving(false); onSaved()
   }
 
+  function renderToolbar() {
+    return (
+      <div className={styles.toolbar} data-hscroll>
+        <span className={styles.toolbarLabel}>Marcar:</span>
+        {FACE_TOOLS.map(t => (
+          <button key={t.key} type="button"
+            aria-label={t.label}
+            aria-pressed={tool === t.key}
+            className={`${styles.toolBtn} ${tool === t.key ? styles.toolBtnActive : ''}`}
+            style={{ '--tc': t.color, '--tbg': t.bg } as React.CSSProperties}
+            onClick={() => setTool(t.key)}>
+            <span className={styles.toolDot} style={{ background: t.color }}/>
+            <span className={styles.toolLabel}>{t.label}</span>
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  // `p` prefixa os ids dos campos: a tela cheia e a tela normal podem estar montadas ao mesmo tempo
+  function renderAnnEditor(p: string) {
+    if (!selAnn) return null
+    return (
+      <div className={styles.annPanel}
+        style={{ '--ann-color': tColor(selAnn.type) } as React.CSSProperties}>
+        <div className={styles.annHeader}>
+          <span className={styles.annDot} style={{ background: tColor(selAnn.type) }}/>
+          <span className={styles.annTitle}>{tLabel(selAnn.type)}</span>
+          <button type="button" className={styles.annDel} onClick={() => delAnn(selAnn.id)} aria-label="Remover este ponto" title="Remover este ponto"><Icon name="close" size={13} /></button>
+        </div>
+        <div className={styles.annFields}>
+          <div className={styles.annField}>
+            <p className={styles.annFieldLabel}>Tipo de tratamento</p>
+            <div className={styles.typeGrid}>
+              {FACE_TOOLS.map(t => (
+                <button key={t.key} type="button"
+                  className={`${styles.typeBtn} ${selAnn.type === t.key ? styles.typeBtnActive : ''}`}
+                  style={{ '--tc': t.color, '--tbg': t.bg } as React.CSSProperties}
+                  onClick={() => { if (selAnn.type !== t.key) { rememberForUndo(); updAnn(selAnn.id, { type: t.key }) } }}>
+                  <span style={{ background: t.color, width: 7, height: 7, borderRadius: '50%', display: 'inline-block' }}/>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className={styles.annField}>
+            <label className={styles.annFieldLabel} htmlFor={`${p}annRegion`}>Região</label>
+            <input id={`${p}annRegion`} type="text" className={styles.annInput}
+              value={selAnn.region ?? ''}
+              placeholder="ex: Glabela, Frontal..."
+              onChange={e => updAnn(selAnn.id, { region: e.target.value })}/>
+          </div>
+          <div className={styles.annField}>
+            <p className={styles.annFieldLabel}>Dose / Volume</p>
+            <input type="text" className={styles.annInput}
+              value={selAnn.qty}
+              placeholder="ex: 20U, 0.5ml, 1A..."
+              onChange={e => updAnn(selAnn.id, { qty: e.target.value })}/>
+          </div>
+          <div className={styles.annField}>
+            <p className={styles.annFieldLabel}>Nota</p>
+            <textarea className={styles.annNote} rows={3}
+              value={selAnn.note}
+              placeholder="Local específico, técnica, dilução..."
+              onChange={e => updAnn(selAnn.id, { note: e.target.value })}/>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // A imagem de referência e os pontos, em coordenadas do viewBox. `k` escala os marcadores (1 na tela normal;
+  // na tela cheia é o inverso do zoom, para manterem o tamanho visual) e `toVB` converte o evento em coordenada.
+  function renderImageAndPoints(k: number, toVB: (e: React.PointerEvent<SVGGElement>) => { x: number; y: number }) {
+    return (
+      <>
+        {/* Anatomical reference — WebP (19 KB) com fallback PNG (1.3 MB) */}
+        <image
+          href="/rosto.webp"
+          x="0" y="0"
+          width={VW} height={VH}
+          preserveAspectRatio="xMidYMid meet"
+        />
+        {session.annotations.map(a => {
+          const isSel = a.id === selId
+          const col   = tColor(a.type)
+          return (
+            <g key={a.id} className={styles.point}
+              style={{ cursor: 'grab', touchAction: isSel ? 'none' : undefined }}
+              // k = 1 na tela normal. Na tela cheia o marcador escala em torno do próprio centro (tamanho visual constante)
+              transform={k === 1 ? undefined : `translate(${a.x} ${a.y}) scale(${k}) translate(${-a.x} ${-a.y})`}
+              // diz à tela cheia que este ponto cuida do próprio arraste (no toque, só o selecionado)
+              data-zc-drag={isSel ? 'all' : 'mouse'}
+              role="button" tabIndex={0}
+              aria-label={`${tLabel(a.type)}${a.region ? `, ${a.region}` : ''}${a.qty ? `, ${a.qty}` : ''}. Enter edita, setas movem, Delete remove.`}
+              onPointerDown={e => {
+                if (e.button !== 0) return
+                // no toque, só arrasta o ponto que já está selecionado (senão atrapalha rolar a tela)
+                if (e.pointerType === 'touch' && a.id !== selId) return
+                dragRef.current = { id: a.id, cx: e.clientX, cy: e.clientY, moved: false }
+                e.currentTarget.setPointerCapture(e.pointerId)
+              }}
+              onPointerMove={e => {
+                const d = dragRef.current
+                if (!d || d.id !== a.id) return
+                if (!d.moved) {
+                  if (Math.hypot(e.clientX - d.cx, e.clientY - d.cy) < 5) return
+                  d.moved = true
+                  rememberForUndo()
+                }
+                const p = toVB(e)
+                updAnn(a.id, movedPatch(a, clamp(p.x, 0, VW), clamp(p.y, 0, VH)))
+              }}
+              onPointerUp={() => { setTimeout(() => { dragRef.current = null }, 0) }}
+              onPointerCancel={() => { setTimeout(() => { dragRef.current = null }, 0) }}
+              onKeyDown={e => {
+                const step = e.shiftKey ? 8 : 2
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelId(a.id) }
+                else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); delAnn(a.id) }
+                else if (e.key.startsWith('Arrow')) {
+                  e.preventDefault()
+                  // setas seguidas no mesmo ponto contam como um único passo do "Desfazer"
+                  const now = Date.now()
+                  if (nudgeRef.current?.id !== a.id || now - nudgeRef.current.t > 800) rememberForUndo()
+                  nudgeRef.current = { id: a.id, t: now }
+                  updAnn(a.id, movedPatch(
+                    a,
+                    clamp(a.x + (e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0), 0, VW),
+                    clamp(a.y + (e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0), 0, VH),
+                  ))
+                }
+              }}
+              onClick={e => {
+                e.stopPropagation()
+                if (dragRef.current?.moved) { setSelId(a.id); return }
+                setSelId(a.id === selId ? null : a.id)
+              }}>
+              {isSel && (
+                <circle cx={a.x} cy={a.y} r={20} fill="none"
+                  stroke={col} strokeWidth="1.2" strokeDasharray="3,2" opacity="0.7"/>
+              )}
+              {/* Drop shadow for visibility against complex background */}
+              <circle cx={a.x + 0.5} cy={a.y + 0.8} r={isSel ? 13.5 : 10.5}
+                fill="rgba(0,0,0,0.35)" opacity="0.6"/>
+              <circle cx={a.x} cy={a.y} r={isSel ? 13 : 10}
+                fill={tBg(a.type)} fillOpacity="0.93"
+                stroke={col} strokeWidth={isSel ? 2.4 : 1.8}/>
+              <text x={a.x} y={a.y + 3.5} textAnchor="middle"
+                fill={col} fontSize="8.5" fontWeight="700"
+                style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                {tAbbr(a.type)}
+              </text>
+            </g>
+          )
+        })}
+
+      </>
+    )
+  }
+
   if (!session) return null
 
   return (
@@ -191,107 +362,18 @@ export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChang
         <div className={styles.faceCol}>
 
           {/* Tool selector */}
-          <div className={styles.toolbar} data-hscroll>
-            <span className={styles.toolbarLabel}>Marcar:</span>
-            {FACE_TOOLS.map(t => (
-              <button key={t.key} type="button"
-                aria-label={t.label}
-                aria-pressed={tool === t.key}
-                className={`${styles.toolBtn} ${tool === t.key ? styles.toolBtnActive : ''}`}
-                style={{ '--tc': t.color, '--tbg': t.bg } as React.CSSProperties}
-                onClick={() => setTool(t.key)}>
-                <span className={styles.toolDot} style={{ background: t.color }}/>
-                <span className={styles.toolLabel}>{t.label}</span>
-              </button>
-            ))}
-          </div>
+          {renderToolbar()}
 
           {/* Anatomical face reference + annotation overlay */}
           <div className={styles.faceWrap}>
+            <ExpandButton onClick={() => setFs(true)} />
             <svg
-              ref={svgRef}
               viewBox={`0 0 ${VW} ${VH}`}
               className={styles.faceSvg}
               onClick={handleFaceClick}
               style={{ cursor: 'crosshair' }}
             >
-              {/* Anatomical reference — WebP (19 KB) com fallback PNG (1.3 MB) */}
-              <image
-                href="/rosto.webp"
-                x="0" y="0"
-                width={VW} height={VH}
-                preserveAspectRatio="xMidYMid meet"
-              />
-
-              {/* ── Annotation points ── */}
-              {session.annotations.map(a => {
-                const isSel = a.id === selId
-                const col   = tColor(a.type)
-                return (
-                  <g key={a.id} className={styles.point}
-                    style={{ cursor: 'grab', touchAction: isSel ? 'none' : undefined }}
-                    role="button" tabIndex={0}
-                    aria-label={`${tLabel(a.type)}${a.region ? `, ${a.region}` : ''}${a.qty ? `, ${a.qty}` : ''}. Enter edita, setas movem, Delete remove.`}
-                    onPointerDown={e => {
-                      if (e.button !== 0) return
-                      // no toque, só arrasta o ponto que já está selecionado (senão atrapalha rolar a tela)
-                      if (e.pointerType === 'touch' && a.id !== selId) return
-                      dragRef.current = { id: a.id, cx: e.clientX, cy: e.clientY, moved: false }
-                      e.currentTarget.setPointerCapture(e.pointerId)
-                    }}
-                    onPointerMove={e => {
-                      const d = dragRef.current
-                      if (!d || d.id !== a.id) return
-                      if (!d.moved) {
-                        if (Math.hypot(e.clientX - d.cx, e.clientY - d.cy) < 5) return
-                        d.moved = true
-                        rememberForUndo()
-                      }
-                      const p = toSvg(e)
-                      updAnn(a.id, movedPatch(a, clamp(p.x, 0, VW), clamp(p.y, 0, VH)))
-                    }}
-                    onPointerUp={() => { setTimeout(() => { dragRef.current = null }, 0) }}
-                    onPointerCancel={() => { setTimeout(() => { dragRef.current = null }, 0) }}
-                    onKeyDown={e => {
-                      const step = e.shiftKey ? 8 : 2
-                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelId(a.id) }
-                      else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); delAnn(a.id) }
-                      else if (e.key.startsWith('Arrow')) {
-                        e.preventDefault()
-                        // setas seguidas no mesmo ponto contam como um único passo do "Desfazer"
-                        const now = Date.now()
-                        if (nudgeRef.current?.id !== a.id || now - nudgeRef.current.t > 800) rememberForUndo()
-                        nudgeRef.current = { id: a.id, t: now }
-                        updAnn(a.id, movedPatch(
-                          a,
-                          clamp(a.x + (e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0), 0, VW),
-                          clamp(a.y + (e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0), 0, VH),
-                        ))
-                      }
-                    }}
-                    onClick={e => {
-                      e.stopPropagation()
-                      if (dragRef.current?.moved) { setSelId(a.id); return }
-                      setSelId(a.id === selId ? null : a.id)
-                    }}>
-                    {isSel && (
-                      <circle cx={a.x} cy={a.y} r={20} fill="none"
-                        stroke={col} strokeWidth="1.2" strokeDasharray="3,2" opacity="0.7"/>
-                    )}
-                    {/* Drop shadow for visibility against complex background */}
-                    <circle cx={a.x + 0.5} cy={a.y + 0.8} r={isSel ? 13.5 : 10.5}
-                      fill="rgba(0,0,0,0.35)" opacity="0.6"/>
-                    <circle cx={a.x} cy={a.y} r={isSel ? 13 : 10}
-                      fill={tBg(a.type)} fillOpacity="0.93"
-                      stroke={col} strokeWidth={isSel ? 2.4 : 1.8}/>
-                    <text x={a.x} y={a.y + 3.5} textAnchor="middle"
-                      fill={col} fontSize="8.5" fontWeight="700"
-                      style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                      {tAbbr(a.type)}
-                    </text>
-                  </g>
-                )
-              })}
+              {renderImageAndPoints(1, toSvg)}
             </svg>
           </div>
 
@@ -304,6 +386,30 @@ export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChang
             </button>
           </div>
         </div>
+
+        {/* ── Tela cheia: a mesma sessão e as mesmas ferramentas, numa visão ampliada ── */}
+        <ZoomCanvas
+          open={fs} onClose={() => setFs(false)}
+          title="Faceograma em tela cheia" vw={VW} vh={VH} markerPx={1.5}
+          shortcuts={FACE_SHORTCUTS}
+          onSelectAt={selectAt} onPlace={placeAt}
+          panel={
+            <div className={styles.fsPanel}>
+              {renderToolbar()}
+              <div className={styles.faceFoot}>
+                <p className={styles.faceHint}>{session.annotations.length} {session.annotations.length === 1 ? 'ponto marcado' : 'pontos marcados'}</p>
+                <button type="button" className={styles.undoBtn} onClick={undo} disabled={undoStack.length === 0}>
+                  Desfazer
+                </button>
+              </div>
+              {renderAnnEditor('fs-')}
+            </div>
+          }>
+          {ctx => renderImageAndPoints(ctx.k, e => {
+            const p = ctx.toViewBox(e.clientX, e.clientY)
+            return { x: roundCoord(p.x), y: roundCoord(p.y) }
+          })}
+        </ZoomCanvas>
 
         {/* ── Side panel ── */}
         <div className={styles.sidePanel} ref={sidePanelRef}>
@@ -321,54 +427,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChang
           </div>
 
           {/* Selected annotation editor */}
-          {selAnn && (
-            <div className={styles.annPanel}
-              style={{ '--ann-color': tColor(selAnn.type) } as React.CSSProperties}>
-              <div className={styles.annHeader}>
-                <span className={styles.annDot} style={{ background: tColor(selAnn.type) }}/>
-                <span className={styles.annTitle}>{tLabel(selAnn.type)}</span>
-                <button type="button" className={styles.annDel} onClick={() => delAnn(selAnn.id)} aria-label="Remover este ponto" title="Remover este ponto"><Icon name="close" size={13} /></button>
-              </div>
-
-              <div className={styles.annFields}>
-                <div className={styles.annField}>
-                  <p className={styles.annFieldLabel}>Tipo de tratamento</p>
-                  <div className={styles.typeGrid}>
-                    {FACE_TOOLS.map(t => (
-                      <button key={t.key} type="button"
-                        className={`${styles.typeBtn} ${selAnn.type === t.key ? styles.typeBtnActive : ''}`}
-                        style={{ '--tc': t.color, '--tbg': t.bg } as React.CSSProperties}
-                        onClick={() => { if (selAnn.type !== t.key) { rememberForUndo(); updAnn(selAnn.id, { type: t.key }) } }}>
-                        <span style={{ background: t.color, width: 7, height: 7, borderRadius: '50%', display: 'inline-block' }}/>
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className={styles.annField}>
-                  <label className={styles.annFieldLabel} htmlFor="annRegion">Região</label>
-                  <input id="annRegion" type="text" className={styles.annInput}
-                    value={selAnn.region ?? ''}
-                    placeholder="ex: Glabela, Frontal..."
-                    onChange={e => updAnn(selAnn.id, { region: e.target.value })}/>
-                </div>
-                <div className={styles.annField}>
-                  <p className={styles.annFieldLabel}>Dose / Volume</p>
-                  <input type="text" className={styles.annInput}
-                    value={selAnn.qty}
-                    placeholder="ex: 20U, 0.5ml, 1A..."
-                    onChange={e => updAnn(selAnn.id, { qty: e.target.value })}/>
-                </div>
-                <div className={styles.annField}>
-                  <p className={styles.annFieldLabel}>Nota</p>
-                  <textarea className={styles.annNote} rows={3}
-                    value={selAnn.note}
-                    placeholder="Local específico, técnica, dilução..."
-                    onChange={e => updAnn(selAnn.id, { note: e.target.value })}/>
-                </div>
-              </div>
-            </div>
-          )}
+          {renderAnnEditor('')}
 
           {/* Total por produto na sessão */}
           {totals.totals.length > 0 && (

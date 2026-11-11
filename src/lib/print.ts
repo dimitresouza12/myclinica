@@ -2,10 +2,12 @@ import type { Patient, MedicalRecord, RecordEntry, FinancialRecord, ClinicType, 
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
 import { formatBrPhone } from '@/lib/phoneFormat'
 import { formatCpf } from '@/lib/numericFormat'
-import { ALL_TEETH, UPPER, LOWER, FACE_NAME, FACE_KEYS, DEFAULT_STATUS, statusLabel, statusColor, statusBg, type SurfaceKey } from '@/lib/odontograma'
+import { EVERY_TOOTH, UPPER, LOWER, UPPER_DECIDUOUS, LOWER_DECIDUOUS, EXTRA_NAME, FACE_NAME, FACE_KEYS, DEFAULT_STATUS, statusLabel, statusColor, statusBg, type SurfaceKey } from '@/lib/odontograma'
+import { stripConfidentialForPrint } from '@/lib/sigilo'
+import { textoVisivel } from '@/lib/escalas/registro'
 import { FACE_TOOLS, FACE_VW, FACE_VH, sessionTotals, formatTotal, type FaceSession } from '@/lib/faceograma'
 
-interface ClinicInfo {
+export interface ClinicInfo {
   name: string
   logo?: string
   address?: string
@@ -54,18 +56,26 @@ function formatDateBR(iso: string | null | undefined): string {
 }
 
 // Texto digitado pelo usuário vai para dentro de HTML escrito à mão: escapa antes.
-const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+export const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-interface PrintTooth { status?: string; surfaces?: Partial<Record<SurfaceKey, string>>; note?: string; planned?: Record<string, boolean> }
+interface PrintTooth { status?: string; surfaces?: Partial<Record<SurfaceKey, string>>; note?: string; planned?: Record<string, boolean>; endo?: number[]; pin?: number[]; bracket?: boolean }
 
-/** Odontograma: mapa das 32 posições (cor = condição) e tabela dos dentes com alteração ou observação. */
+/** Odontograma: mapa dos permanentes (e dos decíduos que tiverem registro) e tabela dos dentes com alteração ou observação. */
 function odontogramaSection(record: MedicalRecord | null): string {
   const raw = (record?.odontogram ?? {}) as Record<string, unknown>
   const teeth: Record<number, PrintTooth> = {}
-  for (const n of ALL_TEETH) {
+  for (const n of EVERY_TOOTH) {
     const v = raw[n]
     if (typeof v === 'string') teeth[n] = { status: v }
     else if (v && typeof v === 'object') teeth[n] = v as PrintTooth
+  }
+  // Canal, pino e aparelho: tratamentos que convivem com a condição do dente.
+  const extras = (t: PrintTooth) => {
+    const out: { status: string; text: string }[] = []
+    if (Array.isArray(t.endo) && t.endo.length > 0) out.push({ status: 'endodontia', text: `${EXTRA_NAME.endo}${t.planned?.endo ? ' (a realizar)' : ''}` })
+    if (Array.isArray(t.pin) && t.pin.length > 0) out.push({ status: 'pino', text: `${EXTRA_NAME.pin}${t.planned?.pin ? ' (a realizar)' : ''}` })
+    if (t.bracket) out.push({ status: 'aparelho', text: `${EXTRA_NAME.bracket}${t.planned?.bracket ? ' (a realizar)' : ''}` })
+    return out
   }
   const marks = (t: PrintTooth) => {
     const out: string[] = []
@@ -74,9 +84,10 @@ function odontogramaSection(record: MedicalRecord | null): string {
       const v = t.surfaces?.[k]
       if (v && v !== DEFAULT_STATUS && !out.includes(v)) out.push(v)
     }
+    for (const x of extras(t)) if (!out.includes(x.status)) out.push(x.status)
     return out
   }
-  const rows = ALL_TEETH.filter(n => teeth[n] && (marks(teeth[n]).length > 0 || teeth[n].note?.trim()))
+  const rows = EVERY_TOOTH.filter(n => teeth[n] && (marks(teeth[n]).length > 0 || teeth[n].note?.trim()))
   if (rows.length === 0) return ''
 
   const cell = (n: number) => {
@@ -89,13 +100,17 @@ function odontogramaSection(record: MedicalRecord | null): string {
         : `border:1px solid ${statusColor(main)};background:${statusBg(main)};color:${statusColor(main)}`
     return `<div style="${style};border-radius:4px;text-align:center;font-size:10px;font-weight:700;padding:5px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact">${n}</div>`
   }
-  const rowOf = (list: number[]) => `<div style="display:grid;grid-template-columns:repeat(16,1fr);gap:3px;margin-bottom:6px">${list.map(cell).join('')}</div>`
+  const rowOf = (list: number[]) => `<div style="display:grid;grid-template-columns:repeat(${list.length},1fr);gap:3px;margin-bottom:6px">${list.map(cell).join('')}</div>`
+  const hasDeciduous = [...UPPER_DECIDUOUS, ...LOWER_DECIDUOUS].some(n => rows.includes(n))
+  const deciduousMap = hasDeciduous
+    ? `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#777;margin:6px 0 4px">Decíduos</div><div style="max-width:62%">${rowOf(UPPER_DECIDUOUS)}${rowOf(LOWER_DECIDUOUS)}</div>`
+    : ''
   const used = Array.from(new Set(rows.flatMap(n => marks(teeth[n]))))
 
   return `
     <div style="page-break-inside:avoid">
       <h3>Odontograma</h3>
-      ${rowOf(UPPER)}${rowOf(LOWER)}
+      ${rowOf(UPPER)}${rowOf(LOWER)}${deciduousMap}
       <div style="display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:#555;margin-bottom:10px">
         ${used.map(k => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${statusColor(k)};margin-right:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact"></span>${esc(statusLabel(k))}</span>`).join('')}
       </div>
@@ -107,8 +122,11 @@ function odontogramaSection(record: MedicalRecord | null): string {
           ${rows.map(n => {
             const t = teeth[n]
             const whole = t.status && t.status !== DEFAULT_STATUS ? `${statusLabel(t.status)}${t.planned?.all ? ' (a realizar)' : ''}` : '—'
-            const faces = FACE_KEYS.filter(k => t.surfaces?.[k] && t.surfaces[k] !== DEFAULT_STATUS)
-              .map(k => `${FACE_NAME[k]}: ${statusLabel(t.surfaces![k]!)}${t.planned?.[k] ? ' (a realizar)' : ''}`).join('; ') || '—'
+            const faces = [
+              ...FACE_KEYS.filter(k => t.surfaces?.[k] && t.surfaces[k] !== DEFAULT_STATUS)
+                .map(k => `${FACE_NAME[k]}: ${statusLabel(t.surfaces![k]!)}${t.planned?.[k] ? ' (a realizar)' : ''}`),
+              ...extras(t).map(x => x.text),
+            ].join('; ') || '—'
             return `<tr>
               <td style="padding:5px 4px;border-bottom:1px solid #eee;font-weight:700">${n}</td>
               <td style="padding:5px 4px;border-bottom:1px solid #eee">${esc(whole)}</td>
@@ -169,11 +187,54 @@ function faceogramaSection(record: MedicalRecord | null): string {
       </div>`).join('')}`
 }
 
+export interface ProntuarioSections {
+  /** Evolução clínica (entradas do histórico). Padrão: true. */
+  evolucao?: boolean
+  /** Odontograma e faceograma, quando houver marcações. Padrão: true. */
+  mapas?: boolean
+}
+
+/** Bloco "Evolução clínica": só as entradas não sigilosas. Vazio quando não há nada a imprimir. */
+function evolucaoSection(entries: RecordEntry[]): string {
+  // Anotações sigilosas (psicologia) nunca saem em papel.
+  const printableEntries = stripConfidentialForPrint(entries)
+  if (printableEntries.length === 0) return ''
+  return `
+      <h3>Evolução Clínica</h3>
+      ${printableEntries.map((e) => `
+        <div style="margin-bottom:10px;padding:8px;border:1px solid #eee;border-radius:4px">
+          <div style="font-size:11px;color:#888;margin-bottom:4px">${new Date(e.created_at).toLocaleDateString('pt-BR', { day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit' })}</div>
+          <div class="field-value">${textoVisivel(e.entry_text ?? '')}</div>
+        </div>
+      `).join('')}
+    `
+}
+
+/** Imprime só a evolução clínica do paciente (sem as anotações sigilosas). */
+export function printEvolucao(clinic: ClinicInfo, patient: Patient, entries: RecordEntry[]) {
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Evolução – ${patient.name}</title>${baseStyles()}</head><body>
+    ${clinicHeader(clinic)}
+    <h2>Evolução Clínica</h2>
+    <div class="grid" style="margin-bottom:16px">
+      ${field('Paciente', patient.name)}
+      ${field('Data', new Date().toLocaleDateString('pt-BR'))}
+    </div>
+    ${evolucaoSection(entries) || '<p class="field-value">Nenhuma evolução registrada.</p>'}
+    <div class="footer">
+      <span>${clinic.name}</span>
+      <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
+    </div>
+  </body></html>`
+  openPrint(html)
+}
+
 // area: qual namespace do jsonb (anamnesis/clinical_exam por área — ver Bloco B)
 // imprimir. Os rótulos vêm de getSpecialtyConfig(area), então o impresso
 // mostra os campos certos da área do profissional, não mais fixo em odonto
 // (limitação de antes: outras áreas imprimiam com rótulos de odontologia).
-export function printProntuario(clinic: ClinicInfo, patient: Patient, record: MedicalRecord | null, entries: RecordEntry[], area: ClinicType) {
+export function printProntuario(clinic: ClinicInfo, patient: Patient, record: MedicalRecord | null, entries: RecordEntry[], area: ClinicType, sections: ProntuarioSections = {}) {
+  const withEvolucao = sections.evolucao !== false
+  const withMapas = sections.mapas !== false
   const an = record?.anamnesis?.[area] ?? {}
   const ex = record?.clinical_exam?.[area] ?? {}
   const specialty = getSpecialtyConfig(area)
@@ -204,17 +265,9 @@ export function printProntuario(clinic: ClinicInfo, patient: Patient, record: Me
       ${specialty.clinicalExamFields.map(([k, label]) => field(label, ex[k])).join('')}
     </div>
     ${record?.treatment_plan ? `<h3>Plano de Tratamento</h3><div class="field-value">${record.treatment_plan}</div>` : ''}
-    ${odontogramaSection(record)}
-    ${faceogramaSection(record)}
-    ${entries.length > 0 ? `
-      <h3>Evolução Clínica</h3>
-      ${entries.map((e) => `
-        <div style="margin-bottom:10px;padding:8px;border:1px solid #eee;border-radius:4px">
-          <div style="font-size:11px;color:#888;margin-bottom:4px">${new Date(e.created_at).toLocaleDateString('pt-BR', { day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit' })}</div>
-          <div class="field-value">${e.entry_text ?? ''}</div>
-        </div>
-      `).join('')}
-    ` : ''}
+    ${withMapas ? odontogramaSection(record) : ''}
+    ${withMapas ? faceogramaSection(record) : ''}
+    ${withEvolucao ? evolucaoSection(entries) : ''}
     <div class="footer">
       <span>${clinic.name}</span>
       <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
@@ -289,6 +342,39 @@ export function printContrato(clinic: ClinicInfo, patient: Patient, contractText
   openPrint(html)
 }
 
+export interface AntesDepoisSide { url: string; date: string; procedure?: string }
+
+/** Comparação Antes/Depois lado a lado (o slider não existe no papel). Só deve ser chamada depois do aviso de consentimento de imagem. */
+export function printAntesDepois(clinic: ClinicInfo, patientName: string, before: AntesDepoisSide, after: AntesDepoisSide, interval?: string) {
+  const side = (label: string, s: AntesDepoisSide) => `
+    <figure style="flex:1;min-width:0;margin:0">
+      <div style="aspect-ratio:3/4;border:1px solid #ccc;border-radius:6px;overflow:hidden;background:#f3f3f3">
+        <img src="${esc(s.url)}" style="width:100%;height:100%;object-fit:cover;display:block" />
+      </div>
+      <figcaption style="margin-top:8px;text-align:center">
+        <div style="font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em">${label}</div>
+        <div style="font-size:12px;color:#555">${esc(s.date)}</div>
+        ${s.procedure ? `<div style="font-size:11px;color:#777;margin-top:2px">${esc(s.procedure)}</div>` : ''}
+      </figcaption>
+    </figure>`
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Antes e depois – ${esc(patientName)}</title>${baseStyles()}</head><body>
+    ${clinicHeader(clinic)}
+    <h2>Comparativo Antes e Depois</h2>
+    <div class="field"><div class="field-label">Paciente</div><div class="field-value">${esc(patientName)}</div></div>
+    ${interval ? `<div class="field"><div class="field-label">Intervalo</div><div class="field-value">${esc(interval)}</div></div>` : ''}
+    <div style="display:flex;gap:16px;margin-top:16px">
+      ${side('Antes', before)}
+      ${side('Depois', after)}
+    </div>
+    <p style="margin-top:20px;font-size:11px;color:#777">Uso e divulgação destas imagens dependem de autorização expressa do paciente (Termo de uso de imagem).</p>
+    <div class="footer">
+      <span>${esc(clinic.name)}</span>
+      <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
+    </div>
+  </body></html>`
+  openPrint(html)
+}
+
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   dinheiro: 'Dinheiro',
   pix: 'PIX',
@@ -332,8 +418,8 @@ export function printRecibo(clinic: ClinicInfo, record: FinancialRecord, patient
   openPrint(html)
 }
 
-export function printDocumento(contentHtml: string, bgImage: string | null) {
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Documento</title>
+export function buildDocumentoHtml(contentHtml: string, bgImage: string | null): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Documento</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       @page { size: A4; margin: 0; }
@@ -351,8 +437,10 @@ export function printDocumento(contentHtml: string, bgImage: string | null) {
       p { margin: 0 0 4px; }
       ul { padding-left: 20px; }
     </style></head><body><div class="page">${contentHtml}</div></body></html>`
+}
 
-  openPrint(html)
+export function printDocumento(contentHtml: string, bgImage: string | null) {
+  openPrint(buildDocumentoHtml(contentHtml, bgImage))
 }
 
 // O caminho calibrado (papel timbrado com campos posicionados) não usa mais
@@ -390,7 +478,7 @@ function preloadImages(urls: string[], timeoutMs = 4000): Promise<void> {
   return Promise.race([Promise.all(loaders).then(() => undefined), timeout])
 }
 
-async function openPrint(html: string) {
+export async function openPrint(html: string) {
   const w = window.open('', '_blank', 'width=900,height=700')
   if (!w) {
     // window.open volta null quando o navegador bloqueia o pop-up — sem
@@ -399,6 +487,11 @@ async function openPrint(html: string) {
     window.alert('Não abriu a impressão — seu navegador bloqueou o pop-up. Libere pop-ups para este site e tente de novo.')
     return
   }
+  await printHtmlInWindow(w, html)
+}
+
+/** Escreve o HTML numa aba JÁ aberta (aberta no clique, antes de uma espera assíncrona) e imprime. */
+export async function printHtmlInWindow(w: Window, html: string) {
   await preloadImages(extractImageUrls(html))
   w.document.write(html)
   w.document.close()

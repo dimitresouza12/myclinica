@@ -140,6 +140,7 @@
 .toolLabel { white-space: nowrap; }
 
 .faceWrap {
+  position: relative;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -445,3 +446,11 @@
 .totals small { color: var(--text-tertiary); font-size: 0.7rem; min-width: 3.4rem; text-align: right; }
 .totalName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .totalsHint { margin-top: 0.4rem; font-size: 0.7rem; color: var(--text-secondary); }
+
+/* ── Tela cheia (ZoomCanvas): mesmo estado, painel de ferramentas em alvos de 44px ── */
+.fsPanel { display: flex; flex-direction: column; gap: 0.6rem; }
+.fsPanel .toolbar { padding: 0.4rem 0.5rem; }
+.fsPanel .toolBtn, .fsPanel .typeBtn, .fsPanel .undoBtn { min-height: 44px; }
+.fsPanel .annDel { width: 44px; height: 44px; }
+.fsPanel .annInput { min-height: 44px; }
+.fsPanel .faceHint { text-align: left; padding: 0; font-size: 0.78rem; }

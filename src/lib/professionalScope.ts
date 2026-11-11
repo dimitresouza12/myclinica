@@ -1,4 +1,4 @@
-import type { AuthUser } from '@/types'
+import type { AuthClinic, AuthUser } from '@/types'
 
 // Modelo de acesso por profissional (docs/plano-acesso-por-profissional-2026-08-12.md):
 // admin e recepção sempre veem tudo da clínica; qualquer outro profissional
@@ -31,4 +31,16 @@ export function ownProfessionalLookup(user: AuthUser | null | undefined):
   if (user.professionalId) return { column: 'id', value: user.professionalId }
   if (user.clinicUserId) return { column: 'clinic_user_id', value: user.clinicUserId }
   return null
+}
+
+/**
+ * Clínica com acesso por profissional ligado E usuário que não é admin/recepção/superadmin.
+ * Pra esse perfil a RLS de patients só mostra paciente que já tem consulta/registro na área dele,
+ * então um paciente recém-criado por ele sumiria da lista: o cadastro direto fica com a recepção.
+ */
+export function isScopedProfessional(
+  clinic: Pick<AuthClinic, 'professionalScopedAccess'> | null | undefined,
+  user: AuthUser | null | undefined,
+): boolean {
+  return !!clinic?.professionalScopedAccess && !!user && !isAdminOrRecepcao(user)
 }

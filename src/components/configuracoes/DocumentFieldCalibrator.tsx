@@ -11,11 +11,14 @@ import btn from '@/components/ui/button.module.css'
 import type { DocumentTemplateType, FieldPosition } from '@/types'
 import styles from './DocumentFieldCalibrator.module.css'
 import { IntegerInput } from '@/components/ui/NumericInput'
+import type { CouncilInfo } from '@/lib/professionalCouncil'
 
 interface Props {
   type: DocumentTemplateType
   pdfUrl: string
   initialFields: FieldPosition[]
+  // Conselho da(s) área(s) da clínica — dá o rótulo do campo de registro e liga o campo RQE.
+  council?: CouncilInfo
   onSave: (fields: FieldPosition[]) => void
   onClose: () => void
 }
@@ -27,6 +30,7 @@ const SAMPLE_VALUES: Record<string, string> = {
   data: '31 de agosto de 2026',
   medico: 'Dr. Rafael Toledo',
   registro: 'CRM-SP 123456',
+  rqe: 'RQE 12345',
   endereco_paciente: 'Rua das Flores, 123 — São Paulo/SP',
   comprador_nome: 'Maria da Silva',
   comprador_doc: 'RG 12.345.678-9',
@@ -34,7 +38,7 @@ const SAMPLE_VALUES: Record<string, string> = {
   corpo: 'Uso contínuo — 1 comprimido ao dia, por 30 dias.',
 }
 
-export function DocumentFieldCalibrator({ type, pdfUrl, initialFields, onSave, onClose }: Props) {
+export function DocumentFieldCalibrator({ type, pdfUrl, initialFields, council, onSave, onClose }: Props) {
   const { bg, loading, load } = useTemplateBackground()
   useEffect(() => { load(pdfUrl) }, [pdfUrl, load])
 
@@ -60,7 +64,7 @@ export function DocumentFieldCalibrator({ type, pdfUrl, initialFields, onSave, o
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [preview, setPreview] = useState(false)
 
-  const catalog = getFieldCatalog(type)
+  const catalog = getFieldCatalog(type, council)
   const size = bg ? getTemplateCanvasSize(containerWidth, bg.naturalW, bg.naturalH) : { width: 0, height: 0 }
   const selected = fields.find(f => f.key === selectedKey) ?? null
 

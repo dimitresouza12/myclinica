@@ -1,0 +1,13 @@
+.page { min-height: 100dvh; background: var(--bg-page); color: var(--text-primary); padding: 24px 0 40px; }
+.shell { width: 100%; max-width: 480px; margin: 0 auto; padding: 0 16px; }
+.card { background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--radius-card); padding: 22px 18px; box-shadow: var(--shadow-card); display: flex; flex-direction: column; gap: 14px; }
+.title { margin: 0; font-size: 1.4rem; font-weight: 800; line-height: 1.2; }
+.badgeOk, .badgeWarn { align-self: flex-start; margin: 0; font-size: 0.8rem; font-weight: 700; padding: 4px 12px; border-radius: var(--radius-full); }
+.badgeOk { background: var(--brand-light); color: var(--brand-text); }
+.badgeWarn { background: #FEE2E2; color: #991B1B; }
+.dl { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.dl dt { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); }
+.dl dd { margin: 2px 0 0; font-size: 1rem; overflow-wrap: anywhere; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; }
+.note { margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary); }
+[data-theme="dark"] .badgeWarn { background: #4A1D1D; color: #FECACA; }

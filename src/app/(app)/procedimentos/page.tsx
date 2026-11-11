@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
+import { usePermissions } from '@/hooks/usePermissions'
 import { formatCurrency } from '@/lib/utils'
 import type { Procedure } from '@/types'
 import { getSpecialtyConfig } from '@/lib/specialtyConfig'
@@ -25,6 +26,8 @@ const BLANK: FormData = { name: '', price: '', is_free: false, category: '', is_
 
 function ProcedimentosContent() {
   const { clinic } = useAuthStore()
+  // "Editar" = criar, alterar e excluir; sem ele a tela é só de consulta
+  const { canEdit } = usePermissions('procedimentos')
   // Clínica multi-área soma as sugestões de todas as áreas que ela já tem
   // (clinic.specialties), não só a área principal do cadastro.
   const clinicSpecialties = clinic?.specialties?.length ? clinic.specialties : (clinic ? [clinic.type] : [])
@@ -69,6 +72,7 @@ function ProcedimentosContent() {
   }
 
   function openNew() {
+    if (!canEdit) return
     setEditingId(null)
     setForm(BLANK)
     setShowModal(true)
@@ -77,6 +81,7 @@ function ProcedimentosContent() {
   }
 
   function openEdit(p: Procedure) {
+    if (!canEdit) return
     setEditingId(p.id)
     setForm({ name: p.name, price: String(p.price), is_free: p.is_free, category: p.category ?? '', is_active: p.is_active })
     setShowModal(true)
@@ -146,7 +151,7 @@ function ProcedimentosContent() {
       <PageHeader
         title="Procedimentos"
         subtitle={`${procedures.length} ${procedures.length === 1 ? 'procedimento' : 'procedimentos'}, ${active} ${active === 1 ? 'ativo' : 'ativos'}`}
-        actions={<button type="button" className={btn.primary} onClick={openNew}><Icon name="plus" size={15} /> Novo procedimento</button>}
+        actions={<button type="button" className={btn.primary} onClick={openNew} disabled={!canEdit} title={canEdit ? undefined : 'Seu perfil só pode visualizar'}><Icon name="plus" size={15} /> Novo procedimento</button>}
       />
 
       <div className={styles.stats}>
@@ -173,9 +178,9 @@ function ProcedimentosContent() {
               </thead>
               <tbody>
                 {procedures.length === 0 ? (
-                  <tr><td colSpan={5} className={t.empty}>Nenhum procedimento cadastrado. Clique em &quot;Novo procedimento&quot; para começar.</td></tr>
+                  <tr><td colSpan={5} className={t.empty}>{canEdit ? 'Nenhum procedimento cadastrado. Clique em "Novo procedimento" para começar.' : 'Nenhum procedimento cadastrado.'}</td></tr>
                 ) : procedures.map(p => (
-                  <tr key={p.id} className={`${t.clickable} ${styles.row}`} onClick={() => openEdit(p)}>
+                  <tr key={p.id} className={`${canEdit ? t.clickable : ''} ${styles.row}`} onClick={() => openEdit(p)}>
                     <td className={t.strong}>{p.name}</td>
                     <td data-label="Categoria" className={t.muted}>{p.category ?? '-'}</td>
                     <td data-label="Valor" className={t.num}>
@@ -190,13 +195,15 @@ function ProcedimentosContent() {
                     </td>
                     <td className={styles.actionsCell}>
                       <div className={t.rowActions} onClick={e => e.stopPropagation()}>
-                        <MoreMenu
-                          label={`Mais ações de ${p.name}`}
-                          items={[
-                            { label: 'Editar', icon: 'edit', onClick: () => openEdit(p) },
-                            { label: 'Excluir', icon: 'trash', danger: true, onClick: () => handleDelete(p) },
-                          ]}
-                        />
+                        {canEdit && (
+                          <MoreMenu
+                            label={`Mais ações de ${p.name}`}
+                            items={[
+                              { label: 'Editar', icon: 'edit', onClick: () => openEdit(p) },
+                              { label: 'Excluir', icon: 'trash', danger: true, onClick: () => handleDelete(p) },
+                            ]}
+                          />
+                        )}
                       </div>
                     </td>
                   </tr>

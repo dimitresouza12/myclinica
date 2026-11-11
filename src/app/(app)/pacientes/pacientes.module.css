@@ -15,7 +15,11 @@
   to   { opacity: 1; transform: none; }
 }
 
+.scopeNote { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--surface); color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4; }
+.scopeNote svg { flex-shrink: 0; margin-top: 2px; }
+
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.stats3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 .loading { color: var(--text-secondary); padding: 2rem 22px; }
 .wrap { padding: 0 10px 10px; }
@@ -50,6 +54,11 @@
 
 .balance { color: #0B9B85; font-weight: 600; }
 :global([data-theme="dark"]) .balance { color: var(--st-now); }
+
+.pkgChip { display: block; margin-left: auto; min-height: 28px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--bg-tertiary); color: var(--text-secondary); font: inherit; font-size: 0.72rem; font-weight: 600; white-space: nowrap; cursor: pointer; font-variant-numeric: tabular-nums; }
+.pkgChip:hover { border-color: var(--brand-primary); color: var(--text-primary); }
+.pkgChip:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.pkgChipLow { background: #FFFBEB; border-color: #FCD34D; color: #92400E; }
 
 .row { position: relative; }
 .actionsCell { width: 1%; white-space: nowrap; }

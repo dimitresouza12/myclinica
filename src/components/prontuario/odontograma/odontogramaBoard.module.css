@@ -1,0 +1,73 @@
+/* ── Odontograma anatômico em SVG: arcada, zonas clicáveis e figuras avulsas ── */
+
+/* Cores da camada sobre a foto (contornos finos, sombra e brilho ao passar o mouse). Vale para a arcada, o painel do dente e as figuras. */
+.theme {
+  --odo-line: rgba(70, 80, 96, 0.7);
+  --odo-shadow: rgba(30, 48, 70, 0.34);
+  --odo-hover: color-mix(in srgb, var(--odo-tool, #0b9b85) 26%, transparent);
+}
+:global([data-theme="dark"]) .theme {
+  --odo-line: rgba(226, 232, 240, 0.7);
+  --odo-shadow: rgba(0, 0, 0, 0.78);
+  --odo-hover: color-mix(in srgb, var(--odo-tool, #4DD9C0) 34%, transparent);
+}
+
+.archWrap { position: relative; min-width: 0; }
+.scroller {
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+  border-radius: 16px; padding: 2px 0 6px;
+}
+.board { display: block; width: 100%; height: auto; margin: 0 auto; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.board *, .figOcc *, .fig * { pointer-events: none; }
+
+/* desenho */
+.divider { stroke: var(--odo-line); stroke-width: 0.8px; stroke-opacity: 0.3; stroke-linecap: round; vector-effect: non-scaling-stroke; fill: none; }
+.shadowFlood { flood-color: var(--odo-shadow); flood-opacity: 1; }
+.ghost { opacity: 0.24; }
+.absentX { stroke: #ef4444; stroke-width: 2.2px; stroke-linecap: round; opacity: 0.8; fill: none; vector-effect: non-scaling-stroke; }
+.midline { stroke: var(--text-tertiary); stroke-opacity: 0.55; stroke-width: 1px; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; }
+.midlineH { stroke: var(--border-color); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+
+/* destaque da coluna do dente */
+.colBg { fill: transparent; transition: fill 0.18s ease, stroke 0.18s ease; }
+.colBg[data-state='hover'] { fill: color-mix(in srgb, var(--odo-tool, #0b9b85) 9%, transparent); }
+.colBg[data-state='sel'] { fill: color-mix(in srgb, var(--brand-accent) 14%, transparent); stroke: var(--brand-accent); stroke-width: 1.2px; vector-effect: non-scaling-stroke; }
+.colBg[data-state='touched'] { fill: color-mix(in srgb, #2bc4a9 13%, transparent); }
+
+/* zonas clicáveis: transparentes, com brilho na cor da ferramenta ao passar o mouse */
+.board .hit, .figOcc .hit {
+  pointer-events: all; fill: transparent; stroke: transparent; cursor: pointer; outline: none;
+  transition: fill 0.16s ease, stroke 0.16s ease;
+}
+.board .hit:hover, .figOcc .hit:hover { fill: var(--odo-hover); stroke: var(--odo-tool, #0b9b85); stroke-width: 1.5px; }
+.board .hit:focus-visible, .figOcc .hit:focus-visible { fill: var(--odo-hover); stroke: var(--brand-accent); stroke-width: 2.6px; }
+.figOcc .hit[data-active='true'] { fill: var(--odo-hover); stroke: var(--brand-accent); stroke-width: 2.4px; }
+.board[data-tool='limpar'] .hit { cursor: cell; }
+
+/* números FDI */
+.board .numPill {
+  pointer-events: all; fill: var(--surface); stroke: var(--border-color); stroke-width: 1px; vector-effect: non-scaling-stroke;
+  cursor: pointer; outline: none; transition: fill 0.16s ease, stroke 0.16s ease;
+}
+.board .numPill:hover { stroke: var(--brand-accent); fill: var(--brand-light); }
+.board .numPill:focus-visible { stroke: var(--brand-accent); stroke-width: 2.6px; }
+.board .numPill[data-sel] { fill: var(--brand-accent); stroke: var(--brand-accent); }
+.numText { font-size: 12.5px; font-weight: 700; fill: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.numText[data-sel] { fill: #fff; }
+.numDot { stroke: var(--surface); stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+
+.sideRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 6px 2px; min-height: 24px; }
+.archTitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.01em; color: var(--text-secondary); }
+.archTitle[data-hover] { color: var(--text-primary); }
+.sideLabel { flex: none; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-tertiary); }
+
+/* figuras avulsas */
+.fig { display: block; width: 100%; height: auto; overflow: visible; }
+.figOcc { max-width: 190px; margin: 0 auto; }
+/* ampliação para escolher a face com o dedo (FacePickerModal) */
+.figOccLg { max-width: min(100%, 280px); }
+.thumbFig { width: 26px; height: 28px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .colBg, .board .hit, .figOcc .hit, .board .numPill { transition: none; }
+}

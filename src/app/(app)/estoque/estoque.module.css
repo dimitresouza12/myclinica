@@ -3,6 +3,7 @@
 @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 
 .stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:18px; }
+.stats5 { grid-template-columns:repeat(5, minmax(0, 1fr)); gap:14px; }
 .cardMeta { font-size:.78rem; color:var(--text-secondary); }
 .chartEmpty { padding:48px 0; text-align:center; color:var(--text-secondary); font-size:.875rem; }
 .chartLoading { height:220px; }
@@ -11,7 +12,7 @@
 
 .filters { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 22px 14px; }
 /* no desktop a busca fica na barra de cima; este campo só aparece no celular */
-.search { height:40px; padding:0 14px; min-width:0; width:100%; border:1px solid var(--surface-line); border-radius:999px; background:var(--surface-2); color:var(--text-primary); font:inherit; font-size:.875rem; outline:none; }
+.search { height:44px; min-height:44px; padding:0 14px; min-width:0; width:100%; border:1px solid var(--surface-line); border-radius:999px; background:var(--surface-2); color:var(--text-primary); font:inherit; font-size:.875rem; outline:none; }
 .search:focus { border-color:var(--brand-primary); }
 @media (min-width:769px) { .localSearch { display:none; } }
 
@@ -28,7 +29,10 @@
 @media (hover:none) { .shortcuts { display:none; } }
 .capitalize { text-transform:capitalize; }
 
-@media (max-width:1100px) { .stats { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+@media (max-width:1100px) {
+  .stats, .stats5 { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .stats5 > :last-child { grid-column:1 / -1; }
+}
 @media (max-width:768px) {
   .stats { gap:12px; }
   .wrap { padding:0; }
@@ -36,6 +40,6 @@
   .row .actionsCell { position:absolute; top:8px; right:6px; width:auto; display:block; padding:0 !important; }
   .row .who { padding-right:36px; }
 }
-@media (max-width:480px) { .stats { grid-template-columns:minmax(0, 1fr); } }
+@media (max-width:480px) { .stats, .stats5 { grid-template-columns:minmax(0, 1fr); } }
 
 

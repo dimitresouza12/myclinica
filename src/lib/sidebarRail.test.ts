@@ -86,4 +86,28 @@ describe('sidebarRail', () => {
     vi.advanceTimersByTime(1000)
     expect(open).toBe(true)
   })
+
+  it('reset (hidratação ou sair do desktop) não trava a primeira passada do mouse', () => {
+    ctl.reset()
+    ctl.pointerEnter()
+    vi.advanceTimersByTime(RAIL_OPEN_DELAY)
+    expect(open).toBe(true)
+  })
+
+  it('collapse por clique continua travando até o mouse sair e voltar', () => {
+    ctl.collapse()
+    ctl.pointerEnter()
+    vi.advanceTimersByTime(RAIL_OPEN_DELAY * 3)
+    expect(open).toBe(false)
+    ctl.pointerLeave()
+    ctl.pointerEnter()
+    vi.advanceTimersByTime(RAIL_OPEN_DELAY)
+    expect(open).toBe(true)
+  })
+
+  it('pointerEnter repetido (pointermove) não reinicia nem duplica a abertura', () => {
+    ctl.pointerEnter(); ctl.pointerEnter(); ctl.pointerEnter()
+    vi.advanceTimersByTime(RAIL_OPEN_DELAY)
+    expect(open).toBe(true)
+  })
 })

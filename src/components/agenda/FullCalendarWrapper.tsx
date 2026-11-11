@@ -49,6 +49,8 @@ interface Props {
   /** horas visíveis na Semana ("07:00:00"); padrão 06:00 a 21:00 */
   slotMinTime?: string
   slotMaxTime?: string
+  /** perfil só de visualização: sem selecionar horário nem arrastar consulta (padrão: pode) */
+  canEdit?: boolean
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -64,7 +66,7 @@ export function statusColor(status: string) {
 }
 
 const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullCalendarWrapper(
-  { events, view, googleCalendarId, onEventClick, onDateSelect, onTitleChange, onRangeChange, onEventDrop, slotMinTime = '06:00:00', slotMaxTime = '21:00:00' },
+  { events, view, googleCalendarId, onEventClick, onDateSelect, onTitleChange, onRangeChange, onEventDrop, slotMinTime = '06:00:00', slotMaxTime = '21:00:00', canEdit = true },
   ref
 ) {
   const GAPI_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
@@ -96,9 +98,9 @@ const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullC
       googleCalendarApiKey={GAPI_KEY}
       eventSources={eventSources}
       nowIndicator
-      selectable
-      selectMirror
-      editable
+      selectable={canEdit}
+      selectMirror={canEdit}
+      editable={canEdit}
       eventDurationEditable={false}
       eventDrop={(arg: EventDropArg) => {
         if (arg.event.id && arg.event.start) onEventDrop?.(arg.event.id, arg.event.start, arg.revert)
@@ -145,6 +147,12 @@ const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullC
       // dele, menor — texto ilegível quando dois profissionais têm horário
       // colidindo. Com false, divide a largura entre os dois lado a lado.
       slotEventOverlap={false}
+      // Semana: no máximo 2 consultas simultâneas lado a lado; o excedente vira o chip "+N mais" (abre a lista).
+      // Mais de 2 numa coluna de ~200px ficariam com ~60px cada e ilegíveis.
+      eventMaxStack={2}
+      // altura mínima legível no layout (consulta de 15 min não vira uma faixa) e card curto (até ~30 min) em uma linha só
+      eventMinHeight={24}
+      eventShortHeight={40}
       dayMaxEvents={4}
       moreLinkText={n => `+${n} mais`}
       slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}

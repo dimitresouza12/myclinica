@@ -96,7 +96,7 @@ export function weekConfirmation(appts: Appt[], week: Date[]): { confirmed: numb
   for (const a of appts) {
     if (!keys.has(localDayKey(new Date(a.scheduled_at)))) continue
     if (a.status === 'agendado') total++
-    else if (a.status === 'confirmado' || a.status === 'concluido') { total++; confirmed++ }
+    else if (a.status === 'confirmado' || a.status === 'arrived' || a.status === 'in_progress' || a.status === 'concluido') { total++; confirmed++ }
   }
   return { confirmed, total, rate: total > 0 ? confirmed / total : null }
 }

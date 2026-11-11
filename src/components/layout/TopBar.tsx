@@ -11,6 +11,10 @@ import { usePermissionsStore } from '@/store/permissions'
 import { usePageSearch } from '@/store/pageSearch'
 import { useDashboardData, useEstoqueData, useProfessionals } from '@/hooks/useClinicData'
 import { useSchedules, scheduleOf } from '@/hooks/useSchedules'
+import { useEstoqueLotes } from '@/hooks/useEstoqueLotes'
+import { resumoAlertas, textoAlertaValidade } from '@/lib/estoque/lotes'
+import { withExpiryAlert } from '@/lib/estoque/alertaValidade'
+import { hojeBrasil } from '@/lib/brasilDate'
 import { scheduleReminder } from '@/lib/agenda/reminder'
 import { isAdminOrRecepcao } from '@/lib/professionalScope'
 import { ALERT_META, PRIMARY_LABEL, SYSTEM_ALERT_LINK, alertMessage, buildAlertRows, buildWaLink, countUrgent, dismissAlert, groupAlertRows, ignoredStorageKey, isDismissed, parseDismissed, subscribeIgnoredAlerts, withLowStockAlert, withScheduleAlert, type AlertRow } from '@/lib/actionAlerts'
@@ -20,6 +24,7 @@ import { userInitials, userRoleLabel } from '@/lib/roleLabel'
 import { logout } from '@/lib/logout'
 import { useDemoPicker } from '@/store/demoPicker'
 import { CLINIC_TYPE_LABELS } from '@/lib/specialtyConfig'
+import { patientHref } from '@/lib/prontuario/navigation'
 
 interface Props {
   onMenuToggle: () => void
@@ -99,8 +104,11 @@ function AlertsMenu() {
   const { permissions, loaded } = usePermissionsStore()
   const canSee = !!user && (user.role === 'admin' || !!user.isSuperAdmin || (loaded && !!permissions['dashboard']?.can_view))
   const clinicId = canSee && !user?.isSuperAdmin ? clinic?.id : undefined
+  // nome, telefone e "Abrir paciente" só para quem tem Ver em Pacientes; sem isso ficam só os avisos da clínica (estoque, WhatsApp, escala)
+  const canSeePatients = !!user && (user.role === 'admin' || !!user.isSuperAdmin || (loaded && !!permissions['pacientes']?.can_view))
   const { data } = useDashboardData(clinicId)
   const { data: estoque } = useEstoqueData(clinicId)
+  const { data: estoqueLotes } = useEstoqueLotes(clinicId)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   // linhas em que o WhatsApp já foi aberto: o botão principal vira "Já resolvi"
@@ -138,6 +146,8 @@ function AlertsMenu() {
   }
 
   const lowStock = (estoque?.items ?? []).filter(i => i.quantity <= i.min_quantity).length
+  // lotes vencidos ou vencendo em 30 dias (só aparece depois da migration de lote e validade)
+  const validadeTexto = useMemo(() => (estoqueLotes?.available ? textoAlertaValidade(resumoAlertas(estoqueLotes.lots, hojeBrasil())) : null), [estoqueLotes])
   // lembrete de escala: só para quem edita a escala (admin e recepção)
   const scheduleClinicId = isAdminOrRecepcao(user) && !user?.isSuperAdmin ? clinic?.id : undefined
   const { data: schedules } = useSchedules(scheduleClinicId)
@@ -155,8 +165,10 @@ function AlertsMenu() {
     [schedules, professionals, now],
   )
   const rows = useMemo(
-    () => buildAlertRows(withScheduleAlert(withLowStockAlert(data?.alerts ?? [], lowStock), reminder), now).filter(r => !isDismissed(dismissed[r.key], r)),
-    [data, lowStock, reminder, now, dismissed],
+    () => buildAlertRows(withScheduleAlert(withExpiryAlert(withLowStockAlert(data?.alerts ?? [], lowStock), validadeTexto), reminder), now)
+      .filter(r => canSeePatients || !!SYSTEM_ALERT_LINK[r.reason])
+      .filter(r => !isDismissed(dismissed[r.key], r)),
+    [data, lowStock, validadeTexto, reminder, now, dismissed, canSeePatients],
   )
   const groups = useMemo(() => groupAlertRows(rows), [rows])
   const urgent = useMemo(() => countUrgent(rows), [rows])
@@ -181,7 +193,7 @@ function AlertsMenu() {
         </a>
       )
     }
-    return <Link className={styles.alertAct} href={`/pacientes?patient=${r.patientId}`} onClick={() => setOpen(false)}>Abrir paciente</Link>
+    return <Link className={styles.alertAct} href={patientHref(r.patientId)} onClick={() => setOpen(false)}>Abrir paciente</Link>
   }
 
   const list = (
@@ -224,7 +236,7 @@ function AlertsMenu() {
                       <button type="button" className={styles.alertMenuBtn} onClick={() => dismiss(r, 'resolved')}>Já resolvi</button>
                       <button type="button" className={styles.alertMenuBtn} onClick={() => dismiss(r, 'snoozed')} title="Esconde por 7 dias">Adiar 7 dias</button>
                       {!SYSTEM_ALERT_LINK[r.reason] && waMeNumber(r.phone) && (
-                        <Link className={styles.alertMenuBtn} href={`/pacientes?patient=${r.patientId}`} onClick={() => setOpen(false)}>Abrir paciente</Link>
+                        <Link className={styles.alertMenuBtn} href={patientHref(r.patientId)} onClick={() => setOpen(false)}>Abrir paciente</Link>
                       )}
                     </div>
                   )}

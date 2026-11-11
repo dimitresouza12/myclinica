@@ -1,0 +1,23 @@
+.page { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.toolbar { display: flex; flex-direction: column; gap: 12px; }
+.filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.search { flex: 1 1 260px; min-width: 0; max-width: 420px; }
+.toggle { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--surface); color: var(--text-primary); font: inherit; font-size: 0.86rem; cursor: pointer; touch-action: manipulation; }
+.toggle[aria-pressed='true'] { background: var(--brand-primary); border-color: var(--brand-primary); color: #0D2421; font-weight: 600; }
+.pillsScroll { overflow-x: auto; max-width: 100%; }
+.list { display: flex; flex-direction: column; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 14px 4px; border-top: 1px solid var(--surface-line); min-height: 64px; }
+.row:first-child { border-top: 0; }
+.main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.titleLine { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.patient { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); text-decoration: none; overflow-wrap: anywhere; }
+.patient:hover { text-decoration: underline; }
+.meta { font-size: 0.8rem; color: var(--text-secondary-strong); overflow-wrap: anywhere; }
+.alert { font-size: 0.8rem; font-weight: 600; color: var(--st-wait); }
+.alertBad { color: var(--st-bad); }
+.open { flex: none; text-decoration: none; }
+.note { margin: 0; padding: 0.65rem 0.8rem; border-radius: var(--radius-field); background: var(--surface-2); color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5; }
+@media (max-width: 600px) {
+  .row { flex-direction: column; align-items: stretch; }
+  .open { align-self: flex-start; }
+}

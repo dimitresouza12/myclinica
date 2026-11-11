@@ -38,6 +38,7 @@ const NAV_GROUPS: { title: string | null; items: NavItem[] }[] = [
   ] },
   { title: 'Clínica', items: [
     { path: '/procedimentos', label: 'Procedimentos', icon: 'procedures' },
+    { path: '/contratos',     label: 'Contratos',     icon: 'receipt', module: 'prontuario' },
     { path: '/estoque',       label: 'Estoque',       icon: 'stock' },
     { path: '/equipe',        label: 'Equipe',        icon: 'team' },
   ] },
@@ -166,7 +167,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
       </nav>
 
       <div className={styles.bottom}>
-        {trialDaysLeft !== null && (
+        {trialDaysLeft !== null && canSee(SETTINGS_ITEM) && (
           <Link href="/configuracoes?tab=plano" className={styles.trialNote} title={isCollapsed ? 'Período de teste: ver planos' : undefined} onClick={onMobileClose}>
             <span className={styles.trialIcon} aria-hidden><Icon name="clock" size={16} /></span>
             <span className={styles.trialText}>

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
+import { usePermissions } from '@/hooks/usePermissions'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { StockItem, StockMovement } from '@/types'
 import { Modal } from '@/components/ui/Modal'
@@ -24,6 +25,21 @@ import { PillTabs } from '@/components/ui/PillTabs'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatusDot } from '@/components/ui/StatusDot'
 import { MoreMenu, type MoreMenuItem } from '@/components/ui/MoreMenu'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { showToast } from '@/components/ui/Toast'
+import { hojeBrasil } from '@/lib/brasilDate'
+import { useEstoqueLotes, usePacientesDasMovimentacoes } from '@/hooks/useEstoqueLotes'
+import {
+  SEM_LOTE, faixaValidade, filtrarPorValidade, formatarDia, lotesDoItem, ordenarFefo, planejarBaixa, resumoAlertas, resumoItem,
+  saldoDoLote, textoValidade, type FiltroValidade, type PlanoBaixa, type StockLot, type ValidadeFaixa,
+} from '@/lib/estoque/lotes'
+import { mensagemPlano, registrarEntrada, registrarSaida } from '@/lib/estoque/lotesApi'
+import { baixarArquivo, imprimirHtml, linhasDeLotes, lotesParaCsv, lotesParaHtml } from '@/lib/estoque/lotesExport'
+import { LotesTab } from './LotesTab'
+import { LoteModal, type LoteModalAlvo } from './LoteModal'
+import { RecallModal } from './RecallModal'
+import { PacienteBusca, type PacienteEscolhido } from './PacienteBusca'
+import lotesStyles from './lotes.module.css'
 import btn from '@/components/ui/button.module.css'
 import t from '@/components/ui/table.module.css'
 
@@ -32,12 +48,18 @@ const AreaTrendChart = dynamic(() => import('@/components/ui/AreaTrendChart').th
 const UNITS = ['un', 'caixa', 'ml', 'L', 'kg', 'g', 'par', 'rolo']
 
 const BLANK_MOV = { quantity: '', reason: '', type: 'entrada' as 'entrada' | 'saida' | 'ajuste' }
+const BLANK_LOTE = { lote: '', validade: '', custo: '', fornecedor: '', nota: '' }
+const TONE_FAIXA: Record<ValidadeFaixa, 'ok' | 'wait' | 'warn' | 'bad' | 'idle'> = { vencido: 'bad', ate30: 'warn', ate60: 'wait', ate90: 'wait', ok: 'ok', sem_validade: 'idle' }
+const FILTRO_TEXTO: Record<FiltroValidade, string> = { todos: 'todos os lotes', vencidos: 'lotes vencidos', '30': 'vencem em até 30 dias', '60': 'vencem em até 60 dias', '90': 'vencem em até 90 dias' }
 
-type Tab = 'produtos' | 'movimentacoes'
+type Tab = 'produtos' | 'movimentacoes' | 'lotes'
 type ModalMode = 'item' | 'entrada' | 'saida' | null
 
 function EstoqueContent() {
   const { clinic, user } = useAuthStore()
+  // "Editar" = criar, alterar, movimentar, arquivar, exportar; sem ele a tela é só de consulta
+  const { canEdit } = usePermissions('estoque')
+  const readOnlyTitle = 'Seu perfil só pode visualizar'
   // Clínica multi-área usa a união de categorias das áreas que ela já tem
   // (ex: material odonto + ração vet), não só a área principal do cadastro.
   const CATEGORIES = mergeSpecialtyConfigs(clinic?.specialties?.length ? clinic.specialties : [clinic?.type ?? 'odonto']).stockCategories
@@ -61,9 +83,51 @@ function EstoqueContent() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // lote e validade: só existe depois da migration 20261114_estoque_lotes.sql; sem ela tudo abaixo fica desligado
+  const { data: lotesData } = useEstoqueLotes(clinic?.id)
+  const lotsOn = !!lotesData?.available
+  const lots = useMemo(() => lotesData?.lots ?? [], [lotesData])
+  const hoje = hojeBrasil()
+  const [filterValidade, setFilterValidade] = useState<FiltroValidade>('todos')
+  const [showEmpty, setShowEmpty] = useState(false)
+  const [loteForm, setLoteForm] = useState(BLANK_LOTE)
+  const [saidaLote, setSaidaLote] = useState('')
+  const [saidaPaciente, setSaidaPaciente] = useState<PacienteEscolhido | null>(null)
+  const [loteAlvo, setLoteAlvo] = useState<LoteModalAlvo | null>(null)
+  const [recallLot, setRecallLot] = useState<StockLot | null>(null)
+  const pacienteIds = useMemo(() => movements.map(m => m.patient_id).filter((x): x is string => !!x), [movements])
+  const { data: nomesPacientes } = usePacientesDasMovimentacoes(clinic?.id, lotsOn ? pacienteIds : [])
+
   function loadData() {
     queryClient.invalidateQueries({ queryKey: ['estoque', clinic?.id] })
+    queryClient.invalidateQueries({ queryKey: ['estoque-lotes', clinic?.id] })
   }
+
+  const itemsById = useMemo(() => Object.fromEntries(items.map(i => [i.id, i])) as Record<string, StockItem>, [items])
+  const lotsById = useMemo(() => Object.fromEntries(lots.map(l => [l.id, l])) as Record<string, StockLot>, [lots])
+  const resumos = useMemo(() => new Map(items.map(i => [i.id, resumoItem(i, lots, hoje)])), [items, lots, hoje])
+  const alertas = useMemo(() => resumoAlertas(lots, hoje), [lots, hoje])
+
+  const filteredLots = useMemo(() => {
+    const term = search.toLowerCase()
+    const base = filterValidade === 'todos' && showEmpty ? lots : lots.filter(l => saldoDoLote(l) > 0)
+    const bySearch = base.filter(l => {
+      if (!term) return true
+      const it = itemsById[l.stock_item_id]
+      return (it?.name ?? '').toLowerCase().includes(term) || l.lote.toLowerCase().includes(term)
+        || (l.fornecedor ?? '').toLowerCase().includes(term) || (l.nota_fiscal ?? '').toLowerCase().includes(term)
+    })
+    return ordenarFefo(filtrarPorValidade(bySearch, filterValidade, hoje))
+  }, [lots, search, filterValidade, showEmpty, itemsById, hoje])
+
+  // saída com lote: de onde sai a quantidade digitada (automático por FEFO ou o lote escolhido)
+  const itemLotes = useMemo(() => (selectedItem ? lotesDoItem(lots, selectedItem.id).filter(l => saldoDoLote(l) > 0) : []), [selectedItem, lots])
+  const resumoSel = selectedItem ? resumos.get(selectedItem.id) : undefined
+  const qtyDigitada = parseInt(movForm.quantity) || 0
+  const saidaPlano: PlanoBaixa | null = lotsOn && modal === 'saida' && selectedItem && qtyDigitada > 0
+    ? planejarBaixa({ quantidade: qtyDigitada, lots: itemLotes, saldoSemLote: resumoSel?.saldoSemLote ?? selectedItem.quantity, hoje, escolhido: saidaLote || null, permitirVencido: true })
+    : null
+  const planoMensagem = (p: Extract<PlanoBaixa, { ok: false }>) => mensagemPlano(p, selectedItem?.unit ?? '')
 
   const stats = useMemo(() => {
     const low = items.filter(i => i.quantity <= i.min_quantity).length
@@ -105,6 +169,7 @@ function EstoqueContent() {
   }, [movements, filterMovType])
 
   function openNewItem() {
+    if (!canEdit) return
     setEditingItem(null)
     setItemForm(blankItem)
     setError('')
@@ -112,6 +177,7 @@ function EstoqueContent() {
   }
 
   function openEditItem(item: StockItem) {
+    if (!canEdit) return
     setEditingItem(item)
     setItemForm({
       name: item.name,
@@ -127,9 +193,13 @@ function EstoqueContent() {
     setModal('item')
   }
 
-  function openMovModal(item: StockItem, type: 'entrada' | 'saida') {
+  function openMovModal(item: StockItem, type: 'entrada' | 'saida', loteId = '', motivo = '') {
+    if (!canEdit) return
     setSelectedItem(item)
-    setMovForm({ quantity: '', reason: '', type })
+    setMovForm({ quantity: '', reason: motivo, type })
+    setLoteForm({ ...BLANK_LOTE, fornecedor: item.supplier ?? '' })
+    setSaidaLote(loteId)
+    setSaidaPaciente(null)
     setError('')
     setModal(type)
   }
@@ -170,6 +240,7 @@ function EstoqueContent() {
     if (!clinic || !selectedItem) return
     const qty = parseInt(movForm.quantity)
     if (!qty || qty <= 0) { setError('Quantidade deve ser maior que zero.'); return }
+    if (lotsOn) { await handleSaveMovementComLote(qty); return }
     if (modal === 'saida' && qty > selectedItem.quantity) {
       setError(`Estoque insuficiente. Disponível: ${selectedItem.quantity} ${selectedItem.unit}.`)
       return
@@ -194,6 +265,54 @@ function EstoqueContent() {
     loadData()
   }
 
+  // Com lote: entrada cria ou soma no lote; saída é FEFO (vence primeiro, sai primeiro) ou do lote escolhido.
+  async function handleSaveMovementComLote(qty: number) {
+    if (!clinic || !selectedItem) return
+    const motivo = movForm.reason.trim() || null
+    const userName = user?.displayName ?? null
+    setError('')
+
+    if (modal === 'entrada') {
+      if (loteForm.validade && !loteForm.lote.trim()) { setError('Informe o número do lote para registrar a validade.'); return }
+      setSaving(true)
+      const r = await registrarEntrada({
+        clinicId: clinic.id, itemId: selectedItem.id, quantidade: qty, motivo, userName,
+        lote: loteForm.lote.trim() ? {
+          lote: loteForm.lote, validade: loteForm.validade || null, custo: loteForm.custo ? parseFloat(loteForm.custo) : null,
+          fornecedor: loteForm.fornecedor.trim() || null, notaFiscal: loteForm.nota.trim() || null,
+        } : null,
+      })
+      setSaving(false)
+      if (!r.ok) { setError(r.erro); return }
+    } else {
+      // saída: confere antes de gravar; lote vencido pede confirmação (menos para descartar por vencimento ou perda)
+      const plano = saidaPlano
+      if (plano && !plano.ok) { setError(planoMensagem(plano)); return }
+      const vencido = plano?.ok ? plano.alocacoes.find(a => a.vencido) : undefined
+      const lotVencido = vencido?.lotId ? lotsById[vencido.lotId] : undefined
+      const descarte = movForm.reason === 'vencimento' || movForm.reason === 'perda'
+      if (lotVencido && !descarte) {
+        const ok = await confirmDialog({
+          title: 'Lote vencido',
+          message: `O lote ${lotVencido.lote} venceu em ${formatarDia(lotVencido.validade)}. Usar material vencido em atendimento não é seguro. Registrar a saída mesmo assim?`,
+          confirmText: 'Registrar mesmo assim',
+          danger: true,
+        })
+        if (!ok) return
+      }
+      setSaving(true)
+      const r = await registrarSaida({
+        clinicId: clinic.id, itemId: selectedItem.id, quantidade: qty, motivo, userName, unidade: selectedItem.unit,
+        escolhido: saidaLote || null, permitirVencido: true, patientId: saidaPaciente?.id ?? null,
+      })
+      setSaving(false)
+      if (!r.ok) { setError(r.erro); return }
+    }
+    if (user) audit({ action: 'stock.movement', user_id: user.id, clinic_id: clinic.id, module: 'estoque', resource_id: selectedItem.id, details: { type: String(modal), quantity: qty } })
+    closeModal()
+    loadData()
+  }
+
   async function handleDelete(item: StockItem) {
     if (!(await confirmDialog({ message: `Desativar "${item.name}"? O histórico de movimentações será mantido.`, confirmText: 'Desativar', danger: true }))) return
     await supabase.from('stock_items').update({ is_active: false }).eq('id', item.id)
@@ -203,6 +322,7 @@ function EstoqueContent() {
   const trendData = monthlyMovements.map(m => ({ label: m.month, value: m.entrada, compare: m.saida }))
   const hasTrend = monthlyMovements.some(m => m.entrada > 0 || m.saida > 0)
   const lowCount = stats.low
+  const editingLotes = lotsOn && !!editingItem && !!resumos.get(editingItem.id)?.comLote
   // os mais urgentes primeiro: zerados, depois os mais perto de acabar
   const lowItems = useMemo(() => items.filter(i => i.quantity <= i.min_quantity).sort((a, b) => a.quantity - b.quantity), [items])
   const lowHint = (() => {
@@ -224,13 +344,48 @@ function EstoqueContent() {
   const monthKey = new Date().toISOString().slice(0, 7)
   const movementsThisMonth = movements.filter(m => (m.created_at ?? '').startsWith(monthKey)).length
 
+  const validadeUrgente = alertas.vencidos.lotes + alertas.ate30.lotes > 0
+  const validadeHint = validadeUrgente
+    ? [
+        alertas.vencidos.lotes > 0 && `${alertas.vencidos.lotes} ${alertas.vencidos.lotes === 1 ? 'vencido' : 'vencidos'}`,
+        alertas.ate30.lotes > 0 && `${alertas.ate30.lotes} em até 30 dias`,
+      ].filter(Boolean).join(', ')
+    : alertas.ate90.lotes > 0 ? `${alertas.ate90.lotes} ${alertas.ate90.lotes === 1 ? 'lote vence' : 'lotes vencem'} em até 90 dias` : 'nenhum lote vencendo'
+  function showExpiring() {
+    setTab('lotes')
+    setFilterValidade(alertas.vencidos.lotes > 0 ? 'vencidos' : '30')
+    setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
+
   function itemMenu(item: StockItem): MoreMenuItem[] {
+    const r = resumos.get(item.id)
+    const extra: MoreMenuItem[] = []
+    if (lotsOn && r?.comLote) extra.push({ label: 'Ver lotes', icon: 'eye', onClick: () => { setTab('lotes'); setFilterValidade('todos'); setSearch(item.name) } })
+    if (lotsOn && r && r.saldoSemLote > 0) extra.push({ label: 'Atribuir saldo a um lote', icon: 'plus', onClick: () => setLoteAlvo({ mode: 'saldo', item, livre: r.saldoSemLote }) })
+    if (!canEdit) return extra.filter(i => i.label === 'Ver lotes')
     return [
       { label: 'Registrar entrada', icon: 'plus', onClick: () => openMovModal(item, 'entrada') },
       { label: 'Registrar saída', icon: 'arrowUp', onClick: () => openMovModal(item, 'saida') },
+      ...extra,
       { label: 'Editar produto', icon: 'edit', onClick: () => openEditItem(item) },
       { label: 'Desativar', icon: 'trash', danger: true, onClick: () => handleDelete(item) },
     ]
+  }
+
+  function exportRows() {
+    return linhasDeLotes(filteredLots, itemsById, hoje)
+  }
+  function imprimirLotes() {
+    const html = lotesParaHtml(exportRows(), {
+      clinica: clinic?.name ?? '',
+      titulo: filterValidade === 'todos' ? 'Lotes em estoque' : 'Lotes a vencer',
+      filtro: FILTRO_TEXTO[filterValidade],
+      geradoEm: formatarDia(hoje),
+    })
+    if (!imprimirHtml(html)) showToast('error', 'O navegador bloqueou a impressão. Libere pop-ups para este site e tente de novo.')
+  }
+  function exportarLotes() {
+    baixarArquivo(`lotes-${filterValidade === 'todos' ? 'estoque' : `a-vencer-${filterValidade}`}-${hoje}.csv`, lotesParaCsv(exportRows()))
   }
 
   return (
@@ -238,10 +393,10 @@ function EstoqueContent() {
       <PageHeader
         title="Estoque"
         subtitle={`${filteredItems.length} produto${filteredItems.length !== 1 ? 's' : ''}`}
-        actions={<button type="button" className={btn.primary} onClick={openNewItem}><Icon name="plus" size={15} /> Novo produto</button>}
+        actions={<button type="button" className={btn.primary} onClick={openNewItem} disabled={!canEdit} title={canEdit ? undefined : readOnlyTitle}><Icon name="plus" size={15} /> Novo produto</button>}
       />
 
-      <div className={styles.stats}>
+      <div className={`${styles.stats} ${lotsOn ? styles.stats5 : ''}`}>
         <StatCard title="Total de produtos" value={stats.total} hint="ativos no cadastro" />
         <StatCard
           title="Estoque baixo"
@@ -251,6 +406,14 @@ function EstoqueContent() {
         />
         <StatCard title="Valor em estoque" value={formatCurrency(stats.totalValue)} compact hint="quantidade x preço de custo" />
         <StatCard title="Movimentações no mês" value={movementsThisMonth} hint="entradas, saídas e ajustes" />
+        {lotsOn && (
+          <StatCard
+            title="Validade"
+            value={alertas.vencidos.lotes + alertas.ate30.lotes}
+            hint={validadeHint}
+            delta={validadeUrgente ? { label: 'Ver lotes', bad: true, onClick: showExpiring } : undefined}
+          />
+        )}
       </div>
 
       {!loading && (
@@ -282,6 +445,7 @@ function EstoqueContent() {
             options={[
               { value: 'produtos', label: 'Produtos', count: items.length },
               { value: 'movimentacoes', label: 'Movimentações', count: movements.length },
+              ...(lotsOn ? [{ value: 'lotes' as const, label: 'Lotes e validade', count: lots.filter(l => saldoDoLote(l) > 0).length }] : []),
             ]}
           />
         }
@@ -302,6 +466,30 @@ function EstoqueContent() {
                 onChange={v => setFilterLow(v === 'baixo')}
                 options={[{ value: 'todos', label: 'Todos' }, { value: 'baixo', label: 'Estoque baixo', count: lowCount }]}
               />
+            </>
+          )}
+          {tab === 'lotes' && lotsOn && (
+            <>
+              <input type="search" className={`${styles.search} ${styles.localSearch}`} placeholder="Buscar produto, lote ou fornecedor" aria-label="Buscar produto, lote ou fornecedor" value={search} onChange={e => setSearch(e.target.value)} />
+              <PillTabs
+                label="Filtrar por validade"
+                value={filterValidade}
+                onChange={setFilterValidade}
+                options={[
+                  { value: 'todos', label: 'Todos' },
+                  { value: 'vencidos', label: 'Vencidos', count: alertas.vencidos.lotes },
+                  { value: '30', label: '30 dias', count: alertas.ate30.lotes },
+                  { value: '60', label: '60 dias', count: alertas.ate60.lotes },
+                  { value: '90', label: '90 dias', count: alertas.ate90.lotes },
+                ]}
+              />
+              <label className={lotesStyles.check}>
+                <input type="checkbox" checked={showEmpty && filterValidade === 'todos'} disabled={filterValidade !== 'todos'} onChange={e => setShowEmpty(e.target.checked)} />
+                Incluir esgotados
+              </label>
+              <span className={lotesStyles.toolbarSpacer} />
+              <button type="button" className={`${btn.secondary} ${lotesStyles.toolBtn}`} onClick={imprimirLotes} disabled={!canEdit} title={canEdit ? undefined : readOnlyTitle}><Icon name="receipt" size={15} /> Imprimir</button>
+              <button type="button" className={`${btn.secondary} ${lotesStyles.toolBtn}`} onClick={exportarLotes} disabled={!canEdit} title={canEdit ? undefined : readOnlyTitle}><Icon name="download" size={15} /> Baixar CSV</button>
             </>
           )}
           {tab === 'movimentacoes' && (
@@ -332,12 +520,13 @@ function EstoqueContent() {
                       <th className={t.num}>Mínimo</th>
                       <th className={t.num}>Preço de custo</th>
                       <th>Situação</th>
+                      {lotsOn && <th>Validade</th>}
                       <th aria-label="Ações" />
                     </tr>
                   </thead>
                   <tbody>
                     {filteredItems.length === 0 ? (
-                      <tr><td colSpan={7} className={t.empty}>Nenhum produto encontrado.</td></tr>
+                      <tr><td colSpan={lotsOn ? 8 : 7} className={t.empty}>Nenhum produto encontrado.</td></tr>
                     ) : filteredItems.map(item => {
                       const isLow = item.quantity <= item.min_quantity
                       return (
@@ -353,13 +542,31 @@ function EstoqueContent() {
                           <td data-label="Mínimo" className={`${t.num} ${t.muted}`}>{item.min_quantity}</td>
                           <td data-label="Preço de custo" className={`${t.num} ${t.muted}`}>{item.cost_price != null ? formatCurrency(item.cost_price) : '-'}</td>
                           <td data-label="Situação"><StatusDot tone={isLow ? 'warn' : 'ok'}>{isLow ? 'Estoque baixo' : 'Em dia'}</StatusDot></td>
+                          {lotsOn && (
+                            <td data-label="Validade">
+                              {(() => {
+                                const r = resumos.get(item.id)
+                                if (!r?.comLote) return <span className={t.muted}>Sem lote</span>
+                                if (r.inconsistente) return <span title="A soma dos lotes passa da quantidade do produto. Revise os lotes.">Revisar lotes</span>
+                                if (!r.destaque || r.destaque.faixa === 'sem_validade') return <span className={t.muted}>Sem validade</span>
+                                return (
+                                  <div className={styles.who}>
+                                    <StatusDot tone={TONE_FAIXA[r.destaque.faixa]}>{textoValidade(r.destaque.dias)}</StatusDot>
+                                    <span className={styles.sub}>Lote {r.destaque.lot.lote}</span>
+                                  </div>
+                                )
+                              })()}
+                            </td>
+                          )}
                           <td className={styles.actionsCell}>
                             <div className={t.rowActions}>
-                              <span className={`${t.hoverOnly} ${styles.shortcuts}`}>
-                                <button type="button" className={styles.shortcut} onClick={() => openMovModal(item, 'entrada')}>Entrada</button>
-                                <button type="button" className={styles.shortcut} onClick={() => openMovModal(item, 'saida')}>Saída</button>
-                              </span>
-                              <MoreMenu label={`Mais ações de ${item.name}`} items={itemMenu(item)} />
+                              {canEdit && (
+                                <span className={`${t.hoverOnly} ${styles.shortcuts}`}>
+                                  <button type="button" className={styles.shortcut} onClick={() => openMovModal(item, 'entrada')}>Entrada</button>
+                                  <button type="button" className={styles.shortcut} onClick={() => openMovModal(item, 'saida')}>Saída</button>
+                                </span>
+                              )}
+                              {itemMenu(item).length > 0 && <MoreMenu label={`Mais ações de ${item.name}`} items={itemMenu(item)} />}
                             </div>
                           </td>
                         </tr>
@@ -380,12 +587,14 @@ function EstoqueContent() {
                       <th>Tipo</th>
                       <th className={t.num}>Quantidade</th>
                       <th>Motivo</th>
+                      {lotsOn && <th>Lote</th>}
+                      {lotsOn && <th>Paciente</th>}
                       <th>Responsável</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredMovements.length === 0 ? (
-                      <tr><td colSpan={6} className={t.empty}>Nenhuma movimentação encontrada.</td></tr>
+                      <tr><td colSpan={lotsOn ? 8 : 6} className={t.empty}>Nenhuma movimentação encontrada.</td></tr>
                     ) : filteredMovements.map(m => (
                       <tr key={m.id}>
                         <td className={t.strong}>{m.stock_items?.name ?? '-'}</td>
@@ -397,12 +606,26 @@ function EstoqueContent() {
                         </td>
                         <td data-label="Quantidade" className={t.num}>{m.quantity} {m.stock_items?.unit ?? ''}</td>
                         <td data-label="Motivo" className={`${t.muted} ${styles.capitalize}`}>{m.reason ?? '-'}</td>
+                        {lotsOn && <td data-label="Lote" className={t.muted}>{m.lot_id ? (lotsById[m.lot_id]?.lote ?? 'Lote removido') : '-'}</td>}
+                        {lotsOn && <td data-label="Paciente" className={t.muted}>{m.patient_id ? (nomesPacientes?.[m.patient_id] ?? 'Paciente') : '-'}</td>}
                         <td data-label="Responsável" className={t.muted}>{m.user_name ?? '-'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+            )}
+
+            {tab === 'lotes' && lotsOn && (
+              <LotesTab
+                rows={filteredLots}
+                itens={itemsById}
+                hoje={hoje}
+                onBaixa={(lot, item) => openMovModal(item, 'saida', lot.id, faixaValidade(lot.validade, hoje) === 'vencido' ? 'vencimento' : '')}
+                onRecall={lot => setRecallLot(lot)}
+                onEditar={(lot, item) => setLoteAlvo({ mode: 'edit', lot, item: item ?? null })}
+                canEdit={canEdit}
+              />
             )}
           </>
         )}
@@ -438,7 +661,8 @@ function EstoqueContent() {
         <div className={f.row2}>
           <div className={f.field}>
             <label>Qtd {!editingItem && 'Inicial'} *</label>
-            <IntegerInput value={itemForm.quantity} max={999999} onChange={v => setItemForm(p => ({ ...p, quantity: v === '' ? 0 : Number(v) }))} />
+            <IntegerInput value={itemForm.quantity} max={999999} disabled={editingLotes} onChange={v => setItemForm(p => ({ ...p, quantity: v === '' ? 0 : Number(v) }))} />
+            {editingLotes && <span className={f.hint}>Produto com lote: ajuste o saldo por entrada ou saída.</span>}
           </div>
           <div className={f.field}>
             <label>Qtd Mínima</label>
@@ -471,7 +695,7 @@ function EstoqueContent() {
       <Modal
         open={(modal === 'entrada' || modal === 'saida') && !!selectedItem}
         onClose={closeModal}
-        size="sm"
+        size={lotsOn ? 'md' : 'sm'}
         title={modal === 'entrada' ? 'Entrada de Estoque' : 'Saída de Estoque'}
         subtitle={selectedItem ? `${selectedItem.name} · ${selectedItem.quantity} ${selectedItem.unit} em estoque` : undefined}
         footer={
@@ -500,7 +724,79 @@ function EstoqueContent() {
               ).map(r => ({ value: r, label: r })),
             ]} />
         </div>
+
+        {lotsOn && modal === 'entrada' && (
+          <div className={lotesStyles.section}>
+            <p className={lotesStyles.sectionTitle}>Lote e validade (opcional)</p>
+            <p className={lotesStyles.sectionHint}>Com o lote, o estoque passa a mostrar a validade e a saída sai primeiro do que vence antes. Sem ele, a entrada fica sem lote, como sempre foi.</p>
+            <div className={f.row2}>
+              <div className={f.field}>
+                <label>Lote</label>
+                <input value={loteForm.lote} onChange={e => setLoteForm(p => ({ ...p, lote: e.target.value }))} placeholder="Como está na embalagem" />
+              </div>
+              <div className={f.field}>
+                <label>Validade</label>
+                <DatePicker value={loteForm.validade} onChange={v => setLoteForm(p => ({ ...p, validade: v }))} ariaLabel="Validade do lote" placeholder="Sem validade" />
+              </div>
+            </div>
+            <div className={f.row2}>
+              <div className={f.field}>
+                <label>Fornecedor</label>
+                <input value={loteForm.fornecedor} onChange={e => setLoteForm(p => ({ ...p, fornecedor: e.target.value }))} placeholder="Opcional" />
+              </div>
+              <div className={f.field}>
+                <label>Nota fiscal</label>
+                <input value={loteForm.nota} onChange={e => setLoteForm(p => ({ ...p, nota: e.target.value }))} placeholder="Opcional" />
+              </div>
+            </div>
+            <div className={f.field}>
+              <label>Custo unitário deste lote (R$)</label>
+              <MoneyInput value={loteForm.custo} onChange={v => setLoteForm(p => ({ ...p, custo: v }))} />
+            </div>
+          </div>
+        )}
+
+        {lotsOn && modal === 'saida' && selectedItem && (
+          <div className={lotesStyles.section}>
+            {itemLotes.length > 0 && (
+              <div className={f.field}>
+                <label>Lote</label>
+                <SelectMenu variant="field" ariaLabel="Lote" value={saidaLote} onChange={setSaidaLote}
+                  options={[
+                    { value: '', label: 'Automático: vence primeiro, sai primeiro' },
+                    ...ordenarFefo(itemLotes).map(l => ({
+                      value: l.id,
+                      label: `${l.lote} · ${l.validade ? formatarDia(l.validade) : 'sem validade'} · ${saldoDoLote(l)} ${selectedItem.unit}${faixaValidade(l.validade, hoje) === 'vencido' ? ' · vencido' : ''}`,
+                    })),
+                    ...((resumoSel?.saldoSemLote ?? 0) > 0 ? [{ value: SEM_LOTE, label: `Sem lote · ${resumoSel?.saldoSemLote} ${selectedItem.unit}` }] : []),
+                  ]} />
+              </div>
+            )}
+            {saidaPlano?.ok && itemLotes.length > 0 && (
+              <p className={lotesStyles.plan}>
+                Sai de: {saidaPlano.alocacoes.map(a => {
+                  const l = a.lotId ? lotsById[a.lotId] : null
+                  return l ? `${a.quantidade} do lote ${l.lote} (${l.validade ? formatarDia(l.validade) : 'sem validade'})` : `${a.quantidade} sem lote`
+                }).join(', ')}.
+              </p>
+            )}
+            {saidaPlano?.ok && saidaPlano.alocacoes.some(a => a.vencido) && (
+              <p className={lotesStyles.planWarn}>Este lote está vencido. Será pedida uma confirmação, a não ser que o motivo seja vencimento ou perda.</p>
+            )}
+            {!saidaLote && (resumoSel?.vencidoQtd ?? 0) > 0 && (
+              <p className={lotesStyles.planWarn}>{resumoSel?.vencidoQtd} {selectedItem.unit} em lotes vencidos ficam de fora da saída automática. Para descartar, escolha o lote e o motivo vencimento.</p>
+            )}
+            <div className={f.field}>
+              <label>Paciente que recebeu (opcional)</label>
+              {clinic && <PacienteBusca clinicId={clinic.id} value={saidaPaciente} onChange={setSaidaPaciente} />}
+              <span className={f.hint}>Guarda o lote usado no histórico do paciente, para o caso de recall.</span>
+            </div>
+          </div>
+        )}
       </Modal>
+
+      <LoteModal alvo={loteAlvo} clinicId={clinic?.id ?? ''} onClose={() => setLoteAlvo(null)} onSaved={loadData} />
+      <RecallModal lot={recallLot} produto={recallLot ? (itemsById[recallLot.stock_item_id]?.name ?? '') : ''} unidade={recallLot ? (itemsById[recallLot.stock_item_id]?.unit ?? '') : ''} onClose={() => setRecallLot(null)} canExport={canEdit} />
     </div>
   )
 }

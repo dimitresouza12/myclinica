@@ -1,4 +1,5 @@
 // Dados do faceograma compartilhados entre a tela (TabFaceograma) e a impressão (print.ts).
+import type { Rect } from './zoomView'
 
 export const FACE_TOOLS = [
   { key: 'toxina',         label: 'Toxina botulínica', abbr: 'Tx', color: '#3B82F6', bg: '#DBEAFE' },
@@ -40,6 +41,31 @@ const ZONES: Zone[] = [
   { name: 'Mento',                   cx: 150, cy: 168, rx: 18, ry: 10 },
   { name: 'Mandíbula',               dx: 52,  cy: 160, rx: 16, ry: 16 },
   { name: 'Pescoço',                 cx: 150, cy: 215, rx: 70, ry: 28 },
+]
+
+// ── Atalhos de zoom da tela cheia ──────────────────────────────────
+// Região (retângulo no viewBox) que une as zonas pedidas, dos dois lados da linha média quando a zona é espelhada.
+function zoneBounds(names: string[], pad = 8): Rect {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  for (const z of ZONES) {
+    if (!names.includes(z.name)) continue
+    const left = z.dx !== undefined ? 150 - z.dx - z.rx : z.cx! - z.rx
+    const right = z.dx !== undefined ? 150 + z.dx + z.rx : z.cx! + z.rx
+    x0 = Math.min(x0, left); x1 = Math.max(x1, right)
+    y0 = Math.min(y0, z.cy - z.ry); y1 = Math.max(y1, z.cy + z.ry)
+  }
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad)
+  x1 = Math.min(FACE_VW, x1 + pad); y1 = Math.min(FACE_VH, y1 + pad)
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+}
+
+export const FACE_SHORTCUTS: { key: string; label: string; rect: Rect }[] = [
+  { key: 'testa',    label: 'Testa',    rect: zoneBounds(['Frontal', 'Glabela']) },
+  { key: 'olhos',    label: 'Olhos',    rect: zoneBounds(['Sobrancelha', 'Região dos olhos', 'Pé de galinha', 'Olheira']) },
+  { key: 'nariz',    label: 'Nariz',    rect: zoneBounds(['Nariz', 'Sulco nasogeniano']) },
+  { key: 'bochecha', label: 'Bochecha', rect: zoneBounds(['Bochecha', 'Malar']) },
+  { key: 'labios',   label: 'Lábios',   rect: zoneBounds(['Lábio superior', 'Lábios']) },
+  { key: 'mento',    label: 'Mento',    rect: zoneBounds(['Mento', 'Linha de marionete']) },
 ]
 
 /** Nome da região do rosto em (x, y), por exemplo "Pé de galinha (direito)". */

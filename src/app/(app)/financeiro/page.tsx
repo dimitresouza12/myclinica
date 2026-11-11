@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { useState, useMemo, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
@@ -378,7 +379,7 @@ function FinanceiroContent() {
 
   function rowMenu(r: FinancialRecord): MoreMenuItem[] {
     const items: MoreMenuItem[] = []
-    if (r.type === 'receita') items.push({ label: 'Imprimir recibo', icon: 'receipt', onClick: () => handlePrintRecibo(r) })
+    if (canEdit && r.type === 'receita') items.push({ label: 'Imprimir recibo', icon: 'receipt', onClick: () => handlePrintRecibo(r) })
     if (canEdit) {
       items.push({ label: 'Editar lançamento', icon: 'edit', onClick: () => openEdit(r) })
       items.push({ label: 'Excluir lançamento', icon: 'trash', danger: true, onClick: () => handleDelete(r) })
@@ -396,6 +397,7 @@ function FinanceiroContent() {
             {/* Período fica no topo (não na tabela, lá embaixo) porque também controla os cards de totais */}
             <PillTabs label="Período" value={filterPeriod} onChange={setFilterPeriod} options={periodOptions} />
             {filterPeriod === 'mensal' && <MonthPicker value={filterMonth} onChange={setFilterMonth} />}
+            <Link href="/financeiro/convenios" className={btn.secondary}><Icon name="receipt" size={15} /> Convênios</Link>
             {canEdit && <button type="button" className={btn.secondary} onClick={() => openModal('despesa')}><Icon name="minus" size={15} /> Despesa</button>}
             {canEdit && <button type="button" className={btn.primary} onClick={() => openModal('receita')}><Icon name="plus" size={15} /> Receita</button>}
           </>

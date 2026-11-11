@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase'
 import { callN8n } from '@/lib/supabase-n8n'
 import { cleanPhone } from '@/lib/utils'
+import { brasilDayRange, hojeBrasil } from '@/lib/brasilDate'
+import { parseN8nDate } from '@/lib/n8nDate'
 
 interface N8nLead {
   phone: string
@@ -8,37 +10,6 @@ interface N8nLead {
   procedimento: string | null
   data_agendamento: string | null
   status: string | null
-}
-
-// Horário de Brasília (UTC-3, sem horário de verão desde 2019).
-// A clínica e o bot operam nesse fuso; ancoramos a data explicitamente
-// para não depender do fuso do navegador de quem dispara o sync.
-const BRT_OFFSET = '-03:00'
-
-function parseN8nDate(raw: string | null): string | null {
-  if (!raw) return null
-  // Já vem com fuso/ISO explícito (ex.: timestamptz do banco) → confia.
-  const iso = new Date(raw)
-  if (!isNaN(iso.getTime()) && /[zZ]|[+-]\d{2}:?\d{2}$/.test(raw.trim())) {
-    return iso.toISOString()
-  }
-  // DD/MM/YYYY HH:mm or DD/MM/YYYY — interpreta como horário de Brasília
-  const m = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/)
-  if (m) {
-    const yyyy = m[3]
-    const mm = m[2].padStart(2, '0')
-    const dd = m[1].padStart(2, '0')
-    const hh = (m[4] ?? '9').padStart(2, '0')
-    const min = (m[5] ?? '0').padStart(2, '0')
-    const d = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00${BRT_OFFSET}`)
-    if (!isNaN(d.getTime())) return d.toISOString()
-  }
-  // Fallback: data sem fuso explícito — assume Brasília.
-  if (!isNaN(iso.getTime())) {
-    const d = new Date(`${raw.trim().replace(' ', 'T')}${BRT_OFFSET}`)
-    return isNaN(d.getTime()) ? iso.toISOString() : d.toISOString()
-  }
-  return null
 }
 
 export async function syncLeadAppointments(clinicId: string, _clinicSlug?: string) {
@@ -96,15 +67,17 @@ export async function syncLeadAppointments(clinicId: string, _clinicSlug?: strin
       phoneMap.set(key, patientId)
     }
 
-    // Skip if appointment already exists for that day
-    const datePrefix = scheduledAt.slice(0, 10)
+    // Skip if appointment already exists for that day. O dia é o de Brasília: fatiar o ISO em UTC
+    // (scheduledAt.slice(0, 10)) joga as consultas depois das 21h para o dia seguinte e erra a conferência.
+    const dayRange = brasilDayRange(hojeBrasil(new Date(scheduledAt)))
+    if (!dayRange) continue
     const { data: existing } = await supabase
       .from('appointments')
       .select('id')
       .eq('clinic_id', clinicId)
       .eq('patient_id', patientId)
-      .gte('scheduled_at', `${datePrefix}T00:00:00`)
-      .lte('scheduled_at', `${datePrefix}T23:59:59`)
+      .gte('scheduled_at', dayRange.start)
+      .lte('scheduled_at', dayRange.end)
       .limit(1)
 
     if (existing?.length) continue

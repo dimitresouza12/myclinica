@@ -4,12 +4,20 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
+import { usePermissions } from '@/hooks/usePermissions'
 import { Portal } from '@/components/ui/Portal'
+import { patientHref } from '@/lib/prontuario/navigation'
+import { canLeave } from '@/lib/prontuario/leaveGuard'
 import type { Patient } from '@/types'
 import styles from './GlobalSearch.module.css'
 
 export function GlobalSearch({ size = 'default', placeholder = 'Buscar paciente' }: { size?: 'default' | 'bar'; placeholder?: string }) {
   const { clinic } = useAuthStore()
+  // Só consulta pacientes quem tem Ver em Pacientes, Agenda ou Prontuário (admin sempre)
+  const pacientesPerm = usePermissions('pacientes')
+  const agendaPerm = usePermissions('agenda')
+  const prontuarioPerm = usePermissions('prontuario')
+  const canSearchPatients = pacientesPerm.canView || agendaPerm.canView || prontuarioPerm.canView
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Patient[]>([])
@@ -40,7 +48,7 @@ export function GlobalSearch({ size = 'default', placeholder = 'Buscar paciente'
   }, [])
 
   useEffect(() => {
-    if (!query.trim() || !clinic?.id) { setResults([]); setOpen(false); return }
+    if (!canSearchPatients || !query.trim() || !clinic?.id) { setResults([]); setOpen(false); return }
     const t = setTimeout(async () => {
       setLoading(true)
       const term = query.trim().toLowerCase()
@@ -56,13 +64,17 @@ export function GlobalSearch({ size = 'default', placeholder = 'Buscar paciente'
       setLoading(false)
     }, 250)
     return () => clearTimeout(t)
-  }, [query, clinic?.id])
+  }, [query, clinic?.id, canSearchPatients])
 
-  function handleSelect(p: Patient) {
-    setQuery('')
+  async function handleSelect(p: Patient) {
     setOpen(false)
-    router.push(`/pacientes?patient=${p.id}`)
+    // dentro de um prontuário com alterações não salvas, pergunta antes de trocar de paciente
+    if (!(await canLeave())) return
+    setQuery('')
+    router.push(patientHref(p.id))
   }
+
+  if (!canSearchPatients) return null
 
   const showDropdown = open && (results.length > 0 || (!loading && query.trim().length > 0))
 
