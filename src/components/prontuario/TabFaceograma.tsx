@@ -7,6 +7,8 @@ import { Icon } from '@/components/ui/Icon'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { ZoomCanvas, ExpandButton } from './ZoomCanvas'
+import { RefImage } from './RefImage'
+import { FACE_FRONT } from '@/lib/referenceImages'
 import { roundCoord } from '@/lib/zoomView'
 import { FACE_TOOLS, FACE_VW, FACE_VH, FACE_SHORTCUTS, faceRegion, sessionTotals, formatTotal, type FaceAnnotation, type FaceSession } from '@/lib/faceograma'
 
@@ -245,16 +247,11 @@ export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChang
 
   // A imagem de referência e os pontos, em coordenadas do viewBox. `k` escala os marcadores (1 na tela normal;
   // na tela cheia é o inverso do zoom, para manterem o tamanho visual) e `toVB` converte o evento em coordenada.
-  function renderImageAndPoints(k: number, toVB: (e: React.PointerEvent<SVGGElement>) => { x: number; y: number }) {
+  function renderImageAndPoints(k: number, toVB: (e: React.PointerEvent<SVGGElement>) => { x: number; y: number }, hi = false) {
     return (
       <>
-        {/* Anatomical reference — WebP (19 KB) com fallback PNG (1.3 MB) */}
-        <image
-          href="/rosto.webp"
-          x="0" y="0"
-          width={VW} height={VH}
-          preserveAspectRatio="xMidYMid meet"
-        />
+        {/* Referência anatômica (rosto de frente): -sm na tela normal, completa na tela cheia, miniatura borrada enquanto carrega */}
+        <RefImage img={FACE_FRONT} hi={hi} width={VW} height={VH} />
         {session.annotations.map(a => {
           const isSel = a.id === selId
           const col   = tColor(a.type)
@@ -408,7 +405,7 @@ export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChang
           {ctx => renderImageAndPoints(ctx.k, e => {
             const p = ctx.toViewBox(e.clientX, e.clientY)
             return { x: roundCoord(p.x), y: roundCoord(p.y) }
-          })}
+          }, true)}
         </ZoomCanvas>
 
         {/* ── Side panel ── */}

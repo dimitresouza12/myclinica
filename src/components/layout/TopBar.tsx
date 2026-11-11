@@ -106,9 +106,28 @@ function AlertsMenu() {
   const clinicId = canSee && !user?.isSuperAdmin ? clinic?.id : undefined
   // nome, telefone e "Abrir paciente" só para quem tem Ver em Pacientes; sem isso ficam só os avisos da clínica (estoque, WhatsApp, escala)
   const canSeePatients = !!user && (user.role === 'admin' || !!user.isSuperAdmin || (loaded && !!permissions['pacientes']?.can_view))
-  const { data } = useDashboardData(clinicId)
-  const { data: estoque } = useEstoqueData(clinicId)
-  const { data: estoqueLotes } = useEstoqueLotes(clinicId)
+  // As 3 buscas do menu (Dashboard com ~14 consultas, estoque e lotes) não podem disputar a rede com a página aberta:
+  // começam só ao abrir o menu, na Dashboard (que já as carrega, mesmo cache) ou após ~3 s de ociosidade.
+  const pathname = usePathname()
+  const [idleReady, setIdleReady] = useState(false)
+  const [everOpened, setEverOpened] = useState(false)
+  useEffect(() => {
+    if (idleReady) return
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (h: number) => void }
+    let idleHandle: number | undefined
+    const timer = setTimeout(() => {
+      if (w.requestIdleCallback) idleHandle = w.requestIdleCallback(() => setIdleReady(true), { timeout: 2000 })
+      else setIdleReady(true)
+    }, 3000)
+    return () => { clearTimeout(timer); if (idleHandle !== undefined) w.cancelIdleCallback?.(idleHandle) }
+  }, [idleReady])
+  // na Dashboard as buscas já existem (mesmo cache): liga de vez, sem voltar atrás ao sair dela
+  if (!everOpened && pathname.startsWith('/dashboard')) setEverOpened(true)
+  const fetchAlerts = idleReady || everOpened
+  const alertsClinicId = fetchAlerts ? clinicId : undefined
+  const { data } = useDashboardData(alertsClinicId)
+  const { data: estoque } = useEstoqueData(alertsClinicId)
+  const { data: estoqueLotes } = useEstoqueLotes(alertsClinicId)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   // linhas em que o WhatsApp já foi aberto: o botão principal vira "Já resolvi"
@@ -257,7 +276,7 @@ function AlertsMenu() {
 
   return (
     <div className={styles.menuWrap} ref={wrap}>
-      <button type="button" className={`${styles.iconBtn} ${styles.alertBtn} ${open ? styles.iconBtnOn : ''}`} aria-label={label} aria-haspopup={isMobile ? 'dialog' : 'menu'} aria-expanded={open} aria-controls={id} onClick={() => setOpen(v => !v)}>
+      <button type="button" className={`${styles.iconBtn} ${styles.alertBtn} ${open ? styles.iconBtnOn : ''}`} aria-label={label} aria-haspopup={isMobile ? 'dialog' : 'menu'} aria-expanded={open} aria-controls={id} onClick={() => { setEverOpened(true); setOpen(v => !v) }}>
         <Icon name="bell" size={20} />
         <span className={`${styles.bellBadge} ${urgent > 0 ? styles.bellBadgeUrgent : ''}`} aria-hidden="true">{rows.length > 9 ? '9+' : rows.length}</span>
       </button>

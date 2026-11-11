@@ -1,33 +1,21 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { audit } from '@/lib/audit'
 import type { Patient, MedicalRecord, RecordEntry, ClinicType } from '@/types'
 import type { AuthClinic } from '@/types'
 import { TabFicha } from './TabFicha'
-import { TabOdontograma } from './TabOdontograma'
-import { TabFaceograma } from './TabFaceograma'
-import { TabCorpograma } from './TabCorpograma'
-import { TabNutri } from './nutri/TabNutri'
-import { TabVet } from './vet/TabVet'
-import { TabComparador } from './comparador/TabComparador'
-import { TabTimeline } from './TabTimeline'
-import { TabMetas } from './metas/TabMetas'
-import { TabEscalas } from './escalas/TabEscalas'
 import { escalasParaAreas } from '@/lib/escalas/escalas'
 import { AREA_PROFILE, metasAreasOf, resolveMetasArea } from '@/lib/metas/constants'
-import { TabChatIA } from './TabChatIA'
-import { TabConversas } from './TabConversas'
 import { usePermissions } from '@/hooks/usePermissions'
-import { TabDocumentos } from './TabDocumentos'
 import { AtendimentoBar } from './AtendimentoBar'
-import { PortalLinkModal } from './portal/PortalLinkModal'
 import { PillTabs } from '@/components/ui/PillTabs'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import btn from '@/components/ui/button.module.css'
-import { printProntuario, printEvolucao, printOrcamento, printContrato } from '@/lib/print'
 import styles from './ProntuarioView.module.css'
 import { PrintMenu, type PrintGroup } from './print/PrintMenu'
 import { PrintRegistryProvider, useCreatePrintRegistry } from './print/PrintRegistry'
@@ -36,6 +24,34 @@ import { CHAT_IA_ATIVO, resolveTab, withTab } from '@/lib/prontuario/navigation'
 import { canLeave, internalTarget, joinLabels, setLeaveGuard, unsavedLabels } from '@/lib/prontuario/leaveGuard'
 import { Icon } from '@/components/ui/Icon'
 import { getSpecialtyConfig, mergeSpecialtyConfigs } from '@/lib/specialtyConfig'
+import { Skeleton, SkeletonLines } from '@/components/ui/Skeleton'
+import { ENTRIES_FIRST_PAGE, fetchEntriesPage, fetchMedicalRecord, medicalRecordKey } from '@/lib/prontuario/loadRecord'
+
+// Só a Ficha abre com a página; cada aba vira um pedaço separado, baixado na primeira visita (as abas já montam sob demanda via `visited`)
+function TabFallback() {
+  return (
+    <div aria-busy="true" aria-live="polite" style={{ padding: '16px 0' }}>
+      <Skeleton height={20} width="40%" style={{ marginBottom: 12 }} />
+      <SkeletonLines lines={4} />
+    </div>
+  )
+}
+const TabOdontograma = dynamic(() => import('./TabOdontograma').then(m => m.TabOdontograma), { ssr: false, loading: TabFallback })
+const TabFaceograma = dynamic(() => import('./TabFaceograma').then(m => m.TabFaceograma), { ssr: false, loading: TabFallback })
+const TabCorpograma = dynamic(() => import('./TabCorpograma').then(m => m.TabCorpograma), { ssr: false, loading: TabFallback })
+const TabNutri = dynamic(() => import('./nutri/TabNutri').then(m => m.TabNutri), { ssr: false, loading: TabFallback })
+const TabVet = dynamic(() => import('./vet/TabVet').then(m => m.TabVet), { ssr: false, loading: TabFallback })
+const TabComparador = dynamic(() => import('./comparador/TabComparador').then(m => m.TabComparador), { ssr: false, loading: TabFallback })
+const TabTimeline = dynamic(() => import('./TabTimeline').then(m => m.TabTimeline), { ssr: false, loading: TabFallback })
+const TabMetas = dynamic(() => import('./metas/TabMetas').then(m => m.TabMetas), { ssr: false, loading: TabFallback })
+const TabEscalas = dynamic(() => import('./escalas/TabEscalas').then(m => m.TabEscalas), { ssr: false, loading: TabFallback })
+const TabDocumentos = dynamic(() => import('./TabDocumentos').then(m => m.TabDocumentos), { ssr: false, loading: TabFallback })
+const TabChatIA = dynamic(() => import('./TabChatIA').then(m => m.TabChatIA), { ssr: false, loading: TabFallback })
+const TabConversas = dynamic(() => import('./TabConversas').then(m => m.TabConversas), { ssr: false, loading: TabFallback })
+const PortalLinkModal = dynamic(() => import('./portal/PortalLinkModal').then(m => m.PortalLinkModal), { ssr: false })
+
+// Impressão: o módulo (HTML dos documentos) só é baixado quando precisa; é aquecido em ociosidade para o clique abrir a janela na hora
+const loadPrint = () => import('@/lib/print')
 
 type Tab = 'ficha' | 'odontograma' | 'faceograma' | 'corpograma' | 'metas' | 'nutri' | 'vet' | 'comparador' | 'escalas' | 'timeline' | 'documentos' | 'chat' | 'conversas'
 
@@ -53,6 +69,7 @@ interface FichaDraft { record: MedicalRecord; area: ClinicType }
  */
 export function ProntuarioView({ patient, clinic }: Props) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const searchParams = useSearchParams()
   const clinicId = clinic.id
   const clinicName = clinic.name
@@ -65,8 +82,9 @@ export function ProntuarioView({ patient, clinic }: Props) {
   const [entriesLoading, setEntriesLoading] = useState(true)
   const [loading, setLoading] = useState(true)
   const [portalOpen, setPortalOpen] = useState(false)
-  const [fichaDraft, setFichaDraft] = useState<FichaDraft | null>(null)
-  const handleDraft = useCallback((r: MedicalRecord, area: ClinicType) => setFichaDraft({ record: r, area }), [])
+  // o rascunho da Ficha só é lido ao abrir o menu Imprimir: em ref, digitar não re-renderiza o prontuário inteiro
+  const fichaDraftRef = useRef<FichaDraft | null>(null)
+  const handleDraft = useCallback((r: MedicalRecord, area: ClinicType) => { fichaDraftRef.current = { record: r, area } }, [])
 
   // Abas extras (odontograma/faceograma/corpograma) vêm da união das áreas
   // que a clínica de fato atende (clinic.specialties), não só da área
@@ -189,7 +207,7 @@ export function ProntuarioView({ patient, clinic }: Props) {
 
   useEffect(() => {
     loadRecord(true)
-    loadAvatar()
+    void loadAvatar()
     // Auditoria: acesso ao prontuário
     if (user?.id) {
       audit({
@@ -203,12 +221,22 @@ export function ProntuarioView({ patient, clinic }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patient.id])
 
+  // aquece o módulo de impressão em ociosidade, para o clique em Imprimir abrir a janela na hora
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (h: number) => void }
+    if (w.requestIdleCallback) {
+      const h = w.requestIdleCallback(() => { void loadPrint() }, { timeout: 4000 })
+      return () => w.cancelIdleCallback?.(h)
+    }
+    const t = setTimeout(() => { void loadPrint() }, 2500)
+    return () => clearTimeout(t)
+  }, [])
+
   async function loadAvatar() {
     try {
-      // O upload grava o caminho real (avatar.png, .webp, .jpg...) em patients.avatar_url. Lê o valor atual do
-      // banco: a linha da lista pode estar desatualizada (foto enviada nesta sessão) e a extensão não é fixa.
-      const { data: row } = await supabase.from('patients').select('avatar_url').eq('id', patient.id).eq('clinic_id', clinicId).maybeSingle()
-      const stored = (row?.avatar_url ?? patient.avatar_url ?? '').trim()
+      // O upload grava o caminho real (avatar.png, .webp, .jpg...) em patients.avatar_url; o cadastro já traz esse valor
+      // (e o upload desta tela atualiza o cache), então não precisa de outra ida ao banco antes de assinar a URL.
+      const stored = (patient.avatar_url ?? '').trim()
       if (!stored) return
       // caminho do storage; um https://... de versão antiga cai no nome fixo usado então
       const path = /^https?:/i.test(stored) ? `${clinicId}/${patient.id}/avatar.jpg` : stored
@@ -223,29 +251,33 @@ export function ProntuarioView({ patient, clinic }: Props) {
 
   // `initial`: só o primeiro carregamento (ou troca de paciente) mostra o 'Carregando'. Recarregar depois de salvar
   // mantém as abas montadas, senão o que está digitado e não salvo na Ficha se perde.
+  // A ficha clínica libera a Ficha assim que chega; as evoluções vêm em paralelo e em levas (só a Evolução/Imprimir/Escalas as usam).
   async function loadRecord(initial = false) {
-    if (initial) setLoading(true)
-    // Load medical_record first — unblocks the UI for Ficha/Faceograma tabs
-    const recRes = await supabase
-      .from('medical_records')
-      .select('*')
-      .eq('patient_id', patient.id)
-      .eq('clinic_id', clinicId)
-      .maybeSingle<MedicalRecord>()
-    setRecord(recRes.data ?? null)
+    if (initial) { setLoading(true); setEntriesLoading(true) }
+    const entriesDone = loadEntries()
+    // na 1ª vez reaproveita a busca que a página já disparou em paralelo com o cadastro; depois de salvar, sempre vai ao banco
+    const rec = await queryClient.fetchQuery({
+      queryKey: medicalRecordKey(clinicId, patient.id),
+      queryFn: () => fetchMedicalRecord(clinicId, patient.id),
+      staleTime: initial ? 5_000 : 0,
+    }).catch(() => null)
+    setRecord(rec ?? null)
     setLoading(false)
-    // Load entries in the background — only needed for Timeline/print
-    if (initial) setEntriesLoading(true)
-    supabase
-      .from('record_entries')
-      .select('*')
-      .eq('patient_id', patient.id)
-      .eq('clinic_id', clinicId)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setEntries((data ?? []) as RecordEntry[])
-        setEntriesLoading(false)
-      })
+    await entriesDone
+  }
+
+  async function loadEntries() {
+    // a primeira leva já preenche Evolução e Antes/depois; "carregando" só acaba com a lista completa (impressão e escalas esperam)
+    const first = await fetchEntriesPage(clinicId, patient.id, 0, ENTRIES_FIRST_PAGE - 1)
+    setEntries(first)
+    let all = first
+    let last = first
+    while (last.length === ENTRIES_FIRST_PAGE) {
+      last = await fetchEntriesPage(clinicId, patient.id, all.length, all.length + ENTRIES_FIRST_PAGE - 1)
+      all = [...all, ...last]
+      setEntries(all)
+    }
+    setEntriesLoading(false)
   }
 
   const refreshRecord = () => { void loadRecord(false) }
@@ -264,6 +296,9 @@ export function ProntuarioView({ patient, clinic }: Props) {
     if (!upErr) {
       // Salva o path no banco, não a URL pública
       await supabase.from('patients').update({ avatar_url: path }).eq('id', patient.id)
+      // mantém os caches do paciente coerentes, para reabrir o prontuário sem a foto antiga
+      queryClient.setQueryData<Patient | null>(['paciente', clinicId, patient.id], cur => (cur ? { ...cur, avatar_url: path } : cur))
+      queryClient.setQueryData<{ patients?: Patient[] } | undefined>(['pacientes', clinicId], cur => (cur?.patients ? { ...cur, patients: cur.patients.map(p => (p.id === patient.id ? { ...p, avatar_url: path } : p)) } : cur))
       // Gera signed URL para exibição imediata
       const { data } = await supabase.storage
         .from('patient-avatars')
@@ -277,18 +312,20 @@ export function ProntuarioView({ patient, clinic }: Props) {
 
   // ── Impressão: um menu só, no cabeçalho ──
   const clinicInfo = { name: clinicName, logo: clinic.logo || undefined, address: clinic.address || undefined, phone: clinic.phone || undefined }
-  const printRecord = fichaDraft?.record ?? record
-  const printArea: ClinicType = fichaDraft?.area ?? user?.specialtyType ?? clinicSpecialties[0]
-  const coreOptions = corePrintOptions({ record: printRecord, entries, entriesLoading, planItemCount: printRecord?.treatment_plan_items?.length ?? 0 })
-  const coreRunners: Record<string, () => void> = {
-    prontuario: () => printProntuario(clinicInfo, patient, printRecord, entries, printArea),
-    ficha: () => printProntuario(clinicInfo, patient, printRecord, entries, printArea, { evolucao: false }),
-    evolucao: () => printEvolucao(clinicInfo, patient, entries),
-    orcamento: () => printOrcamento(clinicInfo, patient, printRecord?.treatment_plan_items ?? [], printRecord?.treatment_plan),
-    contrato: () => printContrato(clinicInfo, patient, printRecord?.contract_text ?? ''),
-  }
   const tabLabel = tabs.find(t => t.key === tab)?.label ?? ''
+  // montado só ao abrir o menu: é aí que se lê o rascunho da Ficha (em ref, sem re-renderizar a cada tecla)
   function getPrintGroups(): PrintGroup[] {
+    const draft = fichaDraftRef.current
+    const printRecord = draft?.record ?? record
+    const printArea: ClinicType = draft?.area ?? user?.specialtyType ?? clinicSpecialties[0]
+    const coreOptions = corePrintOptions({ record: printRecord, entries, entriesLoading, planItemCount: printRecord?.treatment_plan_items?.length ?? 0 })
+    const coreRunners: Record<string, () => void> = {
+      prontuario: () => { void loadPrint().then(m => m.printProntuario(clinicInfo, patient, printRecord, entries, printArea)) },
+      ficha: () => { void loadPrint().then(m => m.printProntuario(clinicInfo, patient, printRecord, entries, printArea, { evolucao: false })) },
+      evolucao: () => { void loadPrint().then(m => m.printEvolucao(clinicInfo, patient, entries)) },
+      orcamento: () => { void loadPrint().then(m => m.printOrcamento(clinicInfo, patient, printRecord?.treatment_plan_items ?? [], printRecord?.treatment_plan)) },
+      contrato: () => { void loadPrint().then(m => m.printContrato(clinicInfo, patient, printRecord?.contract_text ?? '')) },
+    }
     return [
       { key: 'paciente', title: 'Do paciente', items: coreOptions.map(o => ({ ...o, run: coreRunners[o.id] })) },
       { key: 'aba', title: `Desta aba: ${tabLabel}`, items: printRegistry.get(tab) },

@@ -9,7 +9,7 @@ export interface FrontTile { col: number; crown: string; cervix: string; crownH:
 export interface OccTile { col: number; outline: string; box: [number, number, number, number]; center: [number, number]; centerScale: number }
 
 export const SPRITE = {
-  "src": "/teeth-sprites.webp",
+  "src": "/teeth-sprites.webp?v=7db73443",
   "cols": 5,
   "rows": 2,
   "tileW": 252,

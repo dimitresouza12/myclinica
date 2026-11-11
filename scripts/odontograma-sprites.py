@@ -6,7 +6,7 @@
      em unidades do viewBox do odontograma, para a camada interativa e as marcações ficarem alinhadas.
 Uso: python3 -I scripts/odontograma-sprites.py   (requer Pillow, numpy, scipy; cwebp opcional)
 """
-import json, math, os, subprocess, sys
+import hashlib, json, math, os, subprocess, sys
 import numpy as np
 from PIL import Image
 from scipy import ndimage as ndi
@@ -359,7 +359,7 @@ with open(OUT_TS, 'w') as f:
     f.write("export interface SpriteRoot { d: string; canal: string; pin: [number, number, number, number]; behind?: boolean }\n")
     f.write("export interface FrontTile { col: number; crown: string; cervix: string; crownH: number; crownBox: [number, number, number, number]; bracket: [number, number]; roots: SpriteRoot[]; roots2?: SpriteRoot[] }\n")
     f.write("export interface OccTile { col: number; outline: string; box: [number, number, number, number]; center: [number, number]; centerScale: number }\n\n")
-    f.write("export const SPRITE = " + json.dumps(dict(src='/teeth-sprites.webp', cols=5, rows=2, tileW=TW, tileH=TH, frontTop=MT, unit=round(UA, 5)), indent=2) + " as const\n\n")
+    f.write("export const SPRITE = " + json.dumps(dict(src='/teeth-sprites.webp?v=' + hashlib.md5(open(OUT_WEBP, 'rb').read()).hexdigest()[:8], cols=5, rows=2, tileW=TW, tileH=TH, frontTop=MT, unit=round(UA, 5)), indent=2) + " as const\n\n")
     f.write("export const TILE_IDS: TileId[] = " + json.dumps(COLS) + "\n\n")
     f.write("export const FRONT_TILES: Record<TileId, FrontTile> = " + ts_dump({k: {kk: vv for kk, vv in v.items()} for k, v in FRONT_OUT.items()}) + "\n\n")
     f.write("export const OCC_TILES: Record<TileId, OccTile> = " + ts_dump({k: dict(col=COLS.index(k), **v) for k, v in OCC_OUT.items()}) + "\n")

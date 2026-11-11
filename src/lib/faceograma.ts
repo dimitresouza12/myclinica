@@ -12,12 +12,12 @@ export const FACE_TOOLS = [
 export interface FaceAnnotation { id: string; x: number; y: number; type: string; qty: string; note: string; region?: string }
 export interface FaceSession    { id: string; date: string; notes: string; annotations: FaceAnnotation[] }
 
-// ViewBox dimensioned to match the anatomical reference image aspect ratio (1290×1068)
+// ViewBox na proporção da imagem de referência (public/faceograma/rosto-frente.webp, 2000×1662)
 export const FACE_VW = 300
-export const FACE_VH = Math.round(300 * (1068 / 1290)) // ≈ 248
+export const FACE_VH = Math.round(300 * (1662 / 2000)) // ≈ 249
 
 // ── Região do rosto ────────────────────────────────────────────────
-// Zonas elípticas no mesmo sistema de coordenadas do desenho (viewBox 300x248, rosto de frente).
+// Zonas elípticas no mesmo sistema de coordenadas do desenho (viewBox 300x249, rosto de frente).
 // `dx` > 0 repete a zona dos dois lados da linha média (x = 150). O lado direito do paciente
 // fica à esquerda na tela.
 interface Zone { name: string; cy: number; rx: number; ry: number; dx?: number; cx?: number }

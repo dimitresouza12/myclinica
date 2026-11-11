@@ -65,7 +65,7 @@ describe('printProntuario: odontograma e faceograma', () => {
   it('imprime as sessões do faceograma em ordem de data, com pontos numerados', async () => {
     const html = await print({
       aesthetic_protocols: [
-        { id: 's2', date: '2026-10-20', notes: '', annotations: [{ id: 'a', x: 150, y: 124, type: 'toxina', qty: '20U', note: 'glabela', region: 'Glabela' }, { id: 'b', x: 60, y: 90, type: 'toxina', qty: '4 u', note: '', region: 'Têmpora (direito)' }] },
+        { id: 's2', date: '2026-10-20', notes: '', annotations: [{ id: 'a', x: 150, y: 124.5, type: 'toxina', qty: '20U', note: 'glabela', region: 'Glabela' }, { id: 'b', x: 60, y: 90, type: 'toxina', qty: '4 u', note: '', region: 'Têmpora (direito)' }] },
         { id: 's1', date: '2026-09-01', notes: 'lote <X>', annotations: [] },
       ] as never,
     })
@@ -77,7 +77,7 @@ describe('printProntuario: odontograma e faceograma', () => {
     expect(html).toContain('Total da sessão:</b> Toxina botulínica 24 U')
     expect(html).toContain('left:50%;top:50%')
     expect(html).toContain('lote &lt;X&gt;')
-    expect(html).toContain('http://localhost:3000/rosto.webp')
+    expect(html).toContain('http://localhost:3000/faceograma/rosto-frente-sm.webp')
   })
 })
 

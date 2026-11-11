@@ -6,6 +6,7 @@ import { EVERY_TOOTH, UPPER, LOWER, UPPER_DECIDUOUS, LOWER_DECIDUOUS, EXTRA_NAME
 import { stripConfidentialForPrint } from '@/lib/sigilo'
 import { textoVisivel } from '@/lib/escalas/registro'
 import { FACE_TOOLS, FACE_VW, FACE_VH, sessionTotals, formatTotal, type FaceSession } from '@/lib/faceograma'
+import { FACE_FRONT } from '@/lib/referenceImages'
 
 export interface ClinicInfo {
   name: string
@@ -147,7 +148,7 @@ function faceogramaSection(record: MedicalRecord | null): string {
     .sort((a, b) => a.date.localeCompare(b.date))
   if (sessions.length === 0) return ''
   const tool = (k: string) => FACE_TOOLS.find(t => t.key === k)
-  const faceSrc = `${typeof window !== 'undefined' ? window.location.origin : ''}/rosto.webp`
+  const faceSrc = `${typeof window !== 'undefined' ? window.location.origin : ''}${FACE_FRONT.sm}`
 
   return `
     <h3>Faceograma</h3>

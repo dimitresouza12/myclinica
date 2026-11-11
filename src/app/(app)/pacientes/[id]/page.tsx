@@ -1,10 +1,11 @@
 'use client'
-import { Suspense, use } from 'react'
+import { Suspense, use, useEffect } from 'react'
 import Link from 'next/link'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import type { Patient } from '@/types'
+import { fetchMedicalRecord, medicalRecordKey } from '@/lib/prontuario/loadRecord'
 import { ProntuarioView } from '@/components/prontuario/ProntuarioView'
 import { PatientCadastroView } from '@/components/pacientes/PatientCadastroView'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -31,12 +32,22 @@ function ProntuarioPage({ id }: { id: string }) {
   const clinic = useAuthStore(s => s.clinic)
   // Sem can_view de 'prontuario' a página é só o cadastro (o banco já nega os dados clínicos; aqui some o casco)
   const prontuarioPerm = usePermissions('prontuario')
+  const queryClient = useQueryClient()
   const { data: patient, isLoading, isError, refetch } = useQuery({
     queryKey: ['paciente', clinic?.id, id],
     enabled: !!clinic?.id,
     // refetch ao focar a janela devolveria a ficha ao banco no meio da edição
     refetchOnWindowFocus: false,
     staleTime: 60_000,
+    // a lista de pacientes (já carregada de quem chegou por ela) tem a mesma linha: a Ficha abre sem esperar a rede
+    initialData: () => {
+      if (!clinic?.id) return undefined
+      const listKey = ['pacientes', clinic.id]
+      const list = queryClient.getQueryData<{ patients?: Patient[] }>(listKey)
+      const found = list?.patients?.find(p => p.id === id && p.clinic_id === clinic.id)
+      return found
+    },
+    initialDataUpdatedAt: () => (clinic?.id ? queryClient.getQueryState(['pacientes', clinic.id])?.dataUpdatedAt : undefined),
     queryFn: async (): Promise<Patient | null> => {
       // sempre escopado à clínica da sessão: paciente de outra clínica é "não encontrado", nunca dado
       const { data, error } = await supabase
@@ -54,6 +65,17 @@ function ProntuarioPage({ id }: { id: string }) {
   })
 
   const withProntuario = showsProntuario(prontuarioPerm)
+
+  // a ficha clínica sai em paralelo com o cadastro (o prontuário reaproveita esta busca em vez de começar só depois dele)
+  const clinicId = clinic?.id
+  useEffect(() => {
+    if (!clinicId || !withProntuario) return
+    void queryClient.prefetchQuery({
+      queryKey: medicalRecordKey(clinicId, id),
+      queryFn: () => fetchMedicalRecord(clinicId, id),
+      staleTime: 5_000,
+    })
+  }, [clinicId, withProntuario, id, queryClient])
   if (!clinic || isLoading || !prontuarioPerm.loaded) {
     return <p className={styles.loading}>{withProntuario || !prontuarioPerm.loaded ? 'Carregando prontuário...' : 'Carregando cadastro...'}</p>
   }

@@ -174,7 +174,9 @@ export function mergeUndoAnnotations(snapshot: BodyAnnotation[], current: BodyAn
 // Quadro do desenho (viewBox) e proporção das imagens de referência, centralizadas no quadro ("meet").
 export const BODY_VW = 210
 export const BODY_VH = 280
-const BODY_IMG = { frente: { w: 560, h: 929 }, costas: { w: 560, h: 928 } }
+// As quatro figuras (feminina e masculina, frente e costas) têm a mesma pose e proporção (1342 x 2000); os retângulos
+// abaixo estão em pixels de uma versão de 700 x 1043 (a -sm).
+const BODY_IMG = { frente: { w: 700, h: 1043 }, costas: { w: 700, h: 1043 } }
 
 // retângulo em pixels da imagem -> unidades do viewBox
 function imgRect(view: 'frente' | 'costas', x0: number, y0: number, x1: number, y1: number): Rect {
@@ -189,25 +191,25 @@ export function bodyShortcuts(view: 'frente' | 'costas'): { key: string; label: 
   const r = (x0: number, y0: number, x1: number, y1: number) => imgRect(view, x0, y0, x1, y1)
   if (view === 'frente') {
     return [
-      { key: 'cabeca',  label: 'Cabeça',  rect: r(225, 0, 335, 140) },
-      { key: 'tronco',  label: 'Tronco',  rect: r(150, 150, 410, 410) },
-      { key: 'abdome',  label: 'Abdome',  rect: r(190, 255, 370, 415) },
-      { key: 'bracoD',  label: 'Braço D', rect: r(0, 165, 205, 535) },
-      { key: 'bracoE',  label: 'Braço E', rect: r(355, 165, 560, 535) },
-      { key: 'coxaD',   label: 'Coxa D',  rect: r(185, 400, 290, 630) },
-      { key: 'coxaE',   label: 'Coxa E',  rect: r(270, 400, 375, 630) },
-      { key: 'pernaD',  label: 'Perna D', rect: r(190, 610, 295, 929) },
-      { key: 'pernaE',  label: 'Perna E', rect: r(265, 610, 370, 929) },
+      { key: 'cabeca',  label: 'Cabeça',  rect: r(295, 35, 405, 185) },
+      { key: 'tronco',  label: 'Tronco',  rect: r(205, 195, 495, 470) },
+      { key: 'abdome',  label: 'Abdome',  rect: r(260, 330, 440, 570) },
+      { key: 'bracoD',  label: 'Braço D', rect: r(105, 200, 275, 615) },
+      { key: 'bracoE',  label: 'Braço E', rect: r(425, 200, 595, 615) },
+      { key: 'coxaD',   label: 'Coxa D',  rect: r(245, 460, 355, 735) },
+      { key: 'coxaE',   label: 'Coxa E',  rect: r(345, 460, 455, 735) },
+      { key: 'pernaD',  label: 'Perna D', rect: r(250, 700, 355, 1043) },
+      { key: 'pernaE',  label: 'Perna E', rect: r(345, 700, 460, 1043) },
     ]
   }
   return [
-    { key: 'cabeca',  label: 'Cabeça',  rect: r(225, 0, 335, 140) },
-    { key: 'costas',  label: 'Costas',  rect: r(165, 145, 395, 400) },
-    { key: 'bracoD',  label: 'Braço D', rect: r(355, 160, 560, 550) },
-    { key: 'bracoE',  label: 'Braço E', rect: r(0, 160, 205, 550) },
-    { key: 'coxaD',   label: 'Coxa D',  rect: r(270, 480, 375, 680) },
-    { key: 'coxaE',   label: 'Coxa E',  rect: r(185, 480, 290, 680) },
-    { key: 'pernaD',  label: 'Perna D', rect: r(265, 660, 370, 928) },
-    { key: 'pernaE',  label: 'Perna E', rect: r(190, 660, 295, 928) },
+    { key: 'cabeca',  label: 'Cabeça',  rect: r(295, 35, 405, 185) },
+    { key: 'costas',  label: 'Costas',  rect: r(205, 195, 495, 480) },
+    { key: 'bracoD',  label: 'Braço D', rect: r(425, 195, 595, 615) },
+    { key: 'bracoE',  label: 'Braço E', rect: r(105, 195, 275, 615) },
+    { key: 'coxaD',   label: 'Coxa D',  rect: r(345, 480, 455, 760) },
+    { key: 'coxaE',   label: 'Coxa E',  rect: r(245, 480, 355, 760) },
+    { key: 'pernaD',  label: 'Perna D', rect: r(350, 740, 460, 1043) },
+    { key: 'pernaE',  label: 'Perna E', rect: r(245, 740, 355, 1043) },
   ]
 }

@@ -10,6 +10,8 @@ import { PillTabs } from '@/components/ui/PillTabs'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { showToast } from '@/components/ui/Toast'
 import { ZoomCanvas, ExpandButton } from './ZoomCanvas'
+import { RefImage } from './RefImage'
+import { BODY_IMAGES, bodySexFor } from '@/lib/referenceImages'
 import {
   BODY_MODE_LABEL, BODY_VW, BODY_VH, EVA_LEVEL_LABEL, EVA_NO_VALUE_COLOR, EVA_VALUES,
   bodyShortcuts, bodyTotals, evaColor, evaLevel, formatBodyTotal, isMeaningfulSession, mergeUndoAnnotations, modesForSpecialties, painHistory, painSummary,
@@ -101,6 +103,7 @@ export function TabCorpograma({ record, patient, clinicId, onSaved, onDirtyChang
 
   const modeSessions = sessions.filter(s => sessionMode(s) === activeMode)
   const session = modeSessions.find(s => s.id === activeId) ?? modeSessions[0] ?? drafts[activeMode]
+  const bodySex = bodySexFor(patient.gender)
   const visibleAnnotations = session?.annotations.filter(a => a.view === view) ?? []
   const selAnn  = session?.annotations.find(a => a.id === selId) ?? null
   const totals  = bodyTotals(session?.annotations ?? [])
@@ -327,18 +330,13 @@ export function TabCorpograma({ record, patient, clinicId, onSaved, onDirtyChang
 
   // A imagem de referência e os pontos, em coordenadas do viewBox. `k` escala os marcadores (1 na tela normal;
   // na tela cheia é o inverso do zoom, para manterem o tamanho visual).
-  function renderImageAndPoints(k: number) {
+  function renderImageAndPoints(k: number, hi = false) {
     // escala o marcador em torno do próprio centro
     const tf = (a: Annotation) => (k === 1 ? undefined : `translate(${a.x} ${a.y}) scale(${k}) translate(${-a.x} ${-a.y})`)
     return (
       <>
-        {/* Referência anatômica: WebP com fundo transparente (ver ATTRIBUTIONS.md). Mais estreita que o quadro (proporção 0,6 contra 0,75), por isso fica centralizada; os pontos usam as coordenadas do quadro. */}
-        <image
-          href={view === 'frente' ? '/corpo-frente.webp' : '/corpo-costas.webp'}
-          x="0" y="0"
-          width={VW} height={VH}
-          preserveAspectRatio="xMidYMid meet"
-        />
+        {/* Referência anatômica: WebP com fundo transparente (ver ATTRIBUTIONS.md), figura feminina ou masculina conforme o paciente. Mais estreita que o quadro (proporção 0,67 contra 0,75), por isso fica centralizada; os pontos usam as coordenadas do quadro. */}
+        <RefImage img={BODY_IMAGES[bodySex][view]} hi={hi} width={VW} height={VH} />
 
         {/* ── Annotation points ── */}
         {visibleAnnotations.map(a => {
@@ -500,7 +498,7 @@ export function TabCorpograma({ record, patient, clinicId, onSaved, onDirtyChang
               {renderAnnEditor('fs-')}
             </div>
           }>
-          {ctx => renderImageAndPoints(ctx.k)}
+          {ctx => renderImageAndPoints(ctx.k, true)}
         </ZoomCanvas>
 
         {/* ── Side panel ── */}

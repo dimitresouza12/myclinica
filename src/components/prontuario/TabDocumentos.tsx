@@ -317,7 +317,7 @@ export function TabDocumentos({ patient, contractText, planItems = [] }: Props) 
     if (!clinic?.id) return
     supabase
       .from('clinic_document_templates')
-      .select('*')
+      .select('id, clinic_id, type, pdf_url, field_positions, created_at, updated_at')
       .eq('clinic_id', clinic.id)
       .then(({ data }) => {
         setTemplates((data ?? []) as ClinicDocumentTemplate[])

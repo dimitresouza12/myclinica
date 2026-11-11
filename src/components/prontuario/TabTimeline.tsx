@@ -85,16 +85,18 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
 
     if (photoPaths.length === 0) return
 
-    Promise.all(
-      photoPaths.map(async (path) => {
-        const { data } = await supabase.storage
-          .from('pacientes')
-          .createSignedUrl(path, SIGNED_URL_EXPIRES)
-        return [path, data?.signedUrl ?? ''] as [string, string]
+    // uma chamada só para todas as fotos (antes era uma por foto)
+    let cancelled = false
+    supabase.storage
+      .from('pacientes')
+      .createSignedUrls([...new Set(photoPaths)], SIGNED_URL_EXPIRES)
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        const next: Record<string, string> = {}
+        for (const row of data) if (row.path && row.signedUrl) next[row.path] = row.signedUrl
+        setSignedUrls(next)
       })
-    ).then((pairs) => {
-      setSignedUrls(Object.fromEntries(pairs.filter(([, url]) => url)))
-    })
+    return () => { cancelled = true }
   }, [entries])
 
   function extractStoragePath(url: string): string | null {
