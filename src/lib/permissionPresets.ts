@@ -25,15 +25,11 @@ export const MODULES: ModuleDef[] = [
   { key: 'relatorios',    label: 'Relatórios',     icon: '', plusOnly: false, desc: 'Relatórios de desempenho e planilhas' },
   { key: 'metas',         label: 'Metas',          icon: '', plusOnly: false, desc: 'Meta de receita da clínica' },
   { key: 'estoque',       label: 'Estoque',        icon: '', plusOnly: false, desc: 'Produtos, lotes e movimentações' },
-  { key: 'equipe',        label: 'Equipe',         icon: '', plusOnly: false, desc: 'Profissionais da agenda e seus logins', note: 'A aba Equipe das Configurações (acessos e permissões) é só do administrador.' },
+  { key: 'equipe',        label: 'Equipe',         icon: '', plusOnly: false, desc: 'Profissionais da agenda e seus logins', note: 'Quem tem Equipe pode criar profissionais e acessos, mas nunca administradores nem permissões acima das suas. A aba Equipe das Configurações (acessos e permissões) é só do administrador.' },
   { key: 'crm',           label: 'CRM',            icon: '', plusOnly: false, desc: 'Funil de contatos e conversas', note: 'Mensagens (WhatsApp) usa este módulo.' },
   { key: 'campanhas',     label: 'Campanhas',      icon: '', plusOnly: true,  desc: 'Envio de campanhas por WhatsApp' },
   { key: 'configuracoes', label: 'Configurações',  icon: '', plusOnly: false, desc: 'Dados da clínica, plano e integrações' },
 ]
-
-/** Módulos que só o administrador gerencia: na tela de permissões viram "Somente administrador", sem checkbox. */
-export const ADMIN_ONLY_MODULES: readonly string[] = ['configuracoes', 'metas']
-export const isAdminOnlyModule = (moduleKey: string): boolean => ADMIN_ONLY_MODULES.includes(moduleKey)
 
 export interface ModulePermForm {
   can_view: boolean
@@ -99,30 +95,6 @@ export function blankPermissions(): PermissionsForm {
     const extras = MODULE_EXTRAS[m.key] ?? []
     return [m.key, { can_view: false, can_edit: false, metadata: Object.fromEntries(extras.map(e => [e.key, e.defaultOn])) }]
   }))
-}
-
-// Cargos de apoio (recepção, auxiliar) nunca recebem EDIÇÃO nestes módulos: quem edita Equipe,
-// Configurações ou Financeiro administra a clínica. Ver só (can_view) continua permitido. Validação de tela:
-// no banco a trava só existe com SQL (ex.: trigger em clinic_user_permissions).
-export const SUPPORT_ROLES = ['recepcao', 'auxiliar'] as const
-export const SUPPORT_ROLE_BLOCKED_EDIT = ['equipe', 'configuracoes', 'financeiro'] as const
-
-export function isEditBlockedForRole(role: string, moduleKey: string): boolean {
-  return (SUPPORT_ROLES as readonly string[]).includes(role)
-    && (SUPPORT_ROLE_BLOCKED_EDIT as readonly string[]).includes(moduleKey)
-}
-
-/** Módulos em que o cargo de apoio está com can_edit marcado e não pode (vazio = ok). */
-export function blockedEditViolations(role: string, perms: PermissionsForm): string[] {
-  return Object.entries(perms)
-    .filter(([key, p]) => p.can_edit && isEditBlockedForRole(role, key))
-    .map(([key]) => key)
-}
-
-/** Mensagem para a tela, com o nome dos módulos. */
-export function blockedEditMessage(violations: string[]): string {
-  const names = violations.map(k => MODULES.find(m => m.key === k)?.label ?? k).join(', ')
-  return `Recepção e auxiliar não podem ter permissão de edição em: ${names}. Deixe só "Ver" nesses módulos ou use o cargo Admin.`
 }
 
 /**

@@ -11,8 +11,8 @@ import { registerClinicArea } from '@/lib/registerClinicArea'
 import { mergeSpecialtyConfigs, specialtyRoleLabel, roleForSpecialty, resolveDocumentOptions, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { hasWhatsAppAI } from '@/lib/planGates'
 import { professionalLimitFor, getPlanEntry, PLAN_CATALOG } from '@/lib/planCatalog'
-import { MODULES, MODULE_EXTRAS, presetPermissions, blankPermissions, isEditBlockedForRole, isAdminOnlyModule, blockedEditViolations, blockedEditMessage, type PermissionsForm } from '@/lib/permissionPresets'
-import { clearAllModules, markAllModules, permissionSummary, permissionWarnings, restoreRolePreset, sanitizeForSave } from '@/lib/permissionSummary'
+import { MODULES, MODULE_EXTRAS, presetPermissions, blankPermissions, type PermissionsForm } from '@/lib/permissionPresets'
+import { clearAllModules, markAllModules, permissionSummary, permissionWarnings, restoreRolePreset } from '@/lib/permissionSummary'
 import { normalizeUsername } from '@/lib/username'
 import { audit } from '@/lib/audit'
 import styles from './configuracoes.module.css'
@@ -476,6 +476,16 @@ function ConfiguracoesContent() {
       ['username_taken', 'Este nome de usuário já está em uso.'],
       ['username_invalid', 'Nome de usuário inválido (3-30 chars: letras, números, _ . -).'],
       ['unauthorized', 'Você não tem permissão para realizar esta ação.'],
+      ['not_authorized', 'Você não tem permissão para realizar esta ação.'],
+      ['cannot_modify_admin', 'Só um administrador pode alterar um administrador.'],
+      ['cannot_modify_self', 'Você não pode alterar o seu próprio acesso.'],
+      ['cannot_grant_admin', 'Só um administrador pode conceder o cargo de administrador.'],
+      ['cannot_grant_permission', 'Você não pode conceder permissões acima das suas.'],
+      ['weak_password', 'Senha fraca: use pelo menos 8 caracteres.'],
+      ['email_invalid', 'E-mail inválido.'],
+      ['cannot_reactivate_member', 'Só o administrador pode reativar um acesso desativado.'],
+      ['target_shared_account', 'Este usuário também pertence a outra clínica; peça ao administrador.'],
+      ['cannot_modify_higher', 'Este usuário tem permissões acima das suas; só o administrador pode alterá-lo.'],
     ]
     for (const [code, text] of known) if (raw.includes(code)) return text
     return fallbackPrefix + 'tente novamente em instantes.'
@@ -489,8 +499,7 @@ function ConfiguracoesContent() {
       if (type === 'delete') {
         const { error } = await supabase.rpc('delete_clinic_member', { p_member_id: target.id })
         if (error) {
-          const msg = error.message.includes('unauthorized') ? 'Você não tem permissão para excluir usuários.'
-            : memberErrorMessage(error.message, 'Não foi possível excluir o usuário: ')
+          const msg = memberErrorMessage(error.message, 'Não foi possível excluir o usuário: ')
           showToast('error', msg)
         } else {
           if (user && clinic) audit({ action: 'user.delete', user_id: user.id, clinic_id: clinic.id, module: 'configuracoes', resource_id: target.id })
@@ -533,22 +542,10 @@ function ConfiguracoesContent() {
     return error ? error.message : null
   }
 
-  // Configurações e Metas são só do administrador: nunca gravam Editar para outro cargo
-  function permissionsToSave(): PermissionsForm {
-    return userForm.role === 'admin' ? permissionsForm : sanitizeForSave(permissionsForm)
-  }
-
   async function handleSaveUser() {
     setUserMsg(null)
     if (!userForm.display_name.trim()) return setUserMsg({ type: 'error', text: 'Nome é obrigatório.' })
     if (!userForm.username.trim())     return setUserMsg({ type: 'error', text: 'Usuário é obrigatório.' })
-    // Recepção/auxiliar não recebem edição de Equipe, Configurações e Financeiro (nem por clique manual)
-    const blocked = blockedEditViolations(userForm.role, permissionsForm)
-    if (blocked.length > 0) {
-      const text = blockedEditMessage(blocked)
-      showToast('error', text)
-      return setUserMsg({ type: 'error', text })
-    }
 
     setUserSaving(true)
 
@@ -567,7 +564,7 @@ function ConfiguracoesContent() {
         setUserMsg({ type: 'error', text: msg })
       } else {
         if (userForm.specialty_type) await registerClinicArea(userForm.specialty_type)
-        const permErr = await savePermissions(editingUser.id, permissionsToSave())
+        const permErr = await savePermissions(editingUser.id, permissionsForm)
         if (user && clinic) audit({ action: 'user.update', user_id: user.id, clinic_id: clinic.id, module: 'configuracoes', resource_id: editingUser.id })
         closeUserModal()
         await loadUsers()
@@ -580,7 +577,7 @@ function ConfiguracoesContent() {
     } else {
       // Criar novo membro
       if (!userForm.email.trim())      { setUserSaving(false); return setUserMsg({ type: 'error', text: 'E-mail é obrigatório.' }) }
-      if (userForm.password.length < 6) { setUserSaving(false); return setUserMsg({ type: 'error', text: 'Senha deve ter pelo menos 6 caracteres.' }) }
+      if (userForm.password.length < 8) { setUserSaving(false); return setUserMsg({ type: 'error', text: 'Senha deve ter pelo menos 8 caracteres.' }) }
       // Login em si não tem limite de plano. Só quem marca "também cadastrar
       // na agenda" vira profissional de verdade — checagem no cliente só pra
       // dar a mensagem certa, quem garante o limite é o trigger no banco
@@ -603,7 +600,7 @@ function ConfiguracoesContent() {
         setUserMsg({ type: 'error', text: msg })
       } else {
         if (userForm.specialty_type) await registerClinicArea(userForm.specialty_type)
-        const permErr = newCuId ? await savePermissions(newCuId as string, permissionsToSave()) : null
+        const permErr = newCuId ? await savePermissions(newCuId as string, permissionsForm) : null
         if (user && clinic) audit({ action: 'user.create', user_id: user.id, clinic_id: clinic.id, module: 'configuracoes', resource_id: newCuId as string | undefined })
         // Caminho inverso do que existe em Equipe: criar um usuário com
         // cargo clínico aqui também pode já deixá-lo agendável, sem
@@ -1478,7 +1475,7 @@ function ConfiguracoesContent() {
               <PasswordInput
                 value={userForm.password}
                 onChange={e => setUserForm(p => ({ ...p, password: e.target.value }))}
-                placeholder="mín. 6 caracteres"
+                placeholder="mín. 8 caracteres"
               />
             </div>
           </>
@@ -1562,6 +1559,7 @@ function ConfiguracoesContent() {
                 <div className={styles.permHelp}>
                   <p><b>Ver</b>: abrir e consultar o módulo.</p>
                   <p><b>Editar</b>: criar, alterar, excluir, enviar e exportar. Precisa de Ver marcado.</p>
+                  <p><b>Equipe</b>: quem pode editar Equipe cria profissionais e acessos (inclusive recepção e auxiliar), mas nunca administradores nem permissões acima das suas.</p>
                 </div>
 
                 <p className={styles.permSummary} role="status" aria-live="polite">
@@ -1578,8 +1576,8 @@ function ConfiguracoesContent() {
                 )}
 
                 <div className={styles.permTools}>
-                  <Button variant="secondary" onClick={() => setPermissionsForm(prev => restoreRolePreset(userForm.role, prev))}>Restaurar padrão do cargo</Button>
-                  <Button variant="secondary" onClick={() => setPermissionsForm(prev => markAllModules(userForm.role, prev, visibleModules))}>Marcar tudo</Button>
+                  <Button variant="secondary" onClick={() => setPermissionsForm(restoreRolePreset(userForm.role))}>Restaurar padrão do cargo</Button>
+                  <Button variant="secondary" onClick={() => setPermissionsForm(prev => markAllModules(prev, visibleModules))}>Marcar tudo</Button>
                   <Button variant="secondary" onClick={() => setPermissionsForm(prev => clearAllModules(prev, visibleModules))}>Limpar</Button>
                 </div>
 
@@ -1592,8 +1590,6 @@ function ConfiguracoesContent() {
                   {visibleModules.map(m => {
                     const perm = permissionsForm[m.key] ?? { can_view: false, can_edit: false, metadata: {} }
                     const extras = MODULE_EXTRAS[m.key] ?? []
-                    const adminOnly = isAdminOnlyModule(m.key)
-                    const editBlocked = isEditBlockedForRole(userForm.role, m.key)
                     return (
                       <div key={m.key}>
                         <div className={styles.permRow}>
@@ -1602,41 +1598,35 @@ function ConfiguracoesContent() {
                             <span className={styles.permDesc}>{m.desc}</span>
                             {m.note && <span className={styles.permDesc}>{m.note}</span>}
                           </span>
-                          {adminOnly ? (
-                            <span className={styles.permAdminOnly} title="Este módulo é gerenciado só pelo administrador da clínica">Somente administrador</span>
-                          ) : (
-                            <>
-                              <span className={styles.permCheckCol}>
-                                <input
-                                  type="checkbox"
-                                  className={styles.permCheck}
-                                  aria-label={`Ver ${m.label}`}
-                                  checked={perm.can_view}
-                                  onChange={e => setPermissionsForm(prev => ({
-                                    ...prev,
-                                    [m.key]: { ...prev[m.key], can_view: e.target.checked, can_edit: e.target.checked ? prev[m.key].can_edit : false }
-                                  }))}
-                                />
-                              </span>
-                              <span className={styles.permCheckCol}>
-                                <input
-                                  type="checkbox"
-                                  className={styles.permCheck}
-                                  aria-label={`Editar ${m.label}`}
-                                  checked={perm.can_edit}
-                                  disabled={!perm.can_view || editBlocked}
-                                  title={editBlocked ? 'Recepção e auxiliar só podem ver este módulo' : !perm.can_view ? 'Marque Ver primeiro' : undefined}
-                                  onChange={e => setPermissionsForm(prev => ({
-                                    ...prev,
-                                    [m.key]: { ...prev[m.key], can_edit: e.target.checked }
-                                  }))}
-                                />
-                              </span>
-                            </>
-                          )}
+                          <span className={styles.permCheckCol}>
+                            <input
+                              type="checkbox"
+                              className={styles.permCheck}
+                              aria-label={`Ver ${m.label}`}
+                              checked={perm.can_view}
+                              onChange={e => setPermissionsForm(prev => ({
+                                ...prev,
+                                [m.key]: { ...prev[m.key], can_view: e.target.checked, can_edit: e.target.checked ? prev[m.key].can_edit : false }
+                              }))}
+                            />
+                          </span>
+                          <span className={styles.permCheckCol}>
+                            <input
+                              type="checkbox"
+                              className={styles.permCheck}
+                              aria-label={`Editar ${m.label}`}
+                              checked={perm.can_edit}
+                              disabled={!perm.can_view}
+                              title={!perm.can_view ? 'Marque Ver primeiro' : undefined}
+                              onChange={e => setPermissionsForm(prev => ({
+                                ...prev,
+                                [m.key]: { ...prev[m.key], can_edit: e.target.checked }
+                              }))}
+                            />
+                          </span>
                         </div>
                         {/* Opções extras do módulo (ex: Ver totais no Financeiro) */}
-                        {!adminOnly && perm.can_view && extras.map(extra => (
+                        {perm.can_view && extras.map(extra => (
                           <label key={extra.key} className={styles.permExtra}>
                             <input
                               type="checkbox"

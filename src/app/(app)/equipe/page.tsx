@@ -65,6 +65,60 @@ const ROLE_LABELS_FALLBACK: Record<string, string> = {
   profissional: 'Profissional', admin: 'Admin', superadmin: 'Superadmin',
 }
 
+// RPC ainda não aplicada no banco (migration pendente): PostgREST devolve PGRST202/404 ou 42883.
+function isMissingRpc(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false
+  const msg = (error.message ?? '').toLowerCase()
+  return error.code === 'PGRST202' || error.code === '42883'
+    || msg.includes('does not exist') || msg.includes('could not find the function') || msg.includes('not found')
+}
+
+const MISSING_RPC_MSG = 'Recurso indisponível: aplique a atualização do banco.'
+
+// Traduz os códigos de erro das funções de acesso (create/link/reset/unlink) para mensagens claras.
+function accessErrorMessage(error: { message?: string; code?: string }, fallbackPrefix: string): string {
+  if (isMissingRpc(error)) return MISSING_RPC_MSG
+  const m = error.message ?? ''
+  if (m.includes('not_authorized'))          return 'Você não tem permissão para fazer isso.'
+  if (m.includes('cannot_grant_admin'))      return 'Só um administrador pode criar ou promover acessos de administrador.'
+  if (m.includes('cannot_grant_permission')) return 'Você não pode conceder permissões acima das suas.'
+  if (m.includes('email_invalid'))           return 'E-mail inválido.'
+  if (m.includes('cannot_reactivate_member')) return 'Só o administrador pode reativar um acesso desativado.'
+  if (m.includes('target_shared_account'))   return 'Este usuário também pertence a outra clínica; peça ao administrador.'
+  if (m.includes('cannot_modify_higher'))    return 'Este usuário tem permissões acima das suas; só o administrador pode alterá-lo.'
+  if (m.includes('cannot_modify_admin'))     return 'Só um administrador pode alterar um administrador.'
+  if (m.includes('cannot_modify_self'))      return 'Você não pode alterar o seu próprio acesso.'
+  if (m.includes('professional_already_linked')) return 'Este profissional já tem acesso ao sistema.'
+  if (m.includes('professional_not_linked')) return 'Este profissional não tem acesso ao sistema.'
+  if (m.includes('cannot_deactivate_last_admin')) return 'Não é possível desativar o último administrador da clínica.'
+  if (m.includes('cannot_demote_last_admin')) return 'Não é possível remover o último administrador da clínica.'
+  if (m.includes('member_not_found'))        return 'Usuário não encontrado.'
+  if (m.includes('professional_not_found'))  return 'Profissional não encontrado.'
+  if (m.includes('email_taken'))             return 'Este e-mail já está em uso.'
+  if (m.includes('username_taken'))          return 'Este nome de usuário já está em uso.'
+  if (m.includes('username_invalid'))        return 'Nome de usuário inválido (3-30 chars: letras, números, _ . -).'
+  if (m.includes('weak_password'))           return 'Senha fraca: use pelo menos 8 caracteres.'
+  if (m.includes('user_limit_reached'))      return 'Limite de usuários do plano atingido. Fale com o suporte para migrar de plano.'
+  return `${fallbackPrefix}: ${m}`
+}
+
+type PermRow = { module: string; can_view: boolean; can_edit: boolean; metadata: Record<string, unknown> }
+
+// A função de salvar permissões substitui tudo: se o alvo já tem permissões gravadas, manda o estado
+// completo atual (não só o preset) para não apagar níveis; sem nada gravado, usa o preset do cargo.
+async function permissionsPayloadFor(memberId: string, role: UserRole): Promise<PermRow[]> {
+  const { data } = await supabase
+    .from('clinic_user_permissions')
+    .select('module, can_view, can_edit, metadata')
+    .eq('clinic_user_id', memberId)
+  if (data && data.length > 0) {
+    return data.map(r => ({ module: r.module, can_view: r.can_view, can_edit: r.can_edit, metadata: (r.metadata as Record<string, unknown>) ?? {} }))
+  }
+  return Object.entries(presetPermissions(role)).map(([module, p]) => ({
+    module, can_view: p.can_view, can_edit: p.can_edit, metadata: p.metadata ?? {},
+  }))
+}
+
 function EquipeContent() {
   const { clinic, user } = useAuthStore()
   const isAdmin = user?.role === 'admin' || user?.isSuperAdmin
@@ -83,14 +137,19 @@ function EquipeContent() {
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [activeUserCount, setActiveUserCount] = useState(0)
-  const [createdCredentials, setCreatedCredentials] = useState<{ displayName: string; username: string; email: string; password: string } | null>(null)
+  const [createdCredentials, setCreatedCredentials] = useState<{ displayName: string; username: string; email: string; password: string; reset?: boolean } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProfessionalRow | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   // Profissional em edição — quando setado, handleSave faz UPDATE em vez de
-  // criar um novo. Só edita os campos da própria tabela `professionals`
-  // (nome, especialidade, duração, registro); login/cargo/senha continuam
-  // sendo função exclusiva de Configurações → Equipe.
+  // criar um novo. Além dos campos de `professionals`, o bloco de acesso permite
+  // criar o login (se não tem), redefinir a senha ou remover o acesso.
+  // Permissões finas continuam em Configurações → Equipe.
   const [editingProf, setEditingProf] = useState<ProfessionalRow | null>(null)
+  // Usuário/e-mail do login vinculado (busca separada: pode não estar legível dependendo da permissão)
+  const [accessInfo, setAccessInfo] = useState<{ username: string | null; email: string | null } | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [accessBusy, setAccessBusy] = useState(false)
+  const hasLogin = !!editingProf?.clinic_user_id
 
   // Limite é por PROFISSIONAL cadastrado (com ou sem login) — recepção e
   // auxiliar não contam mais pro teto do plano (reestruturação de planos:
@@ -144,6 +203,8 @@ function EquipeContent() {
     const area = clinic ? defaultProfessionalArea(clinic) : ''
     setForm({ ...BLANK, specialty_type: area, role: clinicalRoleForArea(area) })
     setEditingProf(null)
+    setAccessInfo(null)
+    setNewPassword('')
     setErrorMsg(null)
     setShowModal(true)
   }
@@ -159,10 +220,18 @@ function EquipeContent() {
       defaultDuration: p.default_duration_minutes != null ? String(p.default_duration_minutes) : '',
       registrationNumber: p.registration_number ?? '',
       rqe: p.rqe ?? '',
+      hasAccess: !!p.clinic_user_id,
+      role: p.clinic_users?.role ?? clinicalRoleForArea((p.specialty_type ?? (clinic ? defaultProfessionalArea(clinic) : '')) as ClinicType | ''),
     })
     setEditingProf(p)
+    setAccessInfo(null)
+    setNewPassword('')
     setErrorMsg(null)
     setShowModal(true)
+    if (p.clinic_user_id) {
+      supabase.from('clinic_users').select('username, email').eq('id', p.clinic_user_id).maybeSingle()
+        .then(({ data }) => { if (data) setAccessInfo({ username: data.username ?? null, email: data.email ?? null }) })
+    }
   }
 
   async function handleSave() {
@@ -170,6 +239,13 @@ function EquipeContent() {
     setErrorMsg(null)
 
     if (editingProf) {
+      // Marcou "vai acessar o sistema" num profissional que ainda não tem login: valida antes de gravar.
+      const linkingLogin = !editingProf.clinic_user_id && form.hasAccess
+      if (linkingLogin) {
+        if (!form.username.trim()) return setErrorMsg('Nome de usuário é obrigatório.')
+        if (!form.email.trim())    return setErrorMsg('E-mail é obrigatório.')
+        if (form.password.length < 8) return setErrorMsg('Senha deve ter pelo menos 8 caracteres.')
+      }
       setSaving(true)
       const { error } = await supabase.from('professionals').update({
         name: form.name.trim(),
@@ -195,6 +271,38 @@ function EquipeContent() {
         })
       }
       if (form.specialty_type) await registerClinicArea(form.specialty_type)
+
+      if (linkingLogin) {
+        const email = form.email.trim().toLowerCase()
+        const username = normalizeUsername(form.username)
+        const { data: linked, error: linkErr } = await supabase.rpc('link_professional_login', {
+          p_professional_id: editingProf.id,
+          p_email: email,
+          p_password: form.password,
+          p_username: username,
+          p_role: form.role,
+          p_specialty_type: form.specialty_type || null,
+        })
+        if (linkErr) {
+          setSaving(false)
+          loadData()
+          return setErrorMsg(accessErrorMessage(linkErr, 'Erro ao criar o acesso'))
+        }
+        // A função pode devolver o id do login ou um objeto; se não vier, busca no profissional.
+        let cuId: string | null = typeof linked === 'string' ? linked
+          : (linked && typeof linked === 'object' ? ((linked as { clinic_user_id?: string; id?: string }).clinic_user_id ?? (linked as { id?: string }).id ?? null) : null)
+        if (!cuId) {
+          const { data: row } = await supabase.from('professionals').select('clinic_user_id').eq('id', editingProf.id).maybeSingle()
+          cuId = row?.clinic_user_id ?? null
+        }
+        const { error: permErr } = cuId
+          ? await supabase.rpc('save_clinic_member_permissions', { p_member_id: cuId, p_permissions: await permissionsPayloadFor(cuId, form.role) })
+          : { error: { message: 'login sem id' } }
+        setCreatedCredentials({ displayName: form.name.trim(), username, email, password: form.password })
+        if (permErr) showToast('error', 'Acesso criado, mas houve erro ao salvar as permissões. Ajuste em Configurações → Equipe.')
+        loadUserCount()
+      }
+
       setSaving(false)
       setShowModal(false)
       setForm(BLANK)
@@ -240,7 +348,7 @@ function EquipeContent() {
     // checado acima antes dos dois caminhos).
     if (!form.username.trim()) { setSaving(false); return setErrorMsg('Nome de usuário é obrigatório.') }
     if (!form.email.trim())    { setSaving(false); return setErrorMsg('E-mail é obrigatório.') }
-    if (form.password.length < 6) { setSaving(false); return setErrorMsg('Senha deve ter pelo menos 6 caracteres.') }
+    if (form.password.length < 8) { setSaving(false); return setErrorMsg('Senha deve ter pelo menos 8 caracteres.') }
 
     const { data: newCuId, error } = await supabase.rpc('create_clinic_member', {
       p_email:        form.email.trim().toLowerCase(),
@@ -253,11 +361,7 @@ function EquipeContent() {
     })
     if (error) {
       setSaving(false)
-      const msg = error.message.includes('email_taken')      ? 'Este e-mail já está em uso.'
-        : error.message.includes('username_taken')           ? 'Este nome de usuário já está em uso.'
-        : error.message.includes('username_invalid')         ? 'Nome de usuário inválido (3-30 chars: letras, números, _ . -).'
-        : error.message.includes('user_limit_reached')       ? 'Limite de usuários do plano atingido. Fale com o suporte para migrar de plano.'
-        : 'Erro ao criar login: ' + error.message
+      const msg = accessErrorMessage(error, 'Erro ao criar login')
       return setErrorMsg(msg)
     }
 
@@ -296,6 +400,49 @@ function EquipeContent() {
     if (permErr) showToast('error', 'Login criado, mas houve erro ao salvar as permissões. Ajuste em Configurações → Equipe.')
     setShowModal(false)
     setForm(BLANK)
+    loadData()
+    loadUserCount()
+  }
+
+  async function handleResetPassword() {
+    if (!editingProf?.clinic_user_id) return
+    if (newPassword.length < 8) return setErrorMsg('A nova senha deve ter pelo menos 8 caracteres.')
+    setErrorMsg(null)
+    setAccessBusy(true)
+    const { error } = await supabase.rpc('reset_clinic_member_password', {
+      p_clinic_user_id: editingProf.clinic_user_id,
+      p_password: newPassword,
+    })
+    setAccessBusy(false)
+    if (error) return setErrorMsg(accessErrorMessage(error, 'Erro ao redefinir a senha'))
+    setCreatedCredentials({
+      displayName: editingProf.name,
+      username: accessInfo?.username ?? '',
+      email: accessInfo?.email ?? '',
+      password: newPassword,
+      reset: true,
+    })
+    setNewPassword('')
+  }
+
+  async function handleRemoveAccess() {
+    if (!editingProf?.clinic_user_id) return
+    const ok = await confirmDialog({
+      title: isAdmin ? `Remover o acesso de ${editingProf.name}?` : `Desativar o acesso de ${editingProf.name}?`,
+      message: 'A pessoa deixa de conseguir entrar no sistema. O cadastro na agenda e os registros passados são mantidos.',
+      confirmText: isAdmin ? 'Remover acesso' : 'Desativar acesso',
+      danger: true,
+    })
+    if (!ok) return
+    setErrorMsg(null)
+    setAccessBusy(true)
+    const { error } = await supabase.rpc('unlink_professional_login', { p_professional_id: editingProf.id })
+    setAccessBusy(false)
+    if (error) return setErrorMsg(accessErrorMessage(error, 'Erro ao remover o acesso'))
+    showToast('ok', isAdmin ? 'Acesso removido.' : 'Acesso desativado.')
+    setShowModal(false)
+    setForm(BLANK)
+    setEditingProf(null)
     loadData()
     loadUserCount()
   }
@@ -513,68 +660,105 @@ function EquipeContent() {
           </div>
         )}
 
-        {!editingProf && isAdmin && (
-          <div className={styles.accessSection}>
-            <label className={styles.checkboxRow}>
-              <input
-                type="checkbox"
-                checked={form.hasAccess}
-                onChange={(e) => setForm(p => ({ ...p, hasAccess: e.target.checked }))}
-              />
-              <span>Este profissional vai acessar o sistema?</span>
-            </label>
+        <div className={styles.accessSection}>
+          {hasLogin ? (
+            <>
+              <div className={f.field}>
+                <label>Acesso ao sistema</label>
+                {editingProf?.clinic_users && !editingProf.clinic_users.is_active
+                  ? <StatusDot tone="bad">Acesso desativado</StatusDot>
+                  : <StatusDot tone="ok">Tem acesso</StatusDot>}
+              </div>
+              <div className={styles.accessMeta}>
+                {editingProf?.clinic_users?.role && (
+                  <span><b>Cargo:</b> {editingProf.clinic_users.specialty_type ? specialtyRoleLabel(editingProf.clinic_users.specialty_type) : (ROLE_LABELS_FALLBACK[editingProf.clinic_users.role] ?? editingProf.clinic_users.role)}</span>
+                )}
+                {accessInfo?.username && <span><b>Usuário:</b> {accessInfo.username}</span>}
+                {accessInfo?.email && <span><b>E-mail:</b> {accessInfo.email}</span>}
+              </div>
+              <div className={f.field}>
+                <label>Nova senha</label>
+                <PasswordInput
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="mín. 8 caracteres"
+                />
+              </div>
+              <div className={styles.accessActions}>
+                <button type="button" className={btn.secondary} onClick={handleResetPassword} disabled={accessBusy || newPassword.length < 8}>
+                  Redefinir senha
+                </button>
+                <button type="button" className={btn.danger} onClick={handleRemoveAccess} disabled={accessBusy}>
+                  {isAdmin ? 'Remover acesso' : 'Desativar acesso'}
+                </button>
+              </div>
+              <p className={f.hint}>As permissões deste acesso são ajustadas em Configurações → Equipe, por quem é administrador.</p>
+            </>
+          ) : (
+            <>
+              <label className={styles.checkboxRow}>
+                <input
+                  type="checkbox"
+                  checked={form.hasAccess}
+                  onChange={(e) => setForm(p => ({ ...p, hasAccess: e.target.checked }))}
+                />
+                <span>Este profissional vai acessar o sistema?</span>
+              </label>
 
-            {form.hasAccess && (
-              <>
-                <div className={f.field}>
-                  <label>Cargo</label>
-                  {/* A área vem do campo "Área de atuação" acima; aqui só se decide se a pessoa atende
-                      paciente (cargo clínico da área) ou se é recepção/auxiliar. */}
-                  <SelectMenu
-                    variant="field"
-                    ariaLabel="Cargo"
-                    value={isClinicalRole(form.role) ? 'clinico' : form.role}
-                    onChange={v => setForm(p => ({
-                      ...p,
-                      role: v === 'clinico' ? clinicalRoleForArea(p.specialty_type) : (v as UserRole),
-                    }))}
-                    options={[
-                      { value: 'clinico', label: form.specialty_type ? specialtyRoleLabel(form.specialty_type) : 'Profissional da área', group: 'Atende pacientes' },
-                      { value: 'recepcao', label: 'Recepção', group: 'Sem atendimento' },
-                      { value: 'auxiliar', label: 'Auxiliar', group: 'Sem atendimento' },
-                    ]}
-                  />
-                </div>
-                <div className={f.field}>
-                  <label>Nome de usuário (login) *</label>
-                  <input
-                    value={form.username}
-                    onChange={(e) => setForm(p => ({ ...p, username: normalizeUsername(e.target.value) }))}
-                    placeholder="ex: mariasilva"
-                  />
-                </div>
-                <div className={f.field}>
-                  <label>E-mail *</label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))}
-                    placeholder="profissional@clinica.com"
-                  />
-                </div>
-                <div className={f.field}>
-                  <label>Senha *</label>
-                  <PasswordInput
-                    value={form.password}
-                    onChange={(e) => setForm(p => ({ ...p, password: e.target.value }))}
-                    placeholder="mín. 6 caracteres"
-                  />
-                </div>
-                <p className={f.hint}>As permissões vêm pré-marcadas pro cargo — dá pra ajustar depois em Configurações → Equipe.</p>
-              </>
-            )}
-          </div>
-        )}
+              {form.hasAccess && (
+                <>
+                  <div className={f.field}>
+                    <label>Cargo</label>
+                    {/* A área vem do campo "Área de atuação" acima; aqui só se decide se a pessoa atende
+                        paciente (cargo clínico da área) ou se é recepção/auxiliar. Administrador só
+                        aparece para quem já é administrador. */}
+                    <SelectMenu
+                      variant="field"
+                      ariaLabel="Cargo"
+                      value={isClinicalRole(form.role) ? 'clinico' : form.role}
+                      onChange={v => setForm(p => ({
+                        ...p,
+                        role: v === 'clinico' ? clinicalRoleForArea(p.specialty_type) : (v as UserRole),
+                      }))}
+                      options={[
+                        { value: 'clinico', label: form.specialty_type ? specialtyRoleLabel(form.specialty_type) : 'Profissional da área', group: 'Atende pacientes' },
+                        { value: 'recepcao', label: 'Recepção', group: 'Sem atendimento' },
+                        { value: 'auxiliar', label: 'Auxiliar', group: 'Sem atendimento' },
+                        ...(isAdmin ? [{ value: 'admin', label: 'Administrador', group: 'Gestão' }] : []),
+                      ]}
+                    />
+                  </div>
+                  <div className={f.field}>
+                    <label>Nome de usuário (login) *</label>
+                    <input
+                      value={form.username}
+                      onChange={(e) => setForm(p => ({ ...p, username: normalizeUsername(e.target.value) }))}
+                      placeholder="ex: mariasilva"
+                    />
+                  </div>
+                  <div className={f.field}>
+                    <label>E-mail *</label>
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))}
+                      placeholder="profissional@clinica.com"
+                    />
+                  </div>
+                  <div className={f.field}>
+                    <label>Senha *</label>
+                    <PasswordInput
+                      value={form.password}
+                      onChange={(e) => setForm(p => ({ ...p, password: e.target.value }))}
+                      placeholder="mín. 8 caracteres"
+                    />
+                  </div>
+                  <p className={f.hint}>As permissões vêm pré-marcadas pro cargo — dá pra ajustar depois em Configurações → Equipe.</p>
+                </>
+              )}
+            </>
+          )}
+        </div>
 
         {errorMsg && <p className={f.error}>{errorMsg}</p>}
       </Modal>
@@ -605,6 +789,7 @@ function EquipeContent() {
           username={createdCredentials.username}
           email={createdCredentials.email}
           password={createdCredentials.password}
+          title={createdCredentials.reset ? `Nova senha de ${createdCredentials.displayName}` : undefined}
           onClose={() => setCreatedCredentials(null)}
         />
       )}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { blankPermissions, canSeeFinancialTotals, MODULES, presetPermissions } from './permissionPresets'
-import { clearAllModules, joinPt, markAllModules, permissionSummary, permissionWarnings, restoreRolePreset, sanitizeForSave } from './permissionSummary'
+import { clearAllModules, joinPt, markAllModules, permissionSummary, permissionWarnings, restoreRolePreset } from './permissionSummary'
 
 describe('joinPt', () => {
   it('junta em português', () => {
@@ -16,8 +16,9 @@ describe('permissionSummary', () => {
     const text = permissionSummary('Recepção', presetPermissions('recepcao'))
     expect(text).toContain('Recepção: edita Pacientes e Agenda; vê Dashboard e Procedimentos.')
     expect(text).toContain('Não acessa Prontuário, Financeiro')
-    expect(text).not.toContain('Configurações')
-    expect(text).not.toContain('Metas')
+    // Configurações e Metas entram na conta como qualquer outro módulo
+    expect(text).toContain('Configurações')
+    expect(text).toContain('Metas')
   })
   it('sem nenhum acesso', () => {
     expect(permissionSummary('Auxiliar', blankPermissions())).toBe('Auxiliar: sem acesso a nenhum módulo.')
@@ -45,52 +46,53 @@ describe('permissionWarnings', () => {
     expect(w).toHaveLength(1)
     expect(w[0]).toContain('Prontuário e Financeiro')
   })
-  it('profissional editando equipe ou configurações', () => {
+  it('recepção editando financeiro e configurações: aviso informativo, sem bloquear', () => {
+    const perms = blankPermissions()
+    perms.financeiro = { can_view: true, can_edit: true, metadata: {} }
+    perms.configuracoes = { can_view: true, can_edit: true, metadata: {} }
+    const w = permissionWarnings('recepcao', 'Recepção', perms)
+    expect(w.some(x => x.includes('terá acesso de edição a Financeiro e Configurações'))).toBe(true)
+  })
+  it('profissional editando equipe', () => {
     const perms = blankPermissions()
     perms.equipe = { can_view: true, can_edit: true, metadata: {} }
     const w = permissionWarnings('dentista', 'Dentista', perms)
     expect(w).toHaveLength(1)
     expect(w[0]).toContain('Equipe')
+    expect(w[0]).toContain('nunca administradores')
+  })
+  it('recepção editando equipe: aviso de dado sensível e de acessos', () => {
+    const perms = blankPermissions()
+    perms.equipe = { can_view: true, can_edit: true, metadata: {} }
+    const w = permissionWarnings('recepcao', 'Recepção', perms)
+    expect(w).toHaveLength(2)
   })
   it('preset do dentista não gera aviso; admin nunca', () => {
     expect(permissionWarnings('dentista', 'Dentista', presetPermissions('dentista'))).toEqual([])
-    const all = markAllModules('admin', blankPermissions())
+    const all = markAllModules(blankPermissions())
     expect(permissionWarnings('admin', 'Admin', all)).toEqual([])
   })
 })
 
 describe('ações em lote', () => {
-  it('restaurar padrão devolve o preset e preserva módulos só do admin', () => {
-    const cur = blankPermissions()
-    cur.agenda = { can_view: false, can_edit: false, metadata: {} }
-    cur.configuracoes = { can_view: true, can_edit: false, metadata: {} }
-    const out = restoreRolePreset('recepcao', cur)
-    expect(out.agenda).toEqual(presetPermissions('recepcao').agenda)
-    expect(out.configuracoes.can_view).toBe(true)
+  it('restaurar padrão devolve o preset do cargo', () => {
+    const out = restoreRolePreset('recepcao')
+    expect(out).toEqual(presetPermissions('recepcao'))
   })
-  it('marcar tudo: recepção só ganha Ver onde a trava impede editar', () => {
-    const out = markAllModules('recepcao', blankPermissions())
-    expect(out.agenda).toMatchObject({ can_view: true, can_edit: true })
-    expect(out.financeiro).toMatchObject({ can_view: true, can_edit: false })
-    expect(out.equipe).toMatchObject({ can_view: true, can_edit: false })
-    expect(out.configuracoes).toMatchObject({ can_view: false, can_edit: false })
-    expect(out.metas).toMatchObject({ can_view: false, can_edit: false })
+  it('marcar tudo marca Ver e Editar em todos os módulos, para qualquer cargo', () => {
+    const out = markAllModules(blankPermissions())
+    for (const m of MODULES) expect(out[m.key]).toMatchObject({ can_view: true, can_edit: true })
     expect(out.financeiro.metadata.show_totals).toBe(true)
+  })
+  it('marcar tudo respeita a lista de módulos passada (sem campanhas fora do plano)', () => {
+    const out = markAllModules(blankPermissions(), MODULES.filter(m => !m.plusOnly))
+    expect(out.agenda.can_edit).toBe(true)
+    expect(out.campanhas.can_view).toBe(false)
   })
   it('limpar desmarca tudo e desliga as opções extras', () => {
     const out = clearAllModules(presetPermissions('dentista'))
     expect(out.agenda).toMatchObject({ can_view: false, can_edit: false })
     expect(out.financeiro.metadata.show_totals).toBe(false)
-  })
-  it('gravar nunca deixa Editar ligado em Configurações e Metas', () => {
-    const perms = blankPermissions()
-    perms.metas = { can_view: true, can_edit: true, metadata: {} }
-    perms.configuracoes = { can_view: true, can_edit: true, metadata: {} }
-    perms.agenda = { can_view: true, can_edit: true, metadata: {} }
-    const out = sanitizeForSave(perms)
-    expect(out.metas).toMatchObject({ can_view: true, can_edit: false })
-    expect(out.configuracoes.can_edit).toBe(false)
-    expect(out.agenda.can_edit).toBe(true)
   })
 })
 

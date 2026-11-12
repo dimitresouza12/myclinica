@@ -10,6 +10,8 @@ interface Props {
   username: string
   email: string
   password: string
+  /** título do modal; padrão: "Login criado para <nome>" */
+  title?: string
   onClose: () => void
 }
 
@@ -17,7 +19,7 @@ interface Props {
 // tinha como confirmar se anotou os dados certos, e quem ia logar não sabia
 // como entrar. Essa tela mostra o que foi definido, com botão de copiar,
 // antes de sumir.
-export function CredentialsConfirmModal({ displayName, username, email, password, onClose }: Props) {
+export function CredentialsConfirmModal({ displayName, username, email, password, title, onClose }: Props) {
   const [copied, setCopied] = useState<string | null>(null)
 
   function copy(field: string, value: string) {
@@ -37,7 +39,7 @@ export function CredentialsConfirmModal({ displayName, username, email, password
       open
       onClose={onClose}
       size="sm"
-      title={`Login criado para ${displayName}`}
+      title={title ?? `Login criado para ${displayName}`}
       footer={<button type="button" className={btn.primary} onClick={onClose}>Entendi</button>}
     >
       <p className={styles.desc}>
