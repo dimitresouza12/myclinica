@@ -32,7 +32,7 @@ export function CredentialsConfirmModal({ displayName, username, email, password
     { key: 'username', label: 'Usuário', value: username },
     { key: 'email', label: 'E-mail', value: email },
     { key: 'password', label: 'Senha', value: password },
-  ]
+  ].filter(r => r.value)
 
   return (
     <Modal

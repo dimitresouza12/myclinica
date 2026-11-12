@@ -102,6 +102,14 @@ function accessErrorMessage(error: { message?: string; code?: string }, fallback
   return `${fallbackPrefix}: ${m}`
 }
 
+// O login já existe, mas sem permissões gravadas: a pessoa não enxerga nada até o administrador ajustar.
+function permissionsFailedMessage(error: { message?: string; code?: string }): string {
+  const reason = (error.message ?? '').includes('cannot_grant_permission')
+    ? ' Você não pode conceder permissões acima das suas.'
+    : ''
+  return `O login foi criado, mas ficou sem permissões.${reason} Peça ao administrador para ajustá-las em Configurações → Equipe.`
+}
+
 type PermRow = { module: string; can_view: boolean; can_edit: boolean; metadata: Record<string, unknown> }
 
 // A função de salvar permissões substitui tudo: se o alvo já tem permissões gravadas, manda o estado
@@ -299,7 +307,7 @@ function EquipeContent() {
           ? await supabase.rpc('save_clinic_member_permissions', { p_member_id: cuId, p_permissions: await permissionsPayloadFor(cuId, form.role) })
           : { error: { message: 'login sem id' } }
         setCreatedCredentials({ displayName: form.name.trim(), username, email, password: form.password })
-        if (permErr) showToast('error', 'Acesso criado, mas houve erro ao salvar as permissões. Ajuste em Configurações → Equipe.')
+        if (permErr) showToast('error', permissionsFailedMessage(permErr))
         loadUserCount()
       }
 
@@ -397,7 +405,7 @@ function EquipeContent() {
       email: form.email.trim().toLowerCase(),
       password: form.password,
     })
-    if (permErr) showToast('error', 'Login criado, mas houve erro ao salvar as permissões. Ajuste em Configurações → Equipe.')
+    if (permErr) showToast('error', permissionsFailedMessage(permErr))
     setShowModal(false)
     setForm(BLANK)
     loadData()
@@ -409,6 +417,12 @@ function EquipeContent() {
     if (newPassword.length < 8) return setErrorMsg('A nova senha deve ter pelo menos 8 caracteres.')
     setErrorMsg(null)
     setAccessBusy(true)
+    // Usuário/e-mail para a tela de confirmação: usa o já carregado ou tenta de novo (pode não ser legível para não-admin)
+    let info = accessInfo
+    if (!info?.username && !info?.email) {
+      const { data } = await supabase.from('clinic_users').select('username, email').eq('id', editingProf.clinic_user_id).maybeSingle()
+      if (data) info = { username: data.username ?? null, email: data.email ?? null }
+    }
     const { error } = await supabase.rpc('reset_clinic_member_password', {
       p_clinic_user_id: editingProf.clinic_user_id,
       p_password: newPassword,
@@ -417,8 +431,8 @@ function EquipeContent() {
     if (error) return setErrorMsg(accessErrorMessage(error, 'Erro ao redefinir a senha'))
     setCreatedCredentials({
       displayName: editingProf.name,
-      username: accessInfo?.username ?? '',
-      email: accessInfo?.email ?? '',
+      username: info?.username ?? '',
+      email: info?.email ?? '',
       password: newPassword,
       reset: true,
     })
