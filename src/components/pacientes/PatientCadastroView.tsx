@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useProfessionals } from '@/hooks/useClinicData'
 import { STATUS_LABELS } from '@/lib/appointmentStatus'
 import { usePermissions } from '@/hooks/usePermissions'
+import { usePatientAvatarUrl } from '@/hooks/usePatientAvatarUrl'
 import { buildCadastroSections } from '@/lib/pacientes/cadastro'
 import { PatientFormModal } from '@/components/pacientes/PatientFormModal'
 import { Card } from '@/components/ui/Card'
@@ -68,6 +69,7 @@ export function PatientCadastroView({ patient, clinic }: Props) {
   const [editing, setEditing] = useState(false)
   const sections = buildCadastroSections(patient)
   const initials = patient.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+  const avatarSrc = usePatientAvatarUrl(patient)
 
   function handleSaved() {
     setEditing(false)
@@ -84,9 +86,9 @@ export function PatientCadastroView({ patient, clinic }: Props) {
       </div>
 
       <header className={styles.head}>
-        {patient.avatar_url
+        {avatarSrc
           // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={patient.avatar_url} alt="" className={styles.avatar} />
+          ? <img src={avatarSrc} alt="" className={styles.avatar} />
           : <span className={styles.avatarInitials} aria-hidden="true">{initials}</span>}
         <div className={styles.headText}>
           <h1 className={styles.title}>{patient.name}</h1>

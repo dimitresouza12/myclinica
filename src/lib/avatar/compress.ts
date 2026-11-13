@@ -59,6 +59,33 @@ export function isImageFile(file: { type: string; name: string }): boolean {
 
 // ── compressão (usa canvas: só no navegador) ────────────────────────────────
 
+/** Ajustes opcionais da compressão. Sem eles vale o padrão de perfil (160 px, ~12 KB). */
+export interface AvatarCompressOptions {
+  /** lados a tentar, em ordem (o primeiro é o preferido) */
+  sizes?: readonly number[]
+  /** meta de bytes da imagem */
+  targetBytes?: number
+  /** teto de caracteres da data URL para aceitar a melhor tentativa */
+  maxChars?: number
+}
+
+/** Foto de paciente: um pouco maior que a de perfil (320 px, ~25 KB), pois aparece em cabeçalhos e listas. */
+export const PATIENT_AVATAR_OPTIONS: Required<AvatarCompressOptions> = {
+  sizes: [320, 256, 192, 160],
+  targetBytes: 25 * 1024,
+  maxChars: 45_000,
+}
+
+/** Converte uma data URL base64 em Blob (para enviar ao storage). */
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const i = dataUrl.indexOf(',')
+  const mime = /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? 'application/octet-stream'
+  const bin = atob(i < 0 ? '' : dataUrl.slice(i + 1))
+  const bytes = new Uint8Array(bin.length)
+  for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k)
+  return new Blob([bytes], { type: mime })
+}
+
 export interface CompressedAvatar {
   /** data URL pronta para gravar em clinic_users.avatar_data */
   dataUrl: string
@@ -71,7 +98,10 @@ export interface CompressedAvatar {
  * reduzida até caber em ~12 KB; se não couber, diminui o lado (128, 112, 96). Aceita até 30 mil caracteres.
  * Respeita a orientação EXIF. Lança ImageCompressError com texto para o usuário.
  */
-export async function compressAvatar(file: File): Promise<CompressedAvatar> {
+export async function compressAvatar(file: File, options: AvatarCompressOptions = {}): Promise<CompressedAvatar> {
+  const sizes = options.sizes ?? AVATAR_SIZES
+  const targetBytes = options.targetBytes ?? AVATAR_TARGET_BYTES
+  const maxChars = options.maxChars ?? AVATAR_MAX_CHARS
   if (!isImageFile(file)) throw new ImageCompressError('Escolha um arquivo de imagem (JPEG, PNG ou WebP).')
   if (file.size <= 0) throw new ImageCompressError('A foto está vazia.')
   if (file.size > IMAGE_INPUT_MAX_BYTES) throw new ImageCompressError('A foto é grande demais. Escolha uma menor.')
@@ -84,7 +114,7 @@ export async function compressAvatar(file: File): Promise<CompressedAvatar> {
     const { sx, sy, side } = centerSquare(dec.width, dec.height)
     let type: CompressedAvatar['mime'] = 'image/webp'
     let best: CompressedAvatar | null = null
-    for (const size of AVATAR_SIZES) {
+    for (const size of sizes) {
       canvas.width = size
       canvas.height = size
       ctx.imageSmoothingQuality = 'high'
@@ -102,10 +132,10 @@ export async function compressAvatar(file: File): Promise<CompressedAvatar> {
         if (!url.startsWith(`data:${type}`)) throw new ImageCompressError('Não foi possível preparar a foto.')
         const out: CompressedAvatar = { dataUrl: url, mime: type, size: dataUrlBytes(url) }
         if (!best || url.length < best.dataUrl.length) best = out
-        if (out.size <= AVATAR_TARGET_BYTES) return out
+        if (out.size <= targetBytes) return out
       }
     }
-    if (best && best.dataUrl.length <= AVATAR_MAX_CHARS) return best
+    if (best && best.dataUrl.length <= maxChars) return best
     throw new ImageCompressError('Não foi possível deixar esta foto leve o bastante. Escolha outra.')
   } finally {
     dec.close()

@@ -13,6 +13,8 @@
 }
 .avatarWrap:hover .avatarOverlay, .avatarWrap:focus-visible .avatarOverlay { opacity: 1; }
 .avatarWrap:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.avatarWrap:disabled { cursor: progress; }
+.avatarWrap[aria-busy='true'] .avatarOverlay { opacity: 1; }
 
 .avatar { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
 

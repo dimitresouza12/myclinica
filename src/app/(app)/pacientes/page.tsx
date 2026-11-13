@@ -10,6 +10,7 @@ import { hasWhatsAppAI } from '@/lib/planGates'
 import { usePacientesData, usePatientCreditsData } from '@/hooks/useClinicData'
 import { isScopedProfessional } from '@/lib/professionalScope'
 import { avatarTone } from '@/lib/ui/avatarTone'
+import { avatarStoragePath, signAvatarPaths } from '@/lib/pacientes/avatarUrl'
 import { addDays, lastDays, patientsSeries, startOfDay } from '@/lib/dashboard/metrics'
 import { exportRows, filterPatients, matchesFilter, summarizePatients, toCsv, type PatientFilter } from '@/lib/pacientes/summary'
 import type { Patient } from '@/types'
@@ -65,6 +66,26 @@ function PacientesContent() {
   const { data: pacientesData, isLoading: loading } = usePacientesData(clinic?.id)
   const patients = useMemo(() => pacientesData?.patients ?? [], [pacientesData])
   const appointments = useMemo(() => pacientesData?.appointments ?? [], [pacientesData])
+
+  // patients.avatar_url guarda o caminho no bucket privado: troca pelos links assinados para exibir as fotos
+  const [avatarSrc, setAvatarSrc] = useState<Record<string, string>>({})
+  useEffect(() => {
+    const byPatient: Record<string, string> = {}
+    for (const p of patients) {
+      const path = avatarStoragePath(p.avatar_url, p.clinic_id, p.id)
+      if (path) byPatient[p.id] = path
+    }
+    const paths = Object.values(byPatient)
+    if (paths.length === 0) return
+    let alive = true
+    void signAvatarPaths(paths).then(signed => {
+      if (!alive) return
+      const next: Record<string, string> = {}
+      for (const [id, path] of Object.entries(byPatient)) if (signed[path]) next[id] = signed[path]
+      setAvatarSrc(next)
+    })
+    return () => { alive = false }
+  }, [patients])
   const { data: creditsData } = usePatientCreditsData(clinic?.id)
   // Saldo de pacote por paciente — soma do ledger, só entra no mapa quando ≠ 0
   // (a maioria dos pacientes não usa pacote, então não faz sentido guardar
@@ -251,7 +272,7 @@ function PacientesContent() {
                           {isVet ? (
                             <span className={styles.petBadge}><PetIcon species={p.pet_species} size={20} /></span>
                           ) : (
-                            <Avatar url={p.avatar_url} name={p.name} size={36} className={`${styles.avatar} ${styles[`tone${avatarTone(p.name)}`]}`} />
+                            <Avatar url={p.avatar_url ? avatarSrc[p.id] : null} name={p.name} size={36} className={`${styles.avatar} ${styles[`tone${avatarTone(p.name)}`]}`} />
                           )}
                           <div className={styles.who}>
                             <button type="button" className={styles.name} onClick={e => { e.stopPropagation(); openProntuario(p) }}>{p.name}</button>

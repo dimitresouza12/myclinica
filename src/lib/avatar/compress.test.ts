@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  AVATAR_MAX_CHARS, AVATAR_MIN_QUALITY, AVATAR_START_QUALITY, avatarQualitySteps, centerSquare, dataUrlBytes, isImageFile, isValidAvatarData,
+  AVATAR_MAX_CHARS, AVATAR_MIN_QUALITY, AVATAR_SIZE, AVATAR_START_QUALITY, PATIENT_AVATAR_OPTIONS, avatarQualitySteps, centerSquare, dataUrlBytes, dataUrlToBlob, isImageFile, isValidAvatarData,
 } from './compress'
 
 describe('centerSquare', () => {
@@ -65,5 +65,23 @@ describe('isImageFile', () => {
   it('tipo vazio vale pela extensão', () => {
     expect(isImageFile({ type: '', name: 'IMG_1.HEIC' })).toBe(true)
     expect(isImageFile({ type: '', name: 'nota.txt' })).toBe(false)
+  })
+})
+
+describe('PATIENT_AVATAR_OPTIONS', () => {
+  it('começa maior que o avatar de perfil e termina nele', () => {
+    expect(PATIENT_AVATAR_OPTIONS.sizes[0]).toBeGreaterThan(AVATAR_SIZE)
+    expect(PATIENT_AVATAR_OPTIONS.sizes[PATIENT_AVATAR_OPTIONS.sizes.length - 1]).toBe(AVATAR_SIZE)
+  })
+  it('o teto de caracteres comporta a meta de bytes em base64', () => {
+    expect(PATIENT_AVATAR_OPTIONS.maxChars).toBeGreaterThan(Math.ceil(PATIENT_AVATAR_OPTIONS.targetBytes * 4 / 3))
+  })
+})
+
+describe('dataUrlToBlob', () => {
+  it('devolve o tipo e os bytes da data URL', () => {
+    const blob = dataUrlToBlob('data:image/webp;base64,QUJD')
+    expect(blob.type).toBe('image/webp')
+    expect(blob.size).toBe(3)
   })
 })

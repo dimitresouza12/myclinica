@@ -23,6 +23,11 @@ import { corePrintOptions } from '@/lib/prontuario/printOptions'
 import { CHAT_IA_ATIVO, resolveTab, withTab } from '@/lib/prontuario/navigation'
 import { canLeave, internalTarget, joinLabels, setLeaveGuard, unsavedLabels } from '@/lib/prontuario/leaveGuard'
 import { Icon } from '@/components/ui/Icon'
+import { showToast } from '@/components/ui/Toast'
+import { AvatarMenu } from './AvatarMenu'
+import { PATIENT_AVATAR_OPTIONS, compressAvatar, dataUrlToBlob, isImageFile } from '@/lib/avatar/compress'
+import { ImageCompressError } from '@/lib/teamChat/compress'
+import { PATIENT_AVATAR_BUCKET, avatarStoragePath, patientAvatarPath } from '@/lib/pacientes/avatarUrl'
 import { getSpecialtyConfig, mergeSpecialtyConfigs } from '@/lib/specialtyConfig'
 import { Skeleton, SkeletonLines } from '@/components/ui/Skeleton'
 import { ENTRIES_FIRST_PAGE, fetchEntriesPage, fetchMedicalRecord, medicalRecordKey } from '@/lib/prontuario/loadRecord'
@@ -128,6 +133,8 @@ export function ProntuarioView({ patient, clinic }: Props) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
+  const avatarBtnRef = useRef<HTMLButtonElement>(null)
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
   const [timelinePending, setTimelinePending] = useState(false)
   const [fichaDirty, setFichaDirty] = useState(false)
   const [odontoDirty, setOdontoDirty] = useState(false)
@@ -236,12 +243,10 @@ export function ProntuarioView({ patient, clinic }: Props) {
     try {
       // O upload grava o caminho real (avatar.png, .webp, .jpg...) em patients.avatar_url; o cadastro já traz esse valor
       // (e o upload desta tela atualiza o cache), então não precisa de outra ida ao banco antes de assinar a URL.
-      const stored = (patient.avatar_url ?? '').trim()
-      if (!stored) return
-      // caminho do storage; um https://... de versão antiga cai no nome fixo usado então
-      const path = /^https?:/i.test(stored) ? `${clinicId}/${patient.id}/avatar.jpg` : stored
+      const path = avatarStoragePath(patient.avatar_url, clinicId, patient.id)
+      if (!path) return
       const { data } = await supabase.storage
-        .from('patient-avatars')
+        .from(PATIENT_AVATAR_BUCKET)
         .createSignedUrl(path, 3600)
       if (data?.signedUrl) setAvatarUrl(data.signedUrl)
     } catch {
@@ -282,30 +287,80 @@ export function ProntuarioView({ patient, clinic }: Props) {
 
   const refreshRecord = () => { void loadRecord(false) }
 
+  // mantém os caches do paciente coerentes, para reabrir o prontuário e a lista sem a foto antiga
+  function patchAvatarCache(value: string | null) {
+    queryClient.setQueryData<Patient | null>(['paciente', clinicId, patient.id], cur => (cur ? { ...cur, avatar_url: value } : cur))
+    queryClient.setQueryData<{ patients?: Patient[] } | undefined>(['pacientes', clinicId], cur => (cur?.patients ? { ...cur, patients: cur.patients.map(p => (p.id === patient.id ? { ...p, avatar_url: value } : p)) } : cur))
+  }
+
+  // grava o caminho em patients.avatar_url e confere que alguma linha mudou (RLS que bloqueia devolve 0 linhas, sem erro)
+  async function saveAvatarPath(value: string | null): Promise<boolean> {
+    const { data, error } = await supabase.from('patients').update({ avatar_url: value }).eq('id', patient.id).eq('clinic_id', clinicId).select('id')
+    return !error && (data?.length ?? 0) > 0
+  }
+
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
-    if (!file.type.startsWith('image/')) return
+    if (uploadingAvatar) return
+    if (!isImageFile(file)) { showToast('error', 'Escolha um arquivo de imagem (JPEG, PNG ou WebP).'); return }
     setUploadingAvatar(true)
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-    const path = `${clinicId}/${patient.id}/avatar.${ext}`
-    const { error: upErr } = await supabase.storage
-      .from('patient-avatars')
-      .upload(path, file, { upsert: true, contentType: file.type })
-    if (!upErr) {
+    try {
+      let out
+      try {
+        out = await compressAvatar(file, PATIENT_AVATAR_OPTIONS)
+      } catch (err) {
+        showToast('error', err instanceof ImageCompressError ? err.message : 'Não foi possível preparar a foto. Tente outra imagem.')
+        return
+      }
+      const oldPath = avatarStoragePath(patient.avatar_url, clinicId, patient.id)
+      const path = patientAvatarPath(clinicId, patient.id, out.mime)
+      const { error: upErr } = await supabase.storage
+        .from(PATIENT_AVATAR_BUCKET)
+        .upload(path, dataUrlToBlob(out.dataUrl), { upsert: true, contentType: out.mime })
+      if (upErr) { showToast('error', 'Não foi possível enviar a foto. Verifique a conexão e tente de novo.'); return }
       // Salva o path no banco, não a URL pública
-      await supabase.from('patients').update({ avatar_url: path }).eq('id', patient.id)
-      // mantém os caches do paciente coerentes, para reabrir o prontuário sem a foto antiga
-      queryClient.setQueryData<Patient | null>(['paciente', clinicId, patient.id], cur => (cur ? { ...cur, avatar_url: path } : cur))
-      queryClient.setQueryData<{ patients?: Patient[] } | undefined>(['pacientes', clinicId], cur => (cur?.patients ? { ...cur, patients: cur.patients.map(p => (p.id === patient.id ? { ...p, avatar_url: path } : p)) } : cur))
+      if (!(await saveAvatarPath(path))) {
+        // a foto nova ficou sem registro: desfaz o envio (se o arquivo já era o mesmo, não há o que desfazer)
+        if (path !== oldPath) await supabase.storage.from(PATIENT_AVATAR_BUCKET).remove([path]).catch(() => undefined)
+        showToast('error', 'A foto foi enviada, mas não foi possível salvá-la no cadastro. Tente de novo.')
+        return
+      }
+      // extensão mudou (ex.: foto antiga .png): apaga o arquivo anterior para não deixar órfão
+      if (oldPath && oldPath !== path) await supabase.storage.from(PATIENT_AVATAR_BUCKET).remove([oldPath]).catch(() => undefined)
+      patchAvatarCache(path)
       // Gera signed URL para exibição imediata
-      const { data } = await supabase.storage
-        .from('patient-avatars')
-        .createSignedUrl(path, 3600)
+      const { data } = await supabase.storage.from(PATIENT_AVATAR_BUCKET).createSignedUrl(path, 3600)
       if (data?.signedUrl) setAvatarUrl(data.signedUrl)
+      showToast('ok', 'Foto atualizada.')
+    } finally {
+      setUploadingAvatar(false)
     }
-    setUploadingAvatar(false)
+  }
+
+  async function handleAvatarRemove() {
+    setAvatarMenuOpen(false)
+    if (uploadingAvatar) return
+    setUploadingAvatar(true)
+    try {
+      const oldPath = avatarStoragePath(patient.avatar_url, clinicId, patient.id)
+      if (!(await saveAvatarPath(null))) { showToast('error', 'Não foi possível remover a foto. Tente de novo.'); return }
+      patchAvatarCache(null)
+      setAvatarUrl(null)
+      if (oldPath) await supabase.storage.from(PATIENT_AVATAR_BUCKET).remove([oldPath]).catch(() => undefined)
+      showToast('ok', 'Foto removida.')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  const hasAvatar = !!avatarUrl || !!patient.avatar_url
+  // com foto, o toque abre o menu (trocar/remover); sem foto, vai direto para a escolha do arquivo
+  function onAvatarClick() {
+    if (uploadingAvatar) return
+    if (hasAvatar) setAvatarMenuOpen(o => !o)
+    else avatarInputRef.current?.click()
   }
 
   const initials = patient.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -343,7 +398,7 @@ export function ProntuarioView({ patient, clinic }: Props) {
 
       <section className={styles.surface} aria-label={`Prontuário de ${patient.name}`}>
         <header className={styles.head}>
-          <button type="button" className={styles.avatarWrap} onClick={() => avatarInputRef.current?.click()} aria-label="Trocar a foto do paciente" title="Trocar a foto">
+          <button ref={avatarBtnRef} type="button" className={styles.avatarWrap} onClick={onAvatarClick} disabled={uploadingAvatar} aria-busy={uploadingAvatar} aria-haspopup={hasAvatar ? 'menu' : undefined} aria-expanded={hasAvatar ? avatarMenuOpen : undefined} aria-label={hasAvatar ? 'Foto do paciente: trocar ou remover' : 'Adicionar foto do paciente'} title={hasAvatar ? 'Trocar ou remover a foto' : 'Adicionar foto'}>
             {avatarUrl
               // eslint-disable-next-line @next/next/no-img-element
               ? <img src={avatarUrl} alt="" className={styles.avatar} />
@@ -378,6 +433,14 @@ export function ProntuarioView({ patient, clinic }: Props) {
         </div>
 
         <input ref={avatarInputRef} type="file" accept="image/*" hidden onChange={handleAvatarChange} />
+        {avatarMenuOpen && (
+          <AvatarMenu
+            anchorRef={avatarBtnRef}
+            onChange={() => { setAvatarMenuOpen(false); avatarInputRef.current?.click() }}
+            onRemove={handleAvatarRemove}
+            onClose={() => setAvatarMenuOpen(false)}
+          />
+        )}
         {portalOpen && <PortalLinkModal patient={patient} clinic={clinic} contractText={record?.contract_text} onClose={() => setPortalOpen(false)} />}
         <div className={styles.sections}>
           {/* Ficha: always mounted (default tab) */}
