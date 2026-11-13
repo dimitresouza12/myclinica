@@ -9,6 +9,7 @@ import {
   type BodySegment, type MentionIndex,
 } from '@/lib/teamChat/richText'
 import type { TeamMessageView } from '@/lib/teamChat/types'
+import { UserAvatar } from '@/components/ui/UserAvatar'
 import { AttachmentView } from './AttachmentView'
 import styles from './ChatEquipe.module.css'
 
@@ -49,6 +50,8 @@ interface Props {
   mine: boolean
   /** nome de quem escreveu, quando deve aparecer acima da bolha */
   authorLabel: string | null
+  /** foto de quem escreveu (junto do nome, em grupos); sem foto, iniciais */
+  authorAvatar?: string | null
   /** primeira bolha de uma sequência da mesma pessoa: abre um espaço maior */
   runStart: boolean
   quote: QuoteInfo | null
@@ -173,7 +176,7 @@ function MessageBubbleBase(p: Props) {
       id={`tm-${m.id}`}
       className={`${styles.b} ${p.mine ? styles.out : styles.in} ${p.runStart ? styles.runStart : ''} ${failed ? styles.outFailed : ''} ${p.flash ? styles.flash : ''} ${mentioned ? styles.mentioned : ''}`}
     >
-      {p.authorLabel && <span className={styles.by}>{p.authorLabel}</span>}
+      {p.authorLabel && <span className={styles.by}><UserAvatar name={p.authorLabel} avatar={p.authorAvatar} size={20} /><span className={styles.byName}>{p.authorLabel}</span></span>}
       {p.quote && !deleted && (p.quote.missing ? (
         // a mensagem citada está fora da janela carregada: não há para onde ir, então não é um botão
         <div className={`${styles.quote} ${styles.quoteStatic}`}>

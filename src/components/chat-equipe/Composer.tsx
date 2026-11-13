@@ -307,7 +307,7 @@ function ComposerBase({ ref, ...p }: Props) {
                       onClick={() => pickMention(d)}
                       onMouseEnter={() => setMentionIdx(i)}
                     >
-                      <ChannelAvatar kind="direct" name={d.display_name} size={32} />
+                      <ChannelAvatar kind="direct" name={d.display_name} size={32} avatar={d.avatar_data} />
                       <span className={styles.pickText}><b>{d.display_name}</b><span>{memberRoleLabel(d)}</span></span>
                       {p.online.has(d.clinic_user_id) && <PresenceDot />}
                     </button>

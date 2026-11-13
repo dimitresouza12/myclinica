@@ -40,6 +40,8 @@ export interface ChannelView {
   subtitle: string
   /** nome de quem aparece no avatar (direct: o outro; demais: o título) */
   avatarName: string
+  /** foto de perfil do avatar (direct: a do outro); sem foto, iniciais */
+  avatarData?: string | null
   /** conversa direta minha: id (clinic_user_id) do outro participante, para o indicador de online */
   otherUserId: string | null
   members: TeamChannelMember[]
@@ -86,6 +88,7 @@ export function buildChannelViews(args: {
     let title = c.name ?? 'Conversa'
     let subtitle = ''
     let avatarName = title
+    let avatarData: string | null = null
     let otherUserId: string | null = null
     if (c.kind === 'direct') {
       const others = mem.filter(m => m.clinic_user_id !== meId)
@@ -93,6 +96,7 @@ export function buildChannelViews(args: {
       const label = (p: TeamDirectoryEntry | undefined) => p?.display_name ?? 'Colega desativado'
       title = mem.length === 0 ? 'Conversa' : mine ? label(people[0]) : people.map(label).join(' e ') || 'Conversa'
       avatarName = people[0] ? label(people[0]) : title
+      avatarData = people[0]?.avatar_data ?? null
       otherUserId = mine ? others[0]?.clinic_user_id ?? null : null
       subtitle = mine && people[0] ? memberRoleLabel(people[0]) : 'Conversa entre colegas'
     } else if (c.kind === 'general') {
@@ -105,7 +109,7 @@ export function buildChannelViews(args: {
     if (c.archived_at) subtitle += ' · Arquivada'
 
     out.push({
-      channel: c, title, subtitle, avatarName, otherUserId, members: mem, isMember: !!mine,
+      channel: c, title, subtitle, avatarName, avatarData, otherUserId, members: mem, isMember: !!mine,
       readOnly: c.archived_at ? 'archived' : mine ? null : 'admin',
       muted: !!mine?.muted, unread: unread[c.id] ?? 0, last: lastMsg ?? null,
     })

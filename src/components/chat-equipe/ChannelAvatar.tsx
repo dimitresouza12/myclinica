@@ -1,4 +1,4 @@
-import { Avatar } from '@/components/ui/Avatar'
+import { UserAvatar } from '@/components/ui/UserAvatar'
 import { Icon } from '@/components/ui/Icon'
 import { avatarTone } from '@/lib/ui/avatarTone'
 import type { TeamChannelKind } from '@/lib/teamChat/types'
@@ -8,13 +8,15 @@ interface Props {
   kind: TeamChannelKind
   name: string
   size?: number
+  /** foto de perfil da pessoa (conversa direta); sem ela, iniciais */
+  avatar?: string | null
 }
 
 /** Círculo do canal: iniciais de quem está na conversa direta; ícone para geral, áreas e grupos. */
-export function ChannelAvatar({ kind, name, size = 40 }: Props) {
+export function ChannelAvatar({ kind, name, size = 40, avatar }: Props) {
   const tone = styles[`tone${avatarTone(name)}`]
   if (kind === 'direct') {
-    return <Avatar name={name} size={size} className={`${styles.avatar} ${tone}`} />
+    return <UserAvatar name={name} avatar={avatar} size={size} />
   }
   return (
     <span className={`${styles.avatar} ${tone}`} style={{ width: size, height: size }} aria-hidden="true">

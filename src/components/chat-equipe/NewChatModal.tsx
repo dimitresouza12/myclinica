@@ -98,13 +98,13 @@ export function NewChatModal({ mode, colleagues, actions, online, onClose, onOpe
                 <li key={c.clinic_user_id} className={styles.pickItem}>
                   {isGroup ? (
                     <button type="button" role="checkbox" aria-checked={on} className={`${styles.pickRow} ${on ? styles.pickRowOn : ''}`} onClick={() => toggle(c.clinic_user_id)}>
-                      <ChannelAvatar kind="direct" name={c.display_name} />
+                      <ChannelAvatar kind="direct" name={c.display_name} avatar={c.avatar_data} />
                       <span className={styles.pickText}><span className={styles.pickNameRow}><b>{c.display_name}</b>{online.has(c.clinic_user_id) && <PresenceDot />}</span><span>{memberRoleLabel(c)}</span></span>
                       <span className={styles.pickBox} aria-hidden="true">{on && <Icon name="check" size={14} />}</span>
                     </button>
                   ) : (
                     <button type="button" className={styles.pickRow} onClick={() => void openDirect(c.clinic_user_id)} disabled={busy}>
-                      <ChannelAvatar kind="direct" name={c.display_name} />
+                      <ChannelAvatar kind="direct" name={c.display_name} avatar={c.avatar_data} />
                       <span className={styles.pickText}><span className={styles.pickNameRow}><b>{c.display_name}</b>{online.has(c.clinic_user_id) && <PresenceDot />}</span><span>{memberRoleLabel(c)}</span></span>
                     </button>
                   )}

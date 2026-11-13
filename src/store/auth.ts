@@ -22,6 +22,8 @@ interface AuthState {
   clearActiveSpecialty: () => void
   setHydrated: () => void
   setClinicLogo: (logo: string) => void
+  /** Foto de perfil do login atual (data URL) ou null para remover. */
+  setUserAvatar: (avatar: string | null) => void
   addClinicSpecialty: (type: ClinicType) => void
   dismissOnboardingItem: (key: string) => void
   markOnboardingModalSeen: () => void
@@ -78,6 +80,7 @@ export const useAuthStore = create<AuthState>()(
       },
       setHydrated: () => set({ _hydrated: true }),
       setClinicLogo: (logo) => set((s) => s.clinic ? { clinic: { ...s.clinic, logo } } : {}),
+      setUserAvatar: (avatar) => set((s) => s.user ? { user: { ...s.user, avatarData: avatar } } : {}),
       // O RPC de criar/editar usuário já grava a área nova em
       // clinics.specialties no banco — isso só espelha localmente pra não
       // repetir o mesmo bug do plano em cache (userLimitFor "1 de 1" com

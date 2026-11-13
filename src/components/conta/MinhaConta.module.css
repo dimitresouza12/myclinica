@@ -20,6 +20,17 @@
 .btnSave:hover:not(:disabled) { background: var(--brand-secondary); }
 .btnSave:disabled { opacity: 0.6; cursor: not-allowed; }
 
+
+.avatarRow { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
+.avatarSide { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; flex: 1; }
+.avatarActions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.fileInput { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.btnGhost { padding: 0 1.25rem; min-height: 44px; background: transparent; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 999px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background .15s; }
+.btnGhost:hover:not(:disabled) { background: var(--bg-tertiary); }
+.btnGhost:disabled { opacity: 0.6; cursor: not-allowed; }
+.btnGhost:focus-visible, .btnSave:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.avatarRow + .savedMsg, .avatarRow + .pwError { margin-top: var(--space-3); }
+
 .infoGrid { display: flex; flex-direction: column; gap: var(--space-3); }
 .infoRow { display: flex; gap: var(--space-4); align-items: baseline; }
 .infoLabel { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-secondary); min-width: 120px; flex-shrink: 0; }
@@ -30,4 +41,7 @@
   .card { padding: var(--space-4); }
   .infoRow { flex-direction: column; gap: 2px; }
   .saveRow { flex-direction: column-reverse; align-items: stretch; }
+  .avatarRow { flex-direction: column; align-items: flex-start; }
+  .avatarSide { width: 100%; }
+  .avatarActions > button { flex: 1 1 140px; }
 }

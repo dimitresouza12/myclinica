@@ -493,4 +493,6 @@ export interface AuthUser {
   // agenda/financeiro/pacientes ficam restritos a esta identidade quando a
   // clínica tem professional_scoped_access = true.
   professionalId: string | null
+  // Foto de perfil leve (data URL webp, clinic_users.avatar_data). Ausente/null = iniciais; a coluna pode não existir ainda.
+  avatarData?: string | null
 }

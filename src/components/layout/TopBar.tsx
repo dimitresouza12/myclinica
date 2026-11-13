@@ -20,7 +20,8 @@ import { isAdminOrRecepcao } from '@/lib/professionalScope'
 import { ALERT_META, PRIMARY_LABEL, SYSTEM_ALERT_LINK, alertMessage, buildAlertRows, buildWaLink, countUrgent, dismissAlert, groupAlertRows, ignoredStorageKey, isDismissed, parseDismissed, subscribeIgnoredAlerts, withLowStockAlert, withScheduleAlert, type AlertRow } from '@/lib/actionAlerts'
 import { waMeNumber } from '@/lib/phoneFormat'
 import { useTheme } from '@/hooks/useTheme'
-import { userInitials, userRoleLabel } from '@/lib/roleLabel'
+import { userRoleLabel } from '@/lib/roleLabel'
+import { UserAvatar } from '@/components/ui/UserAvatar'
 import { logout } from '@/lib/logout'
 import { useDemoPicker } from '@/store/demoPicker'
 import { CLINIC_TYPE_LABELS } from '@/lib/specialtyConfig'
@@ -342,14 +343,14 @@ function ProfileMenu() {
   return (
     <div className={styles.menuWrap} ref={wrap}>
       <button type="button" className={`${styles.profileBtn} ${open ? styles.iconBtnOn : ''}`} aria-label="Menu do perfil" aria-haspopup="menu" aria-expanded={open} aria-controls={id} onClick={() => setOpen(v => !v)}>
-        <span className={styles.avatar}>{userInitials(user.displayName)}</span>
+        <UserAvatar name={user.displayName} avatar={user.avatarData} size={32} variant="brand" />
         <span className={styles.who}><b>{user.displayName}</b><small>{role}</small></span>
         <Icon name="chevronDown" size={14} />
       </button>
       {open && (
         <Popover id={id} label="Perfil" className={styles.popProfile}>
           <div className={styles.popHead}>
-            <span className={`${styles.avatar} ${styles.avatarLg}`}>{userInitials(user.displayName)}</span>
+            <UserAvatar name={user.displayName} avatar={user.avatarData} size={40} variant="brand" />
             <span className={styles.itemText}><b>{user.displayName}</b><small>{role}{clinic ? ` · ${clinic.name}` : ''}</small></span>
           </div>
           {canSettings && (

@@ -72,9 +72,9 @@ export interface CompressedImage {
 
 export class ImageCompressError extends Error {}
 
-interface Decoded { source: CanvasImageSource; width: number; height: number; close: () => void }
+export interface Decoded { source: CanvasImageSource; width: number; height: number; close: () => void }
 
-async function decode(file: File): Promise<Decoded> {
+export async function decode(file: File): Promise<Decoded> {
   // createImageBitmap com 'from-image' aplica a orientação EXIF; navegador que não aceita a opção cai para a sem opção e para <img>
   if (typeof createImageBitmap === 'function') {
     for (const opts of [{ imageOrientation: 'from-image' as const }, undefined]) {

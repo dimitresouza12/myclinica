@@ -88,6 +88,8 @@ export interface TeamDirectoryEntry {
   role: string
   areas: string[]
   is_me: boolean
+  /** foto de perfil (data URL webp); ausente enquanto a coluna/RPC não existir */
+  avatar_data?: string | null
 }
 
 /** Retorno de team_unread_counts(). */

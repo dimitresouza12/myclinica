@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -21,13 +21,13 @@ import { CredentialsConfirmModal } from '@/components/ui/CredentialsConfirmModal
 import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
 import { IntegerInput } from '@/components/ui/NumericInput'
-import { Avatar } from '@/components/ui/Avatar'
+import { UserAvatar } from '@/components/ui/UserAvatar'
+import { useTeamDirectory } from '@/hooks/useTeamChat'
 import { Card } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatusDot } from '@/components/ui/StatusDot'
 import { MoreMenu } from '@/components/ui/MoreMenu'
-import { avatarTone } from '@/lib/ui/avatarTone'
 import btn from '@/components/ui/button.module.css'
 import f from '@/components/ui/modalForm.module.css'
 import t from '@/components/ui/table.module.css'
@@ -129,6 +129,9 @@ async function permissionsPayloadFor(memberId: string, role: UserRole): Promise<
 
 function EquipeContent() {
   const { clinic, user } = useAuthStore()
+  // fotos de perfil vêm do diretório da equipe (RPC); se ele falhar ou ainda não trouxer avatar_data, ficam as iniciais
+  const { data: teamDir } = useTeamDirectory(clinic?.id)
+  const avatarByUser = useMemo(() => new Map((teamDir ?? []).map(d => [d.clinic_user_id, d.avatar_data ?? null])), [teamDir])
   const isAdmin = user?.role === 'admin' || user?.isSuperAdmin
   // "Editar" = cadastrar, alterar e remover profissionais; sem ele a tela é só de consulta
   const { canEdit } = usePermissions('equipe')
@@ -541,7 +544,7 @@ function EquipeContent() {
                   <tr key={p.id} className={`${canEdit ? t.clickable : ''} ${styles.row}`} onClick={() => openEditModal(p)}>
                     <td>
                       <div className={styles.person}>
-                        <Avatar name={p.name} size={36} className={`${styles.avatar} ${styles[`tone${avatarTone(p.name)}`]}`} />
+                        <UserAvatar name={p.name} avatar={p.clinic_user_id ? avatarByUser.get(p.clinic_user_id) : null} size={36} />
                         <div className={styles.who}>
                           <span className={styles.name}>{p.name}</span>
                           <span className={styles.sub}>{p.specialty ?? 'Sem especialidade'}</span>

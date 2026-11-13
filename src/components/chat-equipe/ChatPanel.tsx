@@ -77,6 +77,10 @@ export function ChatPanel(p: Props) {
     const map = new Map(p.directory.map(d => [d.clinic_user_id, d.display_name]))
     return (id: string | null) => (id ? map.get(id) : undefined) ?? 'Colega desativado'
   }, [p.directory])
+  const avatarOf = useMemo(() => {
+    const map = new Map(p.directory.map(d => [d.clinic_user_id, d.avatar_data ?? null]))
+    return (id: string | null) => (id ? map.get(id) : null) ?? null
+  }, [p.directory])
   const byId = useMemo(() => new Map(messages.map(m => [m.id, m])), [messages])
   const mentionIndex = useMemo(() => buildMentionIndex(p.directory), [p.directory])
   const search = useTeamMessageSearch(p.clinicId, searchTerm, channelId, searching && !!channelId)
@@ -250,7 +254,7 @@ export function ChatPanel(p: Props) {
         <button type="button" className={`${styles.iconBtn} ${styles.narrowOnly}`} onClick={p.onBack} aria-label="Voltar para a lista">
           <Icon name="chevronLeft" size={20} />
         </button>
-        <ChannelAvatar kind={kind} name={view.avatarName} />
+        <ChannelAvatar kind={kind} name={view.avatarName} avatar={view.avatarData} />
         <div className={styles.who}>
           <div className={styles.titleRow}>
             <b>{view.title}</b>
@@ -391,6 +395,7 @@ export function ChatPanel(p: Props) {
                 channelId={channelId}
                 mine={mine}
                 authorLabel={runStart && !mine && kind !== 'direct' ? nameOf(m.sender_clinic_user_id) : null}
+                authorAvatar={avatarOf(m.sender_clinic_user_id)}
                 runStart={runStart}
                 quote={quote}
                 mentionIndex={mentionIndex}

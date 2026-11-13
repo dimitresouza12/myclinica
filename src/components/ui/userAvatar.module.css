@@ -1,0 +1,9 @@
+/* Círculo de iniciais quando a pessoa não tem foto; a foto em si é estilizada em Avatar.tsx. */
+.base { border-radius: 50%; display: grid; place-items: center; font-weight: 600; flex-shrink: 0; overflow: hidden; line-height: 1; }
+.tone0 { background: var(--av0-bg); color: var(--av0-fg); }
+.tone1 { background: var(--av1-bg); color: var(--av1-fg); }
+.tone2 { background: var(--av2-bg); color: var(--av2-fg); }
+.tone3 { background: var(--av3-bg); color: var(--av3-fg); }
+.tone4 { background: var(--av4-bg); color: var(--av4-fg); }
+.tone5 { background: var(--av5-bg); color: var(--av5-fg); }
+.brand { background: var(--brand-light); color: var(--brand-text); font-weight: 800; }

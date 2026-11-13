@@ -156,7 +156,7 @@ export function ChannelList(p: Props) {
               aria-current={selected || undefined}
               onClick={() => p.onSelect(v)}
             >
-              <ChannelAvatar kind={v.channel.kind} name={v.avatarName} />
+              <ChannelAvatar kind={v.channel.kind} name={v.avatarName} avatar={v.avatarData} />
               <span className={styles.mid}>
                 <span className={styles.l1}>
                   <span className={styles.nmRow}>

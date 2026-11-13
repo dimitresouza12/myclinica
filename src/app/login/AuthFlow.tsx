@@ -686,6 +686,8 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
         specialtyType: (clinicUser as unknown as { specialty_type: ClinicType | null }).specialty_type ?? null,
         displayName: clinicUser.display_name, isSuperAdmin: clinicUser.is_superadmin,
         professionalId: clinicUser.professionals?.[0]?.id ?? null,
+        // select=* traz avatar_data quando a coluna existe; sem ela vem undefined
+        avatarData: (clinicUser as unknown as { avatar_data?: string | null }).avatar_data ?? null,
       }
 
       clearRateLimit(cred)

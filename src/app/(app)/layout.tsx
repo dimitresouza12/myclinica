@@ -167,9 +167,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if ((latest.clinic.professionalScopedAccess ?? false) !== scoped) setSession({ ...latest.clinic, professionalScopedAccess: scoped }, latest.user)
     }
 
+    // Foto de perfil do login (clinic_users.avatar_data) em consulta separada: a coluna pode não existir
+    // (42703) e um select junto das outras quebraria o resto; aqui o erro só é ignorado e ficam as iniciais.
+    async function syncAvatar() {
+      const clinicUserId = currentUser.clinicUserId
+      if (!clinicUserId) return
+      const { data, error } = await supabase
+        .from('clinic_users')
+        .select('avatar_data')
+        .eq('id', clinicUserId)
+        .maybeSingle()
+      if (error || !data) return
+      const avatar = (data as { avatar_data?: string | null }).avatar_data ?? null
+      const latest = useAuthStore.getState()
+      if (!latest.user || latest.user.clinicUserId !== clinicUserId) return
+      if ((latest.user.avatarData ?? null) !== avatar) latest.setUserAvatar(avatar)
+    }
+
     syncClinicData()
     syncDemoMode()
     syncScopedAccess()
+    syncAvatar()
 
     // Sincroniza a cada 5 min e renova token GCal a cada 45 min
     const syncInterval  = setInterval(syncClinicData, 5 * 60 * 1000)
