@@ -1,0 +1,3 @@
+/* backwards, não both — evita transform residual que vira containing block de modais fixed no mobile. */
+.page { display: flex; flex-direction: column; gap: 18px; width: 100%; max-width: 640px; min-width: 0; animation: fadeUp .3s ease backwards; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

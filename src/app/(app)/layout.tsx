@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { usePermissionsStore } from '@/store/permissions'
 import { supabase } from '@/lib/supabase'
@@ -13,10 +14,12 @@ import { PaymentLateBanner } from '@/components/layout/PaymentLateBanner'
 import { ToastContainer } from '@/components/ui/Toast'
 import { ConfirmDialogContainer } from '@/components/ui/ConfirmDialog'
 import { SpecialtyPickerModal } from '@/components/demo/SpecialtyPickerModal'
+import { useTeamChatUi } from '@/hooks/useTeamChat'
 import styles from './app.module.css'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { clinic, user, _hydrated, setSession, clearSession } = useAuthStore()
   const { load: loadPermissions, reset: resetPermissions } = usePermissionsStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -67,6 +70,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_OUT' || !session) {
         clearSession()
         resetPermissions()
+        // nada do login anterior (inclusive o chat da equipe) pode sobrar para o próximo login no mesmo navegador
+        queryClient.clear()
+        useTeamChatUi.getState().setActive(null)
         router.replace('/login')
       }
     })

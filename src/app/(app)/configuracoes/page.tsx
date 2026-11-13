@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { connectGoogleCalendar, disconnectGoogleCalendar, isGCalConnected } from '@/lib/googleCalendar'
@@ -32,6 +32,8 @@ import { Icon, type IconName } from '@/components/ui/Icon'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { PasswordInput } from '@/components/ui/PasswordInput'
+import { MinhaConta } from '@/components/conta/MinhaConta'
+import { usePermissions } from '@/hooks/usePermissions'
 import { phoneInputError, previousPhoneNote, toInputValue } from '@/lib/phoneFormat'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { DocumentFieldCalibrator } from '@/components/configuracoes/DocumentFieldCalibrator'
@@ -78,14 +80,6 @@ function processLogoImage(file: File): Promise<Blob> {
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Imagem inválida')) }
     img.src = url
   })
-}
-
-function planLabel(plan: string | undefined): string {
-  // 'avancado' é legado (aposentado) — só sobrevive aqui pra não quebrar a
-  // exibição de uma clínica antiga que porventura ainda não tenha migrado.
-  if (plan === 'avancado') return 'Avançado — R$119,90/mês (legado)'
-  const entry = getPlanEntry(plan)
-  return `${entry.label} — ${entry.price}`
 }
 
 interface UserForm {
@@ -235,12 +229,6 @@ function ConfiguracoesContent() {
   const [gcalConnected, setGcalConnected] = useState(isGCalConnected(clinic?.gcalConnected))
   const [gcalLoading, setGcalLoading] = useState(false)
   const [gcalError, setGcalError] = useState('')
-
-  const [pwCurrent, setPwCurrent] = useState('')
-  const [pwNew, setPwNew] = useState('')
-  const [pwConfirm, setPwConfirm] = useState('')
-  const [pwSaving, setPwSaving] = useState(false)
-  const [pwMsg, setPwMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const [docTemplates, setDocTemplates] = useState<ClinicDocumentTemplate[]>([])
   // Sem professionalType/userType de propósito: aqui o admin gerencia os modelos
@@ -767,36 +755,6 @@ function ConfiguracoesContent() {
     setSession({ ...clinic!, gcalConnected: false } as AuthClinic, user!)
   }
 
-  async function handleChangePassword(e: React.FormEvent) {
-    e.preventDefault()
-    setPwMsg(null)
-    if (pwNew.length < 6) return setPwMsg({ type: 'error', text: 'A nova senha deve ter pelo menos 6 caracteres.' })
-    if (pwNew !== pwConfirm) return setPwMsg({ type: 'error', text: 'As senhas não coincidem.' })
-    setPwSaving(true)
-    try {
-      const { data: userData } = await supabase.auth.getUser()
-      const email = userData.user?.email
-      if (email && pwCurrent) {
-        const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: pwCurrent })
-        if (signInErr) {
-          setPwMsg({ type: 'error', text: 'Senha atual incorreta.' })
-          setPwSaving(false)
-          return
-        }
-      }
-      const { error } = await supabase.auth.updateUser({ password: pwNew })
-      if (error) throw error
-      setPwMsg({ type: 'ok', text: 'Senha alterada com sucesso!' })
-      setPwCurrent('')
-      setPwNew('')
-      setPwConfirm('')
-    } catch (err: unknown) {
-      setPwMsg({ type: 'error', text: err instanceof Error ? err.message : 'Erro ao alterar senha.' })
-    } finally {
-      setPwSaving(false)
-    }
-  }
-
   const hasClientId = !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
 
   return (
@@ -1284,45 +1242,7 @@ function ConfiguracoesContent() {
         )
       })()}
 
-      {tab === 'conta' && (
-      <>
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Segurança</h2>
-        <form onSubmit={handleChangePassword} className={styles.form}>
-          <div className={styles.field}>
-            <label>Senha atual</label>
-            <PasswordInput value={pwCurrent} onChange={(e) => setPwCurrent(e.target.value)} autoComplete="current-password" />
-          </div>
-          <div className={styles.field}>
-            <label>Nova senha</label>
-            <PasswordInput value={pwNew} onChange={(e) => setPwNew(e.target.value)} autoComplete="new-password" />
-          </div>
-          <div className={styles.field}>
-            <label>Confirmar nova senha</label>
-            <PasswordInput value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} autoComplete="new-password" />
-          </div>
-          {pwMsg && (
-            <p className={pwMsg.type === 'ok' ? styles.savedMsg : styles.pwError}>{pwMsg.text}</p>
-          )}
-          <div className={styles.saveRow}>
-            <button type="submit" className={styles.btnSave} disabled={pwSaving || !pwCurrent || !pwNew || !pwConfirm}>
-              {pwSaving ? 'Alterando...' : 'Alterar Senha'}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Informações da Conta</h2>
-        <div className={styles.infoGrid}>
-          <InfoRow label="Usuário" value={user?.displayName ?? '-'} />
-          <InfoRow label="Função" value={user?.role ? roleLabel(user.role) : '-'} />
-          <InfoRow label="Clínica ID" value={clinic?.id ?? '-'} mono />
-          <InfoRow label="Plano" value={planLabel(clinic?.plan)} />
-        </div>
-      </div>
-      </>
-      )}
+      {tab === 'conta' && <MinhaConta />}
 
       {tab === 'auditoria' && (
         <div className={styles.card}>
@@ -1682,14 +1602,19 @@ function ConfiguracoesContent() {
 }
 
 export default function ConfiguracoesPage() {
-  return <PermissionGuard module="configuracoes"><Suspense fallback={null}><ConfiguracoesContent /></Suspense></PermissionGuard>
+  return <Suspense fallback={null}><ConfiguracoesGate /></Suspense>
 }
 
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className={styles.infoRow}>
-      <span className={styles.infoLabel}>{label}</span>
-      <span className={`${styles.infoValue} ${mono ? styles.mono : ''}`}>{value}</span>
-    </div>
-  )
+// Link antigo /configuracoes?tab=conta: quem não tem o módulo Configurações vai para /minha-conta
+// em vez de ver "Acesso restrito". Fica fora do PermissionGuard para decidir antes dele.
+function ConfiguracoesGate() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { canView, loaded, error } = usePermissions('configuracoes')
+  const redirectToAccount = searchParams.get('tab') === 'conta' && loaded && !error && !canView
+  useEffect(() => {
+    if (redirectToAccount) router.replace('/minha-conta')
+  }, [redirectToAccount, router])
+  if (redirectToAccount) return null
+  return <PermissionGuard module="configuracoes"><ConfiguracoesContent /></PermissionGuard>
 }

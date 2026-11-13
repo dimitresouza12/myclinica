@@ -11,6 +11,7 @@ import { Logotype } from '@/components/login/Logotype'
 import { hasWhatsAppAI } from '@/lib/planGates'
 import { useWhatsAppState } from '@/hooks/useClinicData'
 import { useUnreadTotal, useWhatsAppRealtime } from '@/hooks/useWhatsAppInbox'
+import { useTeamChatEnabled, useTeamChatRealtime, useTeamPresence, useTeamUnreadTotal } from '@/hooks/useTeamChat'
 import { userRoleLabel, userInitials } from '@/lib/roleLabel'
 import { CLINIC_TYPE_LABELS } from '@/lib/specialtyConfig'
 import { logout } from '@/lib/logout'
@@ -18,7 +19,7 @@ import { useDemoPicker } from '@/store/demoPicker'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useSidebarRail } from '@/hooks/useSidebarRail'
 
-interface NavItem { path: string; label: string; icon: IconName; plusOnly?: boolean; module?: string }
+interface NavItem { path: string; label: string; icon: IconName; plusOnly?: boolean; module?: string; /** Chat da equipe: sem módulo de permissão; aparece só se a clínica tiver o chat habilitado */ teamChat?: boolean }
 
 // Grupos por rotina: o que se usa todo dia fica no alto; Configurações vai para o pé da barra
 const NAV_GROUPS: { title: string | null; items: NavItem[] }[] = [
@@ -29,6 +30,7 @@ const NAV_GROUPS: { title: string | null; items: NavItem[] }[] = [
     { path: '/agenda',        label: 'Agenda',        icon: 'calendar' },
     { path: '/pacientes',     label: 'Pacientes',     icon: 'patients' },
     { path: '/mensagens',     label: 'Mensagens',     icon: 'messages', module: 'crm' },
+    { path: '/chat-equipe',   label: 'Chat da equipe', icon: 'chat', teamChat: true },
   ] },
   { title: 'Gestão', items: [
     { path: '/financeiro',    label: 'Financeiro',    icon: 'wallet' },
@@ -69,6 +71,14 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
   const { data: waState } = useWhatsAppState(clinic.id)
   useWhatsAppRealtime(clinic.id, !!waState)
   const { data: unreadTotal = 0 } = useUnreadTotal(clinic.id, !!waState)
+  // Chat da equipe: aparece só se a clínica tiver 3+ profissionais (checado no banco, vale 5 min).
+  // A assinatura em tempo real mora aqui (a barra está em todas as telas) e alimenta o contador e a tela do chat.
+  const { data: teamChatEnabled } = useTeamChatEnabled(clinic.id)
+  const teamChatOn = teamChatEnabled === true
+  useTeamChatRealtime(clinic.id, teamChatOn)
+  // presença (quem está online): outro canal, montado uma vez aqui, lido pela tela do chat
+  useTeamPresence(clinic.id, teamChatOn)
+  const teamUnread = useTeamUnreadTotal(clinic.id, teamChatOn)
   const roleLabel = userRoleLabel(user, clinic)
 
   // Desktop com mouse: trilho estreito que se estende no hover/foco. Celular, toque e tablet seguem como antes
@@ -81,6 +91,8 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
 
   const isPlus = hasWhatsAppAI(clinic.plan)
   function canSee(item: NavItem) {
+    // Chat da equipe: sem permissão por módulo, vale para qualquer login (se a clínica tiver o chat)
+    if (item.teamChat) return teamChatOn
     // Filtra plano plus
     if (item.plusOnly && !isPlus) return false
     // Admin e superadmin sempre veem tudo
@@ -121,6 +133,11 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
           <Icon name={item.icon} size={16} />
         </span>
         <span className={styles.navLabel}>{item.label}</span>
+        {item.path === '/chat-equipe' && teamUnread > 0 && (
+          <span className={styles.navBadge} aria-label={`${teamUnread} mensagens não lidas no chat da equipe`}>
+            {teamUnread > 99 ? '99+' : teamUnread}
+          </span>
+        )}
         {item.path === '/mensagens' && unreadTotal > 0 && (
           <span className={styles.navBadge} aria-label={`${unreadTotal} mensagens não lidas`}>
             {unreadTotal > 99 ? '99+' : unreadTotal}

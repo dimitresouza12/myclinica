@@ -358,7 +358,7 @@ function ProfileMenu() {
               <span className={styles.itemText}><b>Configurações</b><small>Clínica, equipe, plano e integrações</small></span>
             </Link>
           )}
-          <Link role="menuitem" className={styles.item} href="/configuracoes?tab=conta" onClick={() => setOpen(false)}>
+          <Link role="menuitem" className={styles.item} href="/minha-conta" onClick={() => setOpen(false)}>
             <span className={styles.itemIcon}><Icon name="admin" size={16} /></span>
             <span className={styles.itemText}><b>Minha conta</b><small>Senha e acesso</small></span>
           </Link>

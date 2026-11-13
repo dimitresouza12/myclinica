@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server'
 import { computeClinicStatus } from '@/lib/clinicStatus'
 import { SELLABLE_PLANS, type SellablePlan } from '@/lib/planCatalog'
 import { maskBrPhone, phoneInputError } from '@/lib/phoneFormat'
+import { escapeLike } from '@/lib/likeEscape'
 
 // ─── Resposta ────────────────────────────────────────────────────────────────
 
@@ -170,10 +171,8 @@ export interface ListParams {
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
 
-/** Escapa %, _ e \ para uso literal dentro de um padrão ilike. */
-export function escapeLike(s: string): string {
-  return s.replace(/[\\%_]/g, c => `\\${c}`)
-}
+// escapeLike mora em lib/likeEscape (sem imports de servidor) para o Chat da equipe usar no navegador; reexportada aqui.
+export { escapeLike }
 
 /**
  * Monta o filtro `or` do PostgREST (nome/slug/email). Tira vírgula, parênteses e

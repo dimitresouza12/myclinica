@@ -16,13 +16,21 @@ interface Props {
   seconds: number | null
   /** áudio enviado por nós (cores da bolha enviada) */
   outgoing: boolean
+  /** o navegador não conseguiu carregar o áudio (ex.: link assinado vencido); opcional */
+  onError?: () => void
+  /**
+   * Chamado antes de tocar (do início ou depois de pausar). Devolve o link a usar: quem usa link assinado pode devolver um novo
+   * quando o antigo está perto de vencer. Opcional; sem ele toca direto.
+   */
+  beforePlay?: () => Promise<string | null>
 }
 
 /** Player de mensagem de voz no estilo do WhatsApp: botão de tocar, barrinhas que vão se preenchendo, tempo e velocidade. */
-export function VoicePlayer({ url, seed, wave, seconds, outgoing }: Props) {
+export function VoicePlayer({ url, seed, wave, seconds, outgoing, onError, beforePlay }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const barsRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef(0)
+  const preparingRef = useRef(false)
   const [playing, setPlaying] = useState(false)
   const [buffering, setBuffering] = useState(false)
   const [current, setCurrent] = useState(0)
@@ -56,8 +64,26 @@ export function VoicePlayer({ url, seed, wave, seconds, outgoing }: Props) {
       // só um áudio toca por vez
       document.querySelectorAll('audio').forEach(o => { if (o !== a) o.pause() })
       // o botão responde na hora; se o navegador recusar, volta
+      if (!beforePlay) {
+        setPlaying(true)
+        void a.play().catch(() => setPlaying(false))
+        return
+      }
+      if (preparingRef.current) return
+      preparingRef.current = true
       setPlaying(true)
-      void a.play().catch(() => setPlaying(false))
+      void (async () => {
+        try {
+          const next = await beforePlay()
+          // link novo (o antigo estava perto de vencer): troca a fonte e volta para o ponto em que estava
+          if (next && next !== a.src) {
+            const at = a.currentTime
+            a.src = next
+            if (at > 0) a.currentTime = at
+          }
+          await a.play()
+        } catch { setPlaying(false) } finally { preparingRef.current = false }
+      })()
     } else a.pause()
   }
 
@@ -98,6 +124,7 @@ export function VoicePlayer({ url, seed, wave, seconds, outgoing }: Props) {
         ref={audioRef}
         src={url}
         preload="auto"
+        onError={onError}
         onPlay={() => { setPlaying(true); startLoop() }}
         onPause={() => { setPlaying(false); setBuffering(false); stopLoop() }}
         onEnded={() => { setPlaying(false); setCurrent(0); stopLoop() }}
