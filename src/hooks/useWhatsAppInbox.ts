@@ -1,3 +1,4 @@
+import { avatarStoragePath, signAvatarPaths } from '@/lib/pacientes/avatarUrl'
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -63,7 +64,21 @@ export function useConversations(clinicId: string | undefined) {
         .order('last_message_at', { ascending: false })
         .limit(300)
       if (error) throw error
-      return (data ?? []) as unknown as WaConversation[]
+      const rows = (data ?? []) as unknown as WaConversation[]
+      // patients.avatar_url guarda o caminho no bucket privado: troca por URL assinada (só de quem não tem foto do WhatsApp)
+      const wanted = new Map<string, string>()
+      for (const c of rows) {
+        if (c.avatar_url || !c.patients) continue
+        const path = avatarStoragePath(c.patients.avatar_url, clinicId, c.patients.id)
+        if (path) wanted.set(c.patients.id, path)
+      }
+      if (wanted.size === 0) return rows
+      const signed = await signAvatarPaths([...wanted.values()])
+      return rows.map(c => {
+        if (!c.patients) return c
+        const path = wanted.get(c.patients.id)
+        return { ...c, patients: { ...c.patients, avatar_url: (path && signed[path]) || null } }
+      })
     },
     enabled: !!clinicId,
     staleTime: 15_000,
