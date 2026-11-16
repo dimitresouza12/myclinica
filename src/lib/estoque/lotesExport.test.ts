@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { celulaCsv, linhasDeLotes, lotesParaCsv, lotesParaHtml, recallParaCsv } from './lotesExport'
+import { celulaCsv, esc, linhasDeLotes, lotesParaCsv, lotesParaHtml, recallParaCsv } from './lotesExport'
 import type { StockLot } from './lotes'
 
 const lot = (over: Partial<StockLot> = {}): StockLot => ({
@@ -39,5 +39,46 @@ describe('lista de lotes para exportar', () => {
     })
     expect(csv.split('\r\n')).toHaveLength(3)
     expect(csv).toContain('Ana;85999990000;05/10/2026;1')
+  })
+})
+
+describe('lista de lotes para imprimir: nada do banco vira HTML', () => {
+  const payloads = [
+    '<script>alert(1)</script>',
+    '<img src=x onerror=alert(1)>',
+    '<a href="javascript:alert(1)">x</a>',
+    '<svg onload=alert(1)>',
+    '"><img src=x onerror=alert(1)>',
+    "'><svg onload=alert(1)>",
+  ]
+  const opts = (p: string) => ({ clinica: p, titulo: p, filtro: p, geradoEm: p })
+
+  for (const p of payloads) {
+    it(`escapa ${p}`, () => {
+      const linha = {
+        produto: p, unidade: p, lote: p, validade: p, situacao: p, saldo: p as unknown as number, fornecedor: p, notaFiscal: p,
+      }
+      const html = lotesParaHtml([linha], opts(p))
+      // o único HTML permitido é o do próprio modelo: nenhuma tag do payload sobrevive
+      expect(html).not.toMatch(/<script/i)
+      expect(html).not.toMatch(/<img/i)
+      expect(html).not.toMatch(/<svg/i)
+      expect(html).not.toMatch(/<a\s/i)
+      expect(html).not.toMatch(/<[a-z][^>]*\son[a-z]+\s*=/i)
+      expect(html).toContain('&lt;')
+    })
+  }
+
+  it('esc cobre aspas simples e duplas (atributos) e valores não-string', () => {
+    expect(esc(`"a" 'b' <c> & d`)).toBe('&quot;a&quot; &#39;b&#39; &lt;c&gt; &amp; d')
+    expect(esc(null)).toBe('')
+    expect(esc(undefined)).toBe('')
+    expect(esc(12)).toBe('12')
+  })
+
+  it('dados que passam por linhasDeLotes (validade/fornecedor do banco) saem escapados', () => {
+    const [l] = linhasDeLotes([lot({ lote: '<img src=x onerror=alert(1)>', fornecedor: '<script>1</script>', nota_fiscal: '"><svg onload=1>', validade: '<b>x</b>' })], { i1: { name: '<i>p</i>', unit: '<u>' } }, '2026-11-10')
+    const html = lotesParaHtml([l], { clinica: 'C', titulo: 'T', filtro: 'F', geradoEm: 'G' })
+    expect(html).not.toMatch(/<(img|script|svg|b|i|u)\b/i)
   })
 })

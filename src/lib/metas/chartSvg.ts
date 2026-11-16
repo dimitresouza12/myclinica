@@ -19,9 +19,10 @@ export interface LineChartOptions {
   yMax?: number
 }
 
+// Só dígitos entram no SVG (que vai para innerHTML): data fora do formato vira vazio.
 const fmtDay = (iso: string) => {
-  const [, m, d] = iso.split('-')
-  return `${d}/${m}`
+  const [, m, d] = String(iso).split('-')
+  return /^\d{2}$/.test(m ?? '') && /^\d{2}/.test(d ?? '') ? `${d.slice(0, 2)}/${m}` : ''
 }
 
 const num = (n: number) => String(Math.round(n * 10) / 10)
@@ -45,13 +46,13 @@ export function lineChartSvg(series: SeriesPoint[], o: LineChartOptions): string
   const x = (i: number) => (series.length === 1 ? padL + innerW / 2 : padL + (innerW * i) / (series.length - 1))
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-  const grid = ticks.map(t => `<line x1="${padL}" x2="${W - padR}" y1="${num(y(t))}" y2="${num(y(t))}" stroke="${o.grid}" stroke-width="1"/><text x="${padL - 6}" y="${num(y(t) + 3.5)}" font-size="10" text-anchor="end" fill="${o.text}">${t}${unit}</text>`).join('')
+  const grid = ticks.map(t => `<line x1="${padL}" x2="${W - padR}" y1="${num(y(t))}" y2="${num(y(t))}" stroke="${o.grid}" stroke-width="1"/><text x="${padL - 6}" y="${num(y(t) + 3.5)}" font-size="10" text-anchor="end" fill="${o.text}">${num(Number(t) || 0)}${esc(unit)}</text>`).join('')
 
   const path = series.length > 1
     ? `<polyline fill="none" stroke="${o.color}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" points="${series.map((p, i) => `${num(x(i))},${num(y(p.score))}`).join(' ')}"/>`
     : ''
 
-  const dots = series.map((p, i) => `<circle cx="${num(x(i))}" cy="${num(y(p.score))}" r="4" fill="${o.color}"><title>${fmtDay(p.date)}: ${p.score}${unit}</title></circle>`).join('')
+  const dots = series.map((p, i) => `<circle cx="${num(x(i))}" cy="${num(y(p.score))}" r="4" fill="${o.color}"><title>${fmtDay(p.date)}: ${num(Number(p.score) || 0)}${esc(unit)}</title></circle>`).join('')
 
   // no máximo ~6 rótulos de data, sempre incluindo o primeiro e o último
   const step = Math.max(1, Math.ceil(series.length / 6))

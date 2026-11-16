@@ -8,6 +8,7 @@ import { exportNodeAsImage, exportNodeAsPdf, safeFilename } from '@/lib/document
 import { composeCalibratedDoc, downloadBlob, openPrintWindow, printBlobInWindow, DocumentRenderError, EXPORT_PDF_TARGET_WIDTH, type RenderableField } from '@/lib/documentRender'
 import { resolveDocumentOptions } from '@/lib/specialtyConfig'
 import { councilForProfessional, formatRqe } from '@/lib/professionalCouncil'
+import { sanitizeRichHtml } from '@/lib/sanitize'
 import { buildDefaultTemplate, buildLetterheadPatientBlock, escapeHtml, syncSignerBlocks } from '@/lib/documentHtml'
 import { useProfessionals } from '@/hooks/useClinicData'
 import { useTemplateBackground, renderPdfPageToDataUrl, isImageUrl, type TemplateBackground } from '@/hooks/useTemplateBackground'
@@ -217,7 +218,7 @@ export function TabDocumentos({ patient, contractText, planItems = [] }: Props) 
   }
 
   function currentRenderableFields(): RenderableField[] {
-    return activeFields.map(f => ({ ...f, html: fieldRefs.current[f.key]?.innerHTML ?? '' }))
+    return activeFields.map(f => ({ ...f, html: sanitizeRichHtml(fieldRefs.current[f.key]?.innerHTML ?? '') }))
   }
 
   // Selo de verificação (QR + código + hash curto). Registra o documento emitido no servidor e devolve o HTML do
@@ -266,7 +267,7 @@ export function TabDocumentos({ patient, contractText, planItems = [] }: Props) 
         if (!node) throw new DocumentRenderError('unknown', 'O editor não está pronto.')
         // selo só durante a captura: sai do editor logo depois, sem sujar o rascunho
         const stampEl = stamp ? document.createElement('div') : null
-        if (stampEl && stamp) { stampEl.innerHTML = stamp; node.appendChild(stampEl) }
+        if (stampEl && stamp) { stampEl.innerHTML = sanitizeRichHtml(stamp); node.appendChild(stampEl) }
         try {
           if (kind === 'pdf') await exportNodeAsPdf(node, filename)
           else await exportNodeAsImage(node, filename)
@@ -338,10 +339,10 @@ export function TabDocumentos({ patient, contractText, planItems = [] }: Props) 
 
     if (tpl) {
       // Com modelo PDF: conteúdo mínimo por cima do fundo
-      editorRef.current.innerHTML = buildLetterheadPatientBlock(patient.name, hoje) + (bodyHtml ?? '')
+      editorRef.current.innerHTML = sanitizeRichHtml(buildLetterheadPatientBlock(patient.name, hoje) + (bodyHtml ?? ''))
     } else {
       // Sem modelo: template HTML padrão do sistema (letterhead clínico-editorial)
-      editorRef.current.innerHTML = buildDefaultTemplate({
+      editorRef.current.innerHTML = sanitizeRichHtml(buildDefaultTemplate({
         type,
         title: docInfo.title,
         patientName: patient.name,
@@ -358,7 +359,7 @@ export function TabDocumentos({ patient, contractText, planItems = [] }: Props) 
         professionalId: responsibleProfessional?.id,
         body: bodyHtml ?? docInfo.body ?? '',
         clinicLogo: clinic?.logo,
-      })
+      }))
     }
   }, [templates, patient.name, patient.address, clinic?.name, clinic?.address, clinic?.phone, clinic?.color, clinic?.logo, user?.displayName, responsibleProfessional, DOC_TYPES, council])
 
@@ -383,7 +384,8 @@ export function TabDocumentos({ patient, contractText, planItems = [] }: Props) 
     let draft: string | null = null
     try { draft = localStorage.getItem(draftKey(selectedType)) } catch { /* ignore */ }
     if (draft) {
-      editorRef.current.innerHTML = draft
+      // rascunho vem do localStorage (editável por fora do app): nunca vira innerHTML sem sanitizar
+      editorRef.current.innerHTML = sanitizeRichHtml(draft)
     } else {
       seedEditor(selectedType)
     }
@@ -441,7 +443,7 @@ export function TabDocumentos({ patient, contractText, planItems = [] }: Props) 
   function fillFieldEl(key: string, html: string) {
     const el = fieldRefs.current[key]
     if (!el) return
-    el.innerHTML = html
+    el.innerHTML = sanitizeRichHtml(html)
     el.dispatchEvent(new Event('input', { bubbles: true }))
   }
 
@@ -487,7 +489,7 @@ export function TabDocumentos({ patient, contractText, planItems = [] }: Props) 
     } else {
       if (!editorRef.current) return
       if (!(isVerifiableDocType(selectedType) && includeQr)) {
-        printDocumento(editorRef.current.innerHTML, bgImage?.url ?? null)
+        printDocumento(sanitizeRichHtml(editorRef.current.innerHTML), bgImage?.url ?? null)
         return
       }
       // Com QR há uma chamada ao servidor antes de imprimir: a aba abre AGORA, ainda dentro do clique.
@@ -499,7 +501,7 @@ export function TabDocumentos({ patient, contractText, planItems = [] }: Props) 
       setPrinting(true)
       try {
         const stamp = await buildStamp()
-        await printHtmlInWindow(printWin, buildDocumentoHtml(editorRef.current.innerHTML + (stamp ?? ''), bgImage?.url ?? null))
+        await printHtmlInWindow(printWin, buildDocumentoHtml(sanitizeRichHtml(editorRef.current.innerHTML + (stamp ?? '')), bgImage?.url ?? null))
       } catch (err) {
         printWin.close()
         setExportError(stampFailureMessage(err))

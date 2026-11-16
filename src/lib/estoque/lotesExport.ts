@@ -52,14 +52,16 @@ export function recallParaCsv(lote: Pick<StockLot, 'lote' | 'validade'>, produto
   return '﻿' + [head.join(';'), ...rows].join('\r\n')
 }
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+/** Escapa texto para conteúdo e atributo entre aspas (duplas ou simples). Aceita qualquer valor vindo do banco. */
+export const esc = (v: unknown): string =>
+  String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 
 export function lotesParaHtml(linhas: LinhaLote[], opts: { clinica: string; titulo: string; filtro: string; geradoEm: string }): string {
   const body = linhas.length === 0
     ? '<tr><td colspan="7" style="text-align:center;padding:24px;color:#666">Nenhum lote nesta lista.</td></tr>'
     : linhas.map(l => `<tr>
         <td>${esc(l.produto)}</td><td>${esc(l.lote)}</td><td>${esc(l.validade)}</td><td>${esc(l.situacao)}</td>
-        <td class="n">${l.saldo} ${esc(l.unidade)}</td><td>${esc(l.fornecedor)}</td><td>${esc(l.notaFiscal)}</td></tr>`).join('')
+        <td class="n">${esc(l.saldo)} ${esc(l.unidade)}</td><td>${esc(l.fornecedor)}</td><td>${esc(l.notaFiscal)}</td></tr>`).join('')
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(opts.titulo)}</title>
 <style>
   * { box-sizing: border-box; }

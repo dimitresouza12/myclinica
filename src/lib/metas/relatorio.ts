@@ -81,7 +81,7 @@ function goalBlock(s: GoalPeriodSummary, area: MetasArea, publico: Publico, note
   const meta = [
     g.domain ? `Área: ${escapeHtml(g.domain)}` : '',
     g.criterion ? `Critério: ${escapeHtml(g.criterion)}` : '',
-    g.target_date ? `Prazo: ${brDate(g.target_date)}` : '',
+    g.target_date ? `Prazo: ${escapeHtml(brDate(g.target_date))}` : '',
     `Situação: ${STATUS_LABEL[g.status]}`,
   ].filter(Boolean).join(' &middot; ')
   let corpo = ''
@@ -94,7 +94,7 @@ function goalBlock(s: GoalPeriodSummary, area: MetasArea, publico: Publico, note
       + (s.series.length > 1 ? chartBlock(s.series, `Evolução da meta ${g.title}`, 130) : '')
     // psicologia não leva texto livre de sessão para fora (sigilo), mesmo que exista nota legada
     if (publico === 'neuropediatra' && area !== 'psico' && notes.length > 0) {
-      corpo += `<p style="font-size:12px;color:#444"><strong>Observações de sessão:</strong> ${notes.map(n => `${brDate(n.log_date)}: ${escapeHtml(n.note ?? '')}`).join('; ')}</p>`
+      corpo += `<p style="font-size:12px;color:#444"><strong>Observações de sessão:</strong> ${notes.map(n => `${escapeHtml(brDate(n.log_date))}: ${escapeHtml(n.note ?? '')}`).join('; ')}</p>`
     }
   }
   return `<div style="border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin:0 0 10px;page-break-inside:avoid">
@@ -119,7 +119,7 @@ function fonemicoBlock(assessments: Assessment[], from: string, to: string): str
   const alts = alteracoes(data.cells ?? {})
   const posLabel = Object.fromEntries(POSICOES.map(p => [p.key, p.label.toLowerCase()]))
   const lista = alts.length === 0 ? 'nenhuma alteração marcada' : alts.map(a => `/${escapeHtml(a.ipa)}/ ${posLabel[a.pos]} (${MARCA_LABEL[a.marca].toLowerCase()})`).join('; ')
-  return `<h3 style="${H3}">Quadro fonêmico (${brDate(ultima.assessed_on)})</h3>
+  return `<h3 style="${H3}">Quadro fonêmico (${escapeHtml(brDate(ultima.assessed_on))})</h3>
     <p>Consoantes avaliadas: ${r.avaliadas} de ${TODAS_CONSOANTES.length * POSICOES.length} posições. Corretas: ${r.corretas}; omitidas: ${r.omitidas}; substituídas: ${r.substituidas}; distorcidas: ${r.distorcidas}. Percentual de consoantes corretas: <strong>${r.pcc === null ? '-' : String(r.pcc).replace('.', ',') + '%'}</strong>.</p>
     <p style="font-size:12px;color:#444">Alterações registradas: ${lista}.</p>
     ${serie.length > 1 ? chartBlock(serie, 'Percentual de consoantes corretas por avaliação') : ''}`
@@ -134,7 +134,7 @@ function avdBlock(assessments: Assessment[], from: string, to: string): string {
   const r = resumoAvd(data)
   const serie: SeriesPoint[] = all.map(a => ({ date: a.assessed_on, score: resumoAvd(a.data as ChecklistAvdData).indice ?? -1 })).filter(p => p.score >= 0)
   const linhas = (data.items ?? []).filter(i => i.nivel).map(i => `<tr><td style="padding:3px 6px;border-bottom:1px solid #eee">${escapeHtml(i.label)}</td><td style="padding:3px 6px;border-bottom:1px solid #eee">${escapeHtml(nivelInfo(i.nivel)?.label ?? '')}</td></tr>`).join('')
-  return `<h3 style="${H3}">Checklist de independência nas atividades de vida diária (${brDate(ultima.assessed_on)})</h3>
+  return `<h3 style="${H3}">Checklist de independência nas atividades de vida diária (${escapeHtml(brDate(ultima.assessed_on))})</h3>
     <p>Itens avaliados: ${r.avaliados} de ${r.total}. Independentes: ${r.independentes}. Índice de independência: <strong>${r.indice === null ? '-' : r.indice + '%'}</strong> (média simples dos níveis marcados).</p>
     ${linhas ? `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:6px">${linhas}</table>` : ''}
     ${serie.length > 1 ? chartBlock(serie, 'Índice de independência por avaliação') : ''}`
@@ -166,7 +166,7 @@ export function buildRelatorioHtml(i: RelatorioInput): string {
   <table style="font-size:12.5px;border-collapse:collapse;margin-bottom:4px">
     <tr><td style="padding:2px 14px 2px 0;color:#777">Paciente</td><td><strong>${escapeHtml(i.patient.name)}</strong></td></tr>
     ${i.patient.birth_date ? `<tr><td style="padding:2px 14px 2px 0;color:#777">Nascimento</td><td>${escapeHtml(brDate(i.patient.birth_date))}</td></tr>` : ''}
-    <tr><td style="padding:2px 14px 2px 0;color:#777">Período</td><td>${brDate(i.from)} a ${brDate(i.to)}</td></tr>
+    <tr><td style="padding:2px 14px 2px 0;color:#777">Período</td><td>${escapeHtml(brDate(i.from))} a ${escapeHtml(brDate(i.to))}</td></tr>
     ${i.professional ? `<tr><td style="padding:2px 14px 2px 0;color:#777">Profissional</td><td>${escapeHtml(i.professional.name)}${i.professional.registration ? ` &middot; ${escapeHtml(i.professional.registration)}` : ''}</td></tr>` : ''}
   </table>
 
@@ -186,6 +186,6 @@ export function buildRelatorioHtml(i: RelatorioInput): string {
     <div style="min-width:240px;border-top:1px solid #333;padding-top:4px;color:#111">
       ${i.professional ? `${escapeHtml(i.professional.name)}<br>${escapeHtml(i.professional.registration)}` : 'Profissional responsável'}
     </div>
-    <div>Emitido em ${brDate(i.emitidoEm)}</div>
+    <div>Emitido em ${escapeHtml(brDate(i.emitidoEm))}</div>
   </div>`
 }

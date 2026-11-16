@@ -1,3 +1,4 @@
+import { sanitizeRichHtml } from './sanitize'
 import { fitContainA4, ptToPx, resolveFontPt } from './templateCanvasSize'
 import type { FieldPosition } from '@/types'
 
@@ -82,7 +83,7 @@ export async function composeCalibratedDoc(
   const fieldEls: HTMLElement[] = []
   for (const f of fields) {
     const el = document.createElement('div')
-    el.innerHTML = f.html
+    el.innerHTML = sanitizeRichHtml(f.html)
     const fontPt = resolveFontPt(f)
     el.style.position = 'absolute'
     el.style.left = `${(f.xPct / 100) * imageBoxWidthPx}px`
