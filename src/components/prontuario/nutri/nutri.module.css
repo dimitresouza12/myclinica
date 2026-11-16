@@ -32,6 +32,9 @@
 }
 .histChips { display: flex; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
 .chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
   padding: 0 var(--space-4);
   border: 1.5px solid var(--border-subtle);

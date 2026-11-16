@@ -202,7 +202,7 @@ export function RecordatorioPanel({ patient, clinicId, linhas, carregando, motiv
           {activeId === null && <span className={`${styles.chip} ${styles.chipActive}`} aria-current="true">Novo recordatório</span>}
         </div>
         <div className={styles.row}>
-          <button type="button" className={`${styles.chip} ${styles.chipNew}`} onClick={() => escolher(null)}>+ Novo recordatório</button>
+          {activeId !== null && <button type="button" className={`${styles.chip} ${styles.chipNew}`} onClick={() => escolher(null)}>+ Novo recordatório</button>}
         </div>
       </div>
       {carregando && <p className={styles.hint}>Carregando recordatórios...</p>}

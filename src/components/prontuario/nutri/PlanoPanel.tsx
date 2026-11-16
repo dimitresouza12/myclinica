@@ -238,7 +238,7 @@ export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, mot
           {activeId === null && <span className={`${styles.chip} ${styles.chipActive}`} aria-current="true">Novo plano</span>}
         </div>
         <div className={styles.row}>
-          <button type="button" className={`${styles.chip} ${styles.chipNew}`} onClick={() => escolher(null)}>+ Novo plano</button>
+          {activeId !== null && <button type="button" className={`${styles.chip} ${styles.chipNew}`} onClick={() => escolher(null)}>+ Novo plano</button>}
           <button type="button" className={`${styles.chip} ${styles.chipNew}`} onClick={duplicar}>Duplicar</button>
         </div>
       </div>
