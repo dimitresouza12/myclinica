@@ -1,0 +1,91 @@
+/* Base visual das abas Periograma e Ortodontia: o mesmo vocabulário da aba Nutrição (cartões, chips de histórico, campos,
+   números calculados), para as telas novas parecerem as que já existem. */
+.wrap { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+
+.notice {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-field); background: var(--surface-2); border: 1px solid var(--border-color);
+  color: var(--text-primary); font-size: var(--fs-md); line-height: 1.45;
+}
+.notice svg { flex-shrink: 0; margin-top: 2px; color: var(--st-wait); }
+
+.histBar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap;
+  padding-bottom: var(--space-3); border-bottom: 1.5px solid var(--border-subtle);
+}
+.histChips { display: flex; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
+.chip {
+  min-height: 44px; padding: 0 var(--space-4);
+  border: 1.5px solid var(--border-subtle); border-radius: 999px; background: transparent;
+  color: var(--text-secondary); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-semibold);
+  cursor: pointer; transition: background 0.12s, border-color 0.12s;
+}
+.chip:hover { background: var(--surface-2); }
+.chip:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+.chipActive, .chipActive:hover { background: var(--brand-primary); border-color: var(--brand-primary); color: #0D2421; }
+.chipNew { border-style: dashed; border-color: var(--border-color); }
+.chipStatic { display: inline-flex; align-items: center; }
+
+.card {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4); border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  background: var(--surface); min-width: 0;
+}
+.cardTitle { font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brand-text); }
+.cardHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: var(--space-3); }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field > label, .label {
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.input {
+  width: 100%; min-height: 44px; padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  background: var(--bg-secondary); color: var(--text-primary);
+  font: inherit; font-size: var(--fs-base); outline: none; transition: border-color 0.15s;
+}
+.input:focus { border-color: var(--brand-primary); }
+.input:disabled { opacity: 0.6; }
+.textarea { composes: input; min-height: 88px; resize: vertical; }
+.hint { font-size: var(--fs-xs); color: var(--text-secondary); line-height: 1.4; }
+.unit { font-size: var(--fs-xs); color: var(--text-tertiary); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.warn { font-size: var(--fs-xs); color: var(--text-primary); background: var(--surface-2); border-left: 3px solid var(--st-wait); padding: var(--space-2) var(--space-3); border-radius: var(--radius-xs); line-height: 1.4; }
+.row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: var(--space-2); }
+.stat { display: flex; flex-direction: column; gap: 2px; padding: var(--space-3); border-radius: var(--radius-field); background: var(--surface-2); min-width: 0; }
+.statLabel { font-size: var(--fs-2xs); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary-strong); }
+.statValue { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.statValue small { font-size: var(--fs-xs); font-weight: 500; color: var(--text-secondary-strong); margin-left: 3px; }
+.statSub { font-size: var(--fs-xs); color: var(--text-secondary-strong); line-height: 1.3; }
+.tag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--text-primary); }
+.tag::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--st-idle); flex-shrink: 0; }
+.tagOk::before { background: var(--st-ok); }
+.tagWarn::before { background: var(--st-wait); }
+.tagBad::before { background: var(--st-bad); }
+
+.saveRow { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
+.savedMsg { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--st-ok); }
+.dirtyMsg { font-size: var(--fs-xs); color: var(--text-secondary); }
+
+.tableScroll { overflow-x: auto; max-width: 100%; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.table th { text-align: left; padding: 6px 8px; font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary-strong); border-bottom: 1.5px solid var(--border-color); white-space: nowrap; }
+.table td { padding: 8px; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); font-variant-numeric: tabular-nums; vertical-align: top; }
+.table th.num, .table td.num { text-align: right; white-space: nowrap; }
+.empty { padding: var(--space-5) var(--space-3); text-align: center; color: var(--text-secondary); font-size: var(--fs-md); line-height: 1.5; }
+.iconBtn {
+  display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0;
+  border: 1px solid var(--border-color); border-radius: 999px; background: var(--surface); color: var(--text-secondary);
+  cursor: pointer; transition: color 0.12s, border-color 0.12s;
+}
+.iconBtn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+.iconBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+
+@media (max-width: 480px) {
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+}

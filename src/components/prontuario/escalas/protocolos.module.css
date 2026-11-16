@@ -1,0 +1,92 @@
+/* Fichas estruturadas (audiograma, voz, fluência, motricidade orofacial) e o que as escalas com subescalas acrescentam.
+   Complementa escalas.module.css (mesmos tokens, alvos de toque de 44px, nada de largura fixa que estoure em 320px).
+   Sem touch-action de pan: só manipulation nos botões. */
+
+/* ── escalas com subescalas (DASS-21, checklists) ── */
+.groupTitle {
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--brand-text); padding: 0.2rem 0 0.1rem;
+}
+.subList { display: flex; flex-direction: column; gap: 0.7rem; }
+.subRow { display: flex; flex-direction: column; gap: 0.35rem; }
+.subHead { display: flex; align-items: center; gap: 0.4rem 0.7rem; flex-wrap: wrap; }
+.subNome { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+.subVal { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.charts { display: flex; flex-direction: column; gap: 0.9rem; min-width: 0; }
+.chartTitle { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.1rem; }
+
+/* ── campos ── */
+.field { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; padding: 0.6rem 0; border-top: 1px solid var(--border-subtle); }
+.field:first-of-type { border-top: none; padding-top: 0.1rem; }
+.fieldLabel { font-size: 0.9rem; font-weight: 500; color: var(--text-primary); line-height: 1.35; overflow-wrap: anywhere; }
+.fieldHint { font-size: 0.74rem; color: var(--text-tertiary); line-height: 1.4; }
+.sectionTitle { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+
+.input, .select {
+  width: 100%; min-width: 0; min-height: 44px; padding: 0 0.6rem;
+  border: 1.5px solid var(--border-color); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--text-primary);
+  font: inherit; font-size: 1rem; font-variant-numeric: tabular-nums;
+}
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.textarea {
+  width: 100%; min-width: 0; min-height: 88px; padding: 0.6rem;
+  border: 1.5px solid var(--border-color); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--text-primary);
+  font: inherit; font-size: 1rem; line-height: 1.4; resize: vertical;
+}
+.counter { align-self: flex-end; font-size: 0.72rem; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+
+/* linha de botões de escolha (uma opção, ou várias) */
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.4rem; }
+.choices3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; }
+.grade4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.4rem; }
+.nota11 { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 0.35rem; }
+.nota11 .opt, .grade4 .opt { justify-content: center; padding: 0.4rem 0.2rem; }
+
+.twoCols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+.fieldInline { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+
+/* ── audiograma ── */
+.earTitle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+.earDot { width: 12px; height: 12px; border-radius: 999px; flex-shrink: 0; }
+.earOd { background: var(--st-bad); }
+.earOe { background: var(--st-info); }
+.audGrid { display: grid; grid-template-columns: minmax(3.2rem, 0.7fr) 1fr 1fr; gap: 0.4rem 0.5rem; align-items: center; }
+.audHead { font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); }
+.audFreq { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.audNa { text-align: center; color: var(--text-tertiary); font-size: 0.85rem; }
+.resRows { display: flex; flex-direction: column; gap: 0.5rem; }
+.resRow { display: flex; align-items: center; gap: 0.4rem 0.6rem; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-primary); }
+.resSigla { font-weight: 700; min-width: 2rem; }
+
+/* ── fluência: contador ── */
+.counterRow { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.55rem 0; border-top: 1px solid var(--border-subtle); }
+.counterRow:first-of-type { border-top: none; }
+.counterText { min-width: 0; flex: 1; }
+.stepper { display: inline-flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
+.stepBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border: 1.5px solid var(--border-color); border-radius: 999px;
+  background: var(--surface); color: var(--text-primary); font: inherit; font-size: 1.25rem; font-weight: 600; line-height: 1;
+  cursor: pointer; touch-action: manipulation;
+}
+.stepBtn:hover:not(:disabled) { border-color: var(--text-tertiary); }
+.stepBtn:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.stepBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.stepVal { width: 3.4rem; min-height: 44px; text-align: center; padding: 0 0.2rem; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; }
+.metric { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.5rem 0.6rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface); }
+.metricVal { font-size: 1.15rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.metricLbl { font-size: 0.72rem; color: var(--text-secondary); }
+
+/* ── motricidade orofacial ── */
+.mofItem { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.6rem 0; border-top: 1px solid var(--border-subtle); }
+.mofItem:first-of-type { border-top: none; padding-top: 0.1rem; }
+.mofBtns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+.mofBtns .optAlt[aria-pressed='true'] { background: color-mix(in srgb, var(--st-warn) 16%, transparent); border-color: var(--st-warn); color: var(--text-primary); }
+
+
+.histLines { display: flex; flex-direction: column; gap: 0.25rem; }
+.histLine { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45; overflow-wrap: anywhere; }
+.deltaList { display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; }

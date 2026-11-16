@@ -5,11 +5,14 @@ export interface UnsavedFlags {
   ficha?: boolean
   evolucao?: boolean
   odontograma?: boolean
+  periograma?: boolean
+  ortodontia?: boolean
   faceograma?: boolean
   corpograma?: boolean
   metas?: boolean
   nutri?: boolean
   escalas?: boolean
+  medicina?: boolean
 }
 
 /** O que ainda não foi salvo, em português, na ordem em que as abas aparecem. */
@@ -18,11 +21,14 @@ export function unsavedLabels(f: UnsavedFlags): string[] {
     f.ficha && 'a Ficha clínica',
     f.evolucao && 'a anotação da Evolução',
     f.odontograma && 'o Odontograma',
+    f.periograma && 'o Periograma',
+    f.ortodontia && 'a ficha de Ortodontia',
     f.faceograma && 'o Faceograma',
     f.corpograma && 'o Corpograma',
     f.metas && 'a avaliação do Plano terapêutico',
     f.nutri && 'a Nutrição (avaliação ou plano alimentar)',
     f.escalas && 'a escala clínica em preenchimento',
+    f.medicina && 'o pedido de exames, a receita ou a medida de crescimento em preenchimento',
   ].filter(Boolean) as string[]
 }
 

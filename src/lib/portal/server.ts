@@ -15,6 +15,10 @@ import {
   shapeAppointments, shapePlan, shapeVaccines, shapeWeights,
   type PublicAppointment, type PublicPlan, type PublicVaccine, type PublicWeight,
 } from './publicView'
+import { hojeBrasil } from '@/lib/brasilDate'
+import { somarDias } from '@/lib/vet/datas'
+import { BUCKET_FOTOS, fotoDaClinica, JANELA_ADESAO_DIAS } from '@/lib/fisio/exercicios'
+import { shapeExercicios, type ExerciciosPublicos, type LinhaItemPublico, type LinhaPrescricaoPublica } from '@/lib/fisio/portalView'
 import { validateDocDraft, type SignDocType } from '@/lib/assinatura/texto'
 import { contentHash, HASH_RE, sha256Hex, signedHash } from '@/lib/assinatura/hash'
 import { cleanUserAgent, SIGN_ACCEPT_TEXT, validateSignInput, type SignInput } from '@/lib/assinatura/validar'
@@ -87,6 +91,8 @@ export async function createPortalLink(a: CreateLinkArgs): Promise<CreateLinkRes
     clinic_id: a.clinicId, patient_id: a.patientId, token_hash: hashToken(token), scopes: a.scopes,
     message, created_by: a.userId, expires_at: expiresAt,
   }).select('id').single()
+  // 23514 com o escopo novo: o CHECK de scopes ainda não foi atualizado no banco (migration 20261130 não aplicada)
+  if (lErr?.code === '23514' && hasScope(a.scopes, 'exercicios')) return { ok: false, motivo: 'invalido', error: 'O programa de exercícios ainda não está ativo nesta conta. Gere o link sem esse item.' }
   if (lErr || !link) return falha(lErr, 'link-insert')
 
   let requestIds: string[] = []
@@ -254,6 +260,8 @@ export interface PortalPageData {
   weights: PublicWeight[] | null
   plan: PublicPlan | null
   documents: PortalDoc[] | null
+  /** Programa de exercícios (escopo 'exercicios'); ausente nos outros links. */
+  exercises?: ExerciciosPublicos | null
 }
 
 export async function loadPortalPage(link: PortalLinkRow, now = new Date()): Promise<PortalPageData | null> {
@@ -271,7 +279,7 @@ export async function loadPortalPage(link: PortalLinkRow, now = new Date()): Pro
     petName: hasScope(link.scopes, 'vacinas_peso') ? ((patient.pet_name as string | null)?.trim() || null) : null,
     scopes: link.scopes, expiresAt: link.expires_at,
     message: hasScope(link.scopes, 'orientacoes') ? link.message : null,
-    appointments: null, vaccines: null, weights: null, plan: null, documents: null,
+    appointments: null, vaccines: null, weights: null, plan: null, documents: null, exercises: null,
   }
 
   if (hasScope(link.scopes, 'proximas_consultas')) {
@@ -307,6 +315,8 @@ export async function loadPortalPage(link: PortalLinkRow, now = new Date()): Pro
     out.plan = data ? shapePlan(data.dados, await carregarTaco()) : null
   }
 
+  if (hasScope(link.scopes, 'exercicios')) out.exercises = await loadExercicios(link, now)
+
   if (hasScope(link.scopes, 'assinatura')) {
     const { data, error } = await db.from('signature_requests').select('id, doc_type, title, content_text, status, expires_at')
       .eq('link_id', link.id).eq('clinic_id', clinicId).eq('patient_id', patientId).in('status', ['pendente', 'assinado']).order('created_at', { ascending: true })
@@ -323,6 +333,86 @@ export async function loadPortalPage(link: PortalLinkRow, now = new Date()): Pro
     }))
   }
   return out
+}
+
+// ── Programa de exercícios (fisioterapia) ───────────────────────────────────
+
+const MAX_PROGRAMAS_NA_PAGINA = 3
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const VALIDADE_FOTO_SEG = 3600
+
+/** Programas ativos do paciente do link, com a marcação dos últimos 7 dias. Tabela ausente ou erro: lista vazia (a página avisa). */
+async function loadExercicios(link: PortalLinkRow, now: Date): Promise<ExerciciosPublicos> {
+  const db = getAdminClient()
+  const { clinic_id: clinicId, patient_id: patientId } = link
+  const hoje = hojeBrasil(now)
+  const vazio: ExerciciosPublicos = { programs: [], today: hoje }
+
+  const { data: presc, error: pErr } = await db.from('fisio_prescricoes').select('id, title, notes')
+    .eq('clinic_id', clinicId).eq('patient_id', patientId).eq('status', 'ativa')
+    .order('created_at', { ascending: false }).limit(MAX_PROGRAMAS_NA_PAGINA)
+  if (pErr) { falha(pErr, 'page-exercicios'); return vazio }
+  const prescricoes = (presc ?? []) as LinhaPrescricaoPublica[]
+  if (prescricoes.length === 0) return vazio
+  const ids = prescricoes.map(p => p.id)
+
+  const { data: it, error: iErr } = await db.from('fisio_prescricao_itens')
+    .select('id, prescricao_id, name, description, region, video_url, image_path, sets, reps, times_per_week, notes, sort_order')
+    .eq('clinic_id', clinicId).eq('patient_id', patientId).in('prescricao_id', ids).order('sort_order', { ascending: true })
+  if (iErr) { falha(iErr, 'page-exercicios-itens'); return vazio }
+  const itens = (it ?? []) as LinhaItemPublico[]
+
+  const desde = somarDias(hoje, -(JANELA_ADESAO_DIAS - 1)) ?? hoje
+  const { data: ex, error: eErr } = await db.from('fisio_execucoes').select('item_id, done_on')
+    .eq('clinic_id', clinicId).eq('patient_id', patientId).in('item_id', itens.map(i => i.id)).gte('done_on', desde)
+  if (eErr) falha(eErr, 'page-exercicios-exec')
+
+  // só caminhos da pasta da própria clínica são assinados
+  const caminhos = [...new Set(itens.map(i => i.image_path).filter((p): p is string => fotoDaClinica(p, clinicId)))]
+  const imagens = new Map<string, string>()
+  if (caminhos.length > 0) {
+    const { data: signed, error: sErr } = await db.storage.from(BUCKET_FOTOS).createSignedUrls(caminhos, VALIDADE_FOTO_SEG)
+    if (sErr) console.error('[portal:page-exercicios-fotos]', sErr.message)
+    for (const s of signed ?? []) if (s.path && s.signedUrl) imagens.set(s.path, s.signedUrl)
+  }
+  return shapeExercicios({ prescricoes, itens, execucoes: (ex ?? []) as { item_id: string; done_on: string }[], imagens, hoje })
+}
+
+export type MarcarExercicioResult =
+  | { ok: true; done: boolean }
+  | { ok: false; status: 400 | 404 | 500; error: string }
+
+/**
+ * O paciente marca (ou desmarca) um exercício como feito HOJE. Só o dia de hoje pode ser marcado, para o histórico
+ * não ser preenchido para trás. O item precisa ser do paciente deste link, de um programa ativo.
+ */
+export async function marcarExercicio(link: PortalLinkRow, itemId: unknown, done: unknown, now = new Date()): Promise<MarcarExercicioResult> {
+  if (!hasScope(link.scopes, 'exercicios')) return { ok: false, status: 404, error: 'Exercício não disponível.' }
+  if (typeof itemId !== 'string' || !UUID_RE.test(itemId) || typeof done !== 'boolean') return { ok: false, status: 400, error: 'Envio inválido.' }
+
+  const db = getAdminClient()
+  const { data: item, error } = await db.from('fisio_prescricao_itens').select('id, prescricao_id')
+    .eq('id', itemId).eq('clinic_id', link.clinic_id).eq('patient_id', link.patient_id).maybeSingle()
+  if (error) { falha(error, 'exercicio-item'); return { ok: false, status: 500, error: 'Não foi possível salvar agora. Tente de novo.' } }
+  if (!item) return { ok: false, status: 404, error: 'Exercício não disponível.' }
+  const { data: presc, error: pErr } = await db.from('fisio_prescricoes').select('id')
+    .eq('id', item.prescricao_id as string).eq('clinic_id', link.clinic_id).eq('patient_id', link.patient_id).eq('status', 'ativa').maybeSingle()
+  if (pErr) { falha(pErr, 'exercicio-presc'); return { ok: false, status: 500, error: 'Não foi possível salvar agora. Tente de novo.' } }
+  if (!presc) return { ok: false, status: 404, error: 'Exercício não disponível.' }
+
+  const hoje = hojeBrasil(now)
+  if (done) {
+    const { error: iErr } = await db.from('fisio_execucoes').upsert(
+      { clinic_id: link.clinic_id, patient_id: link.patient_id, item_id: itemId, done_on: hoje, done_at: now.toISOString() },
+      { onConflict: 'item_id,done_on', ignoreDuplicates: true },
+    )
+    if (iErr) { falha(iErr, 'exercicio-marcar'); return { ok: false, status: 500, error: 'Não foi possível salvar agora. Tente de novo.' } }
+  } else {
+    const { error: dErr } = await db.from('fisio_execucoes').delete()
+      .eq('item_id', itemId).eq('clinic_id', link.clinic_id).eq('patient_id', link.patient_id).eq('done_on', hoje)
+    if (dErr) { falha(dErr, 'exercicio-desmarcar'); return { ok: false, status: 500, error: 'Não foi possível salvar agora. Tente de novo.' } }
+  }
+  return { ok: true, done }
 }
 
 /** Registro de acesso do link; falha aqui não derruba a página, mas aparece no log.

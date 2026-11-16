@@ -7,10 +7,11 @@ import type { MetaDiaria } from '@/lib/nutri/plano'
 import { AvaliacaoPanel } from './AvaliacaoPanel'
 import { EvolucaoPanel } from './EvolucaoPanel'
 import { PlanoPanel } from './PlanoPanel'
+import { RecordatorioPanel } from './RecordatorioPanel'
 import { useNutriLista } from './useNutriLista'
 import styles from './nutri.module.css'
 
-type Vista = 'avaliacao' | 'evolucao' | 'plano'
+type Vista = 'avaliacao' | 'recordatorio' | 'evolucao' | 'plano'
 
 interface Props {
   patient: Patient
@@ -19,15 +20,17 @@ interface Props {
   onDirtyChange?: (dirty: boolean) => void
 }
 
-/** Aba "Nutrição" do prontuário: avaliação antropométrica com cálculos, evolução em gráficos e plano alimentar. */
+/** Aba "Nutrição" do prontuário: avaliação antropométrica com cálculos, recordatório 24h, evolução em gráficos e plano alimentar. */
 export function TabNutri({ patient, clinic, clinicId, onDirtyChange }: Props) {
   const [vista, setVista] = useState<Vista>('avaliacao')
   const [avalDirty, setAvalDirty] = useState(false)
   const [planoDirty, setPlanoDirty] = useState(false)
+  const [recDirty, setRecDirty] = useState(false)
   const avaliacoes = useNutriLista(patient.id, 'avaliacao')
   const planos = useNutriLista(patient.id, 'plano')
+  const recordatorios = useNutriLista(patient.id, 'recordatorio')
 
-  const dirty = avalDirty || planoDirty
+  const dirty = avalDirty || planoDirty || recDirty
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
@@ -55,6 +58,7 @@ export function TabNutri({ patient, clinic, clinicId, onDirtyChange }: Props) {
         onChange={setVista}
         options={[
           { value: 'avaliacao', label: 'Avaliação' },
+          { value: 'recordatorio', label: 'Recordatório 24h' },
           { value: 'evolucao', label: 'Evolução' },
           { value: 'plano', label: 'Plano alimentar' },
         ]}
@@ -64,6 +68,13 @@ export function TabNutri({ patient, clinic, clinicId, onDirtyChange }: Props) {
           patient={patient} clinicId={clinicId}
           linhas={avaliacoes.linhas} carregando={avaliacoes.carregando} motivo={avaliacoes.motivo}
           recarregar={avaliacoes.recarregar} onDirtyChange={setAvalDirty}
+        />
+      </div>
+      <div style={{ display: vista === 'recordatorio' ? undefined : 'none' }}>
+        <RecordatorioPanel
+          patient={patient} clinicId={clinicId}
+          linhas={recordatorios.linhas} carregando={recordatorios.carregando} motivo={recordatorios.motivo}
+          recarregar={recordatorios.recarregar} onDirtyChange={setRecDirty} metaSugerida={metaSugerida}
         />
       </div>
       <div style={{ display: vista === 'evolucao' ? undefined : 'none' }}>

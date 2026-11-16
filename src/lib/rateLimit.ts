@@ -46,6 +46,16 @@ export function rateLimit(key: string, opts: RateLimitOptions): RateLimitResult 
   return { success: true, remaining: opts.limit - entry.count, resetAt: entry.resetAt }
 }
 
+/**
+ * Só consulta: diz se a chave ainda tem folga, SEM gastar uma tentativa. Serve para cobrar o limite apenas
+ * de quem de fato conseguiu (ex.: reserva gravada), em vez de cobrar também a tentativa recusada.
+ */
+export function rateLimitPeek(key: string, opts: RateLimitOptions): boolean {
+  const entry = store.get(key)
+  if (!entry || entry.resetAt < Date.now()) return true
+  return entry.count < opts.limit
+}
+
 // Perfis pré-definidos
 export const rateLimitProfiles = {
   // Login: 5 tentativas por 10 minutos por IP

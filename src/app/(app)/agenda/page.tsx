@@ -379,6 +379,7 @@ function ApptDetailContent({
           {appt.finished_at && <InfoCard label="Fim do atendimento" value={formatBrasilTime(appt.finished_at)} />}
           {packageBadge && <InfoCard label="Pacote de sessões" value={`${packageBadge.label} · ${packageBadge.packageName}`} fullWidth />}
           {packageBadge && <InfoCard label="Saldo do pacote" value={`${packageBadge.remaining} ${packageBadge.remaining === 1 ? 'sessão restante' : 'sessões restantes'}`} />}
+          {appt.booked_online && <InfoCard label="Origem" value="Agendamento online (marcado pelo paciente)" fullWidth />}
           {appt.series_id && <InfoCard label="Série" value={appt.series_index ? `Consulta ${appt.series_index} da série` : 'Consulta recorrente'} />}
           {appt.extra_slot_reason && <InfoCard label="Encaixe fora da escala" value={appt.extra_slot_reason} fullWidth />}
           {appt.notes && <InfoCard label="Observações" value={appt.notes} fullWidth />}
@@ -2476,6 +2477,7 @@ function AgendaContent() {
                                 return pb ? <span className={`${styles.lrChip}${pb.low ? ` ${styles.lrChipWarn}` : ''}`} title={pb.low ?? `${pb.packageName}: ${pb.remaining} restantes`}>{pb.label}</span> : null
                               })()}
                               {a.series_id && <span className={styles.lrChip} title="Faz parte de uma série recorrente"><Icon name="refresh" size={10} /> Série</span>}
+                              {a.booked_online && <span className={styles.lrChip} title="Marcado pelo paciente no link de agendamento online">Online</span>}
                               {confirmations[a.id] && (() => {
                                 const l = confirmationLabel(confirmations[a.id])
                                 return <span className={`${styles.lrWa} ${styles[`waTone_${l.tone}`]}`} title={l.text}>{l.short}</span>

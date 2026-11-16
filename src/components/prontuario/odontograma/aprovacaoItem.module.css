@@ -1,0 +1,24 @@
+.group { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.opt {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 14px;
+  border: 1.5px solid var(--border-subtle); border-radius: 999px;
+  background: transparent; color: var(--text-secondary);
+  font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-semibold);
+  cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.opt:hover { background: var(--surface-2); }
+.opt:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+.on.pendente, .on.pendente:hover { background: var(--surface-2); border-color: var(--text-tertiary); color: var(--text-primary); }
+.on.aprovado, .on.aprovado:hover { background: color-mix(in srgb, var(--st-ok) 20%, var(--surface)); border-color: var(--st-ok); color: var(--text-primary); }
+.on.recusado, .on.recusado:hover { background: color-mix(in srgb, var(--st-bad) 18%, var(--surface)); border-color: var(--st-bad); color: var(--text-primary); }
+
+.summary { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface-2); }
+.badge { display: inline-flex; align-items: center; min-height: 28px; padding: 0 12px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 700; background: var(--surface); border: 1.5px solid var(--border-color); color: var(--text-primary); }
+.s_aprovado { border-color: var(--st-ok); }
+.s_parcial { border-color: var(--st-wait); }
+.s_recusado { border-color: var(--st-bad); }
+.nums { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; }
+.nums > div { display: flex; flex-direction: column; min-width: 0; }
+.nums dt { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary-strong); font-weight: var(--fw-semibold); }
+.nums dd { margin: 0; font-size: var(--fs-md); font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }

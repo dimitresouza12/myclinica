@@ -2,7 +2,7 @@
 // que precisa sobreviver à ida e volta. Lógica pura (testada em navigation.test.ts).
 
 export type ProntuarioTab =
-  | 'ficha' | 'odontograma' | 'faceograma' | 'corpograma' | 'metas' | 'nutri' | 'vet' | 'comparador'
+  | 'ficha' | 'odontograma' | 'periograma' | 'ortodontia' | 'faceograma' | 'corpograma' | 'metas' | 'nutri' | 'vet' | 'medicina' | 'comparador' | 'exercicios' | 'goniometria'
   | 'timeline' | 'documentos' | 'chat' | 'conversas'
 
 /**

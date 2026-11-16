@@ -147,7 +147,8 @@ export async function POST(req: Request) {
   if (!db) return json({ error: 'Não autorizado' }, 401)
   const { data: patient, error: pErr } = await db
     .from('patients')
-    .select('name, birth_date')
+    // vet: patients.name é o TUTOR e o animal fica em pet_name; os dois são mascarados
+    .select(input.area === 'vet' ? 'name, birth_date, pet_name' : 'name, birth_date')
     .eq('id', input.patientId)
     .eq('clinic_id', ctx.clinicId)
     .maybeSingle()
@@ -157,7 +158,10 @@ export async function POST(req: Request) {
   }
   if (!patient) return json({ error: 'paciente_nao_encontrado', message: 'Paciente não encontrado.' }, 404)
 
-  const sanitizeOpts = { patientName: (patient as { name?: string | null }).name, birthDate: (patient as { birth_date?: string | null }).birth_date }
+  const p = patient as { name?: string | null; birth_date?: string | null; pet_name?: string | null }
+  const sanitizeOpts = input.area === 'vet'
+    ? { patientName: p.name, birthDate: p.birth_date, nameLabel: 'o tutor', petName: p.pet_name }
+    : { patientName: p.name, birthDate: p.birth_date }
   const redactions: Record<string, number> = {}
   const sanitize = (t: string): string => {
     const r = sanitizeIdentifiers(t, sanitizeOpts)

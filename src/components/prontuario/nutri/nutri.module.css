@@ -274,3 +274,15 @@
 @media (min-width: 681px) {
   .itemQty { display: contents; }
 }
+
+/* ── Recordatório 24h: o item não tem o botão de trocas, então uma coluna a menos ── */
+.itemRec { grid-template-columns: minmax(0, 1fr) 92px minmax(0, 150px) 64px 44px; }
+@media (max-width: 680px) {
+  .itemRec {
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-areas:
+      'name name'
+      'qty  qty'
+      'kcal del';
+  }
+}

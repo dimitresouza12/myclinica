@@ -68,6 +68,20 @@ describe('sanitizeIdentifiers', () => {
   })
 })
 
+describe('sanitizeIdentifiers: vet (tutor e animal)', () => {
+  it('troca o nome por "o tutor" e o pet por "o animal", sem repetir rótulo', () => {
+    const r = sanitizeIdentifiers('Carlos Eduardo Lima trouxe o Thor. Carlos disse que Thor vomitou.', { patientName: 'Carlos Eduardo Lima', nameLabel: 'o tutor', petName: 'Thor' })
+    expect(r.text).not.toMatch(/Carlos|Eduardo|Lima|Thor/)
+    expect(r.text).toContain('o tutor')
+    expect(r.text).toContain('o animal')
+    expect(r.text).not.toMatch(/o tutor o tutor|o animal o animal/)
+    expect(r.redactions.nome_animal).toBeGreaterThan(0)
+  })
+  it('sem opções novas o comportamento é o de sempre ("o paciente")', () => {
+    expect(sanitizeIdentifiers('Maria Souza chegou', { patientName: 'Maria Souza' }).text).toBe('o paciente chegou')
+  })
+})
+
 describe('prompts por área', () => {
   it('cada área tem foco próprio e as regras comuns', () => {
     const seen = new Set<string>()
@@ -88,6 +102,46 @@ describe('prompts por área', () => {
     expect(buildSystemPrompt('evolucao', 'fisio')).not.toContain('CFP 001/2009')
   })
 
+  it('odonto orienta dente/face, anestesia, materiais e orientações, sem inventar', () => {
+    const p = buildSystemPrompt('evolucao', 'odonto')
+    expect(p).toMatch(/por dente/)
+    expect(p).toMatch(/face/)
+    expect(p).toMatch(/anestesia/i)
+    expect(p).toMatch(/materiais/)
+    expect(p).toMatch(/orientações/)
+    expect(p).toMatch(/Modelo de evolução odontológica/)
+    expect(p).toContain('[confirmar]')
+  })
+
+  it('vet trata o paciente como animal e o responsável como tutor, com exame físico, conduta, peso e dose', () => {
+    const p = buildSystemPrompt('evolucao', 'vet')
+    expect(p).toMatch(/O paciente é o animal/)
+    expect(p).toMatch(/chame o responsável de "o tutor"/)
+    expect(p).toMatch(/Não escreva nomes/)
+    expect(p).toMatch(/anamnese/)
+    expect(p).toMatch(/exame físico/)
+    expect(p).toMatch(/conduta/)
+    expect(p).toMatch(/não calcule dose/)
+    expect(p).toMatch(/Modelo de evolução veterinária/)
+  })
+
+  it('estética cobre procedimento, produto/lote, região, dose, intercorrências e orientações, sem promessa de resultado', () => {
+    const p = buildSystemPrompt('evolucao', 'estetica')
+    expect(p).toMatch(/procedimento/)
+    expect(p).toMatch(/lote/)
+    expect(p).toMatch(/região/)
+    expect(p).toMatch(/dose/)
+    expect(p).toMatch(/intercorrências/)
+    expect(p).toMatch(/orientações/)
+    expect(p).toMatch(/Não prometa resultado/)
+    expect(p).toMatch(/Modelo de evolução em estética/)
+  })
+
+  it('o modelo de evolução só entra no modo evolução e só nas áreas que têm modelo', () => {
+    expect(buildSystemPrompt('relatorio', 'odonto', 'convenio')).not.toMatch(/Modelo de evolução/)
+    expect(buildSystemPrompt('evolucao', 'psico')).not.toMatch(/Modelo de evolução/)
+  })
+
   it('relatório inclui o foco do destinatário', () => {
     expect(buildSystemPrompt('relatorio', 'fono', 'escola')).toMatch(/Destinatário: escola/)
     expect(buildSystemPrompt('relatorio', 'fono', 'convenio')).toMatch(/convênio/)
@@ -102,8 +156,8 @@ describe('prompts por área', () => {
   })
 
   it('só as áreas do plano são elegíveis', () => {
-    for (const a of ['psico', 'medico', 'fono', 'fisio', 'nutri', 'to']) expect(isEscribaArea(a)).toBe(true)
-    for (const a of ['odonto', 'vet', 'estetica', '', null, 3]) expect(isEscribaArea(a)).toBe(false)
+    for (const a of ['psico', 'medico', 'fono', 'fisio', 'nutri', 'to', 'odonto', 'vet', 'estetica']) expect(isEscribaArea(a)).toBe(true)
+    for (const a of ['dentista', 'pet', '', null, 3]) expect(isEscribaArea(a)).toBe(false)
   })
 })
 
@@ -123,7 +177,7 @@ describe('validateInput', () => {
   })
 
   it('rejeita área fora do plano, paciente inválido e corpo ruim', () => {
-    expect(validateInput({ ...ev, area: 'odonto' })).toMatchObject({ ok: false, error: 'area_invalida' })
+    expect(validateInput({ ...ev, area: 'dentista' })).toMatchObject({ ok: false, error: 'area_invalida' })
     expect(validateInput({ ...ev, patient_id: '123' })).toMatchObject({ ok: false, error: 'paciente_invalido' })
     expect(validateInput({ ...ev, modo: 'x' })).toMatchObject({ ok: false, error: 'modo_invalido' })
     expect(validateInput([])).toMatchObject({ ok: false, error: 'corpo_invalido' })
@@ -185,16 +239,20 @@ describe('sanitizeIdentifiers: nascimento em ISO', () => {
 describe('escribaAreaForUser', () => {
   it('especialidade própria manda; não cai nas da clínica', () => {
     expect(escribaAreaForUser('psico', 'odonto', ['odonto', 'fono'])).toBe('psico')
-    expect(escribaAreaForUser('odonto', 'psico', ['psico'])).toBeNull()
+    expect(escribaAreaForUser('odonto', 'psico', ['psico'])).toBe('odonto')
+    expect(escribaAreaForUser('dentista', 'psico', ['psico'])).toBeNull()
   })
   it('sem especialidade própria usa o tipo da clínica', () => {
     expect(escribaAreaForUser(null, 'fisio', ['fisio'])).toBe('fisio')
   })
-  it('admin de clínica multi-especialidade com tipo principal não escriba usa a primeira especialidade elegível', () => {
-    expect(escribaAreaForUser(undefined, 'odonto', ['odonto', 'psico', 'fono'])).toBe('psico')
+  it('clínica odonto, vet ou estética agora tem escriba pelo tipo principal', () => {
+    for (const t of ['odonto', 'vet', 'estetica']) expect(escribaAreaForUser(undefined, t, [t, 'psico'])).toBe(t)
+  })
+  it('admin com tipo principal desconhecido usa a primeira especialidade elegível', () => {
+    expect(escribaAreaForUser(undefined, 'legado', ['x', 'psico', 'fono'])).toBe('psico')
   })
   it('sem nenhuma área elegível devolve null', () => {
-    expect(escribaAreaForUser(null, 'odonto', ['odonto', 'estetica'])).toBeNull()
+    expect(escribaAreaForUser(null, 'legado', ['x', 'y'])).toBeNull()
     expect(escribaAreaForUser(null, null, undefined)).toBeNull()
   })
 })

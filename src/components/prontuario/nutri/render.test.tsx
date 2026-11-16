@@ -8,8 +8,10 @@ vi.mock('@/lib/print', () => ({ printDocumento: vi.fn() }))
 import { AvaliacaoPanel } from './AvaliacaoPanel'
 import { EvolucaoPanel } from './EvolucaoPanel'
 import { PlanoPanel } from './PlanoPanel'
+import { RecordatorioPanel } from './RecordatorioPanel'
 import { avaliacaoVazia } from '@/lib/nutri/avaliacao'
 import { planoVazio } from '@/lib/nutri/plano'
+import { recordatorioVazio } from '@/lib/nutri/recordatorio'
 import { carregarTaco } from '@/lib/nutri/alimentos'
 
 // a TACO é carregada sob demanda; com ela já em memória a primeira renderização (síncrona) já tem os alimentos
@@ -65,5 +67,27 @@ describe('renderização das telas de Nutrição', () => {
     expect(html).toContain('Lista de compras')
     expect(html).toContain('Café da manhã')
     expect(html).not.toContain('NaN')
+  })
+  it('recordatório 24h mostra refeições, alimentos e total do dia; em branco, avisa que não há consumo', () => {
+    const rec = recordatorioVazio()
+    rec.refeicoes[0].horario = '07:30'
+    rec.refeicoes[0].itens = [{ id: 'r1', alimentoId: 'taco-53', gramas: 50, medida: '1 pão francês (unidade)' }, { id: 'r2', alimentoId: 'taco-488', gramas: 100 }]
+    const linhas = [{ id: 'rc1', tipo: 'recordatorio' as const, data: '2026-06-01', dados: rec, created_at: '2026-06-01T10:00:00Z' }]
+    const html = renderToString(<RecordatorioPanel patient={patient} clinicId="c1" linhas={linhas} carregando={false} motivo={null} recarregar={async () => {}}
+      metaSugerida={{ kcal: 1800, proteinaG: 110, carboidratoG: 200, lipidioG: 55 }} />)
+    expect(html).toContain('Recordatório 24 horas')
+    expect(html).toContain('Pão, trigo, francês')
+    expect(html).toContain('Café da manhã')
+    expect(html).toContain('07:30')
+    expect(html).toContain('da meta de energia')
+    expect(html).not.toContain('NaN')
+    expect(html).not.toContain('undefined')
+    const vazio = renderToString(<RecordatorioPanel patient={patient} clinicId="c1" linhas={[]} carregando={false} motivo="sem_tabela" recarregar={async () => {}} metaSugerida={null} />)
+    expect(vazio).toContain('Sem consumo informado nesta refeição.')
+    expect(vazio).toContain('Salvar recordatório')
+    // recordatório novo e vazio: Salvar desabilitado (não cria linha vazia)
+    expect(vazio).toMatch(/<button[^>]*disabled[^>]*>[^<]*(<[^>]+>)*[^<]*Salvar recordatório/)
+    expect(vazio).toContain('ainda não está ativo')
+    expect(vazio).not.toContain('NaN')
   })
 })

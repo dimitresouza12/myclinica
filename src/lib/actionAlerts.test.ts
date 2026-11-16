@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAlertRows, countUrgent, daysAgo, groupAlertRows, isDismissed, parseDismissed } from './actionAlerts'
+import { buildAlertRows, countUrgent, daysAgo, groupAlertRows, isDismissed, parseDismissed, SYSTEM_ALERT_LINK, withOnlineBookingAlert } from './actionAlerts'
 import type { DashboardAlert } from '@/hooks/useClinicData'
 
 // terça-feira, 3 de novembro de 2026, 15h
@@ -121,5 +121,28 @@ describe('countUrgent', () => {
     ], NOW)
     expect(countUrgent(rows)).toBe(3)
     expect(countUrgent(rows.filter(r => r.reason === 'faltou'))).toBe(0)
+  })
+})
+
+describe('withOnlineBookingAlert', () => {
+  it('sem agendamento online pendente não acrescenta nada', () => {
+    expect(withOnlineBookingAlert([], 0)).toEqual([])
+    const base = [al('faltou', 'a', iso(2026, 10, 30))]
+    expect(withOnlineBookingAlert(base, 0)).toEqual(base)
+  })
+  it('vira uma linha da clínica, urgente, que leva à agenda', () => {
+    const rows = buildAlertRows(withOnlineBookingAlert([], 2), NOW)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].name).toBe('2 agendamentos online para confirmar')
+    expect(rows[0].context).toMatch(/link de agendamento/)
+    expect(countUrgent(rows)).toBe(1)
+    expect(SYSTEM_ALERT_LINK.agendamento_online?.href).toBe('/agenda')
+    expect(groupAlertRows(rows)[0].title).toBe('Agendamento online')
+  })
+  it('singular e assinatura própria: mudar a quantidade reabre a pendência já resolvida', () => {
+    const one = buildAlertRows(withOnlineBookingAlert([], 1), NOW)[0]
+    const two = buildAlertRows(withOnlineBookingAlert([], 2), NOW)[0]
+    expect(one.name).toBe('1 agendamento online para confirmar')
+    expect(one.sig).not.toBe(two.sig)
   })
 })

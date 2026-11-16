@@ -44,3 +44,18 @@
 [data-theme="dark"] .tagNext { background: #4A3A12; color: #FDE68A; }
 [data-theme="dark"] .tagWarn { background: #4A1D1D; color: #FECACA; }
 [data-theme="dark"] .error { color: #FCA5A5; }
+
+/* Programa de exercícios (escopo 'exercicios'). Botões e links com 44px de altura, sem rolagem horizontal em 320px. */
+.exProgram { display: flex; flex-direction: column; gap: 12px; }
+.exProgram + .exProgram { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--surface-line); }
+.exCard { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--surface-2); border-radius: var(--radius-inner); min-width: 0; }
+.exImg { display: block; width: 100%; max-height: 220px; object-fit: cover; border-radius: var(--radius-inner); background: var(--track); }
+.exName { margin: 0; font-size: 1rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.exMeta { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.exWeek { margin: 0; font-size: 0.82rem; color: var(--text-secondary); }
+.exActions { display: flex; flex-direction: column; gap: 8px; }
+.exVideo { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border-radius: var(--radius-full); border: 1px solid var(--border-color); background: var(--surface); color: var(--text-primary); font: inherit; font-size: 0.9rem; font-weight: 600; text-decoration: none; text-align: center; }
+.exDone, .exTodo { width: 100%; min-height: 44px; padding: 0 16px; border-radius: var(--radius-full); font: inherit; font-weight: 700; font-size: 0.92rem; cursor: pointer; }
+.exTodo { border: 0; background: var(--brand-primary); color: #0D2421; }
+.exDone { border: 1px solid var(--brand-primary); background: var(--brand-light); color: var(--brand-text); }
+.exTodo:disabled, .exDone:disabled { opacity: 0.6; cursor: wait; }

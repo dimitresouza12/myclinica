@@ -164,6 +164,8 @@ export interface Appointment {
   package_id?: string | null
   // link da teleconsulta (migration 20261120_appointments_meeting_url.sql; ausente até ela ser aplicada)
   meeting_url?: string | null
+  // marcado pelo paciente no link público /agendar/<slug> (migration 20261128_agendamento_online.sql; ausente até ela ser aplicada)
+  booked_online?: boolean
   patients?: Pick<Patient, 'id' | 'name' | 'phone'> & { pet_name?: string | null }
   clinic_users?: Pick<ClinicUser, 'id' | 'display_name'>
   professionals?: Pick<Professional, 'id' | 'name'>
@@ -174,6 +176,8 @@ export interface TreatmentPlanItem {
   id: string
   description: string
   value: number | null
+  /** aprovação do paciente, item a item (orçamento odontológico); ausente = pendente */
+  approval?: 'pendente' | 'aprovado' | 'recusado'
 }
 
 export interface OdontogramHistoryEntry { at: string; tooth: number; face?: string; status: string; by: string; planned?: boolean }

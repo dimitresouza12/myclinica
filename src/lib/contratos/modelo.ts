@@ -48,7 +48,7 @@ CLÁUSULA 5ª: Qualquer das partes pode rescindir o contrato mediante aviso pré
 
 {{data}}`
 
-export interface PlanItemLike { description: string; value: number | null }
+export interface PlanItemLike { description: string; value: number | null; /** orçamento odontológico: item recusado fica fora do contrato */ approval?: 'pendente' | 'aprovado' | 'recusado' }
 
 export interface ContractContext {
   patientName: string
@@ -81,7 +81,7 @@ export function describeObject(ctx: Pick<ContractContext, 'packageName' | 'packa
     const n = ctx.packageSessions
     return n && n > 0 ? `${pkg} (${n} ${n === 1 ? 'sessão' : 'sessões'})` : pkg
   }
-  const items = (ctx.planItems ?? []).filter(i => i.description.trim())
+  const items = (ctx.planItems ?? []).filter(i => i.approval !== 'recusado' && i.description.trim())
   if (items.length === 0) return ''
   return items.map(i => (i.value && i.value > 0 ? `${i.description.trim()} (R$ ${formatBrl(i.value)})` : i.description.trim())).join('; ')
 }
@@ -89,7 +89,7 @@ export function describeObject(ctx: Pick<ContractContext, 'packageName' | 'packa
 /** Valor sugerido: o do pacote escolhido; sem pacote, a soma do orçamento; sem nenhum dos dois, null. */
 export function suggestAmount(ctx: { packagePrice?: number | null; planItems?: PlanItemLike[] }): number | null {
   if (ctx.packagePrice && ctx.packagePrice > 0) return ctx.packagePrice
-  const sum = (ctx.planItems ?? []).reduce((acc, i) => acc + (i.value && i.value > 0 ? i.value : 0), 0)
+  const sum = (ctx.planItems ?? []).filter(i => i.approval !== 'recusado').reduce((acc, i) => acc + (i.value && i.value > 0 ? i.value : 0), 0)
   return sum > 0 ? Math.round(sum * 100) / 100 : null
 }
 

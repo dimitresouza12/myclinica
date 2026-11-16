@@ -1,0 +1,31 @@
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.card { display: flex; flex-direction: column; gap: 14px; padding: 20px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 14px; }
+.title { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+.note { margin: 0; font-size: 0.84rem; line-height: 1.5; color: var(--text-secondary); max-width: 62ch; }
+.warn { margin: 0; padding: 10px 12px; font-size: 0.84rem; line-height: 1.5; color: var(--text-primary); background: color-mix(in srgb, var(--st-wait) 14%, transparent); border-radius: 10px; max-width: 62ch; }
+
+.linkRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.link { flex: 1 1 240px; min-width: 0; padding: 10px 12px; font-size: 0.84rem; background: var(--surface-2); border-radius: 10px; overflow-wrap: anywhere; color: var(--text-primary); }
+
+.picks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pick { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 4px 12px; background: var(--surface-2); border-radius: 10px; }
+.pickMain { display: flex; align-items: center; gap: 12px; min-height: 52px; flex: 1 1 200px; min-width: 0; cursor: pointer; }
+.pickMain input { width: 22px; height: 22px; flex: none; }
+.pickMain span { display: flex; flex-direction: column; min-width: 0; }
+.pickMain b { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); overflow-wrap: anywhere; }
+.pickMain small { font-size: 0.78rem; color: var(--text-secondary); }
+.duration { width: 120px; padding-bottom: 8px; }
+
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mode, .modeOn { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: 64px; padding: 10px 14px; text-align: left; font: inherit; cursor: pointer; color: var(--text-primary); background: var(--surface); border: 1px solid var(--border-color); border-radius: 10px; }
+.mode small, .modeOn small { font-size: 0.78rem; line-height: 1.4; color: var(--text-secondary); }
+.modeOn { border: 2px solid var(--brand-primary); padding: 9px 13px; background: var(--brand-light); }
+.mode:focus-visible, .modeOn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+
+.saveRow { display: flex; justify-content: flex-end; }
+
+@media (max-width: 600px) {
+  .card { padding: 16px; }
+  .modes { grid-template-columns: 1fr; }
+  .duration { width: 100%; }
+}

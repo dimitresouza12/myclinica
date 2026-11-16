@@ -46,7 +46,7 @@ export const PLAN_CATALOG: Record<SellablePlan, PlanCatalogEntry> = {
     price: 'R$ 169,90/mês',
     priceValue: 169.90,
     professionalLimit: null,
-    description: 'Tudo do Completo + profissionais ilimitados e multi-clínica.',
+    description: 'Tudo do Completo + profissionais ilimitados.',
     color: '#0891b2',
   },
   completo_plus: {

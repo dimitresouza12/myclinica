@@ -31,6 +31,34 @@ interface Props {
 
 interface PendingFile { file: File; previewUrl: string; kind: AttachmentKind; mime: string; ext: string }
 
+// Cartão de PDF (sem prévia de imagem): ícone de documento, nome e link que abre o arquivo em nova aba.
+// `url` é a URL assinada do storage (ou o blob local, no anexo ainda não salvo). Alvo de toque >= 44px.
+function PdfCard({ name, url, meta, onRemove, removeLabel }: { name: string; url: string; meta: string; onRemove?: () => void; removeLabel?: string }) {
+  const body = (
+    <>
+      <span className={styles.pdfIcon} aria-hidden="true"><Icon name="file" size={20} /></span>
+      <span className={styles.pdfText}>
+        <span className={styles.pdfName}>{name}</span>
+        <span className={styles.pdfMeta}>{url ? meta : 'Carregando...'}</span>
+      </span>
+    </>
+  )
+  return (
+    <div className={styles.pdfCard}>
+      {url ? (
+        <a href={url} target="_blank" rel="noopener noreferrer" className={styles.pdfLink} aria-label={`Abrir PDF ${name} em nova aba`}>{body}</a>
+      ) : (
+        <div className={styles.pdfLink} aria-busy="true">{body}</div>
+      )}
+      {onRemove && (
+        <button type="button" className={styles.pdfRemove} onClick={onRemove} title="Remover anexo" aria-label={removeLabel ?? 'Remover anexo'}>
+          <Icon name="close" size={16} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 // Anexo já salvo de uma evolução, pronto pra exibir (tipo vem da extensão do path).
 interface EntryAttachment { key: string; kind: AttachmentKind; url: string; name: string }
 
@@ -43,7 +71,7 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
   const sigiloDisponivel = SIGILO_ATIVO && canMarkConfidential(user?.specialtyType ?? clinic?.type)
   const [confidential, setConfidential] = useState(false)
   const sigiloLigado = sigiloDisponivel && confidential
-  // IA escriba (psico, medicina, fono, fisio, nutri, TO). iaNeedsReview trava o salvar até o profissional revisar o rascunho da IA.
+  // IA escriba (todas as áreas: psico, medicina, fono, fisio, nutri, TO, odonto, vet, estética). iaNeedsReview trava o salvar até o profissional revisar o rascunho da IA.
   const escribaArea = escribaAreaForUser(user?.specialtyType, clinic?.type, clinic?.specialties)
   const [iaNeedsReview, setIaNeedsReview] = useState(false)
   const [text, setText] = useState('')
@@ -296,7 +324,17 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
 
         {photos.length > 0 && (
           <div className={styles.photoPreviewGrid}>
-            {photos.map((p, i) => (
+            {photos.map((p, i) => p.kind === 'pdf' ? (
+              <div className={styles.pdfPending} key={p.previewUrl}>
+                <PdfCard
+                  name={p.file.name}
+                  url={p.previewUrl}
+                  meta={`PDF · ${formatBytes(p.file.size)} · abrir em nova aba`}
+                  onRemove={() => removePhoto(i)}
+                  removeLabel={`Remover ${p.file.name}`}
+                />
+              </div>
+            ) : (
               <div className={`${styles.photoPreviewWrap} ${p.kind === 'image' ? '' : styles.filePreviewWrap}`} key={p.previewUrl}>
                 {p.kind === 'image' && (
                   <img src={p.previewUrl} alt={`Pré-visualização ${i + 1}`} className={styles.photoPreview} />
@@ -308,14 +346,6 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
                   <div className={styles.fileTile}>
                     <span className={styles.fileName}><Icon name="mic" size={14} /> {p.file.name}</span>
                     <audio src={p.previewUrl} controls preload="metadata" className={styles.audioPlayer} />
-                  </div>
-                )}
-                {p.kind === 'pdf' && (
-                  <div className={styles.fileTile}>
-                    <span className={styles.fileName}><Icon name="procedures" size={14} /> {p.file.name}</span>
-                    <a href={p.previewUrl} target="_blank" rel="noopener noreferrer" className={styles.fileLink}>
-                      Abrir PDF ({formatBytes(p.file.size)})
-                    </a>
                   </div>
                 )}
                 <button type="button" className={styles.btnRemovePhoto} onClick={() => removePhoto(i)} title="Remover anexo" aria-label={`Remover ${p.file.name}`}>
@@ -407,20 +437,20 @@ export function TabTimeline({ patient, record, entries, clinicId, onSaved, onPen
                 )}
                 {others.length > 0 && (
                   <div className={styles.itemFiles}>
-                    {others.map(a => (
+                    {others.map(a => a.kind === 'pdf' ? (
+                      <PdfCard key={a.key} name={a.name} url={a.url} meta="PDF · abrir em nova aba" />
+                    ) : (
                       <div key={a.key} className={styles.itemFile}>
                         <span className={styles.fileName}>
-                          <Icon name={a.kind === 'pdf' ? 'procedures' : a.kind === 'audio' ? 'mic' : 'play'} size={14} />
+                          <Icon name={a.kind === 'audio' ? 'mic' : 'play'} size={14} />
                           {a.name.startsWith(ATTACHMENT_KIND_LABEL[a.kind]) ? a.name : `${ATTACHMENT_KIND_LABEL[a.kind]}: ${a.name}`}
                         </span>
                         {!a.url ? (
                           <span className={styles.fileLoading}>Carregando...</span>
                         ) : a.kind === 'audio' ? (
                           <audio src={a.url} controls preload="none" className={styles.audioPlayer} />
-                        ) : a.kind === 'video' ? (
-                          <video src={a.url} controls playsInline preload="metadata" className={styles.videoPlayer} />
                         ) : (
-                          <a href={a.url} target="_blank" rel="noopener noreferrer" className={styles.fileLink}>Abrir PDF</a>
+                          <video src={a.url} controls playsInline preload="metadata" className={styles.videoPlayer} />
                         )}
                       </div>
                     ))}

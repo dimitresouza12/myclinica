@@ -175,6 +175,7 @@
   transition: color 0.15s, background 0.15s;
 }
 .treatmentItemRemove:hover { color: #dc2626; background: var(--bg-secondary); }
+.treatmentItemApproval { margin-bottom: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-subtle); }
 .treatmentItemsFooter {
   display: flex;
   align-items: center;

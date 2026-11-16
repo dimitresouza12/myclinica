@@ -30,7 +30,9 @@ interface ProcedureSuggestion {
 // (odontograma pra odonto, faceograma pra odonto/estética, corpograma pra estética).
 // 'metas' = plano terapêutico por metas (fono, TO, fisio e psico): ver src/components/prontuario/metas.
 // 'vet' = carteira de vacinas, curva de peso e dose por peso do pet: ver src/components/prontuario/vet.
-export type RecordTab = 'odontograma' | 'faceograma' | 'corpograma' | 'metas' | 'nutri' | 'vet' | 'comparador'
+// 'exercicios' e 'goniometria' = fisioterapia (prescrição de exercícios e goniometria seriada): ver src/components/prontuario/fisio.
+// 'medicina' = pedido de exames, receita estruturada e curvas de crescimento da OMS (medico): ver src/components/prontuario/medicina.
+export type RecordTab = 'odontograma' | 'periograma' | 'ortodontia' | 'faceograma' | 'corpograma' | 'metas' | 'nutri' | 'vet' | 'comparador' | 'exercicios' | 'goniometria' | 'medicina'
 
 interface SpecialtyConfig {
   roles: RoleOption[]
@@ -143,7 +145,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-hipotese', 'Hipótese diagnóstica / Plano radiográfico'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: ['odontograma', 'faceograma', 'comparador'],
+    recordTabs: ['odontograma', 'periograma', 'ortodontia', 'faceograma', 'comparador'],
     color: '37,99,235',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c-2 0-3.5.9-4.6.9C5.6 3.9 4 5 4 7.4c0 1.7.4 2.7.9 4 .3.9.6 2 .7 3.4.2 2.7.6 6.2 3 6.2 1.9 0 2.2-1.8 2.5-3.6.2-1.1.3-2.2 1-2.2s.8 1.1 1 2.2c.3 1.8.6 3.6 2.5 3.6 2.4 0 2.8-3.5 3-6.2.1-1.4.4-2.5.7-3.4.5-1.3.9-2.3.9-4 0-2.4-1.6-3.5-3.4-3.5C15.5 3.9 14 3 12 3z"/></svg>
@@ -221,7 +223,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-conduta', 'Conduta / Solicitação de exames'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: [],
+    recordTabs: ['medicina'],
     color: '220,38,38',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><rect x="10" y="3" width="4" height="18" rx="1.4"/><rect x="3" y="10" width="18" height="4" rx="1.4"/></svg>
@@ -401,7 +403,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-hipotese', 'Diagnóstico fisioterapêutico'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: ['corpograma', 'metas'],
+    recordTabs: ['corpograma', 'metas', 'exercicios', 'goniometria'],
     color: '234,88,12',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><rect x="1" y="9.5" width="3" height="5" rx="1.2"/><rect x="20" y="9.5" width="3" height="5" rx="1.2"/><rect x="4.3" y="7.5" width="2.6" height="9" rx="1.2"/><rect x="17.1" y="7.5" width="2.6" height="9" rx="1.2"/><rect x="6.7" y="11" width="10.6" height="2" rx="1"/></svg>
@@ -487,7 +489,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['a-medicamentos', 'Medicamentos em uso'],
       ['a-alergia', 'Alergias ou intolerâncias alimentares'],
       ['a-habitos', 'Hábitos alimentares (refeições/dia, horários, local)'],
-      ['a-recordatorio', 'Recordatório alimentar 24h (o que comeu ontem)'],
+      ['a-recordatorio', 'Recordatório alimentar 24h (resumo; o registro por refeição fica na aba Nutrição)'],
       ['a-restricoes', 'Restrições alimentares (religiosas, preferências, aversões)'],
       ['a-hidratacao', 'Ingestão hídrica diária'],
       ['a-atividade', 'Prática de atividade física (tipo, frequência, duração)'],

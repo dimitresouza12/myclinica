@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { Fragment, useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -25,6 +25,7 @@ import { SelectMenu } from '@/components/ui/SelectMenu'
 import { CidSearch } from './CidSearch'
 import { rehydrateMap, rehydrateValue } from './fichaRehydrate'
 import { SIGILO_ATIVO } from '@/lib/sigilo'
+import { AprovacaoItem, ResumoAprovacao } from './odontograma/AprovacaoItem'
 
 interface Props {
   patient: Patient
@@ -667,7 +668,8 @@ export function TabFicha({ patient, record, clinic, clinicId, onSaved, onDraftCh
 
         <div className={styles.treatmentItems}>
           {treatmentPlanItems.map((item) => (
-            <div className={styles.treatmentItemRow} key={item.id}>
+            <Fragment key={item.id}>
+            <div className={styles.treatmentItemRow}>
               <input
                 type="text"
                 className={styles.treatmentItemDesc}
@@ -685,8 +687,15 @@ export function TabFicha({ patient, record, clinic, clinicId, onSaved, onDraftCh
                 <Icon name="close" size={14} />
               </button>
             </div>
+            {viewArea === 'odonto' && (
+              <div className={styles.treatmentItemApproval}>
+                <AprovacaoItem nome={item.description} value={item.approval} onChange={(approval) => updateTreatmentItem(item.id, { approval })} />
+              </div>
+            )}
+            </Fragment>
           ))}
         </div>
+        {viewArea === 'odonto' && <ResumoAprovacao items={treatmentPlanItems} />}
         <div className={styles.treatmentItemsFooter}>
           <button type="button" className={styles.btnAddCustomField} onClick={addTreatmentItem}>+ Adicionar item</button>
           {treatmentPlanItems.length > 0 && (

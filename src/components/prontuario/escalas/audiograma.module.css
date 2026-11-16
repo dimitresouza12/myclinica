@@ -1,0 +1,14 @@
+/* Gráfico do audiograma: frequência em escala logarítmica no topo, dB NA para baixo (0 no alto), orelha direita em vermelho
+   e esquerda em azul (convenção ASHA), com símbolos diferentes para não depender só da cor. */
+.wrap { width: 100%; max-width: 560px; margin: 0 auto; min-width: 0; }
+.svg { display: block; width: 100%; height: auto; max-width: 100%; }
+.normal { fill: color-mix(in srgb, var(--st-ok) 12%, transparent); }
+.gridH { stroke: var(--border-subtle); stroke-width: 1; }
+.gridV { stroke: var(--border-color); stroke-width: 1; }
+.tick { fill: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.cap { fill: var(--text-tertiary); font-size: 10px; }
+.od { stroke: var(--st-bad); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.oe { stroke: var(--st-info); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.linha { stroke-width: 1.5; }
+.legend { fill: var(--text-primary); font-size: 11px; }
+.vazio { fill: var(--text-tertiary); font-size: 12px; }

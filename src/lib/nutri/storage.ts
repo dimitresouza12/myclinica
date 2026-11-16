@@ -9,7 +9,7 @@
 import { supabase } from '@/lib/supabase'
 import { motivoDoErro, type Indisponibilidade } from './erros'
 
-export type TipoNutri = 'avaliacao' | 'plano'
+export type TipoNutri = 'avaliacao' | 'plano' | 'recordatorio'
 
 export interface LinhaNutri {
   id: string

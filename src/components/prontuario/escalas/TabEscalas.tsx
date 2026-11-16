@@ -1,22 +1,22 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { useAuthStore } from '@/store/auth'
-import { audit } from '@/lib/audit'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PillTabs } from '@/components/ui/PillTabs'
 import { Icon } from '@/components/ui/Icon'
-import { showToast } from '@/components/ui/Toast'
 import { brasilDayOf } from '@/lib/brasilDate'
 import { brDate } from '@/lib/metas/relatorio'
 import type { SeriesPoint } from '@/lib/metas/progress'
 import {
-  ESCALAS, formatarValor, opcoesDoItem, pontuar, respostasVazias,
-  type EscalaDef, type EscalaId, type Respostas, type TomFaixa,
+  formatarValor, opcoesCurtas, opcoesDoItem, pontuar, respostasVazias,
+  type EscalaDef, type Respostas, type TomFaixa,
 } from '@/lib/escalas/escalas'
+import { isProtocolo, type AvaliacaoDef } from '@/lib/escalas/protocolos'
 import { lerEntrada, montarEntrada, type EscalaLida } from '@/lib/escalas/registro'
 import type { MedicalRecord, Patient, RecordEntry } from '@/types'
 import { ProgressChart } from '../metas/ProgressChart'
+import { ProtocoloPanel } from './ProtocoloPanel'
+import { useGravarEntrada } from './useGravarEntrada'
 import styles from './escalas.module.css'
+import extra from './protocolos.module.css'
 
 interface Props {
   patient: Patient
@@ -24,8 +24,8 @@ interface Props {
   record: MedicalRecord | null
   entries: RecordEntry[]
   entriesLoading: boolean
-  /** Escalas oferecidas a quem está logado (ver escalasParaAreas) */
-  escalas: EscalaDef[]
+  /** Escalas e fichas oferecidas a quem está logado (ver escalasParaAreas) */
+  escalas: AvaliacaoDef[]
   onSaved: () => void
   onDirtyChange?: (dirty: boolean) => void
 }
@@ -50,29 +50,26 @@ function AvisoRisco({ compact }: { compact?: boolean }) {
 
 interface HistLinha { id: string; day: string; lida: EscalaLida; author: string | null }
 
-export function TabEscalas({ patient, clinicId, record, entries, entriesLoading, escalas, onSaved, onDirtyChange }: Props) {
-  const user = useAuthStore(s => s.user)
-  const [escalaId, setEscalaId] = useState<EscalaId>(escalas[0]?.id ?? 'phq9')
-  // um rascunho por escala: trocar de aba não perde o que já foi marcado
-  const [rascunhos, setRascunhos] = useState<Partial<Record<EscalaId, Respostas>>>({})
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+type PropsPainel = Omit<Props, 'escalas' | 'onDirtyChange'> & { def: EscalaDef; onDirtyChange: (id: string, dirty: boolean) => void }
 
-  const def = ESCALAS[escalas.some(e => e.id === escalaId) ? escalaId : (escalas[0]?.id ?? 'phq9')]
-  const respostas = rascunhos[def.id] ?? respostasVazias(def)
+/** Uma escala de soma: itens, resultado, evolução e histórico. */
+function EscalaPanel({ def, patient, clinicId, record, entries, entriesLoading, onSaved, onDirtyChange }: PropsPainel) {
+  const [respostas, setRespostas] = useState<Respostas>(() => respostasVazias(def))
+  const [error, setError] = useState('')
+  const { gravar, saving, erro, limparErro } = useGravarEntrada({ patient, clinicId, record, onSaved })
   const res = useMemo(() => pontuar(def, respostas), [def, respostas])
 
-  const dirty = Object.values(rascunhos).some(r => r?.some(v => v !== null))
-  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
-  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
+  const dirty = respostas.some(v => v !== null)
+  useEffect(() => { onDirtyChange(def.id, dirty) }, [dirty, onDirtyChange, def.id])
+  useEffect(() => () => onDirtyChange(def.id, false), [onDirtyChange, def.id])
 
   function setResposta(indice: number, valor: number) {
     setError('')
-    setRascunhos(prev => {
-      const atual = prev[def.id] ?? respostasVazias(def)
-      const next = atual.slice()
+    limparErro()
+    setRespostas(prev => {
+      const next = prev.slice()
       next[indice] = next[indice] === valor ? null : valor
-      return { ...prev, [def.id]: next }
+      return next
     })
   }
 
@@ -94,64 +91,25 @@ export function TabEscalas({ patient, clinicId, record, entries, entriesLoading,
 
   async function save() {
     if (!res.completo || saving) return
-    setSaving(true)
     setError('')
-    try {
-      let recordId = record?.id
-      if (!recordId) {
-        const { data, error: recErr } = await supabase
-          .from('medical_records')
-          .insert([{ clinic_id: clinicId, patient_id: patient.id }])
-          .select('id')
-          .single()
-        if (recErr) throw new Error('Erro ao criar prontuário: ' + recErr.message)
-        recordId = data?.id
-      }
-      if (!recordId) throw new Error('Falha ao criar prontuário.')
-
-      const entrada = montarEntrada(def, respostas)
-      const { error: entryErr } = await supabase.from('record_entries').insert([{
-        clinic_id: clinicId,
-        patient_id: patient.id,
-        record_id: recordId,
-        entry_text: entrada.entry_text,
-        entry_type: entrada.entry_type,
-        author_name: user?.displayName ?? 'Sistema',
-        professional_id: user?.professionalId ?? null,
-        photo_urls: [],
-      }])
-      if (entryErr) throw new Error('Erro ao salvar a escala: ' + entryErr.message)
-
-      if (user?.id) {
-        await audit({
-          action: 'prontuario.update',
-          user_id: user.id,
-          clinic_id: clinicId,
-          module: 'prontuario',
-          resource_id: patient.id,
-          details: { escala: def.id },
-        })
-      }
-      setRascunhos(prev => ({ ...prev, [def.id]: respostasVazias(def) }))
-      showToast('ok', `${def.sigla} registrado no prontuário.`)
-      onSaved()
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar.')
-    } finally {
-      setSaving(false)
-    }
+    const ok = await gravar(montarEntrada(def, respostas), { escala: def.id }, `${def.sigla} registrado no prontuário.`)
+    if (ok) setRespostas(respostasVazias(def))
   }
 
   const pontuaveis = def.itens.filter(i => i.pontua !== false).length
   const pct = res.valor === null ? 0 : Math.round((res.valor / def.maximo) * 100)
+  const subs = useMemo(() => def.subescalas ?? [], [def])
+  // série de cada subescala (escalas sem total geral: DASS-21 e checklists)
+  const seriesSub = useMemo(
+    () => subs.map((sub, k) => ({
+      sub,
+      serie: [...historico].reverse().map(h => ({ date: h.day, score: h.lida.resultado.subescalas[k]?.valor ?? 0 })),
+    })),
+    [subs, historico],
+  )
 
   return (
     <div className={styles.wrap}>
-      {escalas.length > 1 && (
-        <PillTabs<EscalaId> label="Escala" value={def.id} onChange={id => { setEscalaId(id); setError('') }}
-          options={escalas.map(e => ({ value: e.id, label: e.sigla }))} />
-      )}
-
       <div className={styles.head}>
         <div className={styles.title}>{def.nome}</div>
         <div className={styles.sub}>{def.instrucao}</div>
@@ -168,15 +126,19 @@ export function TabEscalas({ patient, clinicId, record, entries, entriesLoading,
         <div>
           {def.itens.map((item, i) => {
             const opcoes = opcoesDoItem(def, i)
-            const lista = opcoes.length > 4
+            const lista = !opcoesCurtas(def, i)
             const itemRisco = def.id === 'phq9' && i === 8
             const labelId = `esc-${def.id}-${i}`
+            // checklists por área: título do grupo antes do primeiro item (só quando a subescala é um bloco contínuo)
+            const inicioGrupo = subs.find(sub => sub.itens[0] === i && sub.itens.every((v, k) => v === i + k))
             return (
               <div key={`${def.id}-${i}`} className={styles.item}>
+                {inicioGrupo && <div className={extra.groupTitle}>{inicioGrupo.nome}</div>}
                 <div className={styles.itemText} id={labelId}>
                   {item.pontua !== false && def.id !== 'odi' && <span className={styles.itemNum}>{i + 1}.</span>}
                   {item.texto}
                 </div>
+                {item.orientacao && <div className={styles.itemHint}>{item.orientacao}</div>}
                 {item.pontua === false && <div className={styles.itemHint}>Pergunta de apoio, não entra na pontuação.</div>}
                 <div className={lista ? styles.optsList : `${styles.opts} ${styles.optsGrid}`} role="group" aria-labelledby={labelId}>
                   {opcoes.map(op => (
@@ -198,26 +160,43 @@ export function TabEscalas({ patient, clinicId, record, entries, entriesLoading,
         </div>
 
         <div className={styles.result} aria-live="polite">
-          <div className={styles.resultRow}>
-            <span className={styles.big}>{res.valor === null ? '-' : def.unidade === 'percentual' ? `${res.valor}%` : res.valor}</span>
-            {def.unidade === 'pontos' && <span className={styles.bigUnit}>de {def.maximo} pontos</span>}
-            {res.faixa && <span className={`${styles.chip} ${TOM_CLASS[res.faixa.tom]}`}>{res.faixa.rotulo}</span>}
-          </div>
-          <div className={styles.bar} aria-hidden="true"><div className={styles.barFill} style={{ width: `${pct}%` }} /></div>
+          {subs.length > 0 ? (
+            <div className={extra.subList}>
+              {res.subescalas.map(sub => (
+                <div key={sub.id} className={extra.subRow}>
+                  <div className={extra.subHead}>
+                    <span className={extra.subNome}>{sub.nome}</span>
+                    <span className={extra.subVal}>{sub.valor === null ? '-' : `${sub.valor} de ${sub.maximo}`}</span>
+                    {sub.faixa && <span className={`${styles.chip} ${TOM_CLASS[sub.faixa.tom]}`}>{sub.faixa.rotulo}</span>}
+                  </div>
+                  <div className={styles.bar} aria-hidden="true"><div className={styles.barFill} style={{ width: `${sub.valor === null ? 0 : Math.round((sub.valor / sub.maximo) * 100)}%` }} /></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className={styles.resultRow}>
+                <span className={styles.big}>{res.valor === null ? '-' : def.unidade === 'percentual' ? `${res.valor}%` : res.valor}</span>
+                {def.unidade === 'pontos' && <span className={styles.bigUnit}>de {def.maximo} pontos</span>}
+                {res.faixa && <span className={`${styles.chip} ${TOM_CLASS[res.faixa.tom]}`}>{res.faixa.rotulo}</span>}
+              </div>
+              <div className={styles.bar} aria-hidden="true"><div className={styles.barFill} style={{ width: `${pct}%` }} /></div>
+            </>
+          )}
           <div className={styles.resultLbl}>
             {res.completo
-              ? `${def.dominio}. ${def.unidade === 'percentual' ? 'Percentual de incapacidade calculado sobre as seções respondidas.' : 'Soma dos itens respondidos.'}`
+              ? `${def.dominio}. ${subs.length > 0 ? 'Cada parte tem a sua pontuação; não há total geral.' : def.unidade === 'percentual' ? 'Percentual de incapacidade calculado sobre as seções respondidas.' : def.multiplicador ? 'Soma dos itens respondidos, em escala de 0 a 100.' : 'Soma dos itens respondidos.'}`
               : `Responda ${def.omissoesPermitidas > 0 ? `ao menos ${pontuaveis - def.omissoesPermitidas} das ${pontuaveis} seções` : `todos os ${pontuaveis} itens`} para ver o resultado.`}
           </div>
         </div>
 
-        {error && <div className={styles.error} role="alert">{error}</div>}
+        {(error || erro) && <div className={styles.error} role="alert">{error || erro}</div>}
         <div className={styles.btnRow}>
           <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} disabled={!res.completo || saving} onClick={() => void save()}>
             {saving ? 'Salvando...' : 'Salvar no prontuário'}
           </button>
           <button type="button" className={styles.btn} disabled={saving || respostas.every(v => v === null)}
-            onClick={() => { setError(''); setRascunhos(prev => ({ ...prev, [def.id]: respostasVazias(def) })) }}>
+            onClick={() => { setError(''); limparErro(); setRespostas(respostasVazias(def)) }}>
             Limpar respostas
           </button>
         </div>
@@ -228,6 +207,19 @@ export function TabEscalas({ patient, clinicId, record, entries, entriesLoading,
         <div className={styles.cardTitle}>Evolução do {def.sigla}</div>
         {entriesLoading ? (
           <div className={styles.loading}>Carregando...</div>
+        ) : subs.length > 0 ? (
+          seriesSub[0] && seriesSub[0].serie.length > 1 ? (
+            <div className={extra.charts}>
+              {seriesSub.map(({ sub, serie: sr }) => (
+                <div key={sub.id} className={styles.chart}>
+                  <div className={extra.chartTitle}>{sub.nome}</div>
+                  <ProgressChart series={sr} label={`${def.sigla}: ${sub.nome}, por data de aplicação`} height={150} unit="" yMax={sub.maximo} yTicks={sub.eixo} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.empty}>{historico.length === 1 ? 'Com mais uma aplicação o gráfico de evolução aparece aqui.' : 'Nenhuma aplicação registrada ainda.'}</div>
+          )
         ) : serie.length > 1 ? (
           <div className={styles.chart}>
             <ProgressChart series={serie} label={`${def.sigla} por data de aplicação`} height={180}
@@ -255,8 +247,14 @@ export function TabEscalas({ patient, clinicId, record, entries, entriesLoading,
                 <details key={h.id} className={`${styles.hItem} ${risco ? styles.hItemRisk : ''}`}>
                   <summary className={styles.hSum}>
                     <span className={styles.hDate}>{brDate(h.day)}</span>
-                    <span className={styles.hVal}>{formatarValor(def, h.lida.resultado.valor ?? 0)}</span>
-                    {h.lida.resultado.faixa && <span className={`${styles.chip} ${TOM_CLASS[h.lida.resultado.faixa.tom]}`}>{h.lida.resultado.faixa.rotulo}</span>}
+                    {subs.length > 0 ? h.lida.resultado.subescalas.map(sub => (
+                      <span key={sub.id} className={styles.chip + ' ' + (sub.faixa ? TOM_CLASS[sub.faixa.tom] : '')}>{sub.nome} {sub.valor ?? '-'}{sub.faixa ? `: ${sub.faixa.rotulo.toLowerCase()}` : ''}</span>
+                    )) : (
+                      <>
+                        <span className={styles.hVal}>{formatarValor(def, h.lida.resultado.valor ?? 0)}</span>
+                        {h.lida.resultado.faixa && <span className={`${styles.chip} ${TOM_CLASS[h.lida.resultado.faixa.tom]}`}>{h.lida.resultado.faixa.rotulo}</span>}
+                      </>
+                    )}
                     {risco && <span className={`${styles.chip} ${styles.tomBad}`}><Icon name="alert" size={12} aria-hidden="true" /> Item 9 positivo</span>}
                     {delta !== null && delta !== 0 && (
                       <span className={styles.hDelta}>{delta > 0 ? '+' : '-'}{Math.abs(delta)}{def.unidade === 'percentual' ? ' p.p.' : ''} desde a anterior</span>
@@ -268,7 +266,7 @@ export function TabEscalas({ patient, clinicId, record, entries, entriesLoading,
                       const v = h.lida.respostas[i]
                       if (v === null) return null
                       const op = opcoesDoItem(def, i)
-                      const texto = op.length <= 4 ? op.find(o => o.valor === v)?.rotulo ?? String(v) : `${v} de ${Math.max(...op.map(o => o.valor))}`
+                      const texto = opcoesCurtas(def, i) ? op.find(o => o.valor === v)?.rotulo ?? String(v) : `${v} de ${Math.max(...op.map(o => o.valor))}`
                       return <div key={i} className={styles.hAns}>{i + 1}. {item.curto}: <b>{texto}</b></div>
                     })}
                     {h.author && <div className={styles.hMeta}>Aplicado por {h.author}</div>}
@@ -286,6 +284,40 @@ export function TabEscalas({ patient, clinicId, record, entries, entriesLoading,
         <div>{def.fonte.portugues}</div>
         {def.fonte.nota && <div>{def.fonte.nota}</div>}
       </div>
+    </div>
+  )
+}
+
+/** Aba "Escalas" do prontuário: um seletor e, abaixo, a escala ou ficha escolhida. Os painéis ficam todos montados (só um visível)
+ *  para que trocar de escala não perca o que já foi marcado. */
+export function TabEscalas({ escalas, onDirtyChange, ...resto }: Props) {
+  const [escalaId, setEscalaId] = useState<string>(escalas[0]?.id ?? '')
+  const [sujas, setSujas] = useState<Record<string, boolean>>({})
+  const atual = escalas.find(e => e.id === escalaId) ?? escalas[0]
+
+  const dirty = Object.values(sujas).some(Boolean)
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
+
+  const marcar = useCallback((id: string, valor: boolean) => {
+    setSujas(prev => (prev[id] === valor ? prev : { ...prev, [id]: valor }))
+  }, [])
+
+  if (!atual) return null
+
+  return (
+    <div className={styles.wrap}>
+      {escalas.length > 1 && (
+        <PillTabs<string> label="Escala" value={atual.id} onChange={setEscalaId}
+          options={escalas.map(e => ({ value: e.id, label: e.sigla }))} />
+      )}
+      {escalas.map(def => (
+        <div key={def.id} hidden={def.id !== atual.id}>
+          {isProtocolo(def)
+            ? <ProtocoloPanel def={def} {...resto} onDirtyChange={marcar} />
+            : <EscalaPanel def={def} {...resto} onDirtyChange={marcar} />}
+        </div>
+      ))}
     </div>
   )
 }

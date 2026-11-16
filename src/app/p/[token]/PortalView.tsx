@@ -3,6 +3,7 @@ import { hasScope } from '@/lib/portal/scopes'
 import { fmtDateBr, fmtDateTimeBr, fmtKg } from '@/lib/portal/format'
 import { SIGN_DOC_LABEL } from '@/lib/assinatura/texto'
 import { SignBox } from './SignBox'
+import { ExerciciosBox } from './ExerciciosBox'
 import styles from './portal.module.css'
 
 const DUE_LABEL = { atrasada: 'Reforço atrasado', proxima: 'Reforço próximo', em_dia: 'Em dia' } as const
@@ -106,6 +107,13 @@ export function PortalView({ data, token }: { data: PortalPageData; token: strin
                 ))}
               </ul>
             )}
+          </section>
+        )}
+
+        {hasScope(sc, 'exercicios') && data.exercises && (
+          <section className={styles.card} aria-labelledby="sec-exer">
+            <h2 id="sec-exer" className={styles.h2}>Seus exercícios</h2>
+            <ExerciciosBox token={token} data={data.exercises} />
           </section>
         )}
 

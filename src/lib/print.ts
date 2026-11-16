@@ -7,6 +7,7 @@ import { stripConfidentialForPrint } from '@/lib/sigilo'
 import { textoVisivel } from '@/lib/escalas/registro'
 import { FACE_TOOLS, FACE_VW, FACE_VH, sessionTotals, formatTotal, type FaceSession } from '@/lib/faceograma'
 import { FACE_FRONT } from '@/lib/referenceImages'
+import { APROVACOES, aprovacaoDoItem, statusOrcamento, STATUS_ORCAMENTO_ROTULO, temDecisao, totaisOrcamento } from '@/lib/odonto/orcamento'
 
 export interface ClinicInfo {
   name: string
@@ -281,6 +282,10 @@ export function printProntuario(clinic: ClinicInfo, patient: Patient, record: Me
 export function printOrcamento(clinic: ClinicInfo, patient: Patient, items: TreatmentPlanItem[], generalNote?: string | null) {
   const total = items.reduce((sum, it) => sum + (it.value ?? 0), 0)
   const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  // Orçamento odontológico com aprovação item a item: só ganha a coluna de situação e o resumo quando há alguma decisão registrada
+  const decidido = temDecisao(items)
+  const tot = totaisOrcamento(items)
+  const rotuloAprov = (it: TreatmentPlanItem) => APROVACOES.find(a => a.id === aprovacaoDoItem(it))?.rotulo ?? ''
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Orçamento – ${patient.name}</title>${baseStyles()}</head><body>
     ${clinicHeader(clinic)}
@@ -293,6 +298,7 @@ export function printOrcamento(clinic: ClinicInfo, patient: Patient, items: Trea
       <thead>
         <tr>
           <th style="text-align:left;padding:6px 4px;border-bottom:2px solid #333;font-size:11px;text-transform:uppercase;color:#555">Serviço</th>
+          ${decidido ? '<th style="text-align:left;padding:6px 4px;border-bottom:2px solid #333;font-size:11px;text-transform:uppercase;color:#555">Situação</th>' : ''}
           <th style="text-align:right;padding:6px 4px;border-bottom:2px solid #333;font-size:11px;text-transform:uppercase;color:#555">Valor</th>
         </tr>
       </thead>
@@ -300,17 +306,21 @@ export function printOrcamento(clinic: ClinicInfo, patient: Patient, items: Trea
         ${items.map((it) => `
           <tr>
             <td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px">${it.description || '—'}</td>
+            ${decidido ? `<td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px">${rotuloAprov(it)}</td>` : ''}
             <td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px;text-align:right;white-space:nowrap">${it.value != null ? money(it.value) : '—'}</td>
           </tr>
         `).join('')}
       </tbody>
       <tfoot>
         <tr>
-          <td style="padding:10px 4px;font-size:14px;font-weight:700;text-align:right">TOTAL</td>
+          <td${decidido ? ' colspan="2"' : ''} style="padding:10px 4px;font-size:14px;font-weight:700;text-align:right">TOTAL</td>
           <td style="padding:10px 4px;font-size:14px;font-weight:700;text-align:right;white-space:nowrap">${money(total)}</td>
         </tr>
       </tfoot>
     </table>
+    ${decidido ? `<div style="margin-top:14px;font-size:13px;line-height:1.7"><strong>${STATUS_ORCAMENTO_ROTULO[statusOrcamento(items)]}.</strong>
+      Aprovado: ${money(tot.aprovado)} (${tot.qtdAprovado} ${tot.qtdAprovado === 1 ? 'item' : 'itens'}) &nbsp;|&nbsp;
+      Pendente: ${money(tot.pendente)} (${tot.qtdPendente}) &nbsp;|&nbsp; Recusado: ${money(tot.recusado)} (${tot.qtdRecusado})</div>` : ''}
     ${generalNote ? `<h3>Observações</h3><div class="field-value">${generalNote.replace(/\n/g, '<br>')}</div>` : ''}
     <div class="footer">
       <span>${clinic.name}</span>

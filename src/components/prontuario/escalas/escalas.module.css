@@ -1,4 +1,4 @@
-/* Escalas clínicas (PHQ-9, GAD-7, Oswestry). Segue o padrão de metas.module.css: tokens de design-system.css,
+/* Escalas clínicas (PHQ-9, GAD-7, Oswestry, Roland-Morris, Berg, Barthel). Segue o padrão de metas.module.css: tokens de design-system.css,
    alvos de toque de 44px, nada de largura fixa que estoure em tela de 320px. Sem touch-action de pan. */
 .wrap { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 

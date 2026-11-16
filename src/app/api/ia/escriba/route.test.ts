@@ -9,7 +9,8 @@ const state = vi.hoisted(() => ({
   consent: true,
   consentColumn: true,
   demo: false,
-  patient: { name: 'Maria José da Silva', birth_date: '2015-05-03' } as { name: string; birth_date: string } | null,
+  patient: { name: 'Maria José da Silva', birth_date: '2015-05-03' } as { name: string; birth_date: string; pet_name?: string } | null,
+  patientSelect: '',
   entries: [] as { created_at: string; entry_text: string; is_confidential?: boolean }[],
   entriesColumnMissing: false,
   audits: [] as Record<string, unknown>[],
@@ -59,10 +60,16 @@ vi.mock('@supabase/supabase-js', () => ({
       const chain: Record<string, unknown> = {}
       const filters: [string, unknown][] = []
       const self = {
-        select: () => self,
+        select: (cols?: string) => { if (table === 'patients') state.patientSelect = cols ?? ''; return self },
         eq: (c: string, v: unknown) => { filters.push([c, v]); if (table === 'record_entries') state.entryFilters.push([c, v]); return self },
         gte: () => self, lte: () => self, order: () => self, limit: () => self,
-        maybeSingle: async () => ({ data: table === 'patients' ? state.patient : null, error: null }),
+        maybeSingle: async () => {
+          if (table !== 'patients') return { data: null, error: null }
+          // como o PostgREST: só devolve as colunas selecionadas
+          const cols = state.patientSelect.split(',').map(c => c.trim())
+          const data = state.patient ? Object.fromEntries(Object.entries(state.patient).filter(([k]) => cols.includes(k))) : null
+          return { data, error: null }
+        },
         then: (res: (x: unknown) => unknown) => {
           const hasConf = filters.some(([c]) => c === 'is_confidential')
           const out = state.entriesColumnMissing && hasConf
@@ -170,10 +177,44 @@ describe('POST /api/ia/escriba: barreiras', () => {
     expect((await POST(post(body))).status).toBe(200)
   })
 
-  it('limites: texto curto 400, longo 413, área fora do plano 400, paciente inválido 400', async () => {
+  it('odonto, vet e estética: clínica da área gera rascunho, com o prompt da área e consentimento exigido', async () => {
+    for (const area of ['odonto', 'vet', 'estetica']) {
+      state.clinicType = area; state.specialties = [area]
+      complete.mockClear()
+      const res = await POST(post({ ...ev(), area }))
+      expect(res.status).toBe(200)
+      expect(complete.mock.calls[0][0].system).toContain(`Área: ${area === 'odonto' ? 'Odontologia' : area === 'vet' ? 'Medicina veterinária' : 'Estética'}`)
+    }
+    state.consent = false
+    const semConsent = await POST(post({ ...ev(), area: 'vet' }))
+    expect(semConsent.status).toBe(403)
+    expect((await semConsent.json()).error).toBe('consentimento_ausente')
+  })
+
+  it('vet: patients.name é o tutor e pet_name o animal; os dois são mascarados e nada vaza', async () => {
+    state.clinicType = 'vet'; state.specialties = ['vet']
+    state.patient = { name: 'Carlos Eduardo Lima', birth_date: '2015-05-03', pet_name: 'Thor' }
+    const res = await POST(post({ ...ev('Carlos Eduardo Lima trouxe o Thor, vômito há 2 dias. Lima relatou que Thor comeu osso.'), area: 'vet' }))
+    expect(res.status).toBe(200)
+    expect(state.patientSelect).toContain('pet_name')
+    const sent = complete.mock.calls[0][0]
+    for (const leak of ['Carlos', 'Eduardo', 'Lima', 'Thor']) expect(sent.user).not.toContain(leak)
+    expect(sent.user).toContain('o tutor')
+    expect(sent.user).toContain('o animal')
+    expect(sent.user).not.toContain('o paciente')
+  })
+
+  it('fora da vet, pet_name nem é selecionado e o rótulo continua "o paciente"', async () => {
+    const res = await POST(post(ev('Maria José da Silva relatou melhora do sono hoje')))
+    expect(res.status).toBe(200)
+    expect(state.patientSelect).not.toContain('pet_name')
+    expect(complete.mock.calls[0][0].user).toContain('o paciente')
+  })
+
+  it('limites: texto curto 400, longo 413, área inexistente 400, paciente inválido 400', async () => {
     expect((await POST(post(ev('oi')))).status).toBe(400)
     expect((await POST(post(ev('a'.repeat(4001))))).status).toBe(413)
-    expect((await POST(post({ ...ev(), area: 'odonto' }))).status).toBe(400)
+    expect((await POST(post({ ...ev(), area: 'dentista' }))).status).toBe(400)
     expect((await POST(post({ ...ev(), patient_id: 'x' }))).status).toBe(400)
     expect(complete).not.toHaveBeenCalled()
   })

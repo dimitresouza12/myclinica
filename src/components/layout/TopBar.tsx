@@ -11,13 +11,14 @@ import { usePermissionsStore } from '@/store/permissions'
 import { usePageSearch } from '@/store/pageSearch'
 import { useDashboardData, useEstoqueData, useProfessionals } from '@/hooks/useClinicData'
 import { useSchedules, scheduleOf } from '@/hooks/useSchedules'
+import { useOnlineBookingPending } from '@/hooks/useOnlineBookingPending'
 import { useEstoqueLotes } from '@/hooks/useEstoqueLotes'
 import { resumoAlertas, textoAlertaValidade } from '@/lib/estoque/lotes'
 import { withExpiryAlert } from '@/lib/estoque/alertaValidade'
 import { hojeBrasil } from '@/lib/brasilDate'
 import { scheduleReminder } from '@/lib/agenda/reminder'
 import { isAdminOrRecepcao } from '@/lib/professionalScope'
-import { ALERT_META, PRIMARY_LABEL, SYSTEM_ALERT_LINK, alertMessage, buildAlertRows, buildWaLink, countUrgent, dismissAlert, groupAlertRows, ignoredStorageKey, isDismissed, parseDismissed, subscribeIgnoredAlerts, withLowStockAlert, withScheduleAlert, type AlertRow } from '@/lib/actionAlerts'
+import { ALERT_META, PRIMARY_LABEL, SYSTEM_ALERT_LINK, alertMessage, buildAlertRows, buildWaLink, countUrgent, dismissAlert, groupAlertRows, ignoredStorageKey, isDismissed, parseDismissed, subscribeIgnoredAlerts, withLowStockAlert, withOnlineBookingAlert, withScheduleAlert, type AlertRow } from '@/lib/actionAlerts'
 import { waMeNumber } from '@/lib/phoneFormat'
 import { useTheme } from '@/hooks/useTheme'
 import { userRoleLabel } from '@/lib/roleLabel'
@@ -172,6 +173,8 @@ function AlertsMenu() {
   const scheduleClinicId = isAdminOrRecepcao(user) && !user?.isSuperAdmin ? clinic?.id : undefined
   const { data: schedules } = useSchedules(scheduleClinicId)
   const { data: professionals } = useProfessionals(scheduleClinicId)
+  // agendamentos do link público esperando confirmação: mesmo público do lembrete de escala (admin e recepção)
+  const { data: onlinePending = 0 } = useOnlineBookingPending(fetchAlerts ? scheduleClinicId : undefined)
   const reminder = useMemo(
     () => schedules?.available && professionals
       ? scheduleReminder(
@@ -185,10 +188,10 @@ function AlertsMenu() {
     [schedules, professionals, now],
   )
   const rows = useMemo(
-    () => buildAlertRows(withScheduleAlert(withExpiryAlert(withLowStockAlert(data?.alerts ?? [], lowStock), validadeTexto), reminder), now)
+    () => buildAlertRows(withOnlineBookingAlert(withScheduleAlert(withExpiryAlert(withLowStockAlert(data?.alerts ?? [], lowStock), validadeTexto), reminder), onlinePending), now)
       .filter(r => canSeePatients || !!SYSTEM_ALERT_LINK[r.reason])
       .filter(r => !isDismissed(dismissed[r.key], r)),
-    [data, lowStock, validadeTexto, reminder, now, dismissed, canSeePatients],
+    [data, lowStock, validadeTexto, reminder, onlinePending, now, dismissed, canSeePatients],
   )
   const groups = useMemo(() => groupAlertRows(rows), [rows])
   const urgent = useMemo(() => countUrgent(rows), [rows])

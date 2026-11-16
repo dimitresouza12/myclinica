@@ -42,10 +42,15 @@ function TabFallback() {
   )
 }
 const TabOdontograma = dynamic(() => import('./TabOdontograma').then(m => m.TabOdontograma), { ssr: false, loading: TabFallback })
+const TabPeriograma = dynamic(() => import('./odonto/TabPeriograma').then(m => m.TabPeriograma), { ssr: false, loading: TabFallback })
+const TabOrtodontia = dynamic(() => import('./odonto/TabOrtodontia').then(m => m.TabOrtodontia), { ssr: false, loading: TabFallback })
 const TabFaceograma = dynamic(() => import('./TabFaceograma').then(m => m.TabFaceograma), { ssr: false, loading: TabFallback })
 const TabCorpograma = dynamic(() => import('./TabCorpograma').then(m => m.TabCorpograma), { ssr: false, loading: TabFallback })
 const TabNutri = dynamic(() => import('./nutri/TabNutri').then(m => m.TabNutri), { ssr: false, loading: TabFallback })
 const TabVet = dynamic(() => import('./vet/TabVet').then(m => m.TabVet), { ssr: false, loading: TabFallback })
+const TabMedicina = dynamic(() => import('./medicina/TabMedicina').then(m => m.TabMedicina), { ssr: false, loading: TabFallback })
+const TabExercicios = dynamic(() => import('./fisio/TabExercicios').then(m => m.TabExercicios), { ssr: false, loading: TabFallback })
+const TabGoniometria = dynamic(() => import('./fisio/TabGoniometria').then(m => m.TabGoniometria), { ssr: false, loading: TabFallback })
 const TabComparador = dynamic(() => import('./comparador/TabComparador').then(m => m.TabComparador), { ssr: false, loading: TabFallback })
 const TabTimeline = dynamic(() => import('./TabTimeline').then(m => m.TabTimeline), { ssr: false, loading: TabFallback })
 const TabMetas = dynamic(() => import('./metas/TabMetas').then(m => m.TabMetas), { ssr: false, loading: TabFallback })
@@ -58,7 +63,7 @@ const PortalLinkModal = dynamic(() => import('./portal/PortalLinkModal').then(m 
 // Impressão: o módulo (HTML dos documentos) só é baixado quando precisa; é aquecido em ociosidade para o clique abrir a janela na hora
 const loadPrint = () => import('@/lib/print')
 
-type Tab = 'ficha' | 'odontograma' | 'faceograma' | 'corpograma' | 'metas' | 'nutri' | 'vet' | 'comparador' | 'escalas' | 'timeline' | 'documentos' | 'chat' | 'conversas'
+type Tab = 'ficha' | 'odontograma' | 'periograma' | 'ortodontia' | 'faceograma' | 'corpograma' | 'metas' | 'nutri' | 'vet' | 'medicina' | 'exercicios' | 'goniometria' | 'comparador' | 'escalas' | 'timeline' | 'documentos' | 'chat' | 'conversas'
 
 interface Props {
   patient: Patient
@@ -103,9 +108,9 @@ export function ProntuarioView({ patient, clinic }: Props) {
   const corpogramaLabel = corpogramaSpecialties.length > 0 && corpogramaSpecialties.every(t => t === 'fisio') ? 'Mapa corporal' : 'Corpograma'
   // Plano terapêutico por metas: o perfil (fono, TO, fisio, psico) segue a área de quem está logado, senão a 1ª da clínica que usa metas.
   const metasArea = resolveMetasArea(user?.specialtyType, clinicSpecialties)
-  const RECORD_TAB_LABELS: Record<string, string> = { odontograma: 'Odontograma', faceograma: 'Faceograma', corpograma: corpogramaLabel, nutri: 'Nutrição', vet: 'Vacinas e peso', comparador: 'Antes e depois', metas: metasArea ? AREA_PROFILE[metasArea].tabLabel : 'Metas' }
+  const RECORD_TAB_LABELS: Record<string, string> = { odontograma: 'Odontograma', periograma: 'Periograma', ortodontia: 'Ortodontia', faceograma: 'Faceograma', corpograma: corpogramaLabel, nutri: 'Nutrição', vet: 'Vacinas e peso', medicina: 'Exames e receitas', exercicios: 'Exercícios', goniometria: 'Goniometria', comparador: 'Antes e depois', metas: metasArea ? AREA_PROFILE[metasArea].tabLabel : 'Metas' }
 
-  // Escalas clínicas (PHQ-9, GAD-7, Oswestry): as da área de quem está logado; sem área com escala, as da clínica.
+  // Escalas clínicas (PHQ-9, GAD-7, Oswestry, Roland-Morris, Berg, Barthel): as da área de quem está logado; sem área com escala, as da clínica.
   const escalasDoUsuario = escalasParaAreas(user?.specialtyType ? [user.specialtyType] : [])
   const escalas = escalasDoUsuario.length > 0 ? escalasDoUsuario : escalasParaAreas(clinicSpecialties)
 
@@ -138,15 +143,18 @@ export function ProntuarioView({ patient, clinic }: Props) {
   const [timelinePending, setTimelinePending] = useState(false)
   const [fichaDirty, setFichaDirty] = useState(false)
   const [odontoDirty, setOdontoDirty] = useState(false)
+  const [perioDirty, setPerioDirty] = useState(false)
+  const [ortoDirty, setOrtoDirty] = useState(false)
   const [faceDirty, setFaceDirty] = useState(false)
   const [bodyDirty, setBodyDirty] = useState(false)
   const [metasDirty, setMetasDirty] = useState(false)
   const [nutriDirty, setNutriDirty] = useState(false)
   const [escalasDirty, setEscalasDirty] = useState(false)
+  const [medicinaDirty, setMedicinaDirty] = useState(false)
 
   // o que ainda não foi salvo, para avisar antes de sair do prontuário
   const unsaved = unsavedLabels({
-    ficha: fichaDirty, evolucao: timelinePending, odontograma: odontoDirty, faceograma: faceDirty, corpograma: bodyDirty, metas: metasDirty, nutri: nutriDirty, escalas: escalasDirty,
+    ficha: fichaDirty, evolucao: timelinePending, odontograma: odontoDirty, periograma: perioDirty, ortodontia: ortoDirty, faceograma: faceDirty, corpograma: bodyDirty, metas: metasDirty, nutri: nutriDirty, escalas: escalasDirty, medicina: medicinaDirty,
   })
   const unsavedKey = unsaved.join('|')
   // atendimento em andamento (cronômetro rodando): também pergunta antes de sair, mesmo sem nada por salvar
@@ -472,6 +480,22 @@ export function ProntuarioView({ patient, clinic }: Props) {
               />
             </div>
           )}
+          {recordTabs.includes('periograma') && visited.has('periograma') && (
+            <div style={{ display: tab === 'periograma' ? undefined : 'none' }}>
+              <TabPeriograma
+                patient={patient}
+                clinic={clinic}
+                clinicId={clinicId}
+                odontogram={(record?.odontogram ?? null) as Record<string, unknown> | null}
+                onDirtyChange={setPerioDirty}
+              />
+            </div>
+          )}
+          {recordTabs.includes('ortodontia') && visited.has('ortodontia') && (
+            <div style={{ display: tab === 'ortodontia' ? undefined : 'none' }}>
+              <TabOrtodontia patient={patient} clinic={clinic} clinicId={clinicId} onDirtyChange={setOrtoDirty} />
+            </div>
+          )}
           {visited.has('faceograma') && (
             <div style={{ display: tab === 'faceograma' ? undefined : 'none' }}>
               <TabFaceograma
@@ -507,6 +531,21 @@ export function ProntuarioView({ patient, clinic }: Props) {
           {recordTabs.includes('vet') && visited.has('vet') && (
             <div style={{ display: tab === 'vet' ? undefined : 'none' }}>
               <TabVet patient={patient} clinic={clinic} clinicId={clinicId} />
+            </div>
+          )}
+          {recordTabs.includes('exercicios') && visited.has('exercicios') && (
+            <div style={{ display: tab === 'exercicios' ? undefined : 'none' }}>
+              <TabExercicios patient={patient} clinic={clinic} clinicId={clinicId} />
+            </div>
+          )}
+          {recordTabs.includes('goniometria') && visited.has('goniometria') && (
+            <div style={{ display: tab === 'goniometria' ? undefined : 'none' }}>
+              <TabGoniometria patient={patient} clinic={clinic} clinicId={clinicId} />
+            </div>
+          )}
+          {recordTabs.includes('medicina') && visited.has('medicina') && (
+            <div style={{ display: tab === 'medicina' ? undefined : 'none' }}>
+              <TabMedicina patient={patient} clinic={clinic} clinicId={clinicId} onDirtyChange={setMedicinaDirty} />
             </div>
           )}
           {escalas.length > 0 && visited.has('escalas') && (

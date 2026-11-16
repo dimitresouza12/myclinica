@@ -9,8 +9,8 @@
 import type { ClinicType } from '@/types'
 import { textoVisivel } from '@/lib/escalas/registro'
 
-/** Áreas que usam a IA escriba (Onda 2 do plano). Odonto, vet e estética ficam de fora. */
-export const ESCRIBA_AREAS = ['psico', 'medico', 'fono', 'fisio', 'nutri', 'to'] as const
+/** Áreas que usam a IA escriba: todas as áreas clínicas do produto (Onda 2 + odonto, vet e estética). */
+export const ESCRIBA_AREAS = ['psico', 'medico', 'fono', 'fisio', 'nutri', 'to', 'odonto', 'vet', 'estetica'] as const
 export type EscribaArea = typeof ESCRIBA_AREAS[number]
 
 export function isEscribaArea(v: unknown): v is EscribaArea {
@@ -23,8 +23,9 @@ export function escribaAreaOf(type: ClinicType | string | null | undefined): Esc
 
 /**
  * Área da IA escriba para o usuário logado. Quem tem especialidade própria usa só ela. Quem não tem
- * (ex.: administrador) usa o tipo principal da clínica e, se este não for área de escriba (ex.: odonto),
- * a primeira especialidade da clínica que seja: assim o admin consegue autorizar o consentimento.
+ * (ex.: administrador) usa o tipo principal da clínica e, se este não for área de escriba (hoje todos
+ * os tipos são; a busca nas especialidades cobre tipo ausente ou legado), a primeira especialidade da
+ * clínica que seja: assim o admin consegue autorizar o consentimento.
  */
 export function escribaAreaForUser(
   specialtyType: string | null | undefined,
@@ -59,6 +60,9 @@ export const AREA_LABEL: Record<EscribaArea, string> = {
   fisio: 'Fisioterapia',
   nutri: 'Nutrição',
   to: 'Terapia ocupacional',
+  odonto: 'Odontologia',
+  vet: 'Medicina veterinária',
+  estetica: 'Estética',
 }
 
 // ─── Limites ────────────────────────────────────────────────────────────────
@@ -87,6 +91,10 @@ export interface SanitizeOptions {
   patientName?: string | null
   /** AAAA-MM-DD; a data exata de nascimento é mascarada se aparecer no texto */
   birthDate?: string | null
+  /** como o nome acima é substituído (padrão "o paciente"; na vet, patients.name é o tutor: "o tutor") */
+  nameLabel?: string
+  /** nome do animal (vet, patients.pet_name); mascarado como "o animal" */
+  petName?: string | null
 }
 
 export interface SanitizeResult {
@@ -155,16 +163,19 @@ export function sanitizeIdentifiers(input: string, opts: SanitizeOptions = {}): 
   const birthIso = /^\d{4}-\d{2}-\d{2}/.exec(opts.birthDate ?? '')?.[0]
   if (birthIso) apply('nascimento', new RegExp(`(?<!\\d)${escapeRegex(birthIso)}(?!\\d)`, 'g'), '[data de nascimento removida]')
 
-  const name = opts.patientName?.trim()
-  if (name) {
+  const maskName = (raw: string | null | undefined, kind: string, label: string) => {
+    const name = raw?.trim()
+    if (!name) return
     const { phrase, parts } = nameTokens(name)
-    if (phrase) apply('nome', new RegExp(`(?<![${LETTER}])${phrase}(?![${LETTER}])`, 'giu'), 'o paciente')
+    if (phrase) apply(kind, new RegExp(`(?<![${LETTER}])${phrase}(?![${LETTER}])`, 'giu'), label)
     for (const part of parts) {
-      apply('nome', new RegExp(`(?<![${LETTER}])${accentInsensitive(part)}(?![${LETTER}])`, 'giu'), 'o paciente')
+      apply(kind, new RegExp(`(?<![${LETTER}])${accentInsensitive(part)}(?![${LETTER}])`, 'giu'), label)
     }
     // "o paciente o paciente" (nome + sobrenome citados separados) vira um só
-    text = text.replace(/\b(o paciente)(?:\s+o paciente)+/gi, '$1')
+    text = text.replace(new RegExp(`(${escapeRegex(label)})(?:\\s+${escapeRegex(label)})+`, 'gi'), '$1')
   }
+  maskName(opts.patientName, 'nome', opts.nameLabel ?? 'o paciente')
+  maskName(opts.petName, 'nome_animal', 'o animal')
 
   return { text, redactions }
 }
@@ -195,6 +206,25 @@ const FOCO_AREA: Record<EscribaArea, string> = {
     'Área: Nutrição. Use terminologia da área (hábitos alimentares, aceitação, conduta dietética, orientações, metas). Cite peso, medidas, calorias ou valores somente se estiverem no material.',
   to:
     'Área: Terapia ocupacional. Use terminologia da área (atividades de vida diária, desempenho ocupacional, integração sensorial, coordenação, participação, adaptações). Descreva atividades, resposta do paciente e orientações sem inferir o que não foi dito.',
+  odonto:
+    'Área: Odontologia. Use terminologia odontológica e o registro de prontuário clínico do dentista. Descreva o procedimento realizado por dente (na notação que o profissional usou, por exemplo FDI) e por face (mesial, distal, oclusal, vestibular, lingual/palatina), com queixa ou motivo do atendimento e achados clínicos. Registre anestesia (anestésico, técnica e quantidade), materiais utilizados (resina, cimento, sutura e similares), intercorrências, prescrições e orientações pós-operatórias, e o retorno. Dente, face, anestésico, material, dose e medicamento somente se estiverem no material; se um procedimento vier sem o dente ou a face, escreva "[confirmar]". Não proponha plano de tratamento, diagnóstico nem prescrição.',
+  vet:
+    'Área: Medicina veterinária. O paciente é o animal; chame o responsável de "o tutor". Não escreva nomes (do animal, do tutor ou de terceiros): use "o paciente" e "o tutor". Use terminologia veterinária. Organize, quando houver informação: anamnese (relato do tutor: queixa, início e evolução, alimentação, vacinação e vermifugação, comportamento), exame físico (peso, temperatura, frequências cardíaca e respiratória, mucosas, TPC, hidratação, palpação e demais achados), avaliação e conduta (exames, procedimentos, medicamentos com dose, via e frequência, orientações ao tutor e retorno). Peso, doses e valores somente se estiverem no material: não calcule dose, não converta unidade, não proponha diagnóstico nem prescrição.',
+  estetica:
+    'Área: Estética. Use terminologia da área e registre, quando houver no material: queixa ou objetivo, procedimento realizado, região tratada, produto/marca e lote (com validade, se constar), dose, quantidade ou unidades, técnica, equipamento e parâmetros, intercorrências ou reações observadas, orientações pós-procedimento e retorno ou reavaliação. Produto, lote, dose e parâmetros somente se estiverem no material; se faltar o lote ou a dose de um produto citado, escreva "[confirmar]". Não prometa resultado, não faça alegação de eficácia ou terapêutica e não infira o que não foi dito.',
+}
+
+/**
+ * Modelo de evolução por área (só no modo "evolucao"). Ajuda o modelo a organizar o texto na ordem que o
+ * profissional espera, sem criar conteúdo: itens que o material não traz são omitidos.
+ */
+const MODELO_EVOLUCAO: Partial<Record<EscribaArea, string>> = {
+  odonto:
+    'Modelo de evolução odontológica (siga esta ordem, em parágrafos curtos): motivo/queixa e achados; procedimento por dente e face; anestesia; materiais utilizados; intercorrências; orientações e prescrições; retorno.',
+  vet:
+    'Modelo de evolução veterinária (siga esta ordem, em parágrafos curtos): anamnese (relato do tutor); exame físico, com peso e sinais vitais; avaliação; conduta, com medicamentos, dose, via e frequência; orientações ao tutor; retorno.',
+  estetica:
+    'Modelo de evolução em estética (siga esta ordem, em parágrafos curtos): queixa/objetivo; procedimento e região; produto, lote e dose; técnica e parâmetros; intercorrências; orientações pós-procedimento; retorno.',
 }
 
 const FOCO_PUBLICO: Record<EscribaPublico, string> = {
@@ -213,6 +243,8 @@ export function buildSystemPrompt(modo: EscribaModo, area: EscribaArea, publico?
   const partes = [REGRAS_COMUNS, FOCO_AREA[area]]
   if (modo === 'relatorio') partes.push(FOCO_PUBLICO[publico ?? 'convenio'])
   partes.push(tarefa)
+  const modelo = modo === 'evolucao' ? MODELO_EVOLUCAO[area] : undefined
+  if (modelo) partes.push(modelo)
   return partes.join('\n\n')
 }
 

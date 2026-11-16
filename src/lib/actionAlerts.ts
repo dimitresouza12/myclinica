@@ -13,6 +13,7 @@ export const ALERT_META: Record<DashboardAlertReason, { label: string; icon: Ico
   respondeu:     { label: 'Respondeu',    icon: 'mail',     color: '#2563EB' },
   whatsapp_pausado: { label: 'WhatsApp pausado', icon: 'pause', color: '#DC2626' },
   escala_pendente: { label: 'Escala por definir', icon: 'calendar', color: '#D97706' },
+  agendamento_online: { label: 'Agendamento online', icon: 'calendar', color: '#2563EB' },
 }
 
 /** Pendências da clínica (não de um paciente): em vez de "Responder", levam à tela certa. */
@@ -20,6 +21,7 @@ export const SYSTEM_ALERT_LINK: Partial<Record<DashboardAlertReason, { href: str
   estoque_baixo: { href: '/estoque', label: 'Ver estoque' },
   whatsapp_pausado: { href: '/configuracoes?tab=whatsapp', label: 'Ver WhatsApp' },
   escala_pendente: { href: '/agenda?escala=1', label: 'Abrir escala' },
+  agendamento_online: { href: '/agenda', label: 'Abrir agenda' },
 }
 
 export function buildWaLink(phone: string, message: string): string {
@@ -59,13 +61,25 @@ export function withScheduleAlert(alerts: DashboardAlert[], reminder: { professi
   }]
 }
 
+/** Soma os agendamentos feitos pelo link público que ainda esperam confirmação da clínica. */
+export function withOnlineBookingAlert(alerts: DashboardAlert[], pending: number): DashboardAlert[] {
+  if (pending <= 0) return [...alerts]
+  return [...alerts, {
+    patientId: 'agendamento-online',
+    name: `${pending} ${pending === 1 ? 'agendamento online' : 'agendamentos online'} para confirmar`,
+    phone: null,
+    date: new Date().toISOString(),
+    reason: 'agendamento_online',
+  }]
+}
+
 // ── Linhas do painel: uma por paciente, agrupadas por tipo ──────────────────
 
 /** Ordem dos grupos: primeiro o que está esperando resposta da clínica, por último a rotina. */
-export const GROUP_ORDER: DashboardAlertReason[] = ['whatsapp_pausado', 'respondeu', 'pediu_remarcacao', 'faltou', 'escala_pendente', 'aniversario', 'sem_retorno', 'estoque_baixo']
+export const GROUP_ORDER: DashboardAlertReason[] = ['whatsapp_pausado', 'respondeu', 'pediu_remarcacao', 'agendamento_online', 'faltou', 'escala_pendente', 'aniversario', 'sem_retorno', 'estoque_baixo']
 
 /** O que não pode esperar: alguém está aguardando resposta da clínica, ou o envio automático parou. */
-export const URGENT_REASONS: ReadonlySet<DashboardAlertReason> = new Set<DashboardAlertReason>(['respondeu', 'pediu_remarcacao', 'whatsapp_pausado'])
+export const URGENT_REASONS: ReadonlySet<DashboardAlertReason> = new Set<DashboardAlertReason>(['respondeu', 'pediu_remarcacao', 'whatsapp_pausado', 'agendamento_online'])
 
 export const countUrgent = (rows: { reason: DashboardAlertReason }[]) => rows.filter(r => URGENT_REASONS.has(r.reason)).length
 
@@ -78,6 +92,7 @@ export const GROUP_TITLE: Record<DashboardAlertReason, string> = {
   sem_retorno: 'Sem retorno',
   estoque_baixo: 'Estoque',
   escala_pendente: 'Escala',
+  agendamento_online: 'Agendamento online',
 }
 
 /** Texto do botão principal quando há telefone: diz o que a mensagem vai fazer. */
@@ -137,6 +152,7 @@ function contextOf(reason: DashboardAlertReason, date: string, count: number, no
     case 'respondeu': return `Respondeu à confirmação, consulta ${futurePhrase(d)}`
     case 'pediu_remarcacao': return `Pediu para remarcar a consulta de ${futurePhrase(d)}`
     case 'escala_pendente': return 'Nos próximos dias, há profissional sem escala definida'
+    case 'agendamento_online': return 'Marcados pelo paciente no link de agendamento'
     default: return ''
   }
 }
@@ -163,7 +179,7 @@ export function buildAlertRows(alerts: DashboardAlert[], now: number): AlertRow[
     count,
     context: contextOf(a.reason, date, count, now),
     // o aviso de estoque nasce com a data de agora: o que o identifica é o texto ("2 itens abaixo...")
-    sig: a.reason === 'estoque_baixo' || a.reason === 'escala_pendente' ? a.name : date,
+    sig: a.reason === 'estoque_baixo' || a.reason === 'escala_pendente' || a.reason === 'agendamento_online' ? a.name : date,
   }))
 }
 

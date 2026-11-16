@@ -8,6 +8,8 @@ import { SelectMenu } from '@/components/ui/SelectMenu'
 import { showToast } from '@/components/ui/Toast'
 import btn from '@/components/ui/button.module.css'
 import { budgetDescription, suggestProcedure, statusColor, type ToothMark } from '@/lib/odontograma'
+import { totaisOrcamento, type AprovacaoItem as Aprovacao } from '@/lib/odonto/orcamento'
+import { AprovacaoItem } from './AprovacaoItem'
 import type { MedicalRecord, Patient, TreatmentPlanItem } from '@/types'
 import styles from './orcamentoOdonto.module.css'
 
@@ -22,7 +24,7 @@ interface Props {
   onSaved: () => void
 }
 
-interface Row { key: string; description: string; status: string; include: boolean; procedureId: string; value: number | null }
+interface Row { key: string; description: string; status: string; include: boolean; procedureId: string; value: number | null; approval: Aprovacao }
 
 const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -43,17 +45,19 @@ export function OrcamentoOdontoModal({ marks, record, patient, clinicId, dirty, 
     const sug = suggestProcedure(m.status, active)
     const base: Row = {
       key, description, status: m.status, include: !already.has(description),
-      procedureId: sug?.id ?? '', value: sug && !sug.is_free ? sug.price : null,
+      procedureId: sug?.id ?? '', value: sug && !sug.is_free ? sug.price : null, approval: 'pendente',
     }
     return { ...base, ...edits[key] }
   })
   const chosen = rows.filter(r => r.include)
   const total = chosen.reduce((sum, r) => sum + (r.value ?? 0), 0)
+  const aprovado = totaisOrcamento(chosen.map(r => ({ value: r.value, approval: r.approval }))).aprovado
+  const temAprovado = chosen.some(r => r.approval === 'aprovado')
   const patch = (key: string, p: Partial<Row>) => setEdits(e => ({ ...e, [key]: { ...e[key], ...p } }))
 
   async function confirm() {
     setSaving(true)
-    const add: TreatmentPlanItem[] = chosen.map(r => ({ id: crypto.randomUUID(), description: r.description, value: r.value }))
+    const add: TreatmentPlanItem[] = chosen.map(r => ({ id: crypto.randomUUID(), description: r.description, value: r.value, approval: r.approval }))
     const payload = {
       clinic_id: clinicId, patient_id: patient.id,
       treatment_plan_items: [...existing, ...add],
@@ -78,7 +82,7 @@ export function OrcamentoOdontoModal({ marks, record, patient, clinicId, dirty, 
       subtitle={`${marks.length} ${marks.length === 1 ? 'procedimento a realizar' : 'procedimentos a realizar'}`}
       footer={
         <>
-          <span className={styles.total}>Total <b>{money(total)}</b></span>
+          <span className={styles.total}>Total <b>{money(total)}</b>{temAprovado && <> &middot; Aprovado <b>{money(aprovado)}</b></>}</span>
           <button type="button" className={btn.secondary} onClick={onClose}>Cancelar</button>
           <button type="button" className={btn.primary} onClick={confirm} disabled={saving || chosen.length === 0}>
             {saving ? 'Adicionando...' : 'Adicionar ao plano'}
@@ -88,7 +92,8 @@ export function OrcamentoOdontoModal({ marks, record, patient, clinicId, dirty, 
     >
       <p className={styles.intro}>
         Cada procedimento marcado como &ldquo;a realizar&rdquo; no odontograma vira um item do Plano de Tratamento da Ficha Clínica.
-        O preço vem do cadastro de procedimentos da clínica e pode ser ajustado aqui.
+        O preço vem do cadastro de procedimentos da clínica e pode ser ajustado aqui. O paciente pode aprovar ou recusar cada item
+        separadamente; o que ficar pendente continua em aberto no plano.
       </p>
       {dirty && <p className={styles.warn}>O odontograma tem alterações ainda não salvas. Salve também para elas ficarem no prontuário.</p>}
       <ul className={styles.list}>
@@ -120,6 +125,7 @@ export function OrcamentoOdontoModal({ marks, record, patient, clinicId, dirty, 
                 onChange={v => patch(r.key, { value: v === '' ? null : Number(v) })}
               />
             </div>
+            {r.include && <AprovacaoItem nome={r.description} value={r.approval} onChange={v => patch(r.key, { approval: v })} />}
           </li>
         ))}
       </ul>

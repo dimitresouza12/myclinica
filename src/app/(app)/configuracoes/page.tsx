@@ -39,6 +39,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { DocumentFieldCalibrator } from '@/components/configuracoes/DocumentFieldCalibrator'
 import { WhatsAppTab } from '@/components/configuracoes/WhatsAppTab'
 import { AgendaSettingsTab } from '@/components/configuracoes/AgendaSettingsTab'
+import { AgendamentoOnlineTab } from '@/components/configuracoes/AgendamentoOnlineTab'
 import { useWhatsAppState } from '@/hooks/useClinicData'
 import { isImageUrl } from '@/hooks/useTemplateBackground'
 import { IntegerInput } from '@/components/ui/NumericInput'
@@ -115,8 +116,8 @@ function ConfiguracoesContent() {
     u.specialty_type ? specialtyRoleLabel(u.specialty_type) : roleLabel(u.role)
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab')
-  const [tab, setTab] = useState<'geral' | 'equipe' | 'agenda' | 'plano' | 'documentos' | 'integracoes' | 'whatsapp' | 'conta' | 'auditoria'>(
-    (['geral', 'equipe', 'agenda', 'plano', 'documentos', 'integracoes', 'whatsapp', 'conta', 'auditoria'] as const).find(k => k === initialTab) ?? 'geral'
+  const [tab, setTab] = useState<'geral' | 'equipe' | 'agenda' | 'agendamento-online' | 'plano' | 'documentos' | 'integracoes' | 'whatsapp' | 'conta' | 'auditoria'>(
+    (['geral', 'equipe', 'agenda', 'agendamento-online', 'plano', 'documentos', 'integracoes', 'whatsapp', 'conta', 'auditoria'] as const).find(k => k === initialTab) ?? 'geral'
   )
   const [name, setName] = useState(clinic?.name ?? '')
   const [address, setAddress] = useState(clinic?.address ?? '')
@@ -280,6 +281,7 @@ function ConfiguracoesContent() {
         { key: 'geral', label: 'Geral', hint: 'Nome, telefone e logo', icon: 'settings' },
         ...(isAdmin ? [{ key: 'equipe' as const, label: 'Equipe', hint: 'Acessos e permissões', icon: 'team' as const }] : []),
         ...(isAdmin ? [{ key: 'agenda' as const, label: 'Agenda', hint: 'Turnos, encaixe e lembrete', icon: 'calendar' as const }] : []),
+        ...(isAdmin ? [{ key: 'agendamento-online' as const, label: 'Agendamento online', hint: 'Link público para o paciente marcar', icon: 'calendar' as const }] : []),
         { key: 'documentos', label: 'Documentos', hint: 'Papel timbrado', icon: 'procedures' },
       ],
     },
@@ -1102,6 +1104,8 @@ function ConfiguracoesContent() {
 
       {/* WhatsApp: a configuração fica na própria aba; em Integrações só aparece o cartão de status */}
       {tab === 'agenda' && isAdmin && <AgendaSettingsTab />}
+
+      {tab === 'agendamento-online' && isAdmin && <AgendamentoOnlineTab />}
 
       {tab === 'whatsapp' && isAdmin && <WhatsAppTab />}
 

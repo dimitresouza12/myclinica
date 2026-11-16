@@ -137,12 +137,6 @@
   overflow-wrap: anywhere;
 }
 .fileName svg { flex-shrink: 0; }
-.fileLink {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--brand-text);
-  text-decoration: underline;
-}
 .fileLoading { font-size: 0.78rem; color: var(--text-secondary); }
 .audioPlayer { width: 100%; max-width: 320px; height: 40px; }
 .videoPreview {
@@ -162,6 +156,69 @@
   background: #000;
   display: block;
 }
+/* Cartão de PDF: ícone de documento + nome + link (abre em nova aba); sem prévia de imagem */
+.pdfPending { width: min(100%, 320px); }
+.pdfCard {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  min-width: 0;
+  max-width: 420px;
+}
+.pdfLink {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: inherit;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+a.pdfLink:hover { border-color: var(--brand-primary); }
+a.pdfLink:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.pdfIcon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--bg-primary, transparent);
+  border: 1px solid var(--border-color);
+  color: var(--brand-text);
+}
+.pdfText { display: flex; flex-direction: column; min-width: 0; gap: 0.1rem; }
+.pdfName {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pdfMeta { font-size: 0.75rem; color: var(--text-secondary); }
+.pdfRemove {
+  width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.pdfRemove:hover { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
 .itemFiles { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem; }
 .itemFile { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
 

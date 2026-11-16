@@ -60,7 +60,7 @@ interface DashboardStats {
   avgTicket: number
 }
 export interface RevenueByCategory { category: string; value: number }
-export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario' | 'estoque_baixo' | 'pediu_remarcacao' | 'respondeu' | 'whatsapp_pausado' | 'escala_pendente'
+export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario' | 'estoque_baixo' | 'pediu_remarcacao' | 'respondeu' | 'whatsapp_pausado' | 'escala_pendente' | 'agendamento_online'
 export interface DashboardAlert {
   patientId: string
   name: string

@@ -10,6 +10,8 @@ export function motivoDoErro(e: ErroSupabase | null | undefined): Indisponibilid
   const msg = (e?.message ?? '').toLowerCase()
   // 42P01: relation does not exist; PGRST205/PGRST204: tabela ou coluna fora do cache do schema
   if (code === '42P01' || code === 'PGRST205' || code === 'PGRST204' || msg.includes('schema cache') || msg.includes('does not exist')) return 'sem_tabela'
+  // 23514: check violation do tipo (migração 20261129_nutri_recordatorio.sql ainda não aplicada: 'recordatorio' não é aceito)
+  if (code === '23514' && msg.includes('nutri_avaliacoes_tipo_check')) return 'sem_tabela'
   // 42501: negado pela RLS (sem policy ainda, ou sem permissão de edição do prontuário)
   if (code === '42501' || msg.includes('row-level security') || msg.includes('permission denied')) return 'sem_permissao'
   return 'erro'

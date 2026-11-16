@@ -9,6 +9,16 @@ describe('escopos do link', () => {
     expect(scopesForAreas(['nutri', 'vet'])).toHaveLength(5)
   })
 
+  it('programa de exercícios só é oferecido para fisioterapia', () => {
+    expect(scopesForAreas(['fisio'])).toEqual(['exercicios', 'proximas_consultas', 'orientacoes', 'assinatura'])
+    expect(scopesForAreas(['odonto', 'nutri'])).not.toContain('exercicios')
+    expect(scopesForAreas(['estetica', 'fisio'])).toContain('exercicios')
+  })
+
+  it('aceita o escopo exercicios vindo do corpo da requisição', () => {
+    expect(normalizeScopes(['assinatura', 'exercicios'])).toEqual(['exercicios', 'assinatura'])
+  })
+
   it('normaliza: ordem canônica, sem repetição', () => {
     expect(normalizeScopes(['assinatura', 'proximas_consultas', 'assinatura'])).toEqual(['proximas_consultas', 'assinatura'])
   })

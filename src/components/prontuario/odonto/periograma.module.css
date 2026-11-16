@@ -1,0 +1,94 @@
+/* Ficha de sondagem: tabela larga dentro de um contêiner que rola só na horizontal. A primeira coluna (rótulo da linha)
+   fica fixa à esquerda. Nenhuma regra de touch-action: o rolar da página inteira continua como sempre. */
+.arcadas { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.arcada { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.arcadaTitle { font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brand-text); }
+
+.scroller {
+  overflow-x: auto; max-width: 100%;
+  border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--surface);
+  overscroll-behavior-x: contain;
+}
+.sheet { border-collapse: separate; border-spacing: 0; width: max-content; font-size: var(--fs-sm); }
+.sheet th, .sheet td { padding: 0; border-right: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); text-align: center; }
+.sheet tr:last-child > * { border-bottom: none; }
+
+/* coluna de rótulos fixa */
+.rowLabel {
+  position: sticky; left: 0; z-index: 2;
+  width: 110px; min-width: 110px; max-width: 110px; padding: 0 8px !important;
+  background: var(--surface-2); color: var(--text-secondary-strong);
+  font-size: var(--fs-2xs); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: 0.02em;
+  text-align: left !important; border-right: 1.5px solid var(--border-color) !important;
+}
+.faceHead th, .faceHead td { background: var(--surface-2); }
+.faceNameText { position: sticky; left: 8px; display: inline-block; }
+.faceName {
+  padding: 6px 8px !important; text-align: left !important;
+  font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-primary);
+  background: var(--surface-2); border-right: none !important;
+}
+
+/* número do dente (botão que marca ausente) */
+.toothHead { min-width: 132px; width: 132px; background: var(--surface-2); }
+.toothBtn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  width: 100%; min-height: 44px; padding: 2px 4px; border: none; background: transparent; color: var(--text-primary);
+  font: inherit; cursor: pointer;
+}
+.toothBtn:hover { background: var(--surface-3, var(--surface-2)); }
+.toothBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: -2px; }
+.toothNum { font-size: var(--fs-md); font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.toothSub { font-size: var(--fs-2xs); color: var(--text-secondary-strong); line-height: 1.1; }
+.toothAbs .toothNum { text-decoration: line-through; color: var(--text-tertiary); }
+.toothAbs .toothSub { color: var(--st-bad); font-weight: 700; }
+
+/* mobilidade e furca: botão que gira o valor */
+.cycleBtn {
+  width: 100%; min-height: 44px; border: none; background: transparent; color: var(--text-primary);
+  font: inherit; font-size: var(--fs-md); font-weight: 700; cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.cycleBtn:hover:not(:disabled) { background: var(--surface-2); }
+.cycleBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: -2px; }
+.cycleBtn:disabled { cursor: default; color: var(--text-tertiary); font-weight: 400; }
+.cycleOn { background: color-mix(in srgb, var(--st-wait) 22%, var(--surface)); }
+
+/* sítios */
+.site { width: 44px; min-width: 44px; height: 44px; }
+.siteAbs { background: repeating-linear-gradient(135deg, var(--surface-2), var(--surface-2) 6px, var(--surface) 6px, var(--surface) 12px); }
+.mm {
+  display: block; width: 100%; height: 44px; padding: 0; border: none; border-radius: 0; background: transparent;
+  color: var(--text-primary); font: inherit; font-size: var(--fs-md); text-align: center; outline: none; font-variant-numeric: tabular-nums;
+}
+.mm:focus { background: color-mix(in srgb, var(--brand-primary) 22%, var(--surface)); box-shadow: inset 0 0 0 2px var(--brand-accent); }
+.mm:disabled { cursor: default; }
+.mm[data-tone='warn'] { background: color-mix(in srgb, var(--st-wait) 24%, var(--surface)); font-weight: 700; }
+.mm[data-tone='bad']  { background: color-mix(in srgb, var(--st-bad) 24%, var(--surface)); font-weight: 800; }
+.mm[data-tone='warn']:focus, .mm[data-tone='bad']:focus { box-shadow: inset 0 0 0 2px var(--brand-accent); }
+.nicCell { display: flex; align-items: center; justify-content: center; height: 32px; font-size: var(--fs-sm); color: var(--text-secondary-strong); font-variant-numeric: tabular-nums; background: var(--surface-2); }
+
+/* marcas de sangramento e supuração */
+.mark { display: flex; align-items: center; justify-content: center; width: 100%; height: 44px; padding: 0; border: none; background: transparent; cursor: pointer; }
+.mark:hover:not(:disabled) { background: var(--surface-2); }
+.mark:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: -2px; }
+.mark:disabled { cursor: default; }
+.markBleed::after { content: ''; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border-color); box-sizing: border-box; }
+.markBleed[aria-pressed='true']::after { background: var(--st-bad); border-color: var(--st-bad); }
+.markPus::after { content: ''; width: 13px; height: 13px; border: 2px solid var(--border-color); box-sizing: border-box; transform: rotate(45deg); }
+.markPus[aria-pressed='true']::after { background: var(--st-wait); border-color: var(--st-wait); }
+
+.legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: var(--fs-xs); color: var(--text-secondary); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legendBleed, .legendPus { display: inline-block; width: 12px; height: 12px; box-sizing: border-box; }
+.legendBleed { border-radius: 50%; background: var(--st-bad); }
+.legendPus { background: var(--st-wait); transform: rotate(45deg); }
+.legendWarn, .legendBad { display: inline-block; width: 14px; height: 14px; border-radius: 3px; box-sizing: border-box; }
+.legendWarn { background: color-mix(in srgb, var(--st-wait) 24%, var(--surface)); border: 1px solid var(--st-wait); }
+.legendBad { background: color-mix(in srgb, var(--st-bad) 24%, var(--surface)); border: 1px solid var(--st-bad); }
+
+.scrollHint { font-size: var(--fs-xs); color: var(--text-secondary); }
+
+/* comparação */
+.sentence { font-size: var(--fs-md); line-height: 1.55; color: var(--text-primary); }
+.pickRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+@media (max-width: 480px) { .pickRow { grid-template-columns: minmax(0, 1fr); } }

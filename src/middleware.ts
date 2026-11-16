@@ -18,6 +18,8 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
 
 function isPatientPublicPath(pathname: string): boolean {
   return pathname.startsWith('/p/') || pathname.startsWith('/verificar/') || pathname.startsWith('/api/p/')
+    // agendamento online público da clínica (link /agendar/<slug>): sem sessão, autorizado só pelas funções do banco
+    || pathname.startsWith('/agendar/') || pathname.startsWith('/api/agendar/')
 }
 
 function blockResponse(status: number, message: string, retryAfter?: number): NextResponse {
