@@ -19,6 +19,8 @@ import { hojeBrasil } from '@/lib/brasilDate'
 import { somarDias } from '@/lib/vet/datas'
 import { BUCKET_FOTOS, fotoDaClinica, JANELA_ADESAO_DIAS } from '@/lib/fisio/exercicios'
 import { shapeExercicios, type ExerciciosPublicos, type LinhaItemPublico, type LinhaPrescricaoPublica } from '@/lib/fisio/portalView'
+import { loadDiario } from './diarioServer'
+import type { DiarioPublico } from '@/lib/nutri/diario'
 import { validateDocDraft, type SignDocType } from '@/lib/assinatura/texto'
 import { contentHash, HASH_RE, sha256Hex, signedHash } from '@/lib/assinatura/hash'
 import { cleanUserAgent, SIGN_ACCEPT_TEXT, validateSignInput, type SignInput } from '@/lib/assinatura/validar'
@@ -93,6 +95,7 @@ export async function createPortalLink(a: CreateLinkArgs): Promise<CreateLinkRes
   }).select('id').single()
   // 23514 com o escopo novo: o CHECK de scopes ainda não foi atualizado no banco (migration 20261130 não aplicada)
   if (lErr?.code === '23514' && hasScope(a.scopes, 'exercicios')) return { ok: false, motivo: 'invalido', error: 'O programa de exercícios ainda não está ativo nesta conta. Gere o link sem esse item.' }
+  if (lErr?.code === '23514' && hasScope(a.scopes, 'diario')) return { ok: false, motivo: 'invalido', error: 'O diário alimentar ainda não está ativo nesta conta. Gere o link sem esse item.' }
   if (lErr || !link) return falha(lErr, 'link-insert')
 
   let requestIds: string[] = []
@@ -262,6 +265,8 @@ export interface PortalPageData {
   documents: PortalDoc[] | null
   /** Programa de exercícios (escopo 'exercicios'); ausente nos outros links. */
   exercises?: ExerciciosPublicos | null
+  /** Diário alimentar (escopo 'diario'); ausente nos outros links. */
+  diary?: DiarioPublico | null
 }
 
 export async function loadPortalPage(link: PortalLinkRow, now = new Date()): Promise<PortalPageData | null> {
@@ -279,7 +284,7 @@ export async function loadPortalPage(link: PortalLinkRow, now = new Date()): Pro
     petName: hasScope(link.scopes, 'vacinas_peso') ? ((patient.pet_name as string | null)?.trim() || null) : null,
     scopes: link.scopes, expiresAt: link.expires_at,
     message: hasScope(link.scopes, 'orientacoes') ? link.message : null,
-    appointments: null, vaccines: null, weights: null, plan: null, documents: null, exercises: null,
+    appointments: null, vaccines: null, weights: null, plan: null, documents: null, exercises: null, diary: null,
   }
 
   if (hasScope(link.scopes, 'proximas_consultas')) {
@@ -316,6 +321,7 @@ export async function loadPortalPage(link: PortalLinkRow, now = new Date()): Pro
   }
 
   if (hasScope(link.scopes, 'exercicios')) out.exercises = await loadExercicios(link, now)
+  if (hasScope(link.scopes, 'diario')) out.diary = await loadDiario(link, now)
 
   if (hasScope(link.scopes, 'assinatura')) {
     const { data, error } = await db.from('signature_requests').select('id, doc_type, title, content_text, status, expires_at')

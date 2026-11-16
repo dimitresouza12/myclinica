@@ -206,6 +206,23 @@ describe('recall: quais pacientes receberam o lote', () => {
     expect(r.pacientes[0].usos[1].appointmentId).toBe('a1')
     expect(r.pacientes[0].telefone).toBe('85999990000')
   })
+  it('estorno de aplicação (entrada no nome do paciente) tira a saída correspondente do recall', () => {
+    const r = agruparRecall([
+      ...movs,
+      { id: '6', type: 'entrada', quantity: 1, created_at: '2026-10-06T12:00:00Z', patient_id: 'p2' },
+      { id: '7', type: 'entrada', quantity: 3, created_at: '2026-10-11T12:00:00Z', patient_id: 'p1' },
+    ], { p1: { name: 'Ana', phone: null }, p2: { name: 'Bruno', phone: null } })
+    expect(r.pacientes.map(p => [p.nome, p.quantidade])).toEqual([['Ana', 2]])
+    expect(r.totalSaidas).toBe(6)
+    expect(r.semPaciente).toBe(4)
+  })
+  it('entrada de estorno que vem antes da saída não cancela nada', () => {
+    const r = agruparRecall([
+      { id: 'a', type: 'saida', quantity: 2, created_at: '2026-10-10T12:00:00Z', patient_id: 'p1' },
+      { id: 'b', type: 'entrada', quantity: 2, created_at: '2026-10-01T12:00:00Z', patient_id: 'p1' },
+    ], { p1: { name: 'Ana', phone: null } })
+    expect(r.pacientes[0].quantidade).toBe(2)
+  })
   it('paciente que a pessoa não pode ver continua na lista', () => {
     const r = agruparRecall(movs.slice(0, 1), {})
     expect(r.pacientes[0].nome).toBe('Paciente sem acesso ao nome')

@@ -103,6 +103,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/experimentar') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/trial-expirado') ||
+    // PWA: service worker, tela offline e manifest precisam responder sem sessão (sem redirect para /login).
+    // São estáticos e sem dado de clínica; o manifest é buscado sem cookies pelo navegador.
+    pathname === '/sw.js' || pathname === '/offline' || pathname === '/manifest.json' ||
     pathname.startsWith('/financial-demo') ||
     // Chamada server-to-server do Asaas — sem cookie de sessão. Autenticada
     // por token próprio (ver isValidAsaasToken em api/asaas/webhook/route.ts).

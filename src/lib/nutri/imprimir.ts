@@ -10,6 +10,8 @@ import {
   formatarPeso, listaDeCompras, progressoDoDia, totaisDoPlano, type PlanoDados,
 } from './plano'
 import { formatarNumero } from './validacao'
+import { formatarTempo, type ReceitaAnexada } from './receitas'
+import { GRUPOS_PORCAO, listaDoGrupo, textoPorcoes } from './substituicoes'
 import { SERIES, variacao, type PontoSerie, type SerieChave } from './avaliacao'
 
 export interface CabecalhoImpresso {
@@ -44,6 +46,19 @@ const assinatura = `<div style="margin-top:36px;font-size:12px;color:#444">Nutri
 const g = (n: number) => formatarNumero(n, 0)
 const g1 = (n: number) => formatarNumero(n, 1)
 
+/** Receita (ingredientes e modo de preparo) em bloco compacto, usada no plano e na receita avulsa. */
+function blocoReceita(r: ReceitaAnexada, destaque = false): string {
+  const meta = [r.porcoes ? `${r.porcoes} ${r.porcoes === 1 ? 'porção' : 'porções'}` : '', r.tempoMin ? `preparo ${formatarTempo(r.tempoMin)}` : ''].filter(Boolean).join(' | ')
+  return `
+    <div style="margin:${destaque ? '0' : '8px 0 0'};padding:8px 10px;border:1px solid #ccc;border-radius:4px;page-break-inside:avoid">
+      <div style="font-size:12.5px;font-weight:700">Receita: ${esc(r.titulo)}${meta ? ` <span style="font-weight:400;color:#555">(${esc(meta)})</span>` : ''}</div>
+      ${r.ingredientes.length > 0 ? `<div style="font-size:11.5px;font-weight:700;margin-top:6px;color:#444">Ingredientes</div>
+      <ul style="margin:2px 0 0 18px;padding:0;font-size:12px">${r.ingredientes.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}
+      ${r.preparo ? `<div style="font-size:11.5px;font-weight:700;margin-top:6px;color:#444">Modo de preparo</div>
+      <div style="font-size:12px;white-space:pre-wrap">${esc(r.preparo)}</div>` : ''}
+    </div>`
+}
+
 /** Plano alimentar para o paciente: refeições com alimento, quantidade, medida caseira e energia. */
 export function htmlPlano(c: CabecalhoImpresso, plano: PlanoDados, catalogo: Alimento[]): string {
   const { refeicoes, dia } = totaisDoPlano(plano, catalogo)
@@ -58,7 +73,8 @@ export function htmlPlano(c: CabecalhoImpresso, plano: PlanoDados, catalogo: Ali
       </tbody>
       <tfoot><tr><td style="${TD};font-weight:700" colspan="3">Total da refeição</td><td style="${TDR};font-weight:700">${g(r.total.kcal)}</td></tr></tfoot>
     </table>
-    ${r.refeicao.obs ? `<div style="font-size:12px;color:#444;margin-top:4px">Obs.: ${esc(r.refeicao.obs)}</div>` : ''}`).join('')
+    ${r.refeicao.obs ? `<div style="font-size:12px;color:#444;margin-top:4px">Obs.: ${esc(r.refeicao.obs)}</div>` : ''}
+    ${r.refeicao.receita ? blocoReceita(r.refeicao.receita) : ''}`).join('')
 
   const linhaProg = (p: (typeof prog)[number]) =>
     `<tr><td style="${TD}">${p.rotulo}</td><td style="${TDR}">${p.chave === 'kcal' ? g(p.atual) : g1(p.atual)} ${p.un}</td><td style="${TDR}">${p.meta !== null ? `${p.chave === 'kcal' ? g(p.meta) : g1(p.meta)} ${p.un}` : '—'}</td></tr>`
@@ -98,6 +114,32 @@ export function htmlSubstituicoes(c: CabecalhoImpresso, plano: PlanoDados, catal
   return `${cabecalho(c, 'Lista de substituições', plano.titulo)}
     ${blocos.length > 0 ? blocos.join('') : '<div style="font-size:12.5px;color:#666">Adicione alimentos ao plano para gerar as trocas.</div>'}
     <div style="margin-top:14px;font-size:10.5px;color:#777">As trocas mantêm a energia do item original (diferença de no máximo 10%) dentro do mesmo grupo de alimentos; os macronutrientes podem variar. Combine as trocas com o nutricionista.</div>
+    ${assinatura}`
+}
+
+/** Uma receita da clínica, para entregar ao paciente. */
+export function htmlReceita(c: CabecalhoImpresso, r: ReceitaAnexada & { observacoes?: string | null }): string {
+  return `${cabecalho(c, r.titulo)}
+    ${blocoReceita({ ...r }, true)}
+    ${r.observacoes ? `<div style="margin-top:12px;font-size:12.5px;white-space:pre-wrap"><strong>Observações:</strong> ${esc(r.observacoes)}</div>` : ''}
+    ${assinatura}`
+}
+
+/** Lista de porções equivalentes: para cada grupo, quanto de cada alimento vale uma porção. */
+export function htmlPorcoes(c: CabecalhoImpresso, catalogo: Alimento[]): string {
+  const blocos = GRUPOS_PORCAO.map(gr => {
+    const itens = listaDoGrupo(gr, catalogo)
+    if (itens.length === 0) return ''
+    return `
+      <div style="margin:14px 0 4px;font-size:13px;font-weight:700;page-break-inside:avoid">${esc(gr.rotulo)} <span style="font-weight:400;color:#555">(${textoPorcoes(1)} = ${g(gr.kcalPorcao)} kcal)</span></div>
+      <table style="width:100%;border-collapse:collapse;page-break-inside:avoid">
+        <tbody>${itens.map(i => `<tr><td style="${TD}">${esc(i.alimento.nome)}</td><td style="${TDR}">${g(i.gramas)} g</td><td style="${TD};color:#555">${esc(i.medida ?? '')}</td></tr>`).join('')}</tbody>
+      </table>
+      ${gr.nota ? `<div style="font-size:11px;color:#666;margin-top:3px">${esc(gr.nota)}</div>` : ''}`
+  }).join('')
+  return `${cabecalho(c, 'Lista de porções equivalentes')}
+    ${blocos}
+    <div style="margin-top:14px;font-size:10.5px;color:#777">Cada alimento está na quantidade que dá a energia de uma porção do grupo, calculada com a TACO (4ª edição, NEPA/UNICAMP, 2011). Macronutrientes e micronutrientes variam entre alimentos do mesmo grupo. Combine as trocas com o nutricionista.</div>
     ${assinatura}`
 }
 

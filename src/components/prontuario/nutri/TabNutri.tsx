@@ -6,12 +6,15 @@ import { normalizarAvaliacao, resumirAvaliacao } from '@/lib/nutri/avaliacao'
 import type { MetaDiaria } from '@/lib/nutri/plano'
 import { AvaliacaoPanel } from './AvaliacaoPanel'
 import { EvolucaoPanel } from './EvolucaoPanel'
+import { DiarioPanel } from './DiarioPanel'
 import { PlanoPanel } from './PlanoPanel'
+import { ReceitasPanel } from './ReceitasPanel'
 import { RecordatorioPanel } from './RecordatorioPanel'
 import { useNutriLista } from './useNutriLista'
+import { useReceitas } from './useReceitas'
 import styles from './nutri.module.css'
 
-type Vista = 'avaliacao' | 'recordatorio' | 'evolucao' | 'plano'
+type Vista = 'avaliacao' | 'recordatorio' | 'evolucao' | 'plano' | 'receitas' | 'diario'
 
 interface Props {
   patient: Patient
@@ -20,17 +23,19 @@ interface Props {
   onDirtyChange?: (dirty: boolean) => void
 }
 
-/** Aba "Nutrição" do prontuário: avaliação antropométrica com cálculos, recordatório 24h, evolução em gráficos e plano alimentar. */
+/** Aba "Nutrição" do prontuário: avaliação antropométrica com cálculos, recordatório 24h, evolução em gráficos, plano alimentar, banco de receitas e diário alimentar do paciente. */
 export function TabNutri({ patient, clinic, clinicId, onDirtyChange }: Props) {
   const [vista, setVista] = useState<Vista>('avaliacao')
   const [avalDirty, setAvalDirty] = useState(false)
   const [planoDirty, setPlanoDirty] = useState(false)
   const [recDirty, setRecDirty] = useState(false)
+  const [receitaDirty, setReceitaDirty] = useState(false)
   const avaliacoes = useNutriLista(patient.id, 'avaliacao')
   const planos = useNutriLista(patient.id, 'plano')
   const recordatorios = useNutriLista(patient.id, 'recordatorio')
+  const receitas = useReceitas(clinicId)
 
-  const dirty = avalDirty || planoDirty || recDirty
+  const dirty = avalDirty || planoDirty || recDirty || receitaDirty
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
@@ -61,6 +66,8 @@ export function TabNutri({ patient, clinic, clinicId, onDirtyChange }: Props) {
           { value: 'recordatorio', label: 'Recordatório 24h' },
           { value: 'evolucao', label: 'Evolução' },
           { value: 'plano', label: 'Plano alimentar' },
+          { value: 'receitas', label: 'Receitas' },
+          { value: 'diario', label: 'Diário' },
         ]}
       />
       <div style={{ display: vista === 'avaliacao' ? undefined : 'none' }}>
@@ -84,9 +91,17 @@ export function TabNutri({ patient, clinic, clinicId, onDirtyChange }: Props) {
         <PlanoPanel
           patient={patient} clinicId={clinicId} clinica={clinica}
           linhas={planos.linhas} carregando={planos.carregando} motivo={planos.motivo}
-          recarregar={planos.recarregar} onDirtyChange={setPlanoDirty} metaSugerida={metaSugerida}
+          recarregar={planos.recarregar} onDirtyChange={setPlanoDirty} metaSugerida={metaSugerida} receitas={receitas.receitas}
         />
       </div>
+      <div style={{ display: vista === 'receitas' ? undefined : 'none' }}>
+        <ReceitasPanel
+          patient={patient} clinicId={clinicId} clinica={clinica}
+          receitas={receitas.receitas} carregando={receitas.carregando} motivo={receitas.motivo}
+          recarregar={receitas.recarregar} onDirtyChange={setReceitaDirty}
+        />
+      </div>
+      {vista === 'diario' && <DiarioPanel patient={patient} clinicId={clinicId} />}
     </div>
   )
 }

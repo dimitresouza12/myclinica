@@ -43,6 +43,7 @@ function LoteModalCorpo({ alvo, clinicId, onClose, onSaved }: Props & { alvo: Lo
     fornecedor: lot?.fornecedor ?? item?.supplier ?? '',
     nota: lot?.nota_fiscal ?? '',
     custo: lot?.custo != null ? String(lot.custo) : '',
+    fabricante: lot?.fabricante ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -55,6 +56,8 @@ function LoteModalCorpo({ alvo, clinicId, onClose, onSaved }: Props & { alvo: Lo
       custo: form.custo ? parseFloat(form.custo) : null,
       fornecedor: form.fornecedor.trim() || null,
       notaFiscal: form.nota.trim() || null,
+      // a coluna só existe depois de 20261136: sem ela, só envia quando a pessoa digitou algo
+      fabricante: form.fabricante.trim() ? form.fabricante.trim() : lot && 'fabricante' in lot ? null : undefined,
     }
     setSaving(true)
     setError('')
@@ -114,6 +117,10 @@ function LoteModalCorpo({ alvo, clinicId, onClose, onSaved }: Props & { alvo: Lo
           <label>Nota fiscal</label>
           <input value={form.nota} onChange={e => setForm(p => ({ ...p, nota: e.target.value }))} placeholder="Opcional" />
         </div>
+      </div>
+      <div className={f.field}>
+        <label>Fabricante</label>
+        <input value={form.fabricante} onChange={e => setForm(p => ({ ...p, fabricante: e.target.value }))} placeholder="Opcional" maxLength={160} />
       </div>
       <div className={f.field}>
         <label>Custo unitário (R$)</label>

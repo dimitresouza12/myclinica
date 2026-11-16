@@ -20,7 +20,9 @@ import {
   type ItemPlano, type MetaDiaria, type PlanoDados, type Refeicao,
 } from '@/lib/nutri/plano'
 import { TACO_FONTE } from '@/lib/nutri/taco'
-import { htmlCompras, htmlPlano, htmlSubstituicoes, imprimirNutri } from '@/lib/nutri/imprimir'
+import { GRUPOS_PORCAO, equivalentesDoItem, listaDoGrupo, textoPorcoes } from '@/lib/nutri/substituicoes'
+import { anexarReceita, filtrarReceitas, formatarTempo, receitasParaEscolha, type Receita } from '@/lib/nutri/receitas'
+import { htmlCompras, htmlPlano, htmlPorcoes, htmlSubstituicoes, imprimirNutri } from '@/lib/nutri/imprimir'
 import { excluirNutri, MENSAGEM_INDISPONIVEL, salvarNutri, type LinhaNutri } from '@/lib/nutri/storage'
 import type { Indisponibilidade } from '@/lib/nutri/erros'
 import { formatarNumero } from '@/lib/nutri/validacao'
@@ -48,9 +50,11 @@ interface Props {
   onDirtyChange?: (dirty: boolean) => void
   /** Meta da avaliação mais recente (kcal e macros), para um clique preencher a meta do plano. */
   metaSugerida: MetaDiaria | null
+  /** Banco de receitas da clínica, para anexar a uma refeição (o plano guarda uma cópia). */
+  receitas: Receita[]
 }
 
-export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, motivo, recarregar, onDirtyChange, metaSugerida }: Props) {
+export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, motivo, recarregar, onDirtyChange, metaSugerida, receitas }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [plano, setPlano] = useState<PlanoDados>(() => planoVazio())
   const [data, setData] = useState(() => hojeBrasil())
@@ -61,6 +65,8 @@ export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, mot
   const [busca, setBusca] = useState('')
   const [personalizadoRef, setPersonalizadoRef] = useState<string | null>(null)
   const [trocasItem, setTrocasItem] = useState<string | null>(null)
+  const [receitaRef, setReceitaRef] = useState<string | null>(null)
+  const [buscaReceita, setBuscaReceita] = useState('')
   const [dias, setDias] = useState<7 | 14 | 30>(7)
   const [iniciou, setIniciou] = useState(false)
 
@@ -71,11 +77,11 @@ export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, mot
   function abrirNovo(base?: PlanoDados) {
     setActiveId(null)
     setPlano(base ?? planoVazio())
-    setData(hojeBrasil()); setSavedSnap(''); setSaved(false); setBuscaRef(null); setTrocasItem(null)
+    setData(hojeBrasil()); setSavedSnap(''); setSaved(false); setBuscaRef(null); setTrocasItem(null); setReceitaRef(null)
   }
   function abrir(p: { id: string; data: string; dados: PlanoDados }) {
     setActiveId(p.id); setPlano(p.dados); setData(p.data); setSavedSnap(snapshot(p.dados, p.data)); setSaved(false)
-    setBuscaRef(null); setTrocasItem(null)
+    setBuscaRef(null); setTrocasItem(null); setReceitaRef(null)
   }
 
   // abre o plano mais recente quando a lista termina de carregar; sem plano salvo, um novo em branco
@@ -170,6 +176,8 @@ export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, mot
   const compras = useMemo(() => listaDeCompras(plano, catalogo, dias), [plano, catalogo, dias])
   const resultados = useMemo(() => (busca.trim().length >= 2 ? buscarAlimentos(catalogo, busca, 30) : []), [catalogo, busca])
   const totalItens = plano.refeicoes.reduce((n, r) => n + r.itens.length, 0)
+  const receitasEscolha = useMemo(() => filtrarReceitas(receitasParaEscolha(receitas), buscaReceita), [receitas, buscaReceita])
+  const gruposPorcao = useMemo(() => GRUPOS_PORCAO.map(g => ({ grupo: g, itens: listaDoGrupo(g, taco ?? []) })).filter(x => x.itens.length > 0), [taco])
 
   const cab = { clinica: clinica.name, paciente: patient.name, detalhe: [clinica.address, clinica.phone].filter(Boolean).join(' | ') || undefined }
 
@@ -178,6 +186,7 @@ export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, mot
   usePrintActions('nutri', [
     { id: 'nutri-plano', label: 'Plano alimentar', includes: ['Refeições, horários, alimentos e quantidades', 'Meta diária e totais do plano'], disabledReason: semItens, run: () => imprimirNutri(htmlPlano(cab, plano, catalogo)) },
     { id: 'nutri-trocas', label: 'Lista de trocas do plano', includes: ['Substituições possíveis para cada alimento do plano'], disabledReason: semItens, run: () => imprimirNutri(htmlSubstituicoes(cab, plano, catalogo)) },
+    { id: 'nutri-porcoes', label: 'Lista de porções equivalentes', includes: ['Quantidade de cada alimento que vale uma porção do grupo'], disabledReason: !taco ? 'Aguarde o banco de alimentos carregar' : undefined, run: () => imprimirNutri(htmlPorcoes(cab, catalogo)) },
     { id: 'nutri-compras', label: `Lista de compras (${dias === 7 ? '1 semana' : dias === 14 ? '2 semanas' : '30 dias'})`, includes: ['Quantidade total de cada alimento para o período escolhido na tela'], disabledReason: semItens, run: () => imprimirNutri(htmlCompras(cab, plano, catalogo, dias)) },
   ], 'plano')
 
@@ -315,6 +324,7 @@ export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, mot
               {(t?.itens ?? []).map(({ item, alimento, nutrientes }) => {
                 const nome = alimento?.nome ?? 'Alimento removido do catálogo'
                 const trocas = trocasItem === item.id && alimento ? substituicoesEquivalentes(alimento, item.gramas, catalogo, { max: 8 }) : null
+                const porcoes = trocasItem === item.id && alimento ? equivalentesDoItem(alimento, item.gramas, catalogo) : null
                 return (
                   <div key={item.id}>
                     <div className={styles.item}>
@@ -333,6 +343,19 @@ export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, mot
                     {trocas && (
                       <div className={styles.subs}>
                         <span className={styles.subsTitle}>{formatarNumero(item.gramas, 0)} g de {nome} ({formatarNumero(nutrientes.kcal, 0)} kcal) equivale, com até 10% de diferença de energia, a:</span>
+                        {porcoes && (
+                          <>
+                            <span className={styles.subsSection}>Lista de porções: {textoPorcoes(porcoes.porcoes)} de {porcoes.grupo.rotulo.toLowerCase()}</span>
+                            {porcoes.itens.map(s => (
+                              <div key={s.alimento.id} className={styles.subRow}>
+                                <span>{s.gramas} g de {s.alimento.nome}<span className={styles.subMeta}> | {s.kcal} kcal | P {formatarNumero(s.proteina, 1)} C {formatarNumero(s.carboidrato, 1)} L {formatarNumero(s.lipidio, 1)}</span>{s.medida && <span className={styles.subMeta}> | {s.medida}</span>}</span>
+                                <Button variant="secondary" onClick={() => { alterarItem(r.id, item.id, { alimentoId: s.alimento.id, gramas: s.gramas, medida: s.medida ?? '' }); setTrocasItem(null) }}>Trocar</Button>
+                              </div>
+                            ))}
+                            {porcoes.grupo.nota && <span className={styles.subNote}>{porcoes.grupo.nota}</span>}
+                            <span className={styles.subsSection}>Outras trocas de energia parecida</span>
+                          </>
+                        )}
                         {trocas.length === 0 && <span className={styles.hint}>Sem trocas para este item (energia muito baixa ou sem alimento parecido no grupo).</span>}
                         {trocas.map(s => (
                           <div key={s.alimento.id} className={styles.subRow}>
@@ -387,6 +410,46 @@ export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, mot
               <div><Button variant="secondary" icon="plus" onClick={() => { setBuscaRef(r.id); setBusca(''); setPersonalizadoRef(null) }}>Adicionar alimento</Button></div>
             )}
 
+            {r.receita ? (
+              <div className={styles.mealRecipe}>
+                <div className={styles.mealRecipeHead}>
+                  <span className={styles.mealRecipeName}>Receita: {r.receita.titulo}</span>
+                  <div className={styles.row}>
+                    <Button variant="secondary" onClick={() => { setReceitaRef(receitaRef === r.id ? null : r.id); setBuscaReceita('') }}>Trocar receita</Button>
+                    <Button variant="secondary" onClick={() => alterarRefeicao(r.id, x => ({ ...x, receita: undefined }))}>Remover receita</Button>
+                  </div>
+                </div>
+                <span className={styles.hint}>
+                  {[r.receita.porcoes ? `${r.receita.porcoes} ${r.receita.porcoes === 1 ? 'porção' : 'porções'}` : '', r.receita.tempoMin ? `preparo ${formatarTempo(r.receita.tempoMin)}` : '', `${r.receita.ingredientes.length} ingredientes`].filter(Boolean).join(' | ')}
+                  . O paciente e o impresso mostram uma cópia desta receita.
+                </span>
+              </div>
+            ) : (
+              receitaRef !== r.id && <div><Button variant="secondary" icon="plus" onClick={() => { setReceitaRef(r.id); setBuscaReceita('') }}>Anexar receita</Button></div>
+            )}
+            {receitaRef === r.id && (
+              <div className={styles.searchBox}>
+                <div className={styles.row}>
+                  <input className={styles.input} style={{ flex: 1 }} value={buscaReceita} onChange={e => setBuscaReceita(e.target.value)} placeholder="Buscar receita por nome ou ingrediente" aria-label="Buscar receita" />
+                  <button type="button" className={styles.iconBtn} aria-label="Fechar a escolha de receita" onClick={() => setReceitaRef(null)}><Icon name="close" size={18} /></button>
+                </div>
+                {receitas.length === 0 ? (
+                  <p className={styles.hint}>Nenhuma receita cadastrada. Cadastre na seção Receitas e volte aqui.</p>
+                ) : receitasEscolha.length === 0 ? (
+                  <p className={styles.hint}>Nenhuma receita encontrada.</p>
+                ) : (
+                  <div className={styles.results} role="list">
+                    {receitasEscolha.map(rc => (
+                      <button key={rc.id} type="button" role="listitem" className={styles.result} onClick={() => { alterarRefeicao(r.id, x => ({ ...x, receita: anexarReceita(rc) })); setReceitaRef(null) }}>
+                        <span>{rc.titulo}</span>
+                        <span className={styles.resultInfo}>{rc.ingredientes.length} ingredientes</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className={styles.field}>
               <label htmlFor={`obs-${r.id}`}>Observação da refeição</label>
               <input id={`obs-${r.id}`} className={styles.input} value={r.obs ?? ''} maxLength={200} onChange={e => alterarRefeicao(r.id, x => ({ ...x, obs: e.target.value }))} placeholder="Opcional" />
@@ -403,6 +466,29 @@ export function PlanoPanel({ patient, clinicId, clinica, linhas, carregando, mot
           <label htmlFor="plano-obs">Orientações gerais</label>
           <textarea id="plano-obs" className={styles.textarea} value={plano.observacoes ?? ''} onChange={e => alterar(p => ({ ...p, observacoes: e.target.value }))} placeholder="Hidratação, preparo, o que evitar, quando retornar..." />
         </div>
+      </section>
+
+      {/* ── Lista de porções equivalentes (consulta) ── */}
+      <section className={styles.card} aria-label="Lista de porções equivalentes">
+        <details className={styles.portionDetails}>
+          <summary>Lista de porções equivalentes</summary>
+          <div className={styles.portionBody}>
+          <p className={styles.cardSub}>Quanto de cada alimento vale uma porção do grupo (mesma energia). Use para orientar trocas; o botão de trocas de cada alimento do plano usa esta mesma lista.</p>
+          {gruposPorcao.map(({ grupo, itens }) => (
+            <div key={grupo.id} className={styles.portionCard}>
+              <span className={styles.shopGroupName}>{grupo.rotulo} | 1 porção = {grupo.kcalPorcao} kcal</span>
+              {itens.map(i => (
+                <div key={i.alimento.id} className={styles.portionRow}>
+                  <span>{i.alimento.nome}{i.medida && <span className={styles.subMeta}> | {i.medida}</span>}</span>
+                  <span className={styles.portionQty}>{i.gramas} g</span>
+                </div>
+              ))}
+              {grupo.nota && <span className={styles.subNote}>{grupo.nota}</span>}
+            </div>
+          ))}
+          <span className={styles.hint}>Base própria de porções de referência, calculada com a {TACO_FONTE}. Não substitui o julgamento do nutricionista.</span>
+          </div>
+        </details>
       </section>
 
       {/* ── Lista de compras ── */}

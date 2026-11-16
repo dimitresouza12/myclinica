@@ -88,7 +88,7 @@ describe('configuração de especialidades (documentos e abas)', () => {
   it('fisio tem a aba corpograma (mapa de dor); estética continua sem odontograma', () => {
     expect(SPECIALTY_CONFIG.fisio.recordTabs).toContain('corpograma')
     expect(mergeSpecialtyConfigs(['fisio']).recordTabs).toContain('corpograma')
-    expect(mergeSpecialtyConfigs(['estetica', 'fisio']).recordTabs).toEqual(['faceograma', 'corpograma', 'comparador', 'metas', 'exercicios', 'goniometria'])
+    expect(mergeSpecialtyConfigs(['estetica', 'fisio']).recordTabs).toEqual(['faceograma', 'aplicacoes', 'corpograma', 'comparador', 'metas', 'exercicios', 'goniometria'])
     expect(SPECIALTY_CONFIG.estetica.recordTabs).not.toContain('odontograma')
   })
 

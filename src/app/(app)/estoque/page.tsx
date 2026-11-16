@@ -48,7 +48,7 @@ const AreaTrendChart = dynamic(() => import('@/components/ui/AreaTrendChart').th
 const UNITS = ['un', 'caixa', 'ml', 'L', 'kg', 'g', 'par', 'rolo']
 
 const BLANK_MOV = { quantity: '', reason: '', type: 'entrada' as 'entrada' | 'saida' | 'ajuste' }
-const BLANK_LOTE = { lote: '', validade: '', custo: '', fornecedor: '', nota: '' }
+const BLANK_LOTE = { lote: '', validade: '', custo: '', fornecedor: '', nota: '', fabricante: '' }
 const TONE_FAIXA: Record<ValidadeFaixa, 'ok' | 'wait' | 'warn' | 'bad' | 'idle'> = { vencido: 'bad', ate30: 'warn', ate60: 'wait', ate90: 'wait', ok: 'ok', sem_validade: 'idle' }
 const FILTRO_TEXTO: Record<FiltroValidade, string> = { todos: 'todos os lotes', vencidos: 'lotes vencidos', '30': 'vencem em até 30 dias', '60': 'vencem em até 60 dias', '90': 'vencem em até 90 dias' }
 
@@ -280,6 +280,7 @@ function EstoqueContent() {
         lote: loteForm.lote.trim() ? {
           lote: loteForm.lote, validade: loteForm.validade || null, custo: loteForm.custo ? parseFloat(loteForm.custo) : null,
           fornecedor: loteForm.fornecedor.trim() || null, notaFiscal: loteForm.nota.trim() || null,
+          fabricante: loteForm.fabricante.trim() || null,
         } : null,
       })
       setSaving(false)
@@ -748,6 +749,10 @@ function EstoqueContent() {
                 <label>Nota fiscal</label>
                 <input value={loteForm.nota} onChange={e => setLoteForm(p => ({ ...p, nota: e.target.value }))} placeholder="Opcional" />
               </div>
+            </div>
+            <div className={f.field}>
+              <label>Fabricante</label>
+              <input value={loteForm.fabricante} onChange={e => setLoteForm(p => ({ ...p, fabricante: e.target.value }))} placeholder="Opcional" maxLength={160} />
             </div>
             <div className={f.field}>
               <label>Custo unitário deste lote (R$)</label>

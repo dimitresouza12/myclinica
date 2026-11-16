@@ -7,12 +7,15 @@ vi.mock('@/lib/print', () => ({ printDocumento: vi.fn() }))
 
 import { AvaliacaoPanel } from './AvaliacaoPanel'
 import { EvolucaoPanel } from './EvolucaoPanel'
+import { DiarioPanel } from './DiarioPanel'
 import { PlanoPanel } from './PlanoPanel'
+import { ReceitasPanel } from './ReceitasPanel'
 import { RecordatorioPanel } from './RecordatorioPanel'
 import { avaliacaoVazia } from '@/lib/nutri/avaliacao'
 import { planoVazio } from '@/lib/nutri/plano'
 import { recordatorioVazio } from '@/lib/nutri/recordatorio'
 import { carregarTaco } from '@/lib/nutri/alimentos'
+import { anexarReceita, type Receita } from '@/lib/nutri/receitas'
 
 // a TACO é carregada sob demanda; com ela já em memória a primeira renderização (síncrona) já tem os alimentos
 await carregarTaco()
@@ -30,6 +33,11 @@ const plano = (() => {
   p.refeicoes[0].itens = [{ id: 'i1', alimentoId: 'taco-53', gramas: 50, medida: '1 pão francês (unidade)' }, { id: 'i2', alimentoId: 'taco-488', gramas: 100 }]
   return p
 })()
+
+const receita: Receita = {
+  id: 'rc1', titulo: 'Panqueca de banana', porcoes: 2, tempo_preparo_min: 20, ingredientes: [{ texto: '1 banana' }, { texto: '2 ovos' }],
+  modo_preparo: 'Misture e doure.', observacoes: null, created_at: '2026-06-01T10:00:00Z',
+}
 
 const linhasAval = [
   { id: 'a2', tipo: 'avaliacao' as const, data: '2026-06-01', dados: avaliacao, created_at: '2026-06-01T10:00:00Z' },
@@ -62,11 +70,49 @@ describe('renderização das telas de Nutrição', () => {
   it('plano mostra refeições, progresso e lista de compras', () => {
     const linhas = [{ id: 'pl1', tipo: 'plano' as const, data: '2026-06-01', dados: plano, created_at: '2026-06-01T10:00:00Z' }]
     const html = renderToString(<PlanoPanel patient={patient} clinicId="c1" clinica={clinica} linhas={linhas} carregando={false} motivo={null} recarregar={async () => {}}
-      metaSugerida={{ kcal: 1800, proteinaG: 110, carboidratoG: 200, lipidioG: 55 }} />)
+      metaSugerida={{ kcal: 1800, proteinaG: 110, carboidratoG: 200, lipidioG: 55 }} receitas={[]} />)
     expect(html).toContain('Pão, trigo, francês')
     expect(html).toContain('Lista de compras')
     expect(html).toContain('Café da manhã')
+    expect(html).toContain('Lista de porções equivalentes')
+    expect(html).toMatch(/1 porção = (<!-- -->)?150/)
+    expect(html).toContain('Anexar receita')
     expect(html).not.toContain('NaN')
+    expect(html).not.toContain('undefined')
+  })
+  it('plano com receita anexada mostra a cópia da receita e permite trocar ou remover', () => {
+    const comReceita = planoVazio('Com receita')
+    comReceita.refeicoes[0].itens = [{ id: 'i1', alimentoId: 'taco-53', gramas: 50 }]
+    comReceita.refeicoes[0].receita = anexarReceita(receita)
+    const linhas = [{ id: 'pl2', tipo: 'plano' as const, data: '2026-06-01', dados: comReceita, created_at: '2026-06-01T10:00:00Z' }]
+    const html = renderToString(<PlanoPanel patient={patient} clinicId="c1" clinica={clinica} linhas={linhas} carregando={false} motivo={null} recarregar={async () => {}}
+      metaSugerida={null} receitas={[receita]} />)
+    expect(html).toMatch(/Receita: (<!-- -->)?Panqueca de banana/)
+    expect(html).toContain('Trocar receita')
+    expect(html).toContain('Remover receita')
+    expect(html).toContain('2 ingredientes')
+    expect(html).not.toContain('NaN')
+  })
+  it('receitas: lista com resumo e ações; sem receitas, mostra o estado vazio; indisponível, avisa', () => {
+    const html = renderToString(<ReceitasPanel patient={patient} clinicId="c1" clinica={clinica} receitas={[receita]} carregando={false} motivo={null} recarregar={async () => {}} />)
+    expect(html).toContain('Banco de receitas da clínica')
+    expect(html).toContain('Panqueca de banana')
+    expect(html).toContain('2 porções | preparo 20 min | 2 ingredientes')
+    expect(html).toContain('Editar')
+    expect(html).toContain('Imprimir')
+    const vazio = renderToString(<ReceitasPanel patient={patient} clinicId="c1" clinica={clinica} receitas={[]} carregando={false} motivo={null} recarregar={async () => {}} />)
+    expect(vazio).toContain('Nenhuma receita cadastrada ainda')
+    const off = renderToString(<ReceitasPanel patient={patient} clinicId="c1" clinica={clinica} receitas={[]} carregando={false} motivo="sem_tabela" recarregar={async () => {}} />)
+    expect(off).toContain('ainda não está ativo')
+    expect(off).not.toContain('Nenhuma receita cadastrada ainda')
+    for (const h of [html, vazio, off]) expect(h).not.toMatch(/\p{Extended_Pictographic}/u)
+  })
+  it('diário: ao abrir, avisa que está carregando e explica como liberar o link do paciente', () => {
+    const html = renderToString(<DiarioPanel patient={patient} clinicId="c1" />)
+    expect(html).toContain('Diário alimentar')
+    expect(html).toContain('Carregando diário')
+    expect(html).toContain('marque Diário alimentar')
+    expect(html).not.toMatch(/\p{Extended_Pictographic}/u)
   })
   it('recordatório 24h mostra refeições, alimentos e total do dia; em branco, avisa que não há consumo', () => {
     const rec = recordatorioVazio()

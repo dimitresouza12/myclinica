@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Nunito } from 'next/font/google'
 import { Providers } from '@/components/Providers'
+import { PwaRegister } from '@/components/PwaRegister'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -42,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Inline script runs before paint to avoid flash of wrong theme */}
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('myclinica-theme')||( window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t)}catch(e){}})()` }} />
       </head>
-      <body className={inter.className}><Providers>{children}</Providers></body>
+      <body className={inter.className}><PwaRegister /><Providers>{children}</Providers></body>
     </html>
   )
 }

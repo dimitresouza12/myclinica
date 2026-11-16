@@ -13,6 +13,7 @@ export interface UnsavedFlags {
   nutri?: boolean
   escalas?: boolean
   medicina?: boolean
+  vet?: boolean
 }
 
 /** O que ainda não foi salvo, em português, na ordem em que as abas aparecem. */
@@ -29,6 +30,7 @@ export function unsavedLabels(f: UnsavedFlags): string[] {
     f.nutri && 'a Nutrição (avaliação ou plano alimentar)',
     f.escalas && 'a escala clínica em preenchimento',
     f.medicina && 'o pedido de exames, a receita ou a medida de crescimento em preenchimento',
+    f.vet && 'a internação, a prescrição, a evolução ou o exame do pet em preenchimento',
   ].filter(Boolean) as string[]
 }
 

@@ -1,0 +1,110 @@
+/* Aba "Aplicações" da Estética: mesmo vocabulário visual das abas Periograma/Ortodontia (cartões, tags, campos de 44px). */
+.wrap { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+
+.notice {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-field); background: var(--surface-2); border: 1px solid var(--border-color);
+  color: var(--text-primary); font-size: var(--fs-md); line-height: 1.45;
+}
+.notice svg { flex-shrink: 0; margin-top: 2px; color: var(--st-wait); }
+.noticeBad svg { color: var(--st-bad); }
+
+.card {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4); border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  background: var(--surface); min-width: 0;
+}
+.cardTitle { font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brand-text); }
+.cardHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.hint { font-size: var(--fs-xs); color: var(--text-secondary); line-height: 1.4; margin: 0; }
+.empty { padding: var(--space-5) var(--space-3); text-align: center; color: var(--text-secondary); font-size: var(--fs-md); line-height: 1.5; margin: 0; }
+
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.item {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-field); background: var(--surface-2); min-width: 0;
+}
+.itemVoid { opacity: 0.72; }
+.itemHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.itemDate { font-weight: 700; font-size: var(--fs-md); color: var(--text-primary); }
+.itemTags { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.itemProduct { font-size: var(--fs-md); font-weight: 600; color: var(--text-primary); overflow-wrap: anywhere; }
+.itemLine { font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.45; margin: 0; overflow-wrap: anywhere; }
+.itemLine b { color: var(--text-primary); font-weight: 600; }
+.itemActions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.typeTag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--text-primary); }
+
+/* ── Formulário ── */
+.form { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.section { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.sectionTitle { font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brand-text); margin: 0; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field > label, .label {
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.input {
+  width: 100%; min-height: 44px; padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  background: var(--bg-secondary); color: var(--text-primary);
+  font: inherit; font-size: var(--fs-base); outline: none; transition: border-color 0.15s;
+}
+.input:focus { border-color: var(--brand-primary); }
+.textarea { composes: input; min-height: 88px; resize: vertical; }
+.warn { font-size: var(--fs-xs); color: var(--text-primary); background: var(--surface-2); border-left: 3px solid var(--st-wait); padding: var(--space-2) var(--space-3); border-radius: var(--radius-xs); line-height: 1.4; margin: 0; }
+.warnBad { border-left-color: var(--st-bad); }
+.error { padding: 0.55rem 0.75rem; border-radius: var(--radius-field); background: color-mix(in srgb, var(--st-bad) 9%, transparent); color: var(--st-bad); font-size: 0.84rem; margin: 0; }
+
+/* lotes do produto escolhido: um botão de 44px ou mais por lote */
+.lots { display: flex; flex-direction: column; gap: var(--space-2); }
+.lot {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  width: 100%; min-height: 56px; padding: var(--space-2) var(--space-3);
+  border: 1.5px solid var(--border-subtle); border-radius: var(--radius-field); background: var(--surface);
+  color: var(--text-primary); font: inherit; cursor: pointer; transition: border-color 0.12s, background 0.12s;
+}
+.lot:hover { background: var(--surface-2); }
+.lot:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+.lotOn, .lotOn:hover { border-color: var(--brand-primary); background: var(--surface-2); }
+.lotOff { opacity: 0.6; cursor: not-allowed; }
+.lotName { font-size: var(--fs-md); font-weight: 700; overflow-wrap: anywhere; }
+.lotMeta { font-size: var(--fs-xs); color: var(--text-secondary); line-height: 1.35; }
+.lotAviso .lotMeta { color: var(--text-primary); }
+.lotBad .lotMeta { color: var(--st-bad); font-weight: 600; }
+
+/* mapa */
+.mapWrap { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.map { width: 100%; max-width: 420px; height: auto; align-self: center; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-2); cursor: crosshair; display: block; }
+.pin { font-size: 7.5px; font-weight: 700; fill: #fff; pointer-events: none; font-family: inherit; }
+.regions { display: flex; flex-direction: column; gap: var(--space-2); }
+.region {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) 96px 44px; align-items: center; gap: var(--space-2);
+  padding: var(--space-2); border: 1px solid var(--border-subtle); border-radius: var(--radius-field); background: var(--surface);
+}
+.regionOn { border-color: var(--brand-primary); }
+.regionNum {
+  display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%;
+  font-size: var(--fs-xs); font-weight: 700; color: #fff; background: var(--text-tertiary);
+}
+.iconBtn {
+  display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0;
+  border: 1px solid var(--border-color); border-radius: 999px; background: var(--surface); color: var(--text-secondary);
+  cursor: pointer; transition: color 0.12s, border-color 0.12s;
+}
+.iconBtn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+.iconBtn:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+.stat { display: flex; flex-direction: column; gap: 2px; padding: var(--space-3); border-radius: var(--radius-field); background: var(--surface-2); }
+.statLabel { font-size: var(--fs-2xs); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary-strong); }
+.statValue { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 480px) {
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+  /* 320px: nome da região em linha própria; dose e botão de remover embaixo */
+  .region { grid-template-columns: auto minmax(0, 1fr) 44px; }
+  .regionName { grid-column: 2; grid-row: 1; }
+  .regionDel { grid-column: 3; grid-row: 1; }
+  .regionDose { grid-column: 2 / 4; grid-row: 2; }
+}

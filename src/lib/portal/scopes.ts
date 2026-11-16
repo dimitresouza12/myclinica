@@ -3,11 +3,12 @@
 
 import type { ClinicType } from '@/types'
 
-export const PORTAL_SCOPES = ['plano_alimentar', 'vacinas_peso', 'exercicios', 'proximas_consultas', 'orientacoes', 'assinatura'] as const
+export const PORTAL_SCOPES = ['plano_alimentar', 'diario', 'vacinas_peso', 'exercicios', 'proximas_consultas', 'orientacoes', 'assinatura'] as const
 export type PortalScope = (typeof PORTAL_SCOPES)[number]
 
 export const SCOPE_LABEL: Record<PortalScope, string> = {
   plano_alimentar: 'Plano alimentar',
+  diario: 'Diário alimentar',
   vacinas_peso: 'Vacinas e peso do pet',
   exercicios: 'Programa de exercícios',
   proximas_consultas: 'Próximas consultas',
@@ -17,6 +18,7 @@ export const SCOPE_LABEL: Record<PortalScope, string> = {
 
 export const SCOPE_HINT: Record<PortalScope, string> = {
   plano_alimentar: 'Refeições do plano mais recente.',
+  diario: 'O paciente registra o que comeu, com horário e foto opcional, e você vê na ficha de Nutrição.',
   vacinas_peso: 'Carteira de vacinas, vermífugos e histórico de peso.',
   exercicios: 'Exercícios prescritos, com vídeo e botão para marcar como feito.',
   proximas_consultas: 'Data, hora e profissional dos próximos agendamentos.',
@@ -25,7 +27,7 @@ export const SCOPE_HINT: Record<PortalScope, string> = {
 }
 
 /** Escopos que só fazem sentido para uma área da clínica (os demais valem para todas). */
-const AREA_SCOPE: Partial<Record<PortalScope, ClinicType>> = { plano_alimentar: 'nutri', vacinas_peso: 'vet', exercicios: 'fisio' }
+const AREA_SCOPE: Partial<Record<PortalScope, ClinicType>> = { plano_alimentar: 'nutri', diario: 'nutri', vacinas_peso: 'vet', exercicios: 'fisio' }
 
 /** Escopos oferecidos no formulário, conforme as áreas da clínica. */
 export function scopesForAreas(areas: readonly ClinicType[]): PortalScope[] {

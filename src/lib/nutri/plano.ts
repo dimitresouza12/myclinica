@@ -6,6 +6,7 @@ import {
   type Alimento, type AlimentoPersonalizado, type GrupoAlimentar, type Nutrientes,
 } from './alimentos'
 import { arredondar } from './validacao'
+import { normalizarAnexo, type ReceitaAnexada } from './receitas'
 
 export interface ItemPlano {
   id: string
@@ -22,6 +23,8 @@ export interface Refeicao {
   horario: string
   itens: ItemPlano[]
   obs?: string
+  /** Cópia da receita anexada a esta refeição (ver receitas.ts). */
+  receita?: ReceitaAnexada
 }
 
 export interface MetaDiaria { kcal: number | null; proteinaG: number | null; carboidratoG: number | null; lipidioG: number | null }
@@ -64,6 +67,7 @@ export function normalizarPlano(raw: unknown): PlanoDados {
     refeicoes: Array.isArray(r.refeicoes)
       ? r.refeicoes.filter(x => x && typeof x.id === 'string').map(x => ({
           id: x.id, nome: String(x.nome ?? ''), horario: String(x.horario ?? ''), obs: x.obs ? String(x.obs) : undefined,
+          receita: normalizarAnexo(x.receita),
           itens: Array.isArray(x.itens) ? x.itens.filter(i => i && typeof i.id === 'string' && typeof i.alimentoId === 'string' && Number.isFinite(i.gramas)) : [],
         }))
       : [],

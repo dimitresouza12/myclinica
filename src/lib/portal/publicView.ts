@@ -65,7 +65,9 @@ export function shapeWeights(rows: WeightRow[], limit = 24): PublicWeight[] {
 }
 
 // ── Plano alimentar ─────────────────────────────────────────────────────────
-export interface PublicMeal { name: string; time: string; items: { food: string; grams: number; measure: string | null }[]; note: string | null }
+/** Receita anexada à refeição pela nutricionista (cópia gravada no plano). Sem o id da receita da clínica. */
+export interface PublicRecipe { title: string; servings: number | null; minutes: number | null; ingredients: string[]; steps: string }
+export interface PublicMeal { name: string; time: string; items: { food: string; grams: number; measure: string | null }[]; note: string | null; recipe?: PublicRecipe | null }
 export interface PublicPlan { title: string; meals: PublicMeal[]; notes: string | null }
 
 /**
@@ -85,6 +87,9 @@ export function shapePlan(raw: unknown, taco: Alimento[] = []): PublicPlan {
         return food ? [{ food: food.nome, grams: i.gramas, measure: i.medida?.trim() || null }] : []
       }),
       note: r.obs?.trim() || null,
+      recipe: r.receita
+        ? { title: r.receita.titulo, servings: r.receita.porcoes, minutes: r.receita.tempoMin, ingredients: r.receita.ingredientes, steps: r.receita.preparo }
+        : null,
     })),
     notes: plan.observacoes?.trim() || null,
   }

@@ -49,6 +49,8 @@ export interface DadosLote {
   custo: number | null
   fornecedor: string | null
   notaFiscal: string | null
+  /** só é gravado quando informado (a coluna vem de 20261136_estetica_lotes_aplicacoes.sql); undefined = não mexe */
+  fabricante?: string | null
 }
 
 export interface EntradaInput {
@@ -90,6 +92,7 @@ export async function registrarEntrada(i: EntradaInput): Promise<Resultado<{ lot
           custo: i.lote.custo,
           fornecedor: i.lote.fornecedor,
           nota_fiscal: i.lote.notaFiscal,
+          ...(i.lote.fabricante ? { fabricante: i.lote.fabricante } : {}),
         }]).select('id').single()
         if (insErr || !data) throw new Error(insErr?.message ?? 'lote não criado')
         lotId = (data as { id: string }).id
@@ -209,6 +212,7 @@ export async function criarLoteComSaldoExistente(i: {
     const { data: criado, error: insErr } = await supabase.from('stock_lots').insert([{
       clinic_id: i.clinicId, stock_item_id: i.itemId, lote: i.lote.trim(), validade: i.validade || null,
       quantidade_inicial: i.quantidade, quantidade_atual: i.quantidade, custo: i.custo, fornecedor: i.fornecedor, nota_fiscal: i.notaFiscal,
+      ...(i.fabricante ? { fabricante: i.fabricante } : {}),
     }]).select('id').single()
     if (insErr || !criado) throw new Error(insErr?.message ?? 'lote não criado')
     return { ok: true, data: { lotId: (criado as { id: string }).id } }
@@ -220,6 +224,7 @@ export async function criarLoteComSaldoExistente(i: {
 export async function atualizarDadosLote(id: string, d: DadosLote): Promise<Resultado> {
   const { error } = await supabase.from('stock_lots').update({
     lote: d.lote.trim(), validade: d.validade || null, custo: d.custo, fornecedor: d.fornecedor, nota_fiscal: d.notaFiscal, updated_at: agora(),
+    ...(d.fabricante !== undefined ? { fabricante: d.fabricante } : {}),
   }).eq('id', id)
   if (error) return /23505|duplicate/i.test(`${error.code ?? ''} ${error.message}`)
     ? { ok: false, erro: 'Já existe um lote com este código e validade neste produto.' }

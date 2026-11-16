@@ -4,6 +4,8 @@ import { fmtDateBr, fmtDateTimeBr, fmtKg } from '@/lib/portal/format'
 import { SIGN_DOC_LABEL } from '@/lib/assinatura/texto'
 import { SignBox } from './SignBox'
 import { ExerciciosBox } from './ExerciciosBox'
+import { DiarioBox } from './DiarioBox'
+import { formatarTempo } from '@/lib/nutri/receitas'
 import styles from './portal.module.css'
 
 const DUE_LABEL = { atrasada: 'Reforço atrasado', proxima: 'Reforço próximo', em_dia: 'Em dia' } as const
@@ -54,7 +56,7 @@ export function PortalView({ data, token }: { data: PortalPageData; token: strin
               <p className={styles.muted}>Seu plano alimentar ainda não foi publicado.</p>
             ) : (
               <>
-                {data.plan.meals.filter(m => m.items.length > 0).map((m, i) => (
+                {data.plan.meals.filter(m => m.items.length > 0 || m.recipe).map((m, i) => (
                   <details key={i} className={styles.meal} open={i === 0}>
                     <summary className={styles.mealHead}>{m.name}{m.time ? <span className={styles.muted}> · {m.time}</span> : null}</summary>
                     <ul className={styles.list}>
@@ -66,11 +68,40 @@ export function PortalView({ data, token }: { data: PortalPageData; token: strin
                       ))}
                     </ul>
                     {m.note && <p className={styles.note}>{m.note}</p>}
+                    {m.recipe && (
+                      <div className={styles.recipe}>
+                        <h3 className={styles.recipeTitle}>{`Receita: ${m.recipe.title}`}</h3>
+                        {(m.recipe.servings || m.recipe.minutes) && (
+                          <p className={styles.muted}>
+                            {[m.recipe.servings ? `${m.recipe.servings} ${m.recipe.servings === 1 ? 'porção' : 'porções'}` : '', m.recipe.minutes ? `preparo ${formatarTempo(m.recipe.minutes)}` : ''].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                        {m.recipe.ingredients.length > 0 && (
+                          <>
+                            <h4 className={styles.recipeLabel}>Ingredientes</h4>
+                            <ul className={styles.recipeList}>{m.recipe.ingredients.map((ing, k) => <li key={k}>{ing}</li>)}</ul>
+                          </>
+                        )}
+                        {m.recipe.steps && (
+                          <>
+                            <h4 className={styles.recipeLabel}>Modo de preparo</h4>
+                            <p className={styles.pre}>{m.recipe.steps}</p>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </details>
                 ))}
                 {data.plan.notes && <p className={styles.pre}>{data.plan.notes}</p>}
               </>
             )}
+          </section>
+        )}
+
+        {hasScope(sc, 'diario') && data.diary && (
+          <section className={styles.card} aria-labelledby="sec-diario">
+            <h2 id="sec-diario" className={styles.h2}>Diário alimentar</h2>
+            <DiarioBox token={token} data={data.diary} />
           </section>
         )}
 

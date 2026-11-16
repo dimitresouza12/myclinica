@@ -21,6 +21,8 @@ export interface StockLot {
   custo: number | null
   fornecedor: string | null
   nota_fiscal: string | null
+  /** só existe depois de 20261136_estetica_lotes_aplicacoes.sql */
+  fabricante?: string | null
   created_at: string
   updated_at?: string | null
 }
@@ -271,7 +273,7 @@ export interface RecallResumo {
   totalSaidas: number
 }
 
-/** Agrupa as saídas do lote por paciente (mais recente primeiro dentro de cada um). Entradas e ajustes não contam. */
+/** Agrupa as saídas do lote por paciente (mais recente primeiro dentro de cada um). Entradas e ajustes não contam, exceto a entrada de estorno de um paciente, que cancela a saída dele. */
 export function agruparRecall(
   movimentos: MovimentoDeLote[],
   pacientes: Record<string, { name: string; phone: string | null }>,
@@ -279,7 +281,17 @@ export function agruparRecall(
   const map = new Map<string, RecallPaciente>()
   let semPaciente = 0
   let totalSaidas = 0
-  const saidas = movimentos.filter(m => m.type === 'saida').sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+  const todas = movimentos.filter(m => m.type === 'saida').sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+  // Estorno de aplicação (Estética) devolve ao lote com uma ENTRADA no nome do mesmo paciente e da mesma quantidade: cancela
+  // a saída correspondente (a mais recente igual), para quem não recebeu o material não aparecer no recall.
+  const estornos = movimentos.filter(m => m.type === 'entrada' && m.patient_id)
+  const canceladas = new Set<string>()
+  for (const e of estornos) {
+    const q = Math.abs(Number(e.quantity) || 0)
+    const alvo = todas.find(m => !canceladas.has(m.id) && m.patient_id === e.patient_id && Math.abs(Number(m.quantity) || 0) === q && m.created_at <= e.created_at)
+    if (alvo) canceladas.add(alvo.id)
+  }
+  const saidas = todas.filter(m => !canceladas.has(m.id))
   for (const m of saidas) {
     const q = Math.abs(Number(m.quantity) || 0)
     totalSaidas += q

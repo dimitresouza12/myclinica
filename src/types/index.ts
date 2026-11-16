@@ -115,6 +115,8 @@ export interface Patient {
   pet_sex?: 'macho' | 'femea' | null
   pet_birth_date?: string | null
   pet_microchip?: string | null
+  // Coluna da migration 20261135_vet_internacao_exames.sql (ausente até ela ser aplicada): cadastro principal do tutor; vazio no próprio principal
+  tutor_id?: string | null
   notes: string | null
   avatar_url: string | null
   is_active: boolean

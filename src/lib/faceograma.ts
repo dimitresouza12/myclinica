@@ -68,6 +68,22 @@ export const FACE_SHORTCUTS: { key: string; label: string; rect: Rect }[] = [
   { key: 'mento',    label: 'Mento',    rect: zoneBounds(['Mento', 'Linha de marionete']) },
 ]
 
+// ── Zonas para desenho e lista de regiões ──────────────────────────
+export interface FaceZoneShape { name: string; cx: number; cy: number; rx: number; ry: number }
+
+/** As zonas já expandidas (as espelhadas viram duas, direita e esquerda): serve para desenhar o mapa sem a foto, como na impressão. */
+export const FACE_ZONE_SHAPES: FaceZoneShape[] = ZONES.flatMap(z =>
+  z.dx !== undefined
+    ? [
+        { name: `${z.name} (direito)`, cx: 150 - z.dx, cy: z.cy, rx: z.rx, ry: z.ry },
+        { name: `${z.name} (esquerdo)`, cx: 150 + z.dx, cy: z.cy, rx: z.rx, ry: z.ry },
+      ]
+    : [{ name: z.name, cx: z.cx!, cy: z.cy, rx: z.rx, ry: z.ry }],
+)
+
+/** Nomes de região para sugerir ao digitar (os mesmos que `faceRegion` devolve). */
+export const FACE_REGION_NAMES: string[] = FACE_ZONE_SHAPES.map(z => z.name)
+
 /** Nome da região do rosto em (x, y), por exemplo "Pé de galinha (direito)". */
 export function faceRegion(x: number, y: number): string {
   let best: { name: string; d: number } | null = null

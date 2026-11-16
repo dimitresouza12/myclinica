@@ -16,6 +16,7 @@ import { findPlan } from '@/lib/convenios/plans'
 import { genderSelectOptions } from '@/lib/pacientes/gender'
 import { PET_SPECIES, PET_BREEDS } from '@/lib/vetSpecies'
 import { usePetExtraColumns } from '@/lib/pacientes/petColumns'
+import { useTutorColumn } from '@/lib/vet/tutorColumn'
 import {
   PET_SEX_OPTIONS, EMPTY_PET_FORM, buildPetColumns, microchipError, normalizePetSex, petAgeFromBirth, sameTutor, hasPetData, petVisibility,
   type PetFormValues, type TutorCandidate,
@@ -41,6 +42,8 @@ import { DuplicateWarning } from './DuplicateWarning'
 /** Linha de `patients` achada na busca de tutor, com os nomes dos pets dele. */
 type TutorHit = TutorCandidate & {
   email: string | null; rg: string | null; address: string | null; emergency_contact: string | null; pets?: string[]
+  /** cadastro principal do tutor, quando este pet já está ligado a um (coluna tutor_id, migration 20261135) */
+  tutor_id?: string | null
 }
 
 interface Props {
@@ -52,21 +55,25 @@ interface Props {
   initial?: { name?: string; phone?: string }
   /** cadastro novo: a pessoa escolheu um cadastro parecido que já existe. Sem isso, fecha o modal e abre o prontuário dele. */
   onUseExisting?: (id: string) => void
+  /** cadastro novo de pet com o tutor já escolhido: o pet aberto na ficha, de quem o novo pet herda o contato */
+  tutorInicial?: Patient
 }
 
-export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial, onUseExisting }: Props) {
+export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial, onUseExisting, tutorInicial }: Props) {
   const isNew = !patient
   const router = useRouter()
   const { user, clinic } = useAuthStore()
   // Campos do pet: só clínica com veterinária. Em clínica com várias áreas, o admin/recepção (sem área) marca se o cadastro é de um animal.
   const clinicAreas = clinic?.specialties?.length ? clinic.specialties : clinic ? [clinic.type] : []
-  const [markedAsPet, setMarkedAsPet] = useState(false)
+  const [markedAsPet, setMarkedAsPet] = useState(!!tutorInicial)
   const { showPet, vetOnly, askIsPet } = petVisibility({
     clinicAreas, specialtyType: user?.specialtyType, isNew, markedAsPet, patientHasPetData: hasPetData(patient),
   })
   // cadastro de animal: a pessoa do formulário é o tutor
   const tutorMode = vetOnly || (askIsPet && markedAsPet)
   const petExtras = usePetExtraColumns()
+  // vínculo tutor-pet (migration 20261135): sem a coluna, o cadastro novo segue copiando o contato como antes
+  const tutorCol = useTutorColumn()
   // Responsável legal (migration 20261120_patients_responsavel_legal.sql): só aparece e só é enviado se o banco tem as colunas
   const guardianCols = useGuardianColumns()
   const ownAreas = user?.specialtyType ? clinicAreas.filter(a => a === user.specialtyType) : clinicAreas
@@ -75,10 +82,18 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial,
   const guardianAreas = askIsPet ? (markedAsPet ? ownAreas.filter(a => a === 'vet') : ownAreas.filter(a => a !== 'vet')) : ownAreas
   const guardianFocus = guardianIsFocus(guardianAreas)
   const guardianText = guardianLabels(guardianAreas)
+  // pet novo aberto da ficha de outro pet do mesmo tutor: o tutor já vem escolhido, com o contato copiado
+  const tutorInicialHit: TutorHit | null = tutorInicial ? {
+    id: tutorInicial.id, name: tutorInicial.name, phone: tutorInicial.phone, cpf: tutorInicial.cpf, pet_name: tutorInicial.pet_name,
+    email: tutorInicial.email, rg: tutorInicial.rg, address: tutorInicial.address, emergency_contact: tutorInicial.emergency_contact,
+    tutor_id: tutorInicial.tutor_id ?? null, pets: tutorInicial.pet_name ? [tutorInicial.pet_name] : [],
+  } : null
   const [form, setForm] = useState({
-    name: initial?.name ?? '', phone: initial?.phone ?? '', email: '', cpf: '', rg: '',
-    birth_date: '', gender: '', address: '', occupation: '',
-    emergency_contact: '', referred_by: '', notes: '',
+    name: tutorInicialHit?.name ?? initial?.name ?? '',
+    phone: tutorInicialHit ? toInputValue(tutorInicialHit.phone) : (initial?.phone ?? ''),
+    email: tutorInicialHit?.email ?? '', cpf: tutorInicialHit ? cpfToInputValue(tutorInicialHit.cpf) : '', rg: tutorInicialHit?.rg ?? '',
+    birth_date: '', gender: '', address: tutorInicialHit?.address ?? '', occupation: '',
+    emergency_contact: tutorInicialHit?.emergency_contact ?? '', referred_by: '', notes: '',
     convenio: '', convenio_carteirinha: '',
   })
   // Convênio detalhado (migration 20261116_convenios.sql): validade, titular, pagador. Só aparece e só é enviado se o banco tem as colunas.
@@ -92,7 +107,7 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial,
   // "Outra" raça escolhida na lista: libera o campo de texto
   const [breedOther, setBreedOther] = useState(false)
   // tutor escolhido numa busca: o cadastro novo é mais um pet dele (dados do tutor copiados, sem digitar de novo)
-  const [tutor, setTutor] = useState<TutorHit | null>(null)
+  const [tutor, setTutor] = useState<TutorHit | null>(tutorInicialHit)
   const [tutorQuery, setTutorQuery] = useState('')
   const [tutorHits, setTutorHits] = useState<TutorHit[]>([])
   const [showConvenioSuggestions, setShowConvenioSuggestions] = useState(false)
@@ -198,18 +213,19 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial,
       const safe = q.replace(/[%,()*\\]/g, ' ').trim()
       const digits = q.replace(/\D/g, '')
       const filters = [`name.ilike.%${safe}%`, `pet_name.ilike.%${safe}%`, ...(digits.length >= 4 ? [`phone.ilike.%${digits}%`] : [])]
-      const cols = 'id, name, phone, email, cpf, rg, address, emergency_contact, pet_name'
+      const cols = `id, name, phone, email, cpf, rg, address, emergency_contact, pet_name${tutorCol ? ', tutor_id' : ''}`
       const { data, error: err } = await supabase.from('patients').select(cols)
         .eq('clinic_id', clinicId).eq('is_active', true).or(filters.join(',')).order('name').limit(20)
       if (cancelled || err) return
-      const rows = (data ?? []) as unknown as TutorHit[]
+      // o cadastro principal do tutor (sem vínculo) vem primeiro: é dele que o contato é copiado
+      const rows = ((data ?? []) as unknown as TutorHit[]).sort((a, b) => (a.tutor_id ? 1 : 0) - (b.tutor_id ? 1 : 0))
       // um resultado por tutor, com os pets dele juntos
       const seen: TutorHit[] = []
       for (const r of rows) if (!seen.some(x => sameTutor(x, r))) seen.push(r)
       setTutorHits(seen.map(r => ({ ...r, pets: rows.filter(x => sameTutor(r, x) && x.pet_name).map(x => x.pet_name as string) })))
     }, 250)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [tutorQuery, tutor, isNew, showPet, clinicId])
+  }, [tutorQuery, tutor, isNew, showPet, clinicId, tutorCol])
 
   // resultados só valem enquanto a busca está ativa (sem tutor escolhido e com texto)
   const visibleTutorHits = isNew && showPet && !tutor && tutorQuery.trim().length >= 2 ? tutorHits : []
@@ -331,6 +347,8 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial,
           { ...pet, nascimentoISO: petExtras ? (dateBRToISO(petBirthBR) ?? '') : '' },
           { extras: petExtras },
         )),
+        // pet de um tutor já cadastrado: liga ao cadastro principal dele e não repete o CPF (índice único por clínica)
+        ...(isNew && tutor && tutorCol && { tutor_id: tutor.tutor_id ?? tutor.id, cpf: null }),
         ...(isNew && {
           lgpd_consent: true,
           lgpd_consent_at: now,
@@ -457,7 +475,7 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial,
                 <span className={styles.tutorChipText}>
                   <b>{tutor.name}</b>
                   <small>
-                    Novo pet deste tutor{tutor.pets?.length ? ` (já cadastrados: ${tutor.pets.join(', ')})` : ''}. Os dados de contato foram copiados.
+                    Novo pet deste tutor{tutor.pets?.length ? ` (já cadastrados: ${tutor.pets.join(', ')})` : ''}. {tutorCol ? 'O nome e o telefone foram copiados; o CPF fica no cadastro do tutor.' : 'Os dados de contato foram copiados.'}
                   </small>
                 </span>
                 <button type="button" className={styles.tutorChipClear} onClick={clearTutor} aria-label="Trocar tutor">
@@ -486,7 +504,7 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial,
                     ))}
                   </div>
                 )}
-                <small className={f.hint}>Ao escolher, o nome, o telefone e o CPF do tutor são copiados e este cadastro vira mais um pet dele.</small>
+                <small className={f.hint}>{tutorCol ? 'Ao escolher, o nome e o telefone do tutor são copiados e este cadastro fica ligado a ele (o CPF não se repete).' : 'Ao escolher, o nome, o telefone e o CPF do tutor são copiados e este cadastro vira mais um pet dele.'}</small>
               </div>
             )}
           </section>
@@ -511,7 +529,14 @@ export function PatientFormModal({ patient, clinicId, onClose, onSaved, initial,
             </div>
           </div>
           <div className={f.row2}>
-            <Field label="CPF" cpf previous={previousCpfNote(patient?.cpf)} value={form.cpf} onChange={(v) => set('cpf', v)} />
+            {tutor && tutorCol ? (
+              <div className={f.field}>
+                <label>CPF</label>
+                <small className={f.hint}>O CPF fica no cadastro principal do tutor e não se repete neste pet.</small>
+              </div>
+            ) : (
+              <Field label="CPF" cpf previous={previousCpfNote(patient?.cpf)} value={form.cpf} onChange={(v) => set('cpf', v)} />
+            )}
             <Field label="RG" value={form.rg} onChange={(v) => set('rg', v)} />
           </div>
         </section>

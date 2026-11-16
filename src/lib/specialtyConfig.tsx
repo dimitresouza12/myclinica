@@ -32,7 +32,7 @@ interface ProcedureSuggestion {
 // 'vet' = carteira de vacinas, curva de peso e dose por peso do pet: ver src/components/prontuario/vet.
 // 'exercicios' e 'goniometria' = fisioterapia (prescrição de exercícios e goniometria seriada): ver src/components/prontuario/fisio.
 // 'medicina' = pedido de exames, receita estruturada e curvas de crescimento da OMS (medico): ver src/components/prontuario/medicina.
-export type RecordTab = 'odontograma' | 'periograma' | 'ortodontia' | 'faceograma' | 'corpograma' | 'metas' | 'nutri' | 'vet' | 'comparador' | 'exercicios' | 'goniometria' | 'medicina'
+export type RecordTab = 'odontograma' | 'periograma' | 'ortodontia' | 'faceograma' | 'aplicacoes' | 'corpograma' | 'metas' | 'nutri' | 'vet' | 'comparador' | 'exercicios' | 'goniometria' | 'medicina'
 
 interface SpecialtyConfig {
   roles: RoleOption[]
@@ -294,7 +294,7 @@ export const SPECIALTY_CONFIG: Record<ClinicType, SpecialtyConfig> = {
       ['e-contraindicacoes', 'Contraindicações identificadas'],
       ['e-obs', 'Observações gerais'],
     ],
-    recordTabs: ['faceograma', 'corpograma', 'comparador'],
+    recordTabs: ['faceograma', 'aplicacoes', 'corpograma', 'comparador'],
     color: '219,39,119',
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 6.6L20.5 10l-6.6 1.9L12 18.5l-1.9-6.6L3.5 10l6.6-1.9L12 2z"/></svg>
