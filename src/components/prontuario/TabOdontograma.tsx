@@ -14,7 +14,6 @@ import btn from '@/components/ui/button.module.css'
 import { OdoDefs } from './odontograma/OdoDefs'
 import { ArchBoard, FrontFigure, OcclusalFigure, ToothThumbSvg } from './odontograma/OdontogramaBoard'
 import { ToolBar } from './odontograma/ToolBar'
-import { JsonModal } from './odontograma/JsonModal'
 import { FacePickerModal } from './odontograma/FacePickerModal'
 import {
   TOOTH_STATUS, ALL_STATUS, DEFAULT_STATUS, UPPER, LOWER, FACE_NAME, FACE_KEYS, EXTRA_KEYS, EXTRA_NAME, EXTRA_STATUS_OF,
@@ -106,7 +105,6 @@ export function TabOdontograma({ record, patient, clinicId, onSaved, onDirtyChan
   const [detailOpen, setDetailOpen]   = useState(false)
   const [nextPlanned, setNextPlanned] = useState(false)
   const [budgetOpen, setBudgetOpen]   = useState(false)
-  const [jsonOpen, setJsonOpen]       = useState(false)
   const [dentition, setDentition]     = useState<Dentition>('permanente')
   const dentitionTouched = useRef(false)
   const patientAge = useMemo(() => ageInYears(patient.birth_date), [patient.birth_date])
@@ -329,7 +327,6 @@ export function TabOdontograma({ record, patient, clinicId, onSaved, onDirtyChan
               <button type="button" className={styles.zoomBtn} aria-label="Reduzir a arcada" disabled={colStep === 0} onClick={() => setColStep(s => s - 1)}><Icon name="minus" size={16} /></button>
               <button type="button" className={styles.zoomBtn} aria-label="Ampliar a arcada" disabled={colStep === COL_STEPS.length - 1} onClick={() => setColStep(s => s + 1)}><Icon name="plus" size={16} /></button>
             </div>
-            <button type="button" className={styles.jsonBtn} onClick={() => setJsonOpen(true)}>Ver JSON</button>
           </div>
         </div>
 
@@ -643,14 +640,6 @@ export function TabOdontograma({ record, patient, clinicId, onSaved, onDirtyChan
           // a vista fica aberta: dá para marcar várias faces antes de fechar em "Concluir"
           onFace={face => applyZone(facePickTooth, { kind: 'face', face })}
           onClose={() => setFacePickTooth(null)}
-        />
-      )}
-
-      {jsonOpen && (
-        <JsonModal
-          json={JSON.stringify(serializeOdontogram(teeth, history), null, 2)}
-          filename={`odontograma-${new Date().toISOString().slice(0, 10)}.json`}
-          onClose={() => setJsonOpen(false)}
         />
       )}
 

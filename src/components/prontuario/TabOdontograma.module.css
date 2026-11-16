@@ -175,6 +175,7 @@
 .noteTextarea {
   width: 100%; padding: 0.5rem 0.65rem; border: 1px solid var(--border-color); border-radius: 10px;
   background: var(--surface-2); color: var(--text-primary); font-size: 0.82rem; font-family: inherit; resize: vertical; outline: none;
+  min-height: 88px; flex-shrink: 0; /* dentro do modal (coluna flex) o campo encolhia para 1 linha */
 }
 .noteTextarea:focus { border-color: var(--brand-primary); }
 
