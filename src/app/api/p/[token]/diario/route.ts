@@ -3,6 +3,8 @@ import { rateLimit } from '@/lib/rateLimit'
 import { clientIpFrom, hashToken, isWellFormedToken } from '@/lib/portal/token'
 import { resolveLink } from '@/lib/portal/server'
 import { apagarRegistroDiario, registrarDiario } from '@/lib/portal/diarioServer'
+import { lerFormularioLimitado } from '@/lib/portal/corpoLimitado'
+import { hasScope } from '@/lib/portal/scopes'
 import { LIMITES_DIARIO } from '@/lib/nutri/diario'
 
 const UNAVAILABLE = { error: 'Link indisponível. Peça um novo à clínica.' }
@@ -38,18 +40,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
   const e = entrar(req, token, 'pdia')
   if (!e.ok) return e.res
 
-  const declared = Number(req.headers.get('content-length') ?? 0)
-  if (declared > MAX_BODY_BYTES) return NextResponse.json({ error: 'A foto é grande demais. Escolha uma menor.' }, { status: 413 })
-
-  let form: FormData
-  try { form = await req.formData() } catch {
-    return NextResponse.json({ error: 'Envio inválido.' }, { status: 400 })
-  }
-  const foto = form.get('foto')
-  if (foto !== null && !(foto instanceof File)) return NextResponse.json({ error: 'Envio inválido.' }, { status: 400 })
-
+  // 1) link e escopo ANTES de ler o corpo: quem não tem acesso não faz o servidor receber nem interpretar a foto
   const { link, res } = await linkOu404(token, e.ip)
   if (!link) return res
+  if (!hasScope(link.scopes, 'diario')) return NextResponse.json({ error: 'Diário não disponível.' }, { status: 404 })
+
+  // 2) corpo com limite em bytes realmente lidos (Content-Length sozinho não protege: pode faltar ou mentir)
+  const lido = await lerFormularioLimitado(req, MAX_BODY_BYTES)
+  if (!lido.ok) {
+    return lido.motivo === 'grande'
+      ? NextResponse.json({ error: 'A foto é grande demais. Escolha uma menor.' }, { status: 413 })
+      : NextResponse.json({ error: 'Envio inválido.' }, { status: 400 })
+  }
+  const form = lido.form
+  const foto = form.get('foto')
+  if (foto !== null && !(foto instanceof File)) return NextResponse.json({ error: 'Envio inválido.' }, { status: 400 })
 
   const r = await registrarDiario(
     link,

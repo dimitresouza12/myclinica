@@ -18,6 +18,7 @@ import type { PortalLinkRow } from './server'
 const DIAS_NA_PAGINA = 14
 const VALIDADE_FOTO_SEG = 3600
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MSG_LIMITE_DIA = 'Você chegou ao limite de registros deste dia.'
 const COLUNAS = 'id, dia, refeicao, horario, descricao, foto_path, created_at'
 
 type ErroBanco = { code?: string; message?: string } | null | undefined
@@ -83,7 +84,8 @@ export async function registrarDiario(link: PortalLinkRow, input: RegistroEnviad
   const { count, error: cErr } = await db.from('nutri_diario').select('id', { count: 'exact', head: true })
     .eq('clinic_id', link.clinic_id).eq('patient_id', link.patient_id).eq('dia', v.dados.dia)
   if (cErr) return falhaDoBanco(cErr, 'diario-count')
-  if ((count ?? 0) >= LIMITES_DIARIO.porDia) return { ok: false, status: 429, error: 'Você chegou ao limite de registros deste dia.' }
+  // checagem rápida (evita subir a foto à toa); quem garante o limite é o gatilho do banco, que não perde corrida
+  if ((count ?? 0) >= LIMITES_DIARIO.porDia) return { ok: false, status: 429, error: MSG_LIMITE_DIA }
 
   let fotoPath: string | null = null
   if (foto && mime) {
@@ -99,6 +101,8 @@ export async function registrarDiario(link: PortalLinkRow, input: RegistroEnviad
   if (iErr || !row) {
     // sem a linha, a foto ficaria sem dono: apaga (melhor esforço)
     if (fotoPath) await db.storage.from(BUCKET_DIARIO).remove([fotoPath]).catch(() => undefined)
+    // limite diário atômico: o gatilho nutri_diario_limite_dia (20261137) recusa a linha 21 mesmo com envios simultâneos
+    if (iErr && (iErr.message ?? '').includes('limite_diario')) return { ok: false, status: 429, error: MSG_LIMITE_DIA }
     return falhaDoBanco(iErr, 'diario-insert')
   }
   const linha = row as LinhaDiarioPublica
