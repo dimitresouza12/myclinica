@@ -16,14 +16,43 @@ export interface ClinicInfo {
   phone?: string
 }
 
+// Texto digitado pelo usuário vai para dentro de HTML escrito à mão: escapa antes.
+export const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+/** Texto digitado com quebra de linha: escapa primeiro e só depois troca \n por <br> (a ordem importa). */
+const nl = (v: unknown) => esc(v).replace(/\n/g, '<br>')
+
+/** Valor numérico vindo do banco (jsonb pode trazer texto): nunca devolve a string crua. */
+const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
+
+/**
+ * URL de imagem vinda do banco: só https:, data:image/ ou caminho relativo (/x, sem //).
+ * Qualquer outra coisa (javascript:, http:, blob:, //host, texto solto) vira null.
+ */
+export function safeImageUrl(u: unknown): string | null {
+  if (typeof u !== 'string') return null
+  const url = u.trim()
+  if (!url) return null
+  if (/^https:\/\/[^\s]+$/i.test(url)) return url
+  if (/^data:image\/[a-z0-9.+-]+[;,]/i.test(url)) return url
+  if (/^\/(?![/\\])/.test(url)) return url
+  return null
+}
+
+/** URL para dentro de url('...') num <style> (texto cru, sem entidades HTML): codifica o que fecharia a string, o bloco ou o url(). */
+function cssUrl(u: string): string {
+  return u.replace(/[\s'"()<>\\]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'))
+}
+
 function clinicHeader(clinic: ClinicInfo) {
+  const logo = safeImageUrl(clinic.logo)
   return `
     <div style="display:flex;align-items:center;gap:16px;padding-bottom:12px;border-bottom:2px solid #333;margin-bottom:20px">
-      ${clinic.logo ? `<img src="${clinic.logo}" style="height:60px;width:auto;object-fit:contain" />` : ''}
+      ${logo ? `<img src="${esc(logo)}" style="height:60px;width:auto;object-fit:contain" />` : ''}
       <div>
-        <h1 style="margin:0;font-size:20px;font-weight:800;color:#111">${clinic.name}</h1>
-        ${clinic.address ? `<p style="margin:2px 0;font-size:12px;color:#555">${clinic.address}</p>` : ''}
-        ${clinic.phone ? `<p style="margin:2px 0;font-size:12px;color:#555">${formatBrPhone(clinic.phone)}</p>` : ''}
+        <h1 style="margin:0;font-size:20px;font-weight:800;color:#111">${esc(clinic.name)}</h1>
+        ${clinic.address ? `<p style="margin:2px 0;font-size:12px;color:#555">${esc(clinic.address)}</p>` : ''}
+        ${clinic.phone ? `<p style="margin:2px 0;font-size:12px;color:#555">${esc(formatBrPhone(clinic.phone))}</p>` : ''}
       </div>
     </div>
   `
@@ -48,7 +77,7 @@ function baseStyles() {
 
 function field(label: string, value: string | null | undefined) {
   if (!value) return ''
-  return `<div class="field"><div class="field-label">${label}</div><div class="field-value">${value}</div></div>`
+  return `<div class="field"><div class="field-label">${esc(label)}</div><div class="field-value">${esc(value)}</div></div>`
 }
 
 function formatDateBR(iso: string | null | undefined): string {
@@ -56,9 +85,6 @@ function formatDateBR(iso: string | null | undefined): string {
   const d = iso.slice(0, 10).split('-')
   return d.length === 3 ? `${d[2]}/${d[1]}/${d[0]}` : iso
 }
-
-// Texto digitado pelo usuário vai para dentro de HTML escrito à mão: escapa antes.
-export const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 interface PrintTooth { status?: string; surfaces?: Partial<Record<SurfaceKey, string>>; note?: string; planned?: Record<string, boolean>; endo?: number[]; pin?: number[]; bracket?: boolean }
 
@@ -155,7 +181,7 @@ function faceogramaSection(record: MedicalRecord | null): string {
     <h3>Faceograma</h3>
     ${sessions.map(s => `
       <div style="page-break-inside:avoid;margin-bottom:16px">
-        <div style="font-size:12px;font-weight:700;margin-bottom:6px">Sessão de ${formatDateBR(s.date)}</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px">Sessão de ${esc(formatDateBR(s.date))}</div>
         <div style="display:flex;gap:16px;align-items:flex-start">
           <div style="position:relative;width:260px;flex:none">
             <img src="${faceSrc}" style="width:100%;display:block;border:1px solid #ddd;border-radius:6px" />
@@ -206,7 +232,7 @@ function evolucaoSection(entries: RecordEntry[]): string {
       ${printableEntries.map((e) => `
         <div style="margin-bottom:10px;padding:8px;border:1px solid #eee;border-radius:4px">
           <div style="font-size:11px;color:#888;margin-bottom:4px">${new Date(e.created_at).toLocaleDateString('pt-BR', { day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit' })}</div>
-          <div class="field-value">${textoVisivel(e.entry_text ?? '')}</div>
+          <div class="field-value">${esc(textoVisivel(e.entry_text ?? ''))}</div>
         </div>
       `).join('')}
     `
@@ -214,7 +240,7 @@ function evolucaoSection(entries: RecordEntry[]): string {
 
 /** Imprime só a evolução clínica do paciente (sem as anotações sigilosas). */
 export function printEvolucao(clinic: ClinicInfo, patient: Patient, entries: RecordEntry[]) {
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Evolução – ${patient.name}</title>${baseStyles()}</head><body>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Evolução – ${esc(patient.name)}</title>${baseStyles()}</head><body>
     ${clinicHeader(clinic)}
     <h2>Evolução Clínica</h2>
     <div class="grid" style="margin-bottom:16px">
@@ -223,7 +249,7 @@ export function printEvolucao(clinic: ClinicInfo, patient: Patient, entries: Rec
     </div>
     ${evolucaoSection(entries) || '<p class="field-value">Nenhuma evolução registrada.</p>'}
     <div class="footer">
-      <span>${clinic.name}</span>
+      <span>${esc(clinic.name)}</span>
       <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
     </div>
   </body></html>`
@@ -241,7 +267,7 @@ export function printProntuario(clinic: ClinicInfo, patient: Patient, record: Me
   const ex = record?.clinical_exam?.[area] ?? {}
   const specialty = getSpecialtyConfig(area)
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Prontuário – ${patient.name}</title>${baseStyles()}</head><body>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Prontuário – ${esc(patient.name)}</title>${baseStyles()}</head><body>
     ${clinicHeader(clinic)}
     <h2>Prontuário Clínico</h2>
     <h3>Identificação do Paciente</h3>
@@ -266,12 +292,12 @@ export function printProntuario(clinic: ClinicInfo, patient: Patient, record: Me
     <div class="grid">
       ${specialty.clinicalExamFields.map(([k, label]) => field(label, ex[k])).join('')}
     </div>
-    ${record?.treatment_plan ? `<h3>Plano de Tratamento</h3><div class="field-value">${record.treatment_plan}</div>` : ''}
+    ${record?.treatment_plan ? `<h3>Plano de Tratamento</h3><div class="field-value">${esc(record.treatment_plan)}</div>` : ''}
     ${withMapas ? odontogramaSection(record) : ''}
     ${withMapas ? faceogramaSection(record) : ''}
     ${withEvolucao ? evolucaoSection(entries) : ''}
     <div class="footer">
-      <span>${clinic.name}</span>
+      <span>${esc(clinic.name)}</span>
       <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
     </div>
   </body></html>`
@@ -280,14 +306,14 @@ export function printProntuario(clinic: ClinicInfo, patient: Patient, record: Me
 }
 
 export function printOrcamento(clinic: ClinicInfo, patient: Patient, items: TreatmentPlanItem[], generalNote?: string | null) {
-  const total = items.reduce((sum, it) => sum + (it.value ?? 0), 0)
-  const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const total = items.reduce((sum, it) => sum + num(it.value), 0)
+  const money = (v: number) => num(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   // Orçamento odontológico com aprovação item a item: só ganha a coluna de situação e o resumo quando há alguma decisão registrada
   const decidido = temDecisao(items)
   const tot = totaisOrcamento(items)
   const rotuloAprov = (it: TreatmentPlanItem) => APROVACOES.find(a => a.id === aprovacaoDoItem(it))?.rotulo ?? ''
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Orçamento – ${patient.name}</title>${baseStyles()}</head><body>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Orçamento – ${esc(patient.name)}</title>${baseStyles()}</head><body>
     ${clinicHeader(clinic)}
     <h2>Orçamento / Plano de Tratamento</h2>
     <div class="grid" style="margin-bottom:16px">
@@ -305,8 +331,8 @@ export function printOrcamento(clinic: ClinicInfo, patient: Patient, items: Trea
       <tbody>
         ${items.map((it) => `
           <tr>
-            <td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px">${it.description || '—'}</td>
-            ${decidido ? `<td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px">${rotuloAprov(it)}</td>` : ''}
+            <td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px">${esc(it.description || '—')}</td>
+            ${decidido ? `<td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px">${esc(rotuloAprov(it))}</td>` : ''}
             <td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px;text-align:right;white-space:nowrap">${it.value != null ? money(it.value) : '—'}</td>
           </tr>
         `).join('')}
@@ -321,9 +347,9 @@ export function printOrcamento(clinic: ClinicInfo, patient: Patient, items: Trea
     ${decidido ? `<div style="margin-top:14px;font-size:13px;line-height:1.7"><strong>${STATUS_ORCAMENTO_ROTULO[statusOrcamento(items)]}.</strong>
       Aprovado: ${money(tot.aprovado)} (${tot.qtdAprovado} ${tot.qtdAprovado === 1 ? 'item' : 'itens'}) &nbsp;|&nbsp;
       Pendente: ${money(tot.pendente)} (${tot.qtdPendente}) &nbsp;|&nbsp; Recusado: ${money(tot.recusado)} (${tot.qtdRecusado})</div>` : ''}
-    ${generalNote ? `<h3>Observações</h3><div class="field-value">${generalNote.replace(/\n/g, '<br>')}</div>` : ''}
+    ${generalNote ? `<h3>Observações</h3><div class="field-value">${nl(generalNote)}</div>` : ''}
     <div class="footer">
-      <span>${clinic.name}</span>
+      <span>${esc(clinic.name)}</span>
       <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
     </div>
   </body></html>`
@@ -332,20 +358,20 @@ export function printOrcamento(clinic: ClinicInfo, patient: Patient, items: Trea
 }
 
 export function printContrato(clinic: ClinicInfo, patient: Patient, contractText: string) {
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contrato – ${patient.name}</title>${baseStyles()}</head><body>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contrato – ${esc(patient.name)}</title>${baseStyles()}</head><body>
     ${clinicHeader(clinic)}
     <h2>Contrato de Prestação de Serviços</h2>
-    <div class="field-value" style="margin-top:16px;line-height:1.8">${contractText.replace(/\n/g, '<br>')}</div>
+    <div class="field-value" style="margin-top:16px;line-height:1.8">${nl(contractText)}</div>
     <div style="margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:32px">
       <div style="border-top:1px solid #333;padding-top:8px;font-size:12px;color:#555">
-        Assinatura da Clínica<br><strong>${clinic.name}</strong>
+        Assinatura da Clínica<br><strong>${esc(clinic.name)}</strong>
       </div>
       <div style="border-top:1px solid #333;padding-top:8px;font-size:12px;color:#555">
-        Assinatura do Paciente<br><strong>${patient.name}</strong>
+        Assinatura do Paciente<br><strong>${esc(patient.name)}</strong>
       </div>
     </div>
     <div class="footer">
-      <span>${clinic.name}</span>
+      <span>${esc(clinic.name)}</span>
       <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
     </div>
   </body></html>`
@@ -397,16 +423,16 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 export function printRecibo(clinic: ClinicInfo, record: FinancialRecord, patientName: string) {
   const dataEmissao = new Date(record.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
-  const valor = (record.total_amount ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const valor = num(record.total_amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const metodo = PAYMENT_METHOD_LABELS[record.payment_method ?? ''] ?? record.payment_method ?? '—'
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Recibo – ${patientName}</title>${baseStyles()}</head><body>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Recibo – ${esc(patientName)}</title>${baseStyles()}</head><body>
     ${clinicHeader(clinic)}
     <h2>Recibo de Pagamento</h2>
     <p style="font-size:13px;line-height:1.8;margin-top:12px">
-      Recebi de <strong>${patientName}</strong> a quantia de <strong>${valor}</strong>,
-      referente a ${record.category ? `<strong>${record.category}</strong>` : 'serviço prestado'}${record.notes ? ` (${record.notes})` : ''},
-      pago via ${metodo}.
+      Recebi de <strong>${esc(patientName)}</strong> a quantia de <strong>${valor}</strong>,
+      referente a ${record.category ? `<strong>${esc(record.category)}</strong>` : 'serviço prestado'}${record.notes ? ` (${esc(record.notes)})` : ''},
+      pago via ${esc(metodo)}.
     </p>
     <div class="grid" style="margin-top:24px">
       ${field('Paciente', patientName)}
@@ -417,11 +443,11 @@ export function printRecibo(clinic: ClinicInfo, record: FinancialRecord, patient
     </div>
     <div style="margin-top:64px;display:grid;grid-template-columns:1fr;gap:8px;max-width:340px">
       <div style="border-top:1px solid #333;padding-top:8px;font-size:12px;color:#555;text-align:center">
-        ${clinic.name}
+        ${esc(clinic.name)}
       </div>
     </div>
     <div class="footer">
-      <span>${clinic.name}</span>
+      <span>${esc(clinic.name)}</span>
       <span>Emitido em ${new Date().toLocaleDateString('pt-BR')}</span>
     </div>
   </body></html>`
@@ -430,6 +456,8 @@ export function printRecibo(clinic: ClinicInfo, record: FinancialRecord, patient
 }
 
 export function buildDocumentoHtml(contentHtml: string, bgImage: string | null): string {
+  // contentHtml é HTML montado pelo editor/builders (já escapado na origem); só o fundo é URL crua e é validada aqui.
+  const bg = safeImageUrl(bgImage)
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Documento</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -442,7 +470,7 @@ export function buildDocumentoHtml(contentHtml: string, bgImage: string | null):
         color: #111;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
-        ${bgImage ? `background-image: url('${bgImage}'); background-size: 100% auto; background-repeat: no-repeat; background-position: top center;` : ''}
+        ${bg ? `background-image: url('${cssUrl(bg)}'); background-size: 100% auto; background-repeat: no-repeat; background-position: top center;` : ''}
       }
       .page { padding: 32px 48px; min-height: 297mm; }
       p { margin: 0 0 4px; }
