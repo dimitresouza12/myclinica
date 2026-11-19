@@ -239,6 +239,11 @@ export interface FinancialRecord {
   procedure_id: string | null
   // Bloco C do plano de acesso por profissional — quem gerou a receita.
   professional_id: string | null
+  // Quem recebeu o pagamento (clinic_users.id). null = não informado (baixas automáticas de
+  // consulta e pacotes lançados pela agenda não preenchem; a recepção define depois no
+  // Financeiro; pacote lançado pelo formulário do Financeiro grava). A coluna só existe
+  // depois da migration que adiciona financial_records.received_by.
+  received_by: string | null
   total_amount: number | null
   discount_percent: number | null
   payment_method: string | null
@@ -309,6 +314,8 @@ export interface CommissionRule {
   recipient_id: string
   procedure_id: string | null
   percent: number
+  // true = só gera comissão quando o atendimento foi feito pelo profissional ligado ao beneficiário
+  only_when_attended: boolean
   is_active: boolean
   created_at: string
   commission_recipients?: Pick<CommissionRecipient, 'id' | 'name' | 'role_label'>
@@ -323,6 +330,46 @@ export interface CommissionEntry {
   recipient_name: string
   percent: number
   amount: number
+  created_at: string
+  // true = valor ajustado à mão por um admin (a receita deixa de ser recalculada em lote).
+  is_manual: boolean
+  adjusted_by: string | null
+  adjusted_at: string | null
+}
+
+// Retorno de recalc_recipient_commissions (simulação ou aplicação)
+export interface CommissionRecalcResult {
+  records: number
+  changed: number
+  old_total: number
+  new_total: number
+  skipped_manual: number
+  dry_run: boolean
+  applied_from: string
+}
+
+export type CommissionRuleChangeKind = 'rule' | 'recalc' | 'manual_entry'
+
+// Linha de commission_rule_changes (histórico de mudanças de regra, recálculo e ajuste manual)
+export interface CommissionRuleChange {
+  id: string
+  clinic_id: string
+  recipient_id: string | null
+  rule_id: string | null
+  procedure_id: string | null
+  old_percent: number | null
+  new_percent: number | null
+  old_only_when_attended: boolean | null
+  new_only_when_attended: boolean | null
+  applied_from: string | null
+  recalculated_count: number | null
+  old_total: number | null
+  new_total: number | null
+  changed_by: string | null
+  kind: CommissionRuleChangeKind
+  entry_id: string | null
+  financial_record_id: string | null
+  note: string | null
   created_at: string
 }
 

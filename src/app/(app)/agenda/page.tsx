@@ -22,6 +22,7 @@ import styles from './agenda.module.css'
 import btn from '@/components/ui/button.module.css'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { PillTabs, type PillOption } from '@/components/ui/PillTabs'
+import { AgendaPrintDialog } from '@/components/agenda/AgendaPrint'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { StatusDot, type StatusTone } from '@/components/ui/StatusDot'
 import { MiniCalendar } from '@/components/agenda/MiniCalendar'
@@ -628,6 +629,8 @@ function AgendaContent() {
   const [scheduleEditor, setScheduleEditor] = useState<{ prof: Professional; date: Date; fromTeam: boolean } | null>(null)
   const [teamOpen, setTeamOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('dia')
+  // dia em foco no instante do clique (o calendário guarda a data num ref, que não se lê no render)
+  const [printFocus, setPrintFocus] = useState<Date | null>(null)
   const calRef = useRef<FullCalendarHandle>(null)
   const [calendarTitle, setCalendarTitle] = useState('')
   const [calRange, setCalRange] = useState<{ start: Date; end: Date } | null>(null)
@@ -2117,6 +2120,9 @@ function AgendaContent() {
         subtitle={`${rangeCount} ${rangeCount === 1 ? 'consulta' : 'consultas'}${rangeLabel ? ` · ${rangeLabel}` : ''}`}
         actions={<>
           <PillTabs label="Visão da agenda" options={viewOptions} value={viewMode} onChange={switchView} />
+          <button type="button" className={`${btn.secondary} ${styles.printBtn}`} aria-label="Imprimir agenda" title="Imprimir agenda" onClick={() => setPrintFocus((isCalendarView ? calRef.current?.getDate() : null) ?? currentDate)}>
+            <Icon name="print" size={18} />
+          </button>
           {canEditAgenda && canSeeAllProfessionals && schedules?.available && allProfessionals.length > 0 && (
             <button type="button" className={`${btn.secondary} ${styles.teamCta}`} onClick={() => setTeamOpen(true)}>
               Escala da equipe
@@ -3200,6 +3206,21 @@ function AgendaContent() {
         </div>
         {blockError && <p ref={blockErrorRef} className={f.error} role="alert">{blockError}</p>}
       </Modal>
+      {printFocus && (
+        <AgendaPrintDialog
+          clinicId={clinic?.id}
+          clinicName={clinic?.name ?? 'MyClinica'}
+          userName={user?.displayName ?? ''}
+          professionals={professionals}
+          scopeProfessionalId={scopeProfessionalId}
+          appointments={appointments}
+          scheduleFor={scheduleFor}
+          slots={TIME_SLOTS}
+          initialView={viewMode === 'mes' || viewMode === 'semana' ? viewMode : 'dia'}
+          initialDate={printFocus}
+          onClose={() => setPrintFocus(null)}
+        />
+      )}
         </div>
       </div>
     </div>

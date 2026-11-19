@@ -72,3 +72,21 @@
 .hint { font-size:.72rem; color:var(--text-secondary); }
 .checkboxField { display:flex; align-items:center; gap:.5rem; font-size:.82rem; font-weight:600; color:var(--text-secondary); cursor:pointer; }
 .checkboxField input { width:16px; height:16px; accent-color:#4DD9C0; cursor:pointer; }
+
+/* Divisão da comissão no modal da receita */
+.split { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border-color); min-width: 0; }
+.splitHead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
+.splitTitle { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
+.splitEmpty { margin: 0; font-size: 0.8125rem; color: var(--text-secondary); }
+.splitHint { margin: 0; font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4; }
+.splitList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.splitRow { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--bg-secondary); border-radius: 10px; min-width: 0; }
+.splitMain { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; min-width: 0; }
+.splitName { flex: 1 1 140px; min-width: 0; font-size: 0.875rem; font-weight: 500; color: var(--text-primary); overflow-wrap: anywhere; }
+.splitNums { display: inline-flex; align-items: baseline; gap: 10px; font-size: 0.8125rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.splitNums strong { font-size: 0.875rem; color: var(--text-primary); font-weight: 600; }
+.splitMeta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.adjustForm { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; }
+.adjustForm > :first-child { align-self: flex-start; }
+.adjustInput { width: 100%; min-height: 44px; }
+.adjustActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }

@@ -9,7 +9,7 @@ import { useAuthStore } from '@/store/auth'
 import { formatDate, formatCurrency, formatMonthLabel } from '@/lib/utils'
 import { printRecibo, PAYMENT_METHOD_LABELS } from '@/lib/print'
 import { audit } from '@/lib/audit'
-import { useFinanceiroData, useProcedures } from '@/hooks/useClinicData'
+import { useFinanceiroData, useProcedures, useClinicReceivers } from '@/hooks/useClinicData'
 import { mergeSpecialtyConfigs } from '@/lib/specialtyConfig'
 import { COMMON_CONVENIOS } from '@/lib/convenios'
 import { myScopedProfessionalId } from '@/lib/professionalScope'
@@ -17,6 +17,7 @@ import type { FinancialRecord, Patient } from '@/types'
 import styles from './financeiro.module.css'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
 import { MonthPicker } from '@/components/ui/MonthPicker'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -37,6 +38,7 @@ import f from '@/components/ui/modalForm.module.css'
 import t from '@/components/ui/table.module.css'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { CommissionSplit } from './CommissionSplit'
 import { moneyShort, axisMoney, statMoney } from '@/lib/ui/money'
 
 // Recharts – dynamic import to avoid SSR issues
@@ -54,9 +56,20 @@ interface NewRecord {
   category: string
   notes: string
   record_date: string
+  // clinic_users.id de quem recebeu ('' = não informado). Só vale para receita.
+  received_by: string
 }
-const todayStr = () => new Date().toISOString().slice(0, 10)
-const BLANK: NewRecord = { type: 'receita', patient_id: '', procedure_id: '', total_amount: '', payment_method: 'pix', convenio: '', category: '', notes: '', record_date: todayStr() }
+// Data local (YYYY-MM-DD) de um timestamp ISO — slice(0, 10) devolveria o dia em UTC.
+const localDateStr = (iso: string) => {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const todayStr = () => localDateStr(new Date().toISOString())
+function saveErrorMessage(error: { code?: string; message?: string }) {
+  if (error.code === '23514') return 'A pessoa escolhida em "Recebido por" não pertence a esta clínica. Escolha outra ou deixe como não informado.'
+  return 'Não foi possível salvar o lançamento. Tente de novo.'
+}
+const BLANK: NewRecord = { type: 'receita', patient_id: '', procedure_id: '', total_amount: '', payment_method: 'pix', convenio: '', category: '', notes: '', record_date: todayStr(), received_by: '' }
 
 function FinanceiroContent() {
   const { clinic, user } = useAuthStore()
@@ -71,6 +84,7 @@ function FinanceiroContent() {
   const scopeProfessionalId = myScopedProfessionalId(user)
   const { data: finData, isLoading: loading, isError: loadFailed, isRefetching, refetch } = useFinanceiroData(clinic?.id, scopeProfessionalId)
   const { data: procedures = [] } = useProcedures(clinic?.id)
+  const { data: receivers = [], names: receiverNames } = useClinicReceivers(clinic?.id)
   const records = finData?.records ?? []
   const patients = finData?.patients ?? []
   const activeProcedures = procedures.filter(p => p.is_active)
@@ -97,6 +111,10 @@ function FinanceiroContent() {
 
   function loadData() {
     queryClient.invalidateQueries({ queryKey: ['financeiro', clinic?.id] })
+    queryClient.invalidateQueries({ queryKey: ['relatorios-raw', clinic?.id] })
+    // Editar valor, procedimento ou profissional recria as comissões da receita (ids novos)
+    queryClient.invalidateQueries({ queryKey: ['commission-entries', clinic?.id] })
+    queryClient.invalidateQueries({ queryKey: ['comissoes-relatorio', clinic?.id] })
   }
 
   const periodRecords = useMemo(() => {
@@ -251,7 +269,8 @@ function FinanceiroContent() {
   function openModal(type: 'receita' | 'despesa') {
     setModalType(type)
     setEditingId(null)
-    setForm({ ...BLANK, type, category: type === 'receita' ? 'Consulta' : 'Material', record_date: todayStr() })
+    // "Recebido por" já vem com quem está logado; dá pra trocar ou limpar.
+    setForm({ ...BLANK, type, category: type === 'receita' ? 'Consulta' : 'Material', record_date: todayStr(), received_by: type === 'receita' ? (user?.clinicUserId ?? '') : '' })
     setGrantCredit(false)
     setShowModal(true)
   }
@@ -268,7 +287,10 @@ function FinanceiroContent() {
       convenio: record.convenio ?? '',
       category: record.category ?? '',
       notes: record.notes ?? '',
-      record_date: record.created_at ? record.created_at.slice(0, 10) : todayStr(),
+      // Data LOCAL (slice(0,10) pegaria o dia em UTC e uma baixa de 22:30 BRT cairia no dia seguinte).
+      record_date: record.created_at ? localDateStr(record.created_at) : todayStr(),
+      // Edição carrega o valor gravado (null vira "Não informado"), sem repreencher com o login.
+      received_by: record.received_by ?? '',
     })
     setGrantCredit(false)
     setShowModal(true)
@@ -284,6 +306,8 @@ function FinanceiroContent() {
   async function handleSave() {
     if (!clinic) return
     setSaving(true)
+    const original = editingId ? records.find(r => r.id === editingId) : undefined
+    const dateChanged = !original?.created_at || localDateStr(original.created_at) !== form.record_date
     const payload = {
       clinic_id: clinic.id,
       patient_id: form.patient_id || null,
@@ -300,16 +324,30 @@ function FinanceiroContent() {
       type: form.type,
       // Meio-dia local evita que a data escolhida "role" um dia pra trás ao
       // ser convertida pra UTC perto da virada (ex: 00:00 em UTC-3 vira o
-      // dia anterior em UTC).
-      created_at: new Date(`${form.record_date}T12:00:00`).toISOString(),
+      // dia anterior em UTC). Na edição só regrava se a data mudou: senão
+      // mexer em outro campo moveria o horário original.
+      ...(dateChanged ? { created_at: new Date(`${form.record_date}T12:00:00`).toISOString() } : {}),
+      // Só receita tem "Recebido por". Despesa nem envia o campo, então editar
+      // uma despesa não toca nessa coluna.
+      ...(form.type === 'receita' ? { received_by: form.received_by || null } : {}),
       // Lançamento manual feito por um profissional restrito já nasce
       // atribuído a ele — senão a RLS do Bloco C rejeitaria o insert.
       ...(scopeProfessionalId ? { professional_id: scopeProfessionalId } : {}),
     }
     if (editingId) {
-      await supabase.from('financial_records').update(payload).eq('id', editingId)
+      const { error } = await supabase.from('financial_records').update(payload).eq('id', editingId)
+      if (error) {
+        setSaving(false)
+        showToast('error', saveErrorMessage(error))
+        return
+      }
     } else {
-      const { data: inserted } = await supabase.from('financial_records').insert([payload]).select('id').single()
+      const { data: inserted, error } = await supabase.from('financial_records').insert([payload]).select('id').single()
+      if (error) {
+        setSaving(false)
+        showToast('error', saveErrorMessage(error))
+        return
+      }
       if (user) audit({ action: 'financial.create', user_id: user.id, clinic_id: clinic.id, module: 'financeiro', resource_id: inserted?.id, details: { type: form.type, amount: payload.total_amount } })
       // Venda de pacote: gera o saldo do paciente pra ele consumir depois na
       // Agenda em vez de cobrar cada sessão de novo.
@@ -351,6 +389,16 @@ function FinanceiroContent() {
   }
 
   const specialty = mergeSpecialtyConfigs(clinic?.specialties?.length ? clinic.specialties : [clinic?.type ?? 'odonto'])
+  // Pessoas ativas; mantém a que já está gravada no lançamento mesmo se foi desativada depois.
+  const receiverOptions = [
+    { value: '', label: 'Não informado' },
+    ...Object.entries(receiverNames)
+      .filter(([id]) => receivers.find(r => r.id === id)?.is_active !== false || id === form.received_by)
+      .map(([id, name]) => ({ value: id, label: name }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
+    // Gravado numa pessoa que não está na lista (lista não carregou ou usuário removido): sem isso o select mostraria "Selecionar"
+    ...(form.received_by && !receiverNames[form.received_by] ? [{ value: form.received_by, label: 'Outro usuário' }] : []),
+  ]
   const categorias = form.type === 'receita' ? specialty.financeCategoriasReceita : specialty.financeCategoriasDespesa
 
   const periodLabel =
@@ -527,13 +575,14 @@ function FinanceiroContent() {
                   <th>Paciente</th>
                   <th>Data</th>
                   <th>Método</th>
+                  <th>Recebido por</th>
                   <th className={t.num}>Valor</th>
                   <th aria-label="Ações" />
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className={styles.emptyCell}>
+                  <tr><td colSpan={7} className={styles.emptyCell}>
                     <EmptyState
                       compact
                       icon="receipt"
@@ -561,6 +610,9 @@ function FinanceiroContent() {
                       <td data-label="Data" className={t.muted}>{formatDate(r.created_at, true)}</td>
                       <td data-label="Método" className={t.muted}>
                         {r.payment_method === 'convenio' && r.convenio ? `Convênio: ${r.convenio}` : (PAYMENT_METHOD_LABELS[r.payment_method ?? ''] ?? r.payment_method ?? '-')}
+                      </td>
+                      <td data-label="Recebido por" className={t.muted}>
+                        {!isIn ? '-' : r.received_by ? (receiverNames[r.received_by] ?? 'Outro usuário') : 'Não informado'}
                       </td>
                       <td data-label="Valor" className={`${t.num} ${styles.amount} ${isIn ? '' : styles.amountOut}`}>
                         {isIn ? '+' : '−'}{formatCurrency(r.total_amount ?? 0)}
@@ -694,6 +746,19 @@ function FinanceiroContent() {
             ]}
           />
         </div>
+        {form.type === 'receita' && (
+          <div className={f.field}>
+            <label>Recebido por</label>
+            <SelectMenu
+              variant="field"
+              ariaLabel="Recebido por"
+              value={form.received_by}
+              onChange={v => setForm(p => ({ ...p, received_by: v }))}
+              options={receiverOptions}
+            />
+            <p className={f.hint}>Quem ficou com o pagamento. Aparece no relatório mensal de recebimentos por pessoa.</p>
+          </div>
+        )}
         {form.payment_method === 'convenio' && (
           <div className={f.field} style={{ position: 'relative' }}>
             <label>Qual convênio?</label>
@@ -726,6 +791,9 @@ function FinanceiroContent() {
           <label>Descrição</label>
           <input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Detalhe o lançamento..." />
         </div>
+        {editingId && form.type === 'receita' && clinic?.id && (
+          <CommissionSplit recordId={editingId} clinicId={clinic.id} isAdmin={isAdmin} />
+        )}
         {!editingId && form.type === 'receita' && form.patient_id && (
           <label className={styles.checkboxField}>
             <input type="checkbox" checked={grantCredit} onChange={e => setGrantCredit(e.target.checked)} />

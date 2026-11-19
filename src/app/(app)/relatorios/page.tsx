@@ -6,7 +6,8 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { PermissionGuard } from '@/components/ui/PermissionGuard'
 import { usePermissions } from '@/hooks/usePermissions'
 import { canSeeFinancialTotals } from '@/lib/permissionPresets'
-import { useProfessionals, useProcedures, useRelatoriosRawData, useCommissionsData } from '@/hooks/useClinicData'
+import { useProfessionals, useProcedures, useRelatoriosRawData, useCommissionsData, useClinicReceivers } from '@/hooks/useClinicData'
+import { isScopedProfessional } from '@/lib/professionalScope'
 import styles from './relatorios.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { MonthPicker } from '@/components/ui/MonthPicker'
@@ -30,12 +31,19 @@ type ReportTab = 'financeiro' | 'clinico' | 'pacientes' | 'equipe' | 'comissoes'
 interface MonthlyFin  { month: string; receita: number; despesa: number; lucro: number }
 interface ProcRank    { name: string; count: number }
 interface ProcRevenue { name: string; count: number; revenue: number }
-interface ProfRow     { name: string; concluded: number; revenue: number; cancelRate: number }
+interface ProfRow     { key: string; name: string; concluded: number | null; revenue: number; share: number; cancelRate: number | null }
+interface ReceiverRow { id: string | null; name: string; count: number; total: number; share: number }
+/** Linha de financial_records como vem de useRelatoriosRawData (colunas do select) */
+interface FinRow      { type: string; total_amount: number; professional_id?: string | null; received_by?: string | null }
+
+/** Fatia de `value` em `total`, em % (0 quando não há total) */
+const sharePct = (value: number, total: number) => (total > 0 ? (value / total) * 100 : 0)
 
 function RelatoriosContent() {
-  const { clinic } = useAuthStore()
-  const { data: cachedProfessionals = [] } = useProfessionals(clinic?.id)
+  const { clinic, user } = useAuthStore()
+  const { data: cachedProfessionals = [], isLoading: loadingProfessionals } = useProfessionals(clinic?.id)
   const { data: cachedProcedures = [] }    = useProcedures(clinic?.id)
+  const { names: receiverNames, isLoading: loadingReceivers, isError: receiversFailed } = useClinicReceivers(clinic?.id)
   // abas Financeiro e Comissões só aparecem para quem tem esses módulos liberados
   const finPerm = usePermissions('financeiro')
   const comPerm = usePermissions('comissoes')
@@ -71,6 +79,9 @@ function RelatoriosContent() {
     const recipientRows = Array.from(byRecipient.values()).sort((a, b) => b.total - a.total)
     return { totalPaid, recipientRows, entries }
   }, [commissionsData])
+
+  // Profissional restrito (RLS) só enxerga o que é dele: a divisão por pessoa/profissional fica parcial
+  const scopedView = isScopedProfessional(clinic, user)
 
   const computed = useMemo(() => {
     const fins = rawData?.fins ?? []
@@ -151,23 +162,57 @@ function RelatoriosContent() {
     }
     const newByMonth = Object.values(newMap).map(({ label, count }) => ({ month: label, count }))
 
-    const profRows: ProfRow[] = profs.map(prof => {
+    // Receita real do período por profissional (financial_records.professional_id) e por
+    // quem recebeu (received_by). Ambos somam exatamente a receita total do período.
+    const receitas = (fins as FinRow[]).filter(r => r.type === 'receita')
+
+    const revByProf: Record<string, number> = {}
+    let revNoProf = 0
+    for (const r of receitas) {
+      if (r.professional_id) revByProf[r.professional_id] = (revByProf[r.professional_id] ?? 0) + Number(r.total_amount)
+      else revNoProf += Number(r.total_amount)
+    }
+    const knownProfIds = new Set(profs.map(p => p.id))
+    const revOrphan = Object.entries(revByProf).filter(([id]) => !knownProfIds.has(id)).reduce((s, [, v]) => s + v, 0)
+
+    const namedRows: ProfRow[] = profs.map(prof => {
       const mine = appts.filter((a: { professional_id?: string }) => a.professional_id === prof.id)
       const myConc = mine.filter((a: { status: string }) => a.status === 'concluido').length
       const myCanceled = mine.filter((a: { status: string }) => a.status === 'cancelado' || a.status === 'faltou').length
-      const myRev = fins.filter((f: { type: string }) => f.type === 'receita').reduce((s: number, f: { total_amount: number }) => s + Number(f.total_amount), 0)
+      const revenue = revByProf[prof.id] ?? 0
       return {
+        key: prof.id,
         name: prof.name,
         concluded: myConc,
-        revenue: myRev / (profs.length || 1),
+        revenue,
+        share: sharePct(revenue, totalRec),
         cancelRate: mine.length > 0 ? Math.round((myCanceled / mine.length) * 100) : 0,
       }
-    }).sort((a, b) => b.concluded - a.concluded)
+    }).sort((a, b) => (canSeeFinTab ? b.revenue - a.revenue : 0) || (b.concluded ?? 0) - (a.concluded ?? 0))
+    // Linhas sem profissional na lista (pacotes, lançamento manual, profissional removido) ficam no fim
+    const extraRows: ProfRow[] = []
+    // Sem permissão financeira não há coluna de receita, então essas linhas não teriam o que mostrar
+    // Enquanto a lista de profissionais carrega, todo id pareceria removido: espera antes de montar a linha
+    if (canSeeFinTab && !loadingProfessionals && revOrphan > 0) extraRows.push({ key: 'removido', name: 'Profissional removido', concluded: null, revenue: revOrphan, share: sharePct(revOrphan, totalRec), cancelRate: null })
+    if (canSeeFinTab && revNoProf > 0) extraRows.push({ key: 'sem-profissional', name: 'Sem profissional', concluded: null, revenue: revNoProf, share: sharePct(revNoProf, totalRec), cancelRate: null })
+    const profRows: ProfRow[] = [...namedRows, ...extraRows]
 
-    return { monthly, finTotals, procRevenue, procRank, clinicStats, patStats, newByMonth, profRows }
-  }, [rawData, resolved, cachedProfessionals, cachedProcedures])
+    const receiverMap = new Map<string | null, ReceiverRow>()
+    for (const r of receitas) {
+      const id = r.received_by ?? null
+      const cur = receiverMap.get(id) ?? { id, name: id ? (receiverNames[id] ?? 'Outro usuário') : 'Não informado', count: 0, total: 0, share: 0 }
+      cur.count += 1
+      cur.total += Number(r.total_amount)
+      receiverMap.set(id, cur)
+    }
+    const receiverRows = Array.from(receiverMap.values())
+      .map(r => ({ ...r, share: sharePct(r.total, totalRec) }))
+      .sort((a, b) => Number(a.id === null) - Number(b.id === null) || b.total - a.total)
 
-  const { monthly, finTotals, procRevenue, procRank, clinicStats, patStats, newByMonth, profRows } = computed
+    return { monthly, finTotals, procRevenue, procRank, clinicStats, patStats, newByMonth, profRows, receiverRows, receitaCount: receitas.length }
+  }, [rawData, resolved, cachedProfessionals, loadingProfessionals, cachedProcedures, receiverNames, canSeeFinTab])
+
+  const { monthly, finTotals, procRevenue, procRank, clinicStats, patStats, newByMonth, profRows, receiverRows, receitaCount } = computed
 
   /** Exporta o que está na tela: mesma aba, mesmo período, mesmos números */
   async function exportXLSX() {
@@ -191,6 +236,11 @@ function RelatoriosContent() {
           ['Faturamento por Procedimento', '', '', ''],
           ['Procedimento', 'Atendimentos', 'Faturamento (R$)', 'Ticket Médio (R$)'],
           ...procRevenue.map(p => [p.name, p.count, p.revenue, p.count > 0 ? p.revenue / p.count : 0]),
+          [],
+          ['Recebido por pessoa', '', '', ''],
+          ['Pessoa', 'Entradas', 'Total (R$)', 'Participação (%)'],
+          ...receiverRows.map(r => [r.name, r.count, r.total, Math.round(r.share * 10) / 10]),
+          ['TOTAL', receitaCount, finTotals.receita, receitaCount > 0 ? 100 : 0],
         ]
       } else if (tab === 'clinico') {
         sheetName = 'Clínico'
@@ -216,8 +266,13 @@ function RelatoriosContent() {
       } else if (tab === 'equipe') {
         sheetName = 'Equipe'
         sheetData = [
-          ['Profissional', 'Consultas Concluídas', 'Taxa de Cancelamento'],
-          ...profRows.map(p => [p.name, p.concluded, `${p.cancelRate}%`]),
+          ['Profissional', 'Consultas Concluídas', 'Taxa de Cancelamento', ...(canSeeFinTab ? ['Receita (R$)', 'Participação (%)'] : [])],
+          ...profRows.map(p => [
+            p.name,
+            p.concluded ?? '',
+            p.cancelRate === null ? '' : `${p.cancelRate}%`,
+            ...(canSeeFinTab ? [p.revenue, Math.round(p.share * 10) / 10] : []),
+          ]),
         ]
       } else {
         sheetName = 'Comissões'
@@ -334,6 +389,61 @@ function RelatoriosContent() {
                 </Card>
               </div>
 
+              <Card flush title="Recebido por pessoa" actions={<span className={styles.cardMeta}>{resolved.label}</span>}>
+                {receiversFailed && (
+                  <p className={`${styles.note} ${styles.noteTop}`} role="status">
+                    Não foi possível carregar a lista de pessoas da clínica. Os nomes podem aparecer como Outro usuário até a próxima atualização.
+                  </p>
+                )}
+                {loadingReceivers ? (
+                  <p className={styles.cardEmpty}>Carregando...</p>
+                ) : receiverRows.length === 0 ? (
+                  <p className={styles.cardEmpty}>Nenhuma receita no período.</p>
+                ) : (
+                  <>
+                    <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+                      <table className={`${t.table} resp-table`}>
+                        <thead>
+                          <tr>
+                            <th>Pessoa</th>
+                            <th className={t.num}>Entradas</th>
+                            <th className={t.num}>Total recebido</th>
+                            <th>Participação</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {receiverRows.map(r => (
+                            <tr key={r.id ?? 'sem-informacao'}>
+                              <td className={r.id ? t.strong : `${t.strong} ${t.muted}`}>{r.name}</td>
+                              <td data-label="Entradas" className={t.num}>{r.count}</td>
+                              <td data-label="Total recebido" className={`${t.num} ${styles.strongNum}`}>{formatCurrency(r.total)}</td>
+                              <td data-label="Participação">
+                                <div className={styles.margin}>
+                                  <span>{Math.round(r.share)}%</span>
+                                  <span className={styles.marginTrack} aria-hidden="true"><i style={{ width: `${clip(r.share)}%` }} /></span>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <td className={t.strong}>Total</td>
+                            <td data-label="Entradas" className={t.num}>{receitaCount}</td>
+                            <td data-label="Total recebido" className={`${t.num} ${styles.strongNum}`}>{formatCurrency(finTotals.receita)}</td>
+                            <td data-label="Participação" className={t.muted}>100%</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className={styles.note}>
+                      {scopedView
+                        ? 'Seu acesso mostra só os lançamentos ligados a você. A divisão completa por pessoa fica com a administração e a recepção. '
+                        : ''}
+                      Baixas automáticas de consulta e pacotes lançados pela agenda ficam em &quot;Não informado&quot; até alguém definir quem recebeu, editando o lançamento no Financeiro.
+                    </p>
+                  </>
+                )}
+              </Card>
+
               <Card flush title={`Resultado por ${unitWord}`}>
                 <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
                   <table className={`${t.table} resp-table`}>
@@ -424,32 +534,51 @@ function RelatoriosContent() {
 
           {/* ── EQUIPE ── */}
           {tab === 'equipe' && (
-            <Card flush title="Produção por profissional">
+            <Card flush title="Produção por profissional" actions={canSeeFinTab ? <span className={styles.cardMeta}>{resolved.label}</span> : undefined}>
               {profRows.length === 0 ? (
                 <p className={styles.cardEmpty}>Nenhum profissional cadastrado</p>
               ) : (
-                <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
-                  <table className={`${t.table} resp-table`}>
-                    <thead>
-                      <tr>
-                        <th>Profissional</th>
-                        <th className={t.num}>Consultas concluídas</th>
-                        <th>Cancelamentos</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {profRows.map(p => (
-                        <tr key={p.name}>
-                          <td className={t.strong}>{p.name}</td>
-                          <td data-label="Consultas concluídas" className={t.num}>{p.concluded}</td>
-                          <td data-label="Cancelamentos">
-                            <StatusDot tone={p.cancelRate > 20 ? 'bad' : 'ok'}>{p.cancelRate}%</StatusDot>
-                          </td>
+                <>
+                  <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
+                    <table className={`${t.table} resp-table`}>
+                      <thead>
+                        <tr>
+                          <th>Profissional</th>
+                          <th className={t.num}>Consultas concluídas</th>
+                          {canSeeFinTab && <th className={t.num}>Receita</th>}
+                          {canSeeFinTab && <th>Participação</th>}
+                          <th>Cancelamentos</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {profRows.map(p => (
+                          <tr key={p.key}>
+                            <td className={p.concluded === null ? `${t.strong} ${t.muted}` : t.strong}>{p.name}</td>
+                            <td data-label="Consultas concluídas" className={t.num}>{p.concluded ?? '-'}</td>
+                            {canSeeFinTab && <td data-label="Receita" className={`${t.num} ${styles.strongNum}`}>{formatCurrency(p.revenue)}</td>}
+                            {canSeeFinTab && (
+                              <td data-label="Participação">
+                                <div className={styles.margin}>
+                                  <span>{Math.round(p.share)}%</span>
+                                  <span className={styles.marginTrack} aria-hidden="true"><i style={{ width: `${clip(p.share)}%` }} /></span>
+                                </div>
+                              </td>
+                            )}
+                            <td data-label="Cancelamentos">
+                              {p.cancelRate === null ? '-' : <StatusDot tone={p.cancelRate > 20 ? 'bad' : 'ok'}>{p.cancelRate}%</StatusDot>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {canSeeFinTab && (
+                    <p className={styles.note}>
+                      {scopedView ? 'Seu acesso mostra só o que é seu. ' : ''}
+                      A receita é a dos lançamentos ligados a cada profissional no período. Pacotes e lançamentos manuais sem profissional aparecem em &quot;Sem profissional&quot;.
+                    </p>
+                  )}
+                </>
               )}
             </Card>
           )}

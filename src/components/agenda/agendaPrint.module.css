@@ -1,0 +1,83 @@
+/* Janela "Imprimir agenda". A folha impressa mora em AgendaPrint.tsx (CSS de impressão inline). */
+.form { display: flex; flex-direction: column; gap: 18px; }
+.label { font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
+
+/* Escolha única (Período, Agrupar): segmentos lado a lado */
+.seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.seg[data-cols="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.segBtn {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-field);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.segBtn:hover { border-color: var(--text-tertiary); color: var(--text-primary); }
+.segBtn[aria-pressed="true"] {
+  background: var(--brand-light);
+  border-color: color-mix(in srgb, var(--brand-primary) 55%, var(--border-color));
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.segBtn:focus-visible, .chip:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+
+/* Área: chips de múltipla escolha (mesmo desenho dos chips de profissional) */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.chip:hover { border-color: var(--text-tertiary); }
+.chip[aria-pressed="true"] {
+  background: var(--brand-light);
+  border-color: color-mix(in srgb, var(--brand-primary) 55%, var(--border-color));
+  font-weight: 600;
+}
+
+/* Mostrar: caixas de marcar */
+.checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; }
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.check input { width: 18px; height: 18px; flex-shrink: 0; margin: 0; accent-color: var(--brand-primary); cursor: pointer; }
+.checks .check input,
+.checks .check input:focus { min-height: 0; height: 18px; padding: 0; border: 0; box-shadow: none; } /* anula o min-height 44px e o halo de .field input (modalForm) */
+.checks .check input:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.check[data-disabled] { opacity: 0.5; cursor: not-allowed; }
+.check[data-disabled] input { cursor: not-allowed; }
+
+/* Contagem ao vivo no rodapé */
+.count { margin-right: auto; font-size: 0.82rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 600px) {
+  .count { flex: 1 1 100%; margin-right: 0; text-align: center; }
+}
+@media (max-width: 480px) {
+  .seg[data-cols="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .checks { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px), (pointer: coarse) {
+  .segBtn { min-height: 44px; }
+  .chip { min-height: 44px; padding: 0 14px; }
+  .check { min-height: 44px; }
+}

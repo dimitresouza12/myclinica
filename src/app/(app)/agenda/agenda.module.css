@@ -135,6 +135,8 @@
   margin-left: auto;
 }
 .headerCta, .teamCta { flex-shrink: 0; }
+.printBtn { flex-shrink: 0; width: 40px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.printBtn:hover { color: var(--text-primary); }
 .statusSelect { min-width: 190px; }
 
 /* Search bar */
@@ -913,6 +915,7 @@
   .page { border-radius: 18px; }
   .shell .headerCta { display: none; }
   .shell .teamCta { min-height: 44px; }
+  .shell .printBtn { width: 44px; height: 44px; }
   /* título da data numa linha própria: "27 de outubro de 2026" não cabe ao lado dos botões */
   .tbLeft { flex-wrap: wrap; row-gap: 6px; }
   .tbDate { order: 5; flex-basis: 100%; margin: 2px 0 0; }

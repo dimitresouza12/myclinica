@@ -26,6 +26,11 @@ export function formatCurrency(value: number | null | undefined): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value ?? 0)
 }
 
+export function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '-'
+  return `${Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+}
+
 export function formatCurrencyCompact(value: number | null | undefined): string {
   const v = value ?? 0
   const abs = Math.abs(v)

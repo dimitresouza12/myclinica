@@ -1,4 +1,6 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useAuthStore } from '@/store/auth'
 import { supabase } from '@/lib/supabase'
 import { probeAgendaExtras } from '@/lib/agenda/extrasSchema'
 import { pickLatest, type ConfirmationInfo } from '@/lib/whatsapp/labels'
@@ -26,6 +28,48 @@ export function useProfessionals(clinicId: string | undefined) {
     enabled: !!clinicId,
     staleTime: 10 * 60 * 1000,
   })
+}
+
+/** Pessoa da clínica que pode receber pagamento (retorno de list_clinic_receivers). */
+export interface ClinicReceiver {
+  id: string
+  display_name: string
+  role: string
+  is_active: boolean
+}
+
+/**
+ * Pessoas da clínica para o campo "Recebido por" e para o relatório "Recebido por pessoa".
+ * Usa o RPC `list_clinic_receivers_all()` (security definer, inclui desativados e devolve is_active)
+ * porque a recepção não lê clinic_users pela RLS. Quem foi desativado depois de receber continua com
+ * nome nos relatórios; os formulários filtram por is_active.
+ * Se o RPC falhar o erro é lançado (React Query tenta de novo, sem cachear a falha por 10 min):
+ * o campo do lançamento cai para "Não informado" e o relatório mostra um aviso.
+ * `names` mapeia clinic_users.id -> nome; o próprio login entra como reserva.
+ */
+export function useClinicReceivers(clinicId: string | undefined) {
+  const user = useAuthStore(s => s.user)
+  const query = useQuery({
+    queryKey: ['clinic-receivers', clinicId],
+    queryFn: async () => {
+      if (!clinicId) return [] as ClinicReceiver[]
+      const { data, error } = await supabase.rpc('list_clinic_receivers_all')
+      if (error) throw error
+      return ((data ?? []) as { id: string; display_name: string; role: string; is_active?: boolean | null }[])
+        .map(r => ({ ...r, is_active: r.is_active ?? true }))
+    },
+    enabled: !!clinicId,
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  })
+  const receivers = query.data
+  const names = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const r of receivers ?? []) map[r.id] = r.display_name
+    if (user?.clinicUserId && !map[user.clinicUserId]) map[user.clinicUserId] = user.displayName
+    return map
+  }, [receivers, user])
+  return { ...query, names }
 }
 
 export function useProcedures(clinicId: string | undefined) {
@@ -482,7 +526,7 @@ export function useRelatoriosRawData(clinicId: string | undefined, period: strin
     queryFn: async () => {
       if (!clinicId) return { fins: [], appts: [], pats: [] }
       const { from, to } = reportWindow(period)
-      const finQ = supabase.from('financial_records').select('total_amount,type,created_at,procedure_id').eq('clinic_id', clinicId).gte('created_at', from)
+      const finQ = supabase.from('financial_records').select('total_amount,type,created_at,procedure_id,professional_id,received_by').eq('clinic_id', clinicId).gte('created_at', from)
       const apptQ = supabase.from('appointments').select('status,procedure_name,professional_id,patient_id,scheduled_at,patients(name)').eq('clinic_id', clinicId).gte('scheduled_at', from)
       const [finRes, apptRes, patRes] = await Promise.all([
         to ? finQ.lt('created_at', to) : finQ,

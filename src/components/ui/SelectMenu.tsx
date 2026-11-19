@@ -13,8 +13,8 @@ export interface SelectOption {
 }
 
 interface Props {
-  value: string
-  onChange: (value: string) => void
+  value?: string
+  onChange?: (value: string) => void
   options: SelectOption[]
   className?: string
   /** Liga o campo a um <label htmlFor> */
@@ -26,12 +26,18 @@ interface Props {
   placeholder?: string
   /** `pill` (padrão): controle compacto de filtro. `field`: ocupa a largura toda, no padrão dos campos de formulário. */
   variant?: 'pill' | 'field'
+  /** Seleção múltipla: a lista fica aberta enquanto marca; usa `values`/`onChangeValues` no lugar de `value`/`onChange`. */
+  multiple?: boolean
+  values?: string[]
+  onChangeValues?: (values: string[]) => void
+  /** Texto do botão com mais de uma opção marcada (multiple). Recebe a quantidade. */
+  summary?: (count: number) => string
 }
 
 /** Substitui <select> nativo: mesmo padrão visual do MonthPicker/DatePicker (botão + lista em Portal), em vez do
  *  menu do sistema, que não segue o tema do app e varia entre navegadores. Segue o padrão "select-only combobox":
  *  o foco fica no botão; setas, Home, End, Enter, Espaço, Esc, Tab e digitar a inicial funcionam. */
-export function SelectMenu({ value, onChange, options, className, id, ariaLabel, disabled = false, placeholder = 'Selecionar', variant = 'pill' }: Props) {
+export function SelectMenu({ value, onChange, options, className, id, ariaLabel, disabled = false, placeholder = 'Selecionar', variant = 'pill', multiple = false, values = [], onChangeValues, summary }: Props) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 })
@@ -42,17 +48,23 @@ export function SelectMenu({ value, onChange, options, className, id, ariaLabel,
 
   const selectedIndex = options.findIndex(o => o.value === value)
   const current = selectedIndex >= 0 ? options[selectedIndex] : undefined
+  const isOn = (v: string) => (multiple ? values.includes(v) : v === value)
+  const firstOn = multiple ? options.findIndex(o => values.includes(o.value)) : selectedIndex
 
   function openMenu() {
     if (disabled) return
-    setActive(selectedIndex >= 0 ? selectedIndex : options.findIndex(o => !o.disabled))
+    setActive(firstOn >= 0 ? firstOn : options.findIndex(o => !o.disabled))
     setOpen(true)
   }
 
   function choose(i: number) {
     const o = options[i]
     if (!o || o.disabled) return
-    onChange(o.value)
+    if (multiple) {
+      onChangeValues?.(values.includes(o.value) ? values.filter(v => v !== o.value) : [...values, o.value])
+      return
+    }
+    onChange?.(o.value)
     setOpen(false)
     triggerRef.current?.focus()
   }
@@ -131,7 +143,11 @@ export function SelectMenu({ value, onChange, options, className, id, ariaLabel,
     }
   }
 
-  const shownEmpty = !current || current.value === ''
+  const multiLabels = multiple ? options.filter(o => values.includes(o.value)).map(o => o.label) : []
+  const triggerText = multiple
+    ? (multiLabels.length === 0 ? placeholder : multiLabels.length === 1 ? multiLabels[0] : (summary?.(multiLabels.length) ?? `${multiLabels.length} selecionados`))
+    : (current?.label ?? ((value ?? '') || placeholder))
+  const shownEmpty = multiple ? multiLabels.length === 0 : (!current || current.value === '')
 
   return (
     <div className={`${styles.wrap} ${variant === 'field' ? styles.field : ''} ${className ?? ''}`}>
@@ -150,7 +166,7 @@ export function SelectMenu({ value, onChange, options, className, id, ariaLabel,
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}
       >
-        <span className={shownEmpty ? styles.placeholder : undefined}>{current?.label ?? (value || placeholder)}</span>
+        <span className={shownEmpty ? styles.placeholder : undefined}>{triggerText}</span>
         <Icon name="chevronDown" size={14} className={styles.chevron} />
       </button>
       {open && (
@@ -160,6 +176,7 @@ export function SelectMenu({ value, onChange, options, className, id, ariaLabel,
             id={listId}
             role="listbox"
             aria-label={ariaLabel}
+            aria-multiselectable={multiple || undefined}
             className={styles.popover}
             style={{ top: coords.top, left: coords.left, minWidth: coords.width }}
           >
@@ -171,15 +188,15 @@ export function SelectMenu({ value, onChange, options, className, id, ariaLabel,
                   <div
                     id={`${listId}-${i}`}
                     role="option"
-                    aria-selected={o.value === value}
+                    aria-selected={isOn(o.value)}
                     aria-disabled={o.disabled || undefined}
-                    className={`${styles.option} ${o.value === value ? styles.optionActive : ''} ${i === active ? styles.optionHover : ''} ${o.disabled ? styles.optionDisabled : ''}`}
+                    className={`${styles.option} ${isOn(o.value) ? styles.optionActive : ''} ${i === active ? styles.optionHover : ''} ${o.disabled ? styles.optionDisabled : ''}`}
                     onMouseEnter={() => !o.disabled && setActive(i)}
                     onMouseDown={e => e.preventDefault()}
                     onClick={() => choose(i)}
                   >
                     {o.label}
-                    {o.value === value && <Icon name="check" size={14} />}
+                    {isOn(o.value) && <Icon name="check" size={14} />}
                   </div>
                 </div>
               )

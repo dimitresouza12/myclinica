@@ -12,6 +12,8 @@
 .chartLoading { height: 260px; }
 .loading { color: var(--text-secondary); padding: 4rem; text-align: center; font-size: 0.875rem; }
 .wrap { padding: 0 10px 10px; }
+.note { margin: 0; padding: 0 22px 18px; font-size: 0.78rem; line-height: 1.5; color: var(--text-secondary); }
+.noteTop { padding-top: 14px; padding-bottom: 6px; }
 
 /* tabela mensal: margem em número com barra fina */
 .strongNum { font-weight: 600; }
