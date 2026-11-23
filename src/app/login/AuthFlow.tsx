@@ -8,7 +8,7 @@ import { audit } from '@/lib/audit'
 import { normalizeUsername } from '@/lib/username'
 import { getSpecialtyConfig, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { MEDICO_AREA_OPTIONS } from '@/lib/medicoSpecialties'
-import { PLAN_CATALOG } from '@/lib/planCatalog'
+import { PLAN_CATALOG, PUBLIC_PLANS, isPublicPlan } from '@/lib/planCatalog'
 import type { Clinic, ClinicUser, AuthClinic, AuthUser, ClinicPlan, ClinicType } from '@/types'
 import styles from './login.module.css'
 import { Icon } from '@/components/ui/Icon'
@@ -109,15 +109,21 @@ const QUIZ_STEPS = [
 // Mesmos sinais de sempre (tamanho de equipe, volume de pacientes, feature
 // desejada, multi-unidade), agora em três respostas: "Mais de uma unidade"
 // vem junto com a pergunta de equipe. O antigo bucket "completo" virou
-// "ilimitado" e "avancado" virou "completo" (ver planCatalog.ts).
+// "equipe" (o antigo "ilimitado") e "avancado" virou "completo" (ver planCatalog.ts).
 function calcPlan([team, patients, focus]: string[]): typeof QUIZ_PLANS[number] {
-  if (team === 'multi' || team === 'large' || patients === 'many' || focus === 'relatorios') return 'ilimitado'
+  if (team === 'multi' || team === 'large' || patients === 'many' || focus === 'relatorios') return 'equipe'
   if (team === 'small' || patients === 'medium' || focus === 'financeiro') return 'completo'
   return 'essencial'
 }
 
-// Completo+ fica fora do quiz/cadastro de autoatendimento — é sob consulta.
-const QUIZ_PLANS = ['essencial', 'completo', 'ilimitado'] as const
+// Só os planos da venda pública entram no quiz/cadastro. Ilimitado (legado) e Completo+ (sob consulta) ficam de fora.
+const QUIZ_PLANS = PUBLIC_PLANS
+
+// ?plan= do link: 'ilimitado' é link legado e vira 'equipe'; o que não for plano público é ignorado.
+function planFromParam(param: string | null): typeof QUIZ_PLANS[number] | null {
+  if (param === 'ilimitado') return 'equipe'
+  return isPublicPlan(param) ? param : null
+}
 
 // Fonte única do rótulo de cada área — vem de specialtyConfig.ts, não
 // duplicado aqui (era o caso antes; qualquer área nova só precisa ser
@@ -283,8 +289,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
 
   const [mode, setMode] = useState<Mode>(() => {
     if (variant === 'login') return 'login'
-    const planParam = searchParams.get('plan')
-    if (planParam === 'essencial' || planParam === 'completo' || planParam === 'ilimitado') return 'register'
+    if (planFromParam(searchParams.get('plan'))) return 'register'
     if (searchParams.get('mode') === 'register') return 'register'
     return 'quiz'
   })
@@ -393,11 +398,8 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
   // Register state
   const BLANK_REG: RegisterForm = { clinic_type: '', clinic_name: '', admin_name: '', username: '', email: '', password: '', phone: '', cpf: '', plan: 'essencial' }
   const [reg, setReg] = useState<RegisterForm>(() => {
-    const planParam = searchParams.get('plan')
-    if (planParam === 'essencial' || planParam === 'completo' || planParam === 'ilimitado') {
-      return { ...BLANK_REG, plan: planParam }
-    }
-    return BLANK_REG
+    const planParam = planFromParam(searchParams.get('plan'))
+    return planParam ? { ...BLANK_REG, plan: planParam } : BLANK_REG
   })
   const [regError, setRegError] = useState('')
   const [regSuccess, setRegSuccess] = useState(false)
@@ -910,7 +912,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
       <div
         ref={setPanelEl}
         className={styles.card}
-        {...(variant === 'demo' ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Teste grátis por 7 dias', tabIndex: -1 } : {})}
+        {...(variant === 'demo' ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Teste grátis por 14 dias', tabIndex: -1 } : {})}
       >
         <div className={styles.brand}>
           {variant === 'login' ? (
@@ -1041,7 +1043,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
             )}
             <div className={styles.or}>ainda não usa?</div>
             <button type="button" className={styles.btnGhost} onClick={() => router.push('/experimentar')}>
-              Testar 7 dias grátis
+              Testar 14 dias grátis
             </button>
             <a
               href="https://wa.me/5588920020570?text=Olá!%20Gostaria%20de%20efetivar%20minha%20vantagem%20de%20indicação."
@@ -1073,7 +1075,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
                 <div className={styles.quizRec}>
                   <span className={styles.quizRecTag}>Recomendado para você</span>
                   <span className={styles.quizRecName}>{PLANS.find(p => p.value === quizResult)?.label}</span>
-                  <span className={styles.quizRecPrice}>{PLANS.find(p => p.value === quizResult)?.price} · 7 dias grátis</span>
+                  <span className={styles.quizRecPrice}>{PLANS.find(p => p.value === quizResult)?.price} · 14 dias grátis</span>
                   <ul className={styles.quizWhy}>
                     {QUIZ_STEPS.map((st, i) => {
                       const opt = st.options.find(o => o.value === quizAnswers[i])
@@ -1236,7 +1238,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
                   <div className={styles.successIcon}><Icon name="checkCircle" size={24} /></div>
                   <h3 className={styles.successTitle}>Clínica criada!</h3>
                   <p className={styles.successMsg}>
-                    Sua clínica está pronta. Você tem <strong>7 dias grátis</strong> para explorar tudo.<br /><br />
+                    Sua clínica está pronta. Você tem <strong>14 dias grátis</strong> para explorar tudo.<br /><br />
                     {error ? 'Não conseguimos entrar automaticamente. Faça login com o e-mail e a senha que você acabou de cadastrar.' : 'Entrando no sistema…'}
                   </p>
                   {error && (
@@ -1277,7 +1279,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
                         <div className={styles.regPlan}>
                           <div className={styles.regPlanText}>
                             <b>Plano {PLANS.find(p => p.value === reg.plan)?.label} · {PLANS.find(p => p.value === reg.plan)?.price}</b>
-                            <small>7 dias grátis, sem cartão de crédito</small>
+                            <small>14 dias grátis, sem cartão de crédito</small>
                           </div>
                           <button type="button" className={styles.regPlanChange} onClick={() => setPlanOpen(true)}>Trocar</button>
                         </div>
@@ -1436,7 +1438,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
                           <button type="button" className={styles.termsLink} onClick={() => setShowTerms(true)}>
                             Termos de Uso
                           </button>
-                          , trial gratuito por 7 dias
+                          , trial gratuito por 14 dias
                         </span>
                       </label>
                     </>
@@ -1483,10 +1485,10 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
                   <h3>2. Descrição do Serviço</h3>
                   <p>My Clinica é uma plataforma SaaS de gestão clínica que oferece funcionalidades de agenda, prontuário eletrônico, financeiro, estoque, CRM e integrações com ferramentas externas.</p>
                   <h3>3. Período de Teste Gratuito (Trial)</h3>
-                  <p>Ao realizar o cadastro, você terá acesso gratuito à plataforma por <strong>7 (sete) dias corridos</strong>, contados a partir da data do cadastro. A clínica já é criada em período de teste, sem necessidade de aprovação prévia. Durante o trial, todas as funcionalidades do plano escolhido no cadastro estarão disponíveis sem custo.</p>
+                  <p>Ao realizar o cadastro, você terá acesso gratuito à plataforma por <strong>14 (quatorze) dias corridos</strong>, contados a partir da data do cadastro. A clínica já é criada em período de teste, sem necessidade de aprovação prévia. Durante o trial, todas as funcionalidades do plano escolhido no cadastro estarão disponíveis sem custo.</p>
                   <p>Após o encerramento do período de teste, o acesso será mantido somente mediante contratação de um dos planos pagos disponíveis. Não há cobrança automática ao término do trial — o acesso simplesmente será suspenso até a regularização.</p>
                   <h3>4. Planos e Pagamentos</h3>
-                  <p>Os planos disponíveis (Essencial, Completo, Ilimitado e Ilimitado + IA) possuem valores e condições definidos na página de planos da plataforma. Os preços podem ser alterados mediante aviso prévio de 30 dias. O não pagamento dentro do prazo acordado pode resultar na suspensão do acesso.</p>
+                  <p>Os planos disponíveis (Essencial, Completo e Equipe) possuem valores e condições definidos na página de planos da plataforma. Os preços podem ser alterados mediante aviso prévio de 30 dias. O não pagamento dentro do prazo acordado pode resultar na suspensão do acesso.</p>
                   <h3>5. Dados e Privacidade</h3>
                   <p>Os dados inseridos na plataforma (pacientes, prontuários, financeiro) são de propriedade da clínica cadastrada. A My Clinica não compartilha, vende ou utiliza esses dados para fins comerciais. As informações são armazenadas de forma segura, em conformidade com a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018).</p>
                   <p>O usuário é responsável por manter a confidencialidade de suas credenciais de acesso e por todas as ações realizadas em sua conta.</p>

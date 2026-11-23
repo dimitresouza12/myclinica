@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { AuthFlow } from '../login/AuthFlow'
 
-export const metadata = { title: 'Teste grátis por 7 dias | MyClínica' }
+export const metadata = { title: 'Teste grátis por 14 dias | MyClínica' }
 
 export default function ExperimentarPage() {
   return (

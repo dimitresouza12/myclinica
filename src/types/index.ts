@@ -8,7 +8,7 @@ export type ClinicStatus = 'active' | 'inactive' | 'suspended' | 'pending' | 'tr
 // 'avancado' | 'basico' | 'plus' são planos legados — nenhuma clínica nova
 // nasce com esses valores (ver src/lib/planCatalog.ts), mas ficam no union
 // pra não quebrar leitura de registros antigos.
-export type ClinicPlan = 'essencial' | 'completo' | 'ilimitado' | 'completo_plus' | 'avancado' | 'basico' | 'plus'
+export type ClinicPlan = 'essencial' | 'completo' | 'equipe' | 'ilimitado' | 'completo_plus' | 'avancado' | 'basico' | 'plus'
 
 export interface Clinic {
   id: string

@@ -15,6 +15,8 @@ const PLAN_DEFAULT_USERS: Record<string, number | null> = {
   basico: 1,
   avancado: 3,
   completo: null,
+  equipe: null,
+  ilimitado: null,
   completo_plus: null,
   plus: null,
 }

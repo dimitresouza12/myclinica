@@ -9,6 +9,7 @@ describe('isLegacyTrialLogin', () => {
     expect(isLegacyTrialLogin('/login?plan=completo')).toBe(true)
     expect(isLegacyTrialLogin('/login?plan=ilimitado')).toBe(true)
   })
+  it('plan=equipe', () => expect(isLegacyTrialLogin('/login?plan=equipe')).toBe(true))
   it('plan vazio não conta', () => expect(isLegacyTrialLogin('/login?plan=')).toBe(false))
   it('quiz diferente de true não conta', () => expect(isLegacyTrialLogin('/login?quiz=false')).toBe(false))
   it('/login puro', () => expect(isLegacyTrialLogin('/login')).toBe(false))

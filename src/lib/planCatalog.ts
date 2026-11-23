@@ -10,7 +10,11 @@
 // por login) e um novo "Ilimitado" abriu acima. Clínicas antigas em
 // 'avancado' foram migradas pra 'completo' (ver migration da Bloco C).
 
-export type SellablePlan = 'essencial' | 'completo' | 'ilimitado' | 'completo_plus'
+// 'equipe' (R$169,90, até 6 profissionais) é o plano de topo da venda pública.
+// 'ilimitado' continua no catálogo: quem já está nele segue sem limite, e o
+// Gestor/admin ainda podem atribuí-lo, mas ele não é mais oferecido ao público
+// (ver PUBLIC_PLANS). 'completo_plus' fica fora da venda pública (sob consulta).
+export type SellablePlan = 'essencial' | 'completo' | 'equipe' | 'ilimitado' | 'completo_plus'
 
 export interface PlanCatalogEntry {
   label: string
@@ -41,6 +45,14 @@ export const PLAN_CATALOG: Record<SellablePlan, PlanCatalogEntry> = {
     description: 'Tudo do Essencial + equipe, relatórios avançados e até 3 profissionais.',
     color: '#7c3aed',
   },
+  equipe: {
+    label: 'Equipe',
+    price: 'R$ 169,90/mês',
+    priceValue: 169.90,
+    professionalLimit: 6,
+    description: 'Tudo do Completo + equipe maior, com até 6 profissionais.',
+    color: '#0891b2',
+  },
   ilimitado: {
     label: 'Ilimitado',
     price: 'R$ 169,90/mês',
@@ -59,7 +71,18 @@ export const PLAN_CATALOG: Record<SellablePlan, PlanCatalogEntry> = {
   },
 }
 
+// Planos que o sistema reconhece e aceita (Gestor, admin, banco). Inclui os
+// que já não são ofertados ao público.
 export const SELLABLE_PLANS = Object.keys(PLAN_CATALOG) as SellablePlan[]
+
+// Planos oferecidos ao público (cadastro, contrato, upgrade). 'ilimitado' e
+// 'completo_plus' ficam de fora de propósito.
+export const PUBLIC_PLANS = ['essencial', 'completo', 'equipe'] as const satisfies readonly SellablePlan[]
+export type PublicPlan = (typeof PUBLIC_PLANS)[number]
+
+export function isPublicPlan(plan: string | null | undefined): plan is PublicPlan {
+  return !!plan && (PUBLIC_PLANS as readonly string[]).includes(plan)
+}
 
 export function isSellablePlan(plan: string | null | undefined): plan is SellablePlan {
   return !!plan && plan in PLAN_CATALOG
