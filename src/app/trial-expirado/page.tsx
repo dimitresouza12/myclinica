@@ -6,13 +6,16 @@ import { Icon } from '@/components/ui/Icon'
 import styles from './trial-expirado.module.css'
 
 export default function TrialExpiradoPage() {
-  const { clinic, user } = useAuthStore()
+  const { clinic } = useAuthStore()
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
 
   const planInfo = getPlanEntry(clinic?.plan)
   const priceInt = Math.floor(planInfo.priceValue)
   const priceCents = planInfo.priceValue % 1 > 0 ? `,${String(Math.round((planInfo.priceValue % 1) * 100)).padStart(2,'0')}` : ''
+
+  const supportMsg = `Olá! Meu período de teste do MyClinica${clinic?.name ? ` (${clinic.name})` : ''} encerrou e preciso de ajuda.`
+  const supportHref = `https://wa.me/5588920020570?text=${encodeURIComponent(supportMsg)}`
 
   async function handleSubscribe() {
     if (!clinic) return
@@ -77,16 +80,14 @@ export default function TrialExpiradoPage() {
           {loading ? 'Aguarde...' : `Assinar agora — R$${priceInt}${priceCents}/mês`}
         </button>
 
-        {user?.isSuperAdmin === false && (
-          <a
-            href="https://wa.me/5588920020570?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20pagamento%20do%20MyClinica."
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.linkBack}
-          >
-            Precisa de ajuda? Fale pelo WhatsApp
-          </a>
-        )}
+        <a
+          href={supportHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.btnSupport}
+        >
+          Falar com o suporte
+        </a>
 
         <a href="/login" className={styles.linkBack}>Voltar ao login</a>
       </div>

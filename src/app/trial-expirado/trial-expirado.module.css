@@ -73,6 +73,26 @@
 .btnContact:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
 .btnContact:disabled { background: var(--track); color: var(--text-tertiary); cursor: not-allowed; }
 
+.btnSupport {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 1.5rem;
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btnSupport:hover { background: var(--brand-light); border-color: var(--brand-primary); }
+.btnSupport:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+
 .price {
   display: flex;
   align-items: baseline;

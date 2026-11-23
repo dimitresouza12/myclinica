@@ -108,7 +108,7 @@ export function PaymentLateBanner() {
             rel="noopener noreferrer"
             className={`${btn.secondary} ${styles.block}`}
           >
-            Não testei o suficiente — falar com suporte
+            Falar com o suporte
           </a>
         </div>
       </Modal>
