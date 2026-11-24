@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAlertRows, countUrgent, daysAgo, groupAlertRows, isDismissed, parseDismissed, SYSTEM_ALERT_LINK, withOnlineBookingAlert } from './actionAlerts'
+import { buildAlertRows, countUrgent, daysAgo, groupAlertRows, isDismissed, parseDismissed, SYSTEM_ALERT_LINK, withAutomacaoAlerts, withOnlineBookingAlert, ALERT_META, GROUP_TITLE, GROUP_ORDER, AUTOMACAO_REASONS } from './actionAlerts'
 import type { DashboardAlert } from '@/hooks/useClinicData'
 
 // terça-feira, 3 de novembro de 2026, 15h
@@ -144,5 +144,55 @@ describe('withOnlineBookingAlert', () => {
     const two = buildAlertRows(withOnlineBookingAlert([], 2), NOW)[0]
     expect(one.name).toBe('1 agendamento online para confirmar')
     expect(one.sig).not.toBe(two.sig)
+  })
+})
+
+describe('avisos da automação em Ações necessárias', () => {
+  const aviso = (id: string, tipo: 'confirmou' | 'pediu_remarcar' | 'nao_entendi' | 'sem_resposta', criada: string, corpo: string | null = `Corpo ${id}.`) =>
+    ({ id, clinic_id: 'c1', tipo, titulo: `Título ${id}`, corpo, link: `/agenda?consulta=${id}`, appointment_id: id, criada_em: criada, lida_em: null })
+
+  it('cada motivo novo tem ícone, grupo e posição na ordem, sem emoji', () => {
+    for (const r of AUTOMACAO_REASONS) {
+      expect(ALERT_META[r].label).toBeTruthy()
+      expect(GROUP_ORDER).toContain(r)
+      expect(`${ALERT_META[r].label}${GROUP_TITLE[r]}`).not.toMatch(/\p{Extended_Pictographic}/u)
+    }
+    expect([...AUTOMACAO_REASONS].sort()).toEqual(['confirmou', 'nao_entendi', 'pediu_remarcar', 'sem_resposta'])
+  })
+
+  it('vira uma linha por aviso, com destino, id e tempo relativo', () => {
+    const rows = buildAlertRows(withAutomacaoAlerts([], [
+      aviso('a', 'confirmou', new Date(NOW - 5 * 60_000).toISOString()),
+      aviso('b', 'confirmou', new Date(NOW - 3_600_000).toISOString()),
+    ], NOW), NOW)
+    expect(rows).toHaveLength(2)
+    const a = rows.find(r => r.notificacaoId === 'a')!
+    expect(a).toMatchObject({ reason: 'confirmou', name: 'Título a', href: '/agenda?consulta=a', sig: 'a' })
+    expect(a.context).toBe('há 5 min · Corpo a.')
+  })
+
+  it('sem corpo mostra só o tempo', () => {
+    const [r] = buildAlertRows(withAutomacaoAlerts([], [aviso('a', 'sem_resposta', new Date(NOW - 120_000).toISOString(), null)], NOW), NOW)
+    expect(r.context).toBe('há 2 min')
+  })
+
+  it('só pediu para remarcar e resposta para conferir contam como urgentes', () => {
+    const rows = buildAlertRows(withAutomacaoAlerts([], [
+      aviso('a', 'confirmou', new Date(NOW).toISOString()),
+      aviso('b', 'pediu_remarcar', new Date(NOW).toISOString()),
+      aviso('c', 'nao_entendi', new Date(NOW).toISOString()),
+      aviso('d', 'sem_resposta', new Date(NOW).toISOString()),
+    ], NOW), NOW)
+    expect(countUrgent(rows)).toBe(2)
+  })
+
+  it('agrupa por tipo e põe o aviso mais recente primeiro', () => {
+    const groups = groupAlertRows(buildAlertRows(withAutomacaoAlerts([al('faltou', 'p', iso(2026, 11, 1))], [
+      aviso('velho', 'confirmou', new Date(NOW - 7_200_000).toISOString()),
+      aviso('novo', 'confirmou', new Date(NOW - 60_000).toISOString()),
+      aviso('r', 'pediu_remarcar', new Date(NOW - 60_000).toISOString()),
+    ], NOW), NOW))
+    expect(groups.map(g => g.reason)).toEqual(['pediu_remarcar', 'faltou', 'confirmou'])
+    expect(groups[2].rows.map(r => r.notificacaoId)).toEqual(['novo', 'velho'])
   })
 })

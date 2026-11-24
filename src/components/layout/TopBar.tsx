@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -13,12 +13,15 @@ import { useDashboardData, useEstoqueData, useProfessionals } from '@/hooks/useC
 import { useSchedules, scheduleOf } from '@/hooks/useSchedules'
 import { useOnlineBookingPending } from '@/hooks/useOnlineBookingPending'
 import { useEstoqueLotes } from '@/hooks/useEstoqueLotes'
+import { useAutomacaoNotificacoes } from '@/hooks/useAutomacaoNotificacoes'
+import { showToast } from '@/components/ui/Toast'
+import { createToastGate, podeVerAvisosAutomacao, textoDoAviso, linkDoAviso, type AutomacaoNotificacao } from '@/lib/automacaoNotificacoes'
 import { resumoAlertas, textoAlertaValidade } from '@/lib/estoque/lotes'
 import { withExpiryAlert } from '@/lib/estoque/alertaValidade'
 import { hojeBrasil } from '@/lib/brasilDate'
 import { scheduleReminder } from '@/lib/agenda/reminder'
 import { isAdminOrRecepcao } from '@/lib/professionalScope'
-import { ALERT_META, PRIMARY_LABEL, SYSTEM_ALERT_LINK, alertMessage, buildAlertRows, buildWaLink, countUrgent, dismissAlert, groupAlertRows, ignoredStorageKey, isDismissed, parseDismissed, subscribeIgnoredAlerts, withLowStockAlert, withOnlineBookingAlert, withScheduleAlert, type AlertRow } from '@/lib/actionAlerts'
+import { ALERT_META, AUTOMACAO_REASONS, PRIMARY_LABEL, SYSTEM_ALERT_LINK, alertMessage, buildAlertRows, buildWaLink, countUrgent, dismissAlert, groupAlertRows, ignoredStorageKey, isDismissed, parseDismissed, subscribeIgnoredAlerts, withLowStockAlert, withAutomacaoAlerts, withOnlineBookingAlert, withScheduleAlert, type AlertRow } from '@/lib/actionAlerts'
 import { waMeNumber } from '@/lib/phoneFormat'
 import { useTheme } from '@/hooks/useTheme'
 import { userRoleLabel } from '@/lib/roleLabel'
@@ -100,6 +103,10 @@ function BarSearch() {
 const GROUP_PREVIEW = 5
 const GROUP_FOLD_AT = GROUP_PREVIEW + 2
 
+/** Aviso no canto da tela: no máximo 3 ao mesmo tempo (cada um fica 6 s, como o Toast com link). O resto fica só no sino. */
+const AVISO_MAX_NA_TELA = 3
+const AVISO_DURACAO_MS = 6000
+
 /** "Ações necessárias" do Dashboard, também na barra: uma linha por paciente, agrupada por tipo, com uma ação principal. */
 function AlertsMenu() {
   const { clinic, user } = useAuthStore()
@@ -130,7 +137,29 @@ function AlertsMenu() {
   const { data } = useDashboardData(alertsClinicId)
   const { data: estoque } = useEstoqueData(alertsClinicId)
   const { data: estoqueLotes } = useEstoqueLotes(alertsClinicId)
+  // avisos da automação (confirmou, pediu para remarcar...): módulo Agenda, não Dashboard
+  const avisosClinicId = podeVerAvisosAutomacao(user, permissions, loaded) ? clinic?.id : undefined
+  const toastGate = useRef(createToastGate(AVISO_MAX_NA_TELA, AVISO_DURACAO_MS))
+  // o aviso na tela e o sino ficam separados do resto: um aviso novo em tempo real vira toast com botão para abrir a consulta
+  const avisosRef = useRef<{ marcarLida: (id: string) => void }>({ marcarLida: () => {} })
+  const onAvisoNovo = useCallback((n: AutomacaoNotificacao) => {
+    if (!toastGate.current.tryShow(Date.now())) return
+    showToast(n.tipo === 'confirmou' ? 'ok' : 'error', textoDoAviso(n), {
+      href: linkDoAviso(n),
+      actionLabel: 'Abrir consulta',
+      onAction: () => avisosRef.current.marcarLida(n.id),
+    })
+  }, [])
+  const { items: avisos, marcarLida, marcarTodasLidas } = useAutomacaoNotificacoes(avisosClinicId, onAvisoNovo)
+  useEffect(() => { avisosRef.current = { marcarLida: id => { void marcarLida(id) } } }, [marcarLida])
+  // o tempo relativo dos avisos ("há 5 min") se atualiza enquanto o menu está aberto
+  const [avisoNow, setAvisoNow] = useState(() => Date.now())
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (!open || avisos.length === 0) return
+    const t = setInterval(() => setAvisoNow(Date.now()), 30_000)
+    return () => clearInterval(t)
+  }, [open, avisos.length])
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   // linhas em que o WhatsApp já foi aberto: o botão principal vira "Já resolvi"
   const [contacted, setContacted] = useState<Record<string, boolean>>({})
@@ -188,14 +217,14 @@ function AlertsMenu() {
     [schedules, professionals, now],
   )
   const rows = useMemo(
-    () => buildAlertRows(withOnlineBookingAlert(withScheduleAlert(withExpiryAlert(withLowStockAlert(data?.alerts ?? [], lowStock), validadeTexto), reminder), onlinePending), now)
-      .filter(r => canSeePatients || !!SYSTEM_ALERT_LINK[r.reason])
+    () => buildAlertRows(withAutomacaoAlerts(withOnlineBookingAlert(withScheduleAlert(withExpiryAlert(withLowStockAlert(data?.alerts ?? [], lowStock), validadeTexto), reminder), onlinePending), avisos, avisoNow), now)
+      .filter(r => canSeePatients || !!SYSTEM_ALERT_LINK[r.reason] || AUTOMACAO_REASONS.has(r.reason))
       .filter(r => !isDismissed(dismissed[r.key], r)),
-    [data, lowStock, validadeTexto, reminder, onlinePending, now, dismissed, canSeePatients],
+    [data, lowStock, validadeTexto, reminder, onlinePending, avisos, avisoNow, now, dismissed, canSeePatients],
   )
   const groups = useMemo(() => groupAlertRows(rows), [rows])
   const urgent = useMemo(() => countUrgent(rows), [rows])
-  if (!clinicId || rows.length === 0) return null
+  if ((!clinicId && !avisosClinicId) || rows.length === 0) return null
 
   function closeSheet() {
     setOpen(false)
@@ -203,6 +232,10 @@ function AlertsMenu() {
   }
 
   function primaryAction(r: AlertRow) {
+    if (r.notificacaoId && r.href) {
+      const id = r.notificacaoId
+      return <Link className={styles.alertAct} href={r.href} onClick={() => { void marcarLida(id); setOpen(false) }}>Abrir consulta</Link>
+    }
     const system = SYSTEM_ALERT_LINK[r.reason]
     if (system) return <Link className={styles.alertAct} href={system.href} onClick={() => setOpen(false)}>{system.label}</Link>
     if (contacted[r.key]) {
@@ -221,6 +254,9 @@ function AlertsMenu() {
 
   const list = (
       <div className={styles.alertList}>
+        {avisos.length > 0 && (
+          <button type="button" className={styles.alertMoreRows} onClick={() => { void marcarTodasLidas() }}>Marcar avisos da automação como lidos</button>
+        )}
         {groups.map(g => {
           const meta = ALERT_META[g.reason]
           const foldable = g.rows.length > GROUP_FOLD_AT
@@ -256,9 +292,15 @@ function AlertsMenu() {
                   </div>
                   {menuKey === r.key && (
                     <div className={styles.alertMenu}>
-                      <button type="button" className={styles.alertMenuBtn} onClick={() => dismiss(r, 'resolved')}>Já resolvi</button>
-                      <button type="button" className={styles.alertMenuBtn} onClick={() => dismiss(r, 'snoozed')} title="Esconde por 7 dias">Adiar 7 dias</button>
-                      {!SYSTEM_ALERT_LINK[r.reason] && waMeNumber(r.phone) && (
+                      {r.notificacaoId ? (
+                        <button type="button" className={styles.alertMenuBtn} onClick={() => { void marcarLida(r.notificacaoId!); setMenuKey(null) }}>Marcar como lida</button>
+                      ) : (
+                        <>
+                          <button type="button" className={styles.alertMenuBtn} onClick={() => dismiss(r, 'resolved')}>Já resolvi</button>
+                          <button type="button" className={styles.alertMenuBtn} onClick={() => dismiss(r, 'snoozed')} title="Esconde por 7 dias">Adiar 7 dias</button>
+                        </>
+                      )}
+                      {!SYSTEM_ALERT_LINK[r.reason] && !r.notificacaoId && waMeNumber(r.phone) && (
                         <Link className={styles.alertMenuBtn} href={patientHref(r.patientId)} onClick={() => setOpen(false)}>Abrir paciente</Link>
                       )}
                     </div>
@@ -280,7 +322,7 @@ function AlertsMenu() {
 
   return (
     <div className={styles.menuWrap} ref={wrap}>
-      <button type="button" className={`${styles.iconBtn} ${styles.alertBtn} ${open ? styles.iconBtnOn : ''}`} aria-label={label} aria-haspopup={isMobile ? 'dialog' : 'menu'} aria-expanded={open} aria-controls={id} onClick={() => { setEverOpened(true); setOpen(v => !v) }}>
+      <button type="button" className={`${styles.iconBtn} ${styles.alertBtn} ${open ? styles.iconBtnOn : ''}`} aria-label={label} aria-haspopup={isMobile ? 'dialog' : 'menu'} aria-expanded={open} aria-controls={id} onClick={() => { setEverOpened(true); setAvisoNow(Date.now()); setOpen(v => !v) }}>
         <Icon name="bell" size={20} />
         <span className={`${styles.bellBadge} ${urgent > 0 ? styles.bellBadgeUrgent : ''}`} aria-hidden="true">{rows.length > 9 ? '9+' : rows.length}</span>
       </button>

@@ -167,9 +167,9 @@ export function formatDiaBr(day: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : day
 }
 
-/** 99.9 → "R$ 99,90". */
+/** 99.9 → "R$ 99,90"; 1168.9 → "R$ 1.168,90". */
 export function formatBrl(value: number): string {
-  return `R$ ${value.toFixed(2).replace('.', ',')}`
+  return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 // ── Resposta do servidor ────────────────────────────────────────────────────

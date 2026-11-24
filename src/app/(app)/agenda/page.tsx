@@ -752,6 +752,37 @@ function AgendaContent() {
       .then(({ data }) => { if (data) openWith(data as Patient) })
   }, [prefillPatientId, agendaData, blankAppt, clinic?.id])
 
+  // Link /agenda?consulta=<id> (do aviso da automação, no sino): vai até o dia da consulta e abre o detalhe dela.
+  // Uma vez por link; o parâmetro some da URL. Consulta fora da janela carregada (mais de 3 meses atrás) é buscada pelo id.
+  const consultaParam = useSearchParams().get('consulta')
+  const consultaHandled = useRef<string | null>(null)
+  useEffect(() => {
+    if (!consultaParam) { consultaHandled.current = null; return }
+    if (consultaHandled.current === consultaParam || !agendaData || !clinic?.id) return
+    consultaHandled.current = consultaParam
+    const params = new URLSearchParams(window.location.search)
+    params.delete('consulta')
+    const rest = params.toString()
+    window.history.replaceState(null, '', rest ? `/agenda?${rest}` : '/agenda')
+    const show = (a: Appointment) => {
+      const d = new Date(a.scheduled_at)
+      setCurrentDate(d)
+      calRef.current?.gotoDate(d)
+      setSelected(a)
+    }
+    const found = agendaData.appointments.find(x => x.id === consultaParam)
+    if (found) { show(found); return }
+    const notFound = () => showToast('error', 'Não encontramos essa consulta. Ela pode ter sido removida.')
+    supabase.from('appointments').select('*, patients(id, name, phone, pet_name), professionals(id, name)')
+      .eq('id', consultaParam).eq('clinic_id', clinic.id).maybeSingle()
+      .then(({ data }) => {
+        const a = data as Appointment | null
+        // o profissional restrito só vê as próprias consultas, mesmo que o banco devolva outra
+        if (!a || (scopeProfessionalId && a.status !== 'bloqueado' && a.professional_id !== scopeProfessionalId)) { notFound(); return }
+        show(a)
+      })
+  }, [consultaParam, agendaData, clinic?.id, scopeProfessionalId])
+
   // Link /agenda?profissional=<id>: abre já na agenda só dele. Uma vez só, quando a lista de profissionais chega
   // (ajuste de estado durante a renderização, protegido por `focusDone`).
   const focusParam = useSearchParams().get('profissional')

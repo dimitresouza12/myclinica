@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { parseEnvelope, extractConnectionUpdate } from '@/lib/whatsapp/webhook-parse'
 import { extractStatusUpdate } from '@/lib/whatsapp/message-events'
-import { handleIncoming } from '@/lib/whatsapp/incoming'
+import { handleIncoming, type IncomingOutcome } from '@/lib/whatsapp/incoming'
+import { prepareInbound, processInbound, processInboundAudio, type InboundCtx } from '@/lib/automacao/inbound'
 import { storeIncoming, applyStatusUpdate } from '@/lib/whatsapp/conversations'
 import { getConnectionByInstance } from '@/lib/whatsapp/connection'
 import { secretMatches } from '../_token'
@@ -24,12 +25,32 @@ export async function POST(req: Request) {
 
   try {
     if (event === 'messages.upsert') {
+      // 0) estado da conversa e configuração da automação ANTES de guardar a mensagem (depois, o contato já
+      // não parece novo). Falha aqui (ou migração da automação ainda não aplicada) = webhook como antes.
+      let auto: InboundCtx | null = null
+      try { auto = await prepareInbound(instance, data) } catch (e) {
+        console.error('[whatsapp/webhook] automação (preparo)', e instanceof Error ? e.name : 'erro')
+      }
       // 1) guarda na conversa (tela Mensagens). Falhar aqui não pode impedir a confirmação abaixo.
       try { await storeIncoming(instance, data) } catch (e) {
         console.error('[whatsapp/webhook] guardar mensagem', e instanceof Error ? e.message : e)
       }
       // 2) resposta a uma confirmação de consulta
-      await handleIncoming(instance, data)
+      let outcome: IncomingOutcome = 'ignorada'
+      try { outcome = await handleIncoming(instance, data) } catch (e) {
+        console.error('[whatsapp/webhook] resposta à confirmação', e instanceof Error ? e.message : e)
+      }
+      // 3) automação: PARAR, resposta fora do horário e repasse ao n8n. Nunca derruba o webhook.
+      if (auto) {
+        try { await processInbound(auto, outcome) } catch (e) {
+          console.error('[whatsapp/webhook] automação', e instanceof Error ? e.name : 'erro')
+        }
+      } else {
+        // mensagem que não é texto: áudio pode ser a resposta falada a uma confirmação (só o id vai ao n8n)
+        try { await processInboundAudio(instance, data) } catch (e) {
+          console.error('[whatsapp/webhook] automação (áudio)', e instanceof Error ? e.name : 'erro')
+        }
+      }
     } else if (event === 'messages.update') {
       const u = extractStatusUpdate(data)
       if (u) await applyStatusUpdate(instance, u)

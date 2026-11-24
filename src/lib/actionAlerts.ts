@@ -1,6 +1,7 @@
 import { waMeNumber } from '@/lib/phoneFormat'
 import type { DashboardAlert, DashboardAlertReason } from '@/hooks/useClinicData'
 import type { IconName } from '@/components/ui/Icon'
+import { linkDoAviso, tempoRelativo, type AutomacaoNotificacao } from '@/lib/automacaoNotificacoes'
 
 // "Ações necessárias": o que o Dashboard e a barra de cima mostram como pendência da clínica.
 
@@ -14,6 +15,10 @@ export const ALERT_META: Record<DashboardAlertReason, { label: string; icon: Ico
   whatsapp_pausado: { label: 'WhatsApp pausado', icon: 'pause', color: '#DC2626' },
   escala_pendente: { label: 'Escala por definir', icon: 'calendar', color: '#D97706' },
   agendamento_online: { label: 'Agendamento online', icon: 'calendar', color: '#2563EB' },
+  confirmou:     { label: 'Confirmou',    icon: 'checkCircle', color: '#16A34A' },
+  pediu_remarcar: { label: 'Quer remarcar', icon: 'swap',   color: '#D97706' },
+  nao_entendi:   { label: 'Resposta para conferir', icon: 'alert', color: '#DC2626' },
+  sem_resposta:  { label: 'Sem resposta', icon: 'clock',    color: '#F59E0B' },
 }
 
 /** Pendências da clínica (não de um paciente): em vez de "Responder", levam à tela certa. */
@@ -22,6 +27,20 @@ export const SYSTEM_ALERT_LINK: Partial<Record<DashboardAlertReason, { href: str
   whatsapp_pausado: { href: '/configuracoes?tab=whatsapp', label: 'Ver WhatsApp' },
   escala_pendente: { href: '/agenda?escala=1', label: 'Abrir escala' },
   agendamento_online: { href: '/agenda', label: 'Abrir agenda' },
+}
+
+/** Soma os avisos da automação (confirmou, pediu para remarcar...) à lista. Cada aviso é uma linha própria, com o destino dele. */
+export function withAutomacaoAlerts(alerts: DashboardAlert[], avisos: AutomacaoNotificacao[], now: number): DashboardAlert[] {
+  return [...alerts, ...avisos.map((n): DashboardAlert => ({
+    patientId: `aviso-${n.id}`,
+    name: n.titulo,
+    phone: null,
+    date: n.criada_em,
+    reason: n.tipo,
+    detail: [tempoRelativo(n.criada_em, now), n.corpo].filter(Boolean).join(' · '),
+    href: linkDoAviso(n),
+    notificacaoId: n.id,
+  }))]
 }
 
 export function buildWaLink(phone: string, message: string): string {
@@ -76,10 +95,10 @@ export function withOnlineBookingAlert(alerts: DashboardAlert[], pending: number
 // ── Linhas do painel: uma por paciente, agrupadas por tipo ──────────────────
 
 /** Ordem dos grupos: primeiro o que está esperando resposta da clínica, por último a rotina. */
-export const GROUP_ORDER: DashboardAlertReason[] = ['whatsapp_pausado', 'respondeu', 'pediu_remarcacao', 'agendamento_online', 'faltou', 'escala_pendente', 'aniversario', 'sem_retorno', 'estoque_baixo']
+export const GROUP_ORDER: DashboardAlertReason[] = ['whatsapp_pausado', 'respondeu', 'pediu_remarcacao', 'pediu_remarcar', 'nao_entendi', 'agendamento_online', 'faltou', 'sem_resposta', 'confirmou', 'escala_pendente', 'aniversario', 'sem_retorno', 'estoque_baixo']
 
 /** O que não pode esperar: alguém está aguardando resposta da clínica, ou o envio automático parou. */
-export const URGENT_REASONS: ReadonlySet<DashboardAlertReason> = new Set<DashboardAlertReason>(['respondeu', 'pediu_remarcacao', 'whatsapp_pausado', 'agendamento_online'])
+export const URGENT_REASONS: ReadonlySet<DashboardAlertReason> = new Set<DashboardAlertReason>(['respondeu', 'pediu_remarcacao', 'whatsapp_pausado', 'agendamento_online', 'pediu_remarcar', 'nao_entendi'])
 
 export const countUrgent = (rows: { reason: DashboardAlertReason }[]) => rows.filter(r => URGENT_REASONS.has(r.reason)).length
 
@@ -93,7 +112,14 @@ export const GROUP_TITLE: Record<DashboardAlertReason, string> = {
   estoque_baixo: 'Estoque',
   escala_pendente: 'Escala',
   agendamento_online: 'Agendamento online',
+  confirmou: 'Confirmaram a consulta',
+  pediu_remarcar: 'Querem remarcar',
+  nao_entendi: 'Respostas para conferir',
+  sem_resposta: 'Sem resposta à confirmação',
 }
+
+/** Motivos que vêm dos avisos da automação (cada linha é um aviso, com destino e "marcar como lido"). */
+export const AUTOMACAO_REASONS: ReadonlySet<DashboardAlertReason> = new Set<DashboardAlertReason>(['confirmou', 'pediu_remarcar', 'nao_entendi', 'sem_resposta'])
 
 /** Texto do botão principal quando há telefone: diz o que a mensagem vai fazer. */
 export const PRIMARY_LABEL: Partial<Record<DashboardAlertReason, string>> = {
@@ -118,6 +144,9 @@ export interface AlertRow {
   context: string
   /** identifica esta ocorrência: se mudar, uma pendência já resolvida volta a aparecer */
   sig: string
+  /** só nos avisos da automação: destino ao clicar e id para marcar como lido */
+  href?: string
+  notificacaoId?: string
 }
 
 export interface AlertGroup { reason: DashboardAlertReason; title: string; rows: AlertRow[] }
@@ -177,9 +206,11 @@ export function buildAlertRows(alerts: DashboardAlert[], now: number): AlertRow[
     phone: a.phone,
     date,
     count,
-    context: contextOf(a.reason, date, count, now),
+    context: a.detail ?? contextOf(a.reason, date, count, now),
+    href: a.href,
+    notificacaoId: a.notificacaoId,
     // o aviso de estoque nasce com a data de agora: o que o identifica é o texto ("2 itens abaixo...")
-    sig: a.reason === 'estoque_baixo' || a.reason === 'escala_pendente' || a.reason === 'agendamento_online' ? a.name : date,
+    sig: a.notificacaoId ?? (a.reason === 'estoque_baixo' || a.reason === 'escala_pendente' || a.reason === 'agendamento_online' ? a.name : date),
   }))
 }
 
@@ -192,6 +223,7 @@ export function groupAlertRows(rows: AlertRow[]): AlertGroup[] {
       if (reason === 'faltou') return y.date.localeCompare(x.date)            // faltou há menos tempo primeiro
       if (reason === 'sem_retorno') return x.date.localeCompare(y.date)       // sumido há mais tempo primeiro
       if (reason === 'respondeu' || reason === 'pediu_remarcacao') return x.date.localeCompare(y.date) // consulta mais próxima
+      if (AUTOMACAO_REASONS.has(reason)) return y.date.localeCompare(x.date) // aviso mais recente primeiro
       return x.name.localeCompare(y.name, 'pt-BR')
     })
     return [{ reason, title: GROUP_TITLE[reason], rows: list }]

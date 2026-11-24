@@ -175,3 +175,45 @@ export async function createCardSubscription(api: AsaasApi, i: CardSubscriptionI
 export async function fixSubscriptionValue(api: AsaasApi, subscriptionId: string, value: number): Promise<void> {
   await api.put(`/subscriptions/${encodeURIComponent(subscriptionId)}`, { value, updatePendingPayments: true })
 }
+
+function holderBody(h: CardHolderInfo): Record<string, string> {
+  const out: Record<string, string> = {
+    name: h.name, email: h.email, cpfCnpj: h.cpfCnpj, postalCode: h.postalCode, addressNumber: h.addressNumber,
+  }
+  if (h.phone.length === 11) out.mobilePhone = h.phone
+  else out.phone = h.phone
+  return out
+}
+
+/**
+ * Troca o cartão de uma assinatura que já existe (PUT /subscriptions/{id}/creditCard). Devolve o resumo do cartão novo e o
+ * token dele, que serve para cobrar uma fatura em aberto sem reenviar os dados do cartão. O token nunca vai para o cliente.
+ */
+export async function updateSubscriptionCard(
+  api: AsaasApi, subscriptionId: string, i: { card: CardData; holder: CardHolderInfo; remoteIp: string },
+): Promise<CardSummary & { token: string | null }> {
+  let res: { creditCard?: unknown } | undefined
+  try {
+    res = await api.put<{ creditCard?: unknown }>(`/subscriptions/${encodeURIComponent(subscriptionId)}/creditCard`, {
+      creditCard: {
+        holderName: i.card.holderName, number: i.card.number, expiryMonth: i.card.expiryMonth,
+        expiryYear: i.card.expiryYear, ccv: i.card.ccv,
+      },
+      creditCardHolderInfo: holderBody(i.holder),
+      remoteIp: i.remoteIp,
+    })
+  } catch (e) {
+    throw classify(e)
+  }
+  const tok = (res?.creditCard as { creditCardToken?: unknown } | undefined)?.creditCardToken
+  return { ...cardSummaryFrom(res?.creditCard), token: typeof tok === 'string' && tok ? tok : null }
+}
+
+/** Cobra uma fatura em aberto no cartão já registrado (token). Lança AsaasCardError em recusa. */
+export async function payWithCardToken(api: AsaasApi, paymentId: string, token: string, remoteIp: string): Promise<void> {
+  try {
+    await api.post(`/payments/${encodeURIComponent(paymentId)}/payWithCreditCard`, { creditCardToken: token, remoteIp })
+  } catch (e) {
+    throw classify(e)
+  }
+}

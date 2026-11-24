@@ -10,7 +10,7 @@ import { roleOrAreaValue, specialtyOptions, specialtyPlaceholder } from '@/lib/c
 import { registerClinicArea } from '@/lib/registerClinicArea'
 import { mergeSpecialtyConfigs, specialtyRoleLabel, roleForSpecialty, resolveDocumentOptions, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { hasWhatsAppAI } from '@/lib/planGates'
-import { professionalLimitFor, getPlanEntry, PLAN_CATALOG } from '@/lib/planCatalog'
+import { professionalLimitFor } from '@/lib/planCatalog'
 import { MODULES, MODULE_EXTRAS, presetPermissions, blankPermissions, type PermissionsForm } from '@/lib/permissionPresets'
 import { clearAllModules, markAllModules, permissionSummary, permissionWarnings, restoreRolePreset } from '@/lib/permissionSummary'
 import { normalizeUsername } from '@/lib/username'
@@ -29,6 +29,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { CredentialsConfirmModal } from '@/components/ui/CredentialsConfirmModal'
 import { confirmDialog } from '@/components/ui/ConfirmDialog'
 import { Icon, type IconName } from '@/components/ui/Icon'
+import { PlanoTab } from '@/components/configuracoes/PlanoTab'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { PasswordInput } from '@/components/ui/PasswordInput'
@@ -42,7 +43,6 @@ import { AgendaSettingsTab } from '@/components/configuracoes/AgendaSettingsTab'
 import { AgendamentoOnlineTab } from '@/components/configuracoes/AgendamentoOnlineTab'
 import { useWhatsAppState } from '@/hooks/useClinicData'
 import { isImageUrl } from '@/hooks/useTemplateBackground'
-import { IntegerInput } from '@/components/ui/NumericInput'
 
 const ROLE_LABELS: Record<UserRole, string> = {
   recepcao:     'Recepção',
@@ -124,104 +124,6 @@ function ConfiguracoesContent() {
   const [phone, setPhone] = useState(() => toInputValue(clinic?.phone))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [billingLoading, setBillingLoading] = useState(false)
-  const [billingError,   setBillingError]   = useState('')
-  const [changingDay,    setChangingDay]     = useState(false)
-  const [dueDayInput,    setDueDayInput]     = useState('')
-  const [dueDayMsg,      setDueDayMsg]       = useState<{ ok: boolean; text: string } | null>(null)
-  const [showUpgrade,    setShowUpgrade]     = useState(false)
-
-  // 'avancado' some da grade de upgrade — só reaparece se a própria clínica
-  // ainda estiver nele (registro antigo não migrado), pro botão "plano
-  // atual" continuar reconhecendo onde ela está.
-  const PLAN_PRICES: Record<string, { label: string; price: string }> =
-    clinic?.plan === 'avancado'
-      ? { avancado: { label: 'Avançado', price: 'R$119,90/mês' }, ...PLAN_CATALOG }
-      : PLAN_CATALOG
-  const planInfo = clinic?.plan === 'avancado'
-    ? { label: 'Avançado', price: 'R$119,90/mês' }
-    : { label: getPlanEntry(clinic?.plan).label, price: getPlanEntry(clinic?.plan).price }
-
-  async function handleSubscribe() {
-    if (!clinic) return
-    setBillingLoading(true)
-    setBillingError('')
-    try {
-      const res  = await fetch('/api/asaas/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clinicId: clinic.id, clinicName: clinic.name }),
-      })
-      const data = await res.json()
-      if (data.url) window.open(data.url, '_blank', 'noopener,noreferrer')
-      else setBillingError(data.error ?? 'Não foi possível gerar o link de pagamento.')
-    } catch {
-      setBillingError('Erro de conexão. Tente novamente.')
-    } finally {
-      setBillingLoading(false)
-    }
-  }
-
-  async function handleAnticipate() {
-    if (!clinic) return
-    setBillingLoading(true)
-    setBillingError('')
-    try {
-      const res  = await fetch('/api/asaas/billing-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clinicId: clinic.id, action: 'anticipate' }),
-      })
-      const data = await res.json()
-      if (data.url) window.open(data.url, '_blank', 'noopener,noreferrer')
-      else setBillingError(data.error ?? 'Não foi possível localizar o pagamento.')
-    } catch {
-      setBillingError('Erro de conexão. Tente novamente.')
-    } finally {
-      setBillingLoading(false)
-    }
-  }
-
-  async function handleChangeDueDay() {
-    if (!clinic) return
-    const day = parseInt(dueDayInput, 10)
-    if (isNaN(day) || day < 1 || day > 28) {
-      setDueDayMsg({ ok: false, text: 'Escolha um dia entre 1 e 28.' }); return
-    }
-    setBillingLoading(true)
-    setDueDayMsg(null)
-    try {
-      const res  = await fetch('/api/asaas/billing-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clinicId: clinic.id, action: 'change_due_day', day }),
-      })
-      const data = await res.json()
-      if (data.ok) {
-        setDueDayMsg({ ok: true, text: data.nextDueDate ? `Próximo vencimento: ${new Date(data.nextDueDate + 'T12:00:00').toLocaleDateString('pt-BR')}` : data.message ?? 'Dia de preferência salvo.' })
-        setChangingDay(false)
-        setDueDayInput('')
-      } else {
-        setDueDayMsg({ ok: false, text: data.error ?? 'Erro ao alterar vencimento.' })
-      }
-    } catch {
-      setDueDayMsg({ ok: false, text: 'Erro de conexão. Tente novamente.' })
-    } finally {
-      setBillingLoading(false)
-    }
-  }
-
-  const trialExpired    = clinic?.trialEndsAt ? new Date() > new Date(clinic.trialEndsAt) : false
-  const isLate          = trialExpired && !clinic?.billingPaid && !!clinic?.asaasCustomerId
-  const neverSubscribed = trialExpired && !clinic?.billingPaid && !clinic?.asaasCustomerId
-  const daysLeft        = clinic?.trialEndsAt && !trialExpired
-    ? Math.ceil((new Date(clinic.trialEndsAt).getTime() - Date.now()) / 86_400_000)
-    : null
-
-  function formatBillingDate(dateStr: string | null | undefined) {
-    if (!dateStr) return null
-    return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
-  }
 
   const logoInputRef = useRef<HTMLInputElement | null>(null)
   const [logoUploading, setLogoUploading] = useState(false)
@@ -788,184 +690,7 @@ function ConfiguracoesContent() {
         </nav>
 
       <div className={styles.panel}>
-      {/* ── Plano & Faturamento ── */}
-      {tab === 'plano' && (
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Plano & Faturamento</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-
-          {/* Linha plano + status */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <div>
-              <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>Plano atual</p>
-              <p style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                {planInfo.label} — {planInfo.price}
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {clinic?.billingPaid && !clinic?.billingOverdueSince && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.75rem', background: '#D1FAE5', color: '#065F46', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                  <Icon name="check" size={12} /> Ativo
-                </span>
-              )}
-              {isLate && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.75rem', background: '#FEF3C7', color: '#92400E', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                  <Icon name="alert" size={12} /> Pagamento atrasado
-                </span>
-              )}
-              {!!clinic?.billingOverdueSince && (
-                <span style={{ padding: '0.25rem 0.75rem', background: '#FEE2E2', color: '#991B1B', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                  Em atraso
-                </span>
-              )}
-              {daysLeft !== null && (
-                <span style={{ padding: '0.25rem 0.75rem', background: '#DBEAFE', color: '#1E40AF', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                  Teste — {daysLeft}d restantes
-                </span>
-              )}
-              {neverSubscribed && (
-                <span style={{ padding: '0.25rem 0.75rem', background: '#FEE2E2', color: '#991B1B', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                  Trial encerrado
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Upgrade de plano */}
-          {!showUpgrade ? (
-            <button
-              onClick={() => setShowUpgrade(true)}
-              style={{ alignSelf: 'flex-start', fontSize: '0.82rem', fontWeight: 600, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-            >
-              Fazer upgrade de plano
-            </button>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-              <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>Selecione o plano desejado e entraremos em contato:</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '0.5rem' }}>
-                {(Object.entries(PLAN_PRICES) as [string, { label: string; price: string }][]).map(([slug, info]) => {
-                  const isCurrent = slug === (clinic?.plan ?? 'essencial')
-                  const waMsgText = `Olá! Gostaria de fazer upgrade do meu plano para *${info.label}* (${info.price}). Minha clínica é *${clinic?.name}*.`
-                  return (
-                    <a
-                      key={slug}
-                      href={isCurrent ? undefined : `https://wa.me/5588920020570?text=${encodeURIComponent(waMsgText)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={isCurrent ? (e) => e.preventDefault() : undefined}
-                      style={{
-                        display: 'flex', flexDirection: 'column', gap: '0.15rem',
-                        padding: '0.65rem 0.85rem',
-                        border: `2px solid ${isCurrent ? 'var(--teal)' : 'var(--border)'}`,
-                        borderRadius: '8px',
-                        background: isCurrent ? 'var(--teal-light, #f0faf8)' : 'var(--bg-primary)',
-                        cursor: isCurrent ? 'default' : 'pointer',
-                        textDecoration: 'none',
-                        transition: 'border-color 0.15s',
-                      }}
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', fontWeight: 700, color: isCurrent ? 'var(--teal)' : 'var(--text-primary)' }}>
-                        {info.label}{isCurrent ? <Icon name="check" size={12} /> : ''}
-                      </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{info.price}</span>
-                      {!isCurrent && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.72rem', color: 'var(--teal)', fontWeight: 600, marginTop: '0.15rem' }}>Solicitar via WhatsApp <Icon name="chevronRight" size={11} /></span>}
-                    </a>
-                  )
-                })}
-              </div>
-              <button
-                onClick={() => setShowUpgrade(false)}
-                style={{ alignSelf: 'flex-start', fontSize: '0.78rem', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-              >
-                Cancelar
-              </button>
-            </div>
-          )}
-
-          {/* Vencimento do plano — assinante usa nextBillingDate, trial usa trialEndsAt */}
-          {(clinic?.nextBillingDate || clinic?.trialEndsAt) && (() => {
-            const isPaid = !!clinic?.nextBillingDate
-            const label  = isPaid
-              ? 'Próximo vencimento'
-              : trialExpired ? 'Trial encerrado em' : 'Trial válido até'
-            const dateStr = isPaid
-              ? formatBillingDate(clinic.nextBillingDate!)
-              : new Date(clinic!.trialEndsAt! + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
-            const color = !isPaid && trialExpired ? '#991B1B' : 'var(--text-primary)'
-            return (
-              <div>
-                <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>{label}</p>
-                <p style={{ fontSize: '0.95rem', fontWeight: 600, color }}>{dateStr}</p>
-              </div>
-            )
-          })()}
-
-          {/* Mudar dia do vencimento */}
-          {clinic?.billingPaid && (
-            <div>
-              {!changingDay ? (
-                <button
-                  style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                  onClick={() => { setChangingDay(true); setDueDayMsg(null) }}
-                >
-                  Mudar dia do vencimento
-                </button>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>Novo dia de vencimento (1–28):</p>
-                  <IntegerInput
-                    min={1} max={28}
-                    value={dueDayInput}
-                    onChange={setDueDayInput}
-                    style={{ width: '4rem', padding: '0.3rem 0.5rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.9rem' }}
-                    placeholder="15"
-                  />
-                  <button className={styles.btnSave} style={{ padding: '0.35rem 0.9rem', fontSize: '0.82rem' }} onClick={handleChangeDueDay} disabled={billingLoading}>
-                    {billingLoading ? 'Salvando...' : 'Confirmar'}
-                  </button>
-                  <button
-                    style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
-                    onClick={() => { setChangingDay(false); setDueDayInput(''); setDueDayMsg(null) }}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              )}
-              {dueDayMsg && (
-                <p style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', marginTop: '0.4rem', color: dueDayMsg.ok ? '#065F46' : '#DC2626' }}>
-                  {dueDayMsg.ok ? <Icon name="check" size={13} /> : <Icon name="alert" size={13} />}{dueDayMsg.text}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Erro geral de billing */}
-          {billingError && (
-            <p style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.82rem', color: '#DC2626' }}><Icon name="alert" size={13} /> {billingError}</p>
-          )}
-
-          {/* Botões de ação */}
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            {(isLate || neverSubscribed) && (
-              <button className={styles.btnSave} onClick={handleSubscribe} disabled={billingLoading}>
-                {billingLoading ? 'Aguarde...' : `Assinar agora — ${planInfo.price}`}
-              </button>
-            )}
-            {clinic?.billingPaid && (
-              <button className={styles.btnSave} onClick={handleAnticipate} disabled={billingLoading}>
-                {billingLoading ? 'Aguarde...' : 'Antecipar pagamento'}
-              </button>
-            )}
-            {!!clinic?.billingOverdueSince && (
-              <button className={styles.btnSave} onClick={handleSubscribe} disabled={billingLoading}>
-                {billingLoading ? 'Aguarde...' : 'Regularizar pagamento'}
-              </button>
-            )}
-          </div>
-
-        </div>
-      </div>
-      )}
+      {tab === 'plano' && clinic && <PlanoTab clinic={clinic} />}
 
       {tab === 'geral' && (
       <>

@@ -105,12 +105,18 @@ interface DashboardStats {
 }
 export interface RevenueByCategory { category: string; value: number }
 export type DashboardAlertReason = 'faltou' | 'sem_retorno' | 'aniversario' | 'estoque_baixo' | 'pediu_remarcacao' | 'respondeu' | 'whatsapp_pausado' | 'escala_pendente' | 'agendamento_online'
+  // avisos da automação para a recepção (tabela automacao_notificacoes)
+  | 'confirmou' | 'pediu_remarcar' | 'nao_entendi' | 'sem_resposta'
 export interface DashboardAlert {
   patientId: string
   name: string
   phone: string | null
   date: string
   reason: DashboardAlertReason
+  /** só nos avisos da automação: texto de apoio, destino e id do aviso (para marcar como lido) */
+  detail?: string
+  href?: string
+  notificacaoId?: string
 }
 export interface TodayCash {
   recebido: number

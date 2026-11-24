@@ -12,18 +12,17 @@
 import { getAdminClient } from '@/lib/supabaseAdmin'
 import { demoClinicIds, isDemoClinic, DEMO_SEND_BLOCKED_MESSAGE } from '@/lib/demoGuard'
 import { checkNumbers, sendText, EvolutionError } from './evolution'
-import { phoneKey, whatsappCandidates } from './phone'
+import { phoneKey, phoneKeys, whatsappCandidates } from './phone'
 import { renderMessage } from './message'
 import { recordOutgoing } from './conversations'
 import {
-  plannedSends, decideSend, lookaheadLimit, startOfLocalDay,
+  plannedSends, decideSend, lookaheadLimit,
   type SendSettings, type ConfirmKind, type SkipReason,
 } from './window'
-import {
-  warmupStart, warmupDailyLimit, isPaused, isRetryable, sendGapMs,
-  ACTIVITY_LOOKBACK_MS, ACTIVITY_SAMPLE_LIMIT, MAX_CONSECUTIVE_FAILURES, PAUSE_WINDOW_MS, RETRYABLE_ERROR,
-  type FailureRow,
-} from './safety'
+import { isRetryable, sendGapMs, MAX_CONSECUTIVE_FAILURES, RETRYABLE_ERROR } from './safety'
+import { sendingGate, type Gate } from './sendGate'
+import { automacaoGerenciadaIds } from '@/lib/automacao/gerenciada'
+import { optedOutKeySet, OptoutReadError, isMissingRelation } from '@/lib/automacao/optout'
 
 const MAX_SENDS_PER_CLINIC_PER_RUN = 10
 const RUN_BUDGET_MS = 4 * 60_000
@@ -59,14 +58,20 @@ export interface ClinicRunResult {
   clinicId: string
   planned: number
   sent: number
-  skipped: Partial<Record<SkipReason | 'ja_enviada' | 'sem_telefone' | 'sem_whatsapp' | 'limite_da_rodada' | 'desconectada' | 'pausada' | 'aquecimento' | 'muitas_falhas', number>>
+  skipped: Partial<Record<SkipReason | 'ja_enviada' | 'sem_telefone' | 'sem_whatsapp' | 'limite_da_rodada' | 'opt_out' | 'optout_indisponivel' | 'desconectada' | 'pausada' | 'aquecimento' | 'muitas_falhas', number>>
   failed: number
   /** Presente só enquanto o número está em aquecimento. */
   warmup?: { limit: number; sentToday: number }
   paused?: boolean
 }
 
-export interface RunResult { dryRun: boolean; clinics: ClinicRunResult[]; staleClosed: number }
+export interface RunResult {
+  dryRun: boolean
+  clinics: ClinicRunResult[]
+  staleClosed: number
+  /** Clínicas puladas porque a automação do n8n cuida das confirmações (clinic_whatsapp.automacao_gerenciada). */
+  skippedManaged: number
+}
 
 const hhmm = (t: string) => t.slice(0, 5)
 
@@ -118,8 +123,13 @@ export async function runConfirmations(opts: RunOptions = {}): Promise<RunResult
   // últimas da lista sem tempo na rodada.
   // Clínica de demonstração nunca envia mensagem real, mesmo que o WhatsApp esteja conectado.
   const allRows = (waRows ?? []) as WaRow[]
-  const demoIds = await demoClinicIds(allRows.map(r => r.clinic_id))
-  const queue = allRows.filter(r => !demoIds.has(r.clinic_id))
+  const allIds = allRows.map(r => r.clinic_id)
+  const demoIds = await demoClinicIds(allIds)
+  // Clínica com a automação do n8n ligada: as confirmações saem por lá. Rodar as duas mandaria
+  // a mensagem em dobro para o paciente.
+  const managedIds = await automacaoGerenciadaIds(allIds)
+  const queue = allRows.filter(r => !demoIds.has(r.clinic_id) && !managedIds.has(r.clinic_id))
+  const skippedManaged = allRows.filter(r => managedIds.has(r.clinic_id) && !demoIds.has(r.clinic_id)).length
   const clinics: ClinicRunResult[] = []
   const worker = async () => {
     for (let wa = queue.shift(); wa; wa = queue.shift()) {
@@ -129,7 +139,7 @@ export async function runConfirmations(opts: RunOptions = {}): Promise<RunResult
   }
   await Promise.all(Array.from({ length: Math.min(CLINIC_CONCURRENCY, queue.length) }, worker))
 
-  return { dryRun, clinics, staleClosed }
+  return { dryRun, clinics, staleClosed, skippedManaged }
 }
 
 async function runClinic(wa: WaRow, now: Date, dryRun: boolean, started: number): Promise<ClinicRunResult> {
@@ -163,6 +173,23 @@ async function runClinic(wa: WaRow, now: Date, dryRun: boolean, started: number)
     ((existing ?? []) as ExistingRow[]).map(e => [`${e.appointment_id}|${e.kind}|${new Date(e.appointment_at).getTime()}`, e]),
   )
 
+  // Quem escreveu PARAR (whatsapp_optout) não recebe confirmação automática, nem desta rotina antiga.
+  // Falha de leitura é falha FECHADA: sem saber quem pediu para parar, a clínica não envia nesta rodada.
+  // Só a tabela ainda inexistente (migração 20261139 não aplicada) deixa a rotina seguir como antes.
+  let optedOut = new Set<string>()
+  try {
+    optedOut = await optedOutKeySet(wa.clinic_id, list.flatMap(a => phoneKeys(a.patients?.phone)))
+  } catch (e) {
+    if (e instanceof OptoutReadError && isMissingRelation(e.code)) {
+      console.warn('[whatsapp/run] whatsapp_optout ainda não existe; seguindo sem a conferência de PARAR')
+    } else {
+      console.error('[whatsapp/run] não foi possível conferir whatsapp_optout; clínica pulada nesta rodada:', e instanceof OptoutReadError ? e.code ?? 'erro' : 'erro')
+      result.skipped.optout_indisponivel = list.length
+      return result
+    }
+  }
+  const isOptedOutPatient = (a: ApptRow) => phoneKeys(a.patients?.phone).some(k => optedOut.has(k))
+
   // pausa e aquecimento só são consultados se houver algo para enviar agora
   let gate: Gate | null = null
   const loadGate = async (): Promise<Gate> => {
@@ -186,6 +213,8 @@ async function runClinic(wa: WaRow, now: Date, dryRun: boolean, started: number)
 
       const decision = decideSend({ appointmentAt: apptAt, createdAt, now, planned }, s)
       if (!decision.send) { if (decision.reason) skip(decision.reason); continue }
+
+      if (isOptedOutPatient(a)) { skip('opt_out'); continue }
 
       const prev = rowByKey.get(`${a.id}|${kind}|${apptAt.getTime()}`)
       // já existe linha: só volta a enviar se falhou por erro passageiro e já deu o tempo de espera
@@ -229,44 +258,6 @@ interface ExistingRow {
   status: string
   error: string | null
   updated_at: string
-}
-
-interface Gate { paused: boolean; allowance: number; limit: number; sentToday: number }
-
-/** Pausa por falhas recentes e quantos envios o aquecimento ainda permite hoje. */
-async function sendingGate(wa: WaRow, s: SendSettings, now: Date): Promise<Gate> {
-  const admin = getAdminClient()
-
-  const [failuresRes, activityRes] = await Promise.all([
-    admin.from('appointment_confirmations')
-      .select('error, updated_at')
-      .eq('clinic_id', wa.clinic_id)
-      .eq('status', 'falhou')
-      .gte('updated_at', new Date(now.getTime() - PAUSE_WINDOW_MS).toISOString()),
-    // qualquer mensagem enviada pelo número (rotina, recepção pelo sistema ou pelo celular)
-    admin.from('whatsapp_messages')
-      .select('created_at')
-      .eq('clinic_id', wa.clinic_id)
-      .eq('direction', 'out')
-      .gte('created_at', new Date(now.getTime() - ACTIVITY_LOOKBACK_MS).toISOString())
-      .order('created_at', { ascending: false })
-      .limit(ACTIVITY_SAMPLE_LIMIT),
-  ])
-
-  const paused = isPaused((failuresRes.data ?? []) as FailureRow[], now)
-  // sem conseguir ler o histórico, segue sem limite em vez de travar a clínica
-  if (activityRes.error) return { paused, allowance: Infinity, limit: Infinity, sentToday: 0 }
-
-  const outgoing = (activityRes.data ?? []).map(r => new Date(r.created_at as string))
-  const limit = warmupDailyLimit(warmupStart(outgoing, now, outgoing.length >= ACTIVITY_SAMPLE_LIMIT), now)
-  if (limit === null) return { paused, allowance: Infinity, limit: Infinity, sentToday: 0 }
-
-  const { count } = await admin.from('appointment_confirmations')
-    .select('id', { count: 'exact', head: true })
-    .eq('clinic_id', wa.clinic_id)
-    .gte('sent_at', startOfLocalDay(now, s.timezone).toISOString())
-  const sentToday = count ?? 0
-  return { paused, allowance: Math.max(0, limit - sentToday), limit, sentToday }
 }
 
 type SendOutcome = 'enviada' | 'duplicada' | 'adiada' | 'desconectada' | 'sem_telefone' | 'sem_whatsapp' | 'falhou'

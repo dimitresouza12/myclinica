@@ -12,6 +12,7 @@ import { firstDueDateFor } from '@/lib/campanha'
 import { elegivelPromoPrimeiraCobranca, valorPrimeiraCobranca } from '@/lib/promoPrimeiraCobranca'
 import { formatBrl, formatDiaBr, CARD_BRAND_LABELS } from '@/lib/cartaoCheckout'
 import { TrialCardForm, type TrialCardResult } from './TrialCardForm'
+import { CheckoutCartaoModal } from './CheckoutCartaoModal'
 
 const WHATSAPP = 'https://wa.me/5588920020570?text=Olá!%20Quero%20mais%20tempo%20para%20testar%20o%20MyClinica.'
 
@@ -34,8 +35,7 @@ type PlanValue = SellablePlan
 
 export function PaymentLateBanner() {
   const { clinic, user, setSession } = useAuthStore()
-  const [loadingPortal, setLoadingPortal] = useState(false)
-  const [portalError,   setPortalError]   = useState('')
+  const [portalOpen, setPortalOpen] = useState(false)
   const [step, setStep] = useState<'plan' | 'card'>('plan')
   // cartão cadastrado: o acesso já foi liberado no store; esta tela só confirma e fecha no clique
   const [success, setSuccess] = useState<TrialCardResult | null>(null)
@@ -60,28 +60,7 @@ export function PaymentLateBanner() {
   // cartão já cadastrado com 1ª cobrança combinada: acesso liberado até 2 dias depois do vencimento
   const primeiraCobranca = primeiraCobrancaCombinada({ billing_first_due: clinic.billingFirstDue, billing_paid: clinic.billingPaid }, new Date(now))
 
-  async function handlePortal(planOverride?: string) {
-    if (!clinic) return
-    setLoadingPortal(true)
-    setPortalError('')
-    try {
-      const res  = await fetch('/api/asaas/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clinicId: clinic.id, clinicName: clinic.name, plan: planOverride }),
-      })
-      const data = await res.json()
-      if (data.url) {
-        window.open(data.url, '_blank', 'noopener,noreferrer')
-      } else {
-        setPortalError(data.error ?? 'Não foi possível gerar o link de pagamento.')
-      }
-    } catch {
-      setPortalError('Erro de conexão. Tente novamente.')
-    } finally {
-      setLoadingPortal(false)
-    }
-  }
+  const checkoutModal = portalOpen ? <CheckoutCartaoModal onClose={() => setPortalOpen(false)} /> : null
 
   // ── Cartão cadastrado — confirmação (o acesso já está liberado; F5 aqui segue normal, sem esta tela) ──
   if (success) {
@@ -121,21 +100,20 @@ export function PaymentLateBanner() {
   // Decide só por data (não depende do webhook) e vale mesmo com billing_overdue_since preenchido.
   if (primeiraCobrancaVencida({ billing_first_due: clinic.billingFirstDue, billing_paid: clinic.billingPaid }, new Date(now))) {
     return (
+      <>
+      {checkoutModal}
       <Modal open onClose={() => {}} dismissible={false} title="Não conseguimos confirmar sua cobrança">
         <p className={styles.desc}>
           A cobrança do cartão cadastrado não foi confirmada. Seus dados estão salvos. Pague agora para liberar o acesso, ou fale com o suporte.
         </p>
 
-        {portalError && <p className={styles.errMsg} role="alert">{portalError}</p>}
-
         <div className={styles.modalActions}>
           <button
             type="button"
             className={`${btn.primary} ${styles.block}`}
-            onClick={() => void handlePortal()}
-            disabled={loadingPortal}
+            onClick={() => setPortalOpen(true)}
           >
-            {loadingPortal ? 'Aguarde...' : 'Pagar agora'}
+            Pagar agora
           </button>
           <a
             href={WHATSAPP_COBRANCA}
@@ -147,6 +125,7 @@ export function PaymentLateBanner() {
           </a>
         </div>
       </Modal>
+      </>
     )
   }
 
@@ -197,7 +176,7 @@ export function PaymentLateBanner() {
     }
 
     return (
-      <Modal open onClose={() => {}} dismissible={false} title="Seu período de teste encerrou" size={wideLayout ? 'xl' : 'md'}>
+      <Modal open onClose={() => {}} dismissible={false} title="Seu período de teste encerrou" size={wideLayout ? 'lg' : 'md'}>
         <div className={styles.planStep}>
         <p className={`${styles.desc} ${styles.planDesc}`}>
           Seus dados estão salvos. Escolha um plano para continuar usando o MyClinica sem perder nada. A primeira cobrança só acontece em {dueLabel}.
@@ -244,15 +223,15 @@ export function PaymentLateBanner() {
   // ── Pagamento em atraso (clientes permanentes) — banner topo ─────────
   if (isOverdue) {
     return (
-      <div className={styles.overdueBanner}>
+      <>{checkoutModal}<div className={styles.overdueBanner}>
         <span className={styles.overdueIcon}><Icon name="alert" size={13} /></span>
         <span className={styles.overdueMsg}>
           {daysOverdue > 1 ? `Pagamento em atraso há ${daysOverdue} dias.` : 'Pagamento em atraso.'}
         </span>
-        <button className={styles.overdueBtn} onClick={() => void handlePortal()} disabled={loadingPortal}>
-          {loadingPortal ? 'Aguarde...' : 'Pagar agora'}
+        <button className={styles.overdueBtn} onClick={() => setPortalOpen(true)}>
+          Pagar agora
         </button>
-      </div>
+      </div></>
     )
   }
 
@@ -260,16 +239,16 @@ export function PaymentLateBanner() {
   if (dueTomorrow && !dismissedDue) {
     const label = daysUntilDue === 0 ? 'hoje' : 'amanhã'
     return (
-      <div className={styles.dueBanner}>
+      <>{checkoutModal}<div className={styles.dueBanner}>
         <span className={styles.dueIcon}><Icon name="bell" size={13} /></span>
         <span className={styles.dueMsg}>
           Pagamento vence <strong>{label}</strong>.
         </span>
-        <button className={styles.dueBtn} onClick={() => void handlePortal()} disabled={loadingPortal}>
-          {loadingPortal ? 'Aguarde...' : 'Pagar agora'}
+        <button className={styles.dueBtn} onClick={() => setPortalOpen(true)}>
+          Pagar agora
         </button>
         <button className={styles.dueDismiss} onClick={() => setDismissedDue(true)} aria-label="Fechar"><Icon name="close" size={12} /></button>
-      </div>
+      </div></>
     )
   }
 

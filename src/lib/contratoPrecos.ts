@@ -9,6 +9,7 @@
 //     é repassada ao cliente).
 
 import type { PublicPlan } from '@/lib/planCatalog'
+import { valorPrimeiraCobranca } from '@/lib/promoPrimeiraCobranca'
 
 export const CONTRACT_MONTHS = [3, 6, 12] as const
 export type ContractMonths = (typeof CONTRACT_MONTHS)[number]
@@ -36,16 +37,16 @@ const MONTHLY_NO_CONTRACT: Record<ContractPlan, number> = {
 
 /** Contrato pago mês a mês: valor POR MÊS. */
 const MONTHLY_CONTRACT: Record<ContractPlan, Record<ContractMonths, number>> = {
-  essencial: { 3: 9490, 6: 8990, 12: 8490 },
-  completo: { 3: 12390, 6: 11690, 12: 10990 },
-  equipe: { 3: 16190, 6: 15290, 12: 14490 },
+  essencial: { 3: 8990, 6: 8490, 12: 7990 },
+  completo: { 3: 11690, 6: 10990, 12: 10390 },
+  equipe: { 3: 15290, 6: 14390, 12: 13590 },
 }
 
 /** Contrato à vista: valor TOTAL do contrato. */
 const UPFRONT_TOTAL: Record<ContractPlan, Record<ContractMonths, number>> = {
-  essencial: { 3: 26990, 6: 50990, 12: 89990 },
-  completo: { 3: 34990, 6: 65990, 12: 116990 },
-  equipe: { 3: 45890, 6: 86690, 12: 152990 },
+  essencial: { 3: 25390, 6: 47890, 12: 89890 },
+  completo: { 3: 33090, 6: 62290, 12: 116890 },
+  equipe: { 3: 43290, 6: 81490, 12: 152890 },
 }
 
 const toReais = (cents: number): number => Math.round(cents) / 100
@@ -53,7 +54,8 @@ const toReais = (cents: number): number => Math.round(cents) / 100
 // ── Taxa de parcelamento no cartão (repassada ao cliente) ───────────────────
 
 /**
- * PROVISÓRIO: CONFIRMAR com a tabela do Asaas contratado antes de ir para produção.
+ * Tabela do Asaas contratado (conferida em 2026-11-24): 1x 2,99% + R$ 0,49; 2 a 6x 3,49% + R$ 0,49;
+ * 7 a 12x 3,99% + R$ 0,49. Se o Asaas mudar a tabela, atualizar aqui.
  *
  * Cada faixa de parcelas tem um percentual sobre o valor cobrado e uma tarifa fixa por cobrança (centavos).
  * 1x no cartão fica sem acréscimo (a taxa à vista é absorvida pela MyClinica). A taxa é calculada "por dentro":
@@ -62,9 +64,7 @@ const toReais = (cents: number): number => Math.round(cents) / 100
  */
 export const CARD_INSTALLMENT_FEES: { from: number; to: number; percent: number; fixedCents: number }[] = [
   { from: 1, to: 1, percent: 0, fixedCents: 0 },
-  { from: 2, to: 6, percent: 3.49, fixedCents: 49 }, // CONFIRMAR com a tabela do Asaas contratado
-  { from: 7, to: 12, percent: 3.99, fixedCents: 49 }, // CONFIRMAR com a tabela do Asaas contratado
-]
+  { from: 2, to: 6, percent: 3.49, fixedCents: 49 },  { from: 7, to: 12, percent: 3.99, fixedCents: 49 },]
 
 export const MAX_INSTALLMENTS = 12
 /** Menor parcela aceita no cartão pelo Asaas. */
@@ -158,6 +158,10 @@ export interface ContractQuote {
   installmentValue: number
   /** Economia frente ao mensal sem contrato. */
   savings: number
+  /** Promoção de 50% na primeira mensalidade aplicada (só no mês a mês). */
+  promo: boolean
+  /** Valor da primeira mensalidade (igual a monthlyValue sem promoção). No à vista: igual ao totalValue. */
+  firstValue: number
 }
 
 export type QuoteResult = { ok: true; quote: ContractQuote } | { ok: false; error: string }
@@ -171,6 +175,8 @@ export function quoteContract(input: {
   months: unknown
   paymentMode: unknown
   installments?: unknown
+  /** Clínica elegível à promoção da primeira mensalidade (decidido por quem chama). Só vale no mês a mês. */
+  promoPrimeira?: boolean
 }): QuoteResult {
   const plan = input.plan
   if (plan !== 'essencial' && plan !== 'completo' && plan !== 'equipe') return { ok: false, error: 'Plano inválido.' }
@@ -190,7 +196,11 @@ export function quoteContract(input: {
     return { ok: false, error: 'Parcelamento só vale no pagamento à vista.' }
   }
 
-  const net = contractTotalCents(plan, months, paymentMode)
+  const promo = paymentMode === 'monthly' && input.promoPrimeira === true
+  const mensalCents = MONTHLY_CONTRACT[plan][months]
+  const firstCents = promo ? Math.round(valorPrimeiraCobranca(mensalCents / 100, true) * 100) : mensalCents
+  // Promoção: só a primeira mensalidade é reduzida; o total do contrato cai na diferença.
+  const net = contractTotalCents(plan, months, paymentMode) - (mensalCents - firstCents) * (paymentMode === 'monthly' ? 1 : 0)
   const charge = paymentMode === 'upfront' ? cardChargeCents(net, installments) : net
   if (installments > 1 && charge / installments < MIN_INSTALLMENT_CENTS) {
     return { ok: false, error: 'Parcela abaixo do mínimo de R$ 5,00. Use menos parcelas.' }
@@ -208,7 +218,9 @@ export function quoteContract(input: {
       cardFeeValue: toReais(charge - net),
       totalValue: toReais(charge),
       installmentValue: toReais(Math.round(charge / installments)),
-      savings: contractSavings(plan, months, paymentMode),
+      savings: toReais(Math.max(MONTHLY_NO_CONTRACT[plan] * months - net, 0)),
+      promo,
+      firstValue: paymentMode === 'monthly' ? toReais(firstCents) : toReais(charge),
     },
   }
 }

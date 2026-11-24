@@ -48,3 +48,6 @@ service-account*.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# esquadrão de agentes (estado local de execução)
+.esquadrao/

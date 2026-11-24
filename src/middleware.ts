@@ -36,6 +36,9 @@ export async function middleware(request: NextRequest) {
   // chegam pelo mesmo IP, então o limite por IP derrubaria o webhook em horário de pico.
   const isServerToServer =
     pathname === '/api/whatsapp/webhook' || pathname === '/api/whatsapp/run-confirmations' || pathname === '/api/whatsapp/cleanup-media' || pathname === '/api/crm/automate'
+    // n8n -> MyClinica (automação das clínicas): autenticado por AUTOMACAO_N8N_KEY e limitado dentro da rota
+    // (lib/automacaoIntegration.ts), porque o n8n chama de um IP só para todas as clínicas.
+    || pathname.startsWith('/api/automacao/')
 
   // Rate limit global em rotas de API
   if (pathname.startsWith('/api/') && !isServerToServer) {
@@ -113,6 +116,8 @@ export async function middleware(request: NextRequest) {
     // Integração Gestor -> MyClinica (servidor a servidor). Sem cookie de sessão;
     // autenticada por segredo (ver lib/gestorIntegration.ts). Continua sujeita ao rate limit por IP.
     pathname.startsWith('/api/integracoes/gestor/') ||
+    // n8n -> MyClinica: sem cookie de sessão; autenticado por segredo (lib/automacaoIntegration.ts).
+    pathname.startsWith('/api/automacao/') ||
     // Evolution (webhook) e agendador (rotina de confirmação) — sem cookie de sessão.
     // Autenticados por token próprio (ver api/whatsapp/_token.ts).
     isServerToServer

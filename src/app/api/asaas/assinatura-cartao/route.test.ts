@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextResponse } from 'next/server'
 import { createFakeSupabase } from '@/test/fakeSupabase'
 import { deveLimparCartao } from '@/lib/cartaoCheckout'
+import { TERMO_VERSAO, montarTermo } from '@/lib/termoAssinatura'
+import { createHash } from 'node:crypto'
 
 const CLINIC = '11111111-1111-4111-8111-111111111111'
 const OTHER = '22222222-2222-4222-8222-222222222222'
@@ -27,7 +29,7 @@ const fake = () => h.fake as ReturnType<typeof createFakeSupabase>
 
 function body(over: Record<string, unknown> = {}) {
   return {
-    clinicId: CLINIC, plan: 'completo', aceite: true, expectedFullValue: 129.9,
+    clinicId: CLINIC, plan: 'completo', termsAccepted: true, termsVersion: TERMO_VERSAO, expectedFullValue: 129.9,
     card: { holderName: 'FULANO DE TAL', number: CARD_NUMBER, expiryMonth: '12', expiryYear: '2030', ccv: CCV },
     holder: { name: 'Fulano de Tal', email: 'f@x.com', cpfCnpj: '52998224725', postalCode: '60000000', addressNumber: '100', phone: '85999998888' },
     ...over,
@@ -97,7 +99,9 @@ describe('POST /api/asaas/assinatura-cartao', () => {
   })
 
   it.each([
-    ['aceite ausente', { aceite: false }],
+    ['aceite ausente', { termsAccepted: false }],
+    ['aceite não enviado', { termsAccepted: undefined }],
+    ['versão do termo errada', { termsVersion: 'antiga' }],
     ['cartão sem Luhn', { card: { holderName: 'F', number: '4111111111111112', expiryMonth: '12', expiryYear: '2030', ccv: CCV } }],
     ['cartão vencido', { card: { holderName: 'F', number: CARD_NUMBER, expiryMonth: '01', expiryYear: '2026', ccv: CCV } }],
     ['plano inválido', { plan: 'xyz' }],
@@ -126,6 +130,41 @@ describe('POST /api/asaas/assinatura-cartao', () => {
       expect((await res.json()).error).toBeTruthy()
     }
     expect(asaas().post).not.toHaveBeenCalled()
+  })
+
+  it('grava a prova do aceite em audit_logs (versão, hash do texto, IP, navegador) e não vaza dados do cartão', async () => {
+    const res = await POST(req(body(), { 'user-agent': 'Mozilla/5.0 teste' }))
+    expect(res.status).toBe(200)
+    const rows = fake().tables.audit_logs
+    expect(rows).toHaveLength(1)
+    const termo = montarTermo({ planoLabel: 'Completo', valorCheio: 129.9, valorPrimeira: 64.95, dataPrimeira: '15/01/2027', promo: true })
+    expect(rows[0]).toMatchObject({
+      clinic_id: CLINIC, user_id: 'u1', action: 'billing.terms_accepted', module: 'billing',
+      ip_address: '203.0.113.9', user_agent: 'Mozilla/5.0 teste',
+    })
+    expect(rows[0].details).toMatchObject({
+      terms_version: TERMO_VERSAO,
+      terms_sha256: createHash('sha256').update(termo.texto, 'utf8').digest('hex'),
+      first_value: 64.95, full_value: 129.9, first_due: '2027-01-15', promo: true, subscription_id: 'sub_1',
+    })
+    expect(JSON.stringify(rows)).not.toContain(CARD_NUMBER)
+  })
+
+  it('sem aceite: 400 e nada é gravado em audit_logs nem enviado ao Asaas', async () => {
+    const res = await POST(req(body({ termsAccepted: false })))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/aceitar os termos/)
+    expect(fake().tables.audit_logs ?? []).toHaveLength(0)
+    expect(asaas().post).not.toHaveBeenCalled()
+  })
+
+  it('se gravar o aceite falhar (tabela fora do ar), o cadastro do cartão segue de pé', async () => {
+    h.fake = createFakeSupabase(seed(), { failOn: (table, op) => (table === 'audit_logs' && op === 'insert' ? { code: '42P01', message: 'relation does not exist' } : undefined) })
+    const res = await POST(req(body()))
+    expect(res.status).toBe(200)
+    expect(clinicRow()).toMatchObject({ asaas_subscription_id: 'sub_1' })
+    expect(logs.join('\n')).toContain('aceite nao gravado')
+    expect(asaas().delete).not.toHaveBeenCalled()
   })
 
   it('caminho feliz COM promoção (cadastro em 25/11): metade na 1ª cobrança, 15/01/2027, guarda o valor cheio', async () => {

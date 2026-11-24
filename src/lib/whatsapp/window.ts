@@ -26,7 +26,7 @@ const HOUR = 60 * MIN
 
 interface Parts { y: number; m: number; d: number; h: number; min: number }
 
-function zonedParts(date: Date, timeZone: string): Parts {
+export function zonedParts(date: Date, timeZone: string): Parts {
   const f = new Intl.DateTimeFormat('en-US', {
     timeZone, hourCycle: 'h23',
     year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',

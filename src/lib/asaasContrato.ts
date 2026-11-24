@@ -62,7 +62,7 @@ export async function ensureAsaasCustomer(api: AsaasApi, c: CustomerInput): Prom
 export interface SubscriptionInput {
   customerId: string
   clinicId: string
-  /** Mensalidade em reais. */
+  /** Mensalidade em reais (na promoção, o valor da primeira cobrança; o webhook restaura o cheio depois). */
   value: number
   /** AAAA-MM-DD da primeira cobrança. */
   firstDueDate: string
@@ -126,6 +126,8 @@ export interface ContractBillingInput {
   months: ContractMonths
   installments: number
   monthlyValue: number
+  /** Primeira mensalidade com a promoção; nulo sem promoção. */
+  firstValue?: number | null
   /** Total cobrado no à vista (já com a taxa de cartão). */
   totalValue: number
   firstDueDate: string
@@ -149,7 +151,7 @@ export async function createContractBilling(api: AsaasApi, i: ContractBillingInp
   })
   if (i.paymentMode === 'monthly') {
     const sub = await createContractSubscription(api, {
-      customerId, clinicId: i.clinicId, value: i.monthlyValue, firstDueDate: i.firstDueDate, months: i.months, description: i.description,
+      customerId, clinicId: i.clinicId, value: i.firstValue ?? i.monthlyValue, firstDueDate: i.firstDueDate, months: i.months, description: i.description,
     })
     return { customerId, ref: sub.id, kind: 'subscription', invoiceUrl: null }
   }

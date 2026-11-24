@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Icon } from '@/components/ui/Icon'
 import { PhoneInput } from '@/components/ui/PhoneInput'
@@ -14,6 +14,10 @@ import {
   detectCardBrand, maskCardPreview, normalizeCardBrand, type CardBrand,
 } from '@/lib/cartaoCheckout'
 import { CardPreview } from './CardPreview'
+import { TermoAceite } from './TermoAceite'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { getPlanEntry } from '@/lib/planCatalog'
+import { TERMO_VERSAO, montarTermo } from '@/lib/termoAssinatura'
 import styles from './TrialCardForm.module.css'
 
 export interface TrialCardResult {
@@ -37,6 +41,8 @@ interface Props {
   /** Data da 1ª cobrança já formatada (DD/MM/AAAA). */
   dueLabel: string
   defaultPhone: string
+  /** 'atualizar': clínica que já tem assinatura troca o cartão (e quita fatura em aberto); sem plano nem termo. */
+  modo?: 'nova' | 'atualizar'
   onBack: () => void
   onSuccess: (result: TrialCardResult) => void
 }
@@ -72,7 +78,8 @@ function LockIcon() {
  * direto para /api/asaas/assinatura-cartao e são apagados do estado assim que a resposta chega.
  * Nada daqui é gravado em storage nem registrado em log.
  */
-export function TrialCardForm({ clinicId, plan, fullValue, firstValue, promo, dueLabel, defaultPhone, onBack, onSuccess }: Props) {
+export function TrialCardForm({ clinicId, plan, fullValue, firstValue, promo, dueLabel, defaultPhone, modo = 'nova', onBack, onSuccess }: Props) {
+  const atualizar = modo === 'atualizar'
   // valores mostrados no resumo e no consentimento; o servidor pode corrigi-los (409 valor_diferente)
   const [shown, setShown] = useState<Shown>({ fullValue, firstValue, promo })
   const [number, setNumber] = useState('')
@@ -84,7 +91,11 @@ export function TrialCardForm({ clinicId, plan, fullValue, firstValue, promo, du
   const [phone, setPhone] = useState(defaultPhone)
   const [cep, setCep] = useState('')
   const [addressNumber, setAddressNumber] = useState('')
-  const [accepted, setAccepted] = useState(false)
+  const [accepted, setAccepted] = useState(atualizar)
+  // o aceite só libera depois de rolar o termo até o fim
+  const [leuTudo, setLeuTudo] = useState(false)
+  // desktop: o termo fica na coluna do resumo (à esquerda); no celular entra antes do botão, no fim da coluna única
+  const wide = useMediaQuery('(min-width: 900px)')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   // campos do cartão limpos por causa de erro do servidor: esconde os erros de "obrigatório" até o próximo envio
@@ -132,13 +143,29 @@ export function TrialCardForm({ clinicId, plan, fullValue, firstValue, promo, du
     ? { 'aria-invalid': true as const, 'aria-describedby': `tcf-${k}-err` }
     : {})
   const consentMissing = showErrors && !accepted
+  const termo = useMemo(
+    () => montarTermo({ planoLabel: getPlanEntry(plan).label, valorCheio: shown.fullValue, valorPrimeira: shown.firstValue, dataPrimeira: dueLabel, promo: shown.promo }),
+    [plan, shown.fullValue, shown.firstValue, shown.promo, dueLabel],
+  )
+  const termoUi = (
+    <TermoAceite
+      termo={termo}
+      leuTudo={leuTudo}
+      onLeuTudo={setLeuTudo}
+      accepted={accepted}
+      onAccepted={setAccepted}
+      disabled={loading}
+      showError={consentMissing}
+      autorizacao={`Autorizo a cobrança de ${formatBrl(shown.firstValue)} em ${dueLabel} e a renovação mensal de ${formatBrl(shown.fullValue)} neste cartão.`}
+    />
+  )
 
   const brand = detectCardBrand(number)
   const maskedNumber = maskCardPreview(number, brand)
 
   function focusFirstInvalid() {
     const first = FIELD_ORDER.find(k => errors[k])
-    const id = first ? `tcf-${first}` : (!accepted ? 'tcf-consent' : null)
+    const id = first ? `tcf-${first}` : (!accepted ? (leuTudo ? 'tcf-consent' : 'tcf-termo') : null)
     if (id) document.getElementById(id)?.focus()
   }
 
@@ -157,14 +184,12 @@ export function TrialCardForm({ clinicId, plan, fullValue, firstValue, promo, du
     const detectedBrand = detectCardBrand(number)
     const clearSensitive = () => { setNumber(''); setExpiry(''); setCcv('') }
     try {
-      const res = await fetch('/api/asaas/assinatura-cartao', {
+      const res = await fetch(atualizar ? '/api/asaas/assinatura-cartao/atualizar' : '/api/asaas/assinatura-cartao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clinicId,
-          plan,
-          aceite: true,
-          expectedFullValue: shown.fullValue,
+          ...(atualizar ? {} : { plan, termsAccepted: true, termsVersion: TERMO_VERSAO, expectedFullValue: shown.fullValue }),
           card: {
             holderName: holder.trim(),
             number: onlyDigits(number),
@@ -187,9 +212,9 @@ export function TrialCardForm({ clinicId, plan, fullValue, firstValue, promo, du
       const limpar = deveLimparCartao(res.status, data.code, data.error)
       if (limpar) clearSensitive()
 
-      if (res.ok && data.ok && data.firstDueDate) {
+      if (res.ok && data.ok && (atualizar || data.firstDueDate)) {
         onSuccess({
-          firstDueDate: data.firstDueDate,
+          firstDueDate: data.firstDueDate ?? '',
           firstValue: data.firstValue ?? shown.firstValue,
           fullValue: data.fullValue ?? shown.fullValue,
           promo: data.promo ?? shown.promo,
@@ -206,7 +231,7 @@ export function TrialCardForm({ clinicId, plan, fullValue, firstValue, promo, du
         }
         setAccepted(false)
         setServerError(VALOR_MUDOU)
-        requestAnimationFrame(() => document.getElementById('tcf-consent')?.focus())
+        requestAnimationFrame(() => document.getElementById('tcf-termo')?.focus())
         return
       }
 
@@ -225,7 +250,8 @@ export function TrialCardForm({ clinicId, plan, fullValue, firstValue, promo, du
   return (
     <form className={styles.form} onSubmit={handleSubmit} noValidate>
       <div className={styles.side}>
-      <section className={styles.timeline} aria-label="Resumo da cobrança">
+      {!atualizar && <section className={styles.timeline} aria-label="Resumo da cobrança">
+        <p className={styles.planoNome}>Plano {getPlanEntry(plan).label}</p>
         <ol className={styles.steps}>
           <li className={styles.step}>
             <span className={styles.when}>Hoje</span>
@@ -244,18 +270,12 @@ export function TrialCardForm({ clinicId, plan, fullValue, firstValue, promo, du
           </li>
         </ol>
         <p className={styles.cancel}>Cancele quando quiser.</p>
-      </section>
+      </section>}
 
       <CardPreview brand={brand} maskedNumber={maskedNumber} holder={holder} expiry={expiry} />
 
-      {/* só no desktop (coluna do resumo); no celular os mesmos avisos ficam abaixo do número do cartão e do consentimento */}
-      <div className={styles.trust}>
-        <ul className={styles.secure}>
-          <li><LockIcon /> Pagamento seguro, processado pelo Asaas</li>
-          <li><LockIcon /> Conexão criptografada</li>
-        </ul>
-        <p className={styles.secureNote}><LockIcon /> Não guardamos o número nem o código do seu cartão</p>
-      </div>
+      {wide && !atualizar && termoUi}
+
       </div>
 
       <div className={styles.main}>
@@ -363,32 +383,28 @@ export function TrialCardForm({ clinicId, plan, fullValue, firstValue, promo, du
         </div>
       </fieldset>
 
-      <label className={styles.consent}>
-        <input
-          id="tcf-consent" type="checkbox" checked={accepted} disabled={loading}
-          onChange={e => setAccepted(e.target.checked)}
-          aria-invalid={consentMissing ? true : undefined}
-          aria-describedby={consentMissing ? 'tcf-consent-err' : undefined}
-        />
-        <span>
-          Autorizo a cobrança de {formatBrl(shown.firstValue)} em {dueLabel} e a renovação mensal de {formatBrl(shown.fullValue)} neste cartão. Posso cancelar quando quiser.
-        </span>
-      </label>
-      {consentMissing && (
-        <span id="tcf-consent-err" className={styles.fieldError} role="alert">Marque a autorização para continuar.</span>
-      )}
+      {!wide && !atualizar && termoUi}
 
       {serverError && <p className={f.error} role="alert">{serverError}</p>}
 
       <p className={`${styles.secureNote} ${styles.secureNoteMain}`}><LockIcon /> Não guardamos o número nem o código do seu cartão</p>
 
       <div className={styles.actions}>
-        <button type="submit" className={`${btn.primary} ${styles.block}`} disabled={loading} aria-busy={loading}>
-          {loading ? 'Cadastrando cartão...' : 'Cadastrar cartão e continuar'}
+        <button type="submit" className={`${btn.primary} ${styles.block}`} disabled={loading || !accepted} aria-busy={loading}>
+          {loading ? 'Processando...' : atualizar ? 'Salvar cartão e pagar' : 'Cadastrar cartão e continuar'}
         </button>
         <button type="button" className={`${btn.ghost} ${styles.block}`} onClick={onBack} disabled={loading}>
           <Icon name="chevronLeft" size={16} /> Voltar
         </button>
+      </div>
+
+      {/* só no desktop (coluna do resumo); no celular os mesmos avisos ficam abaixo do número do cartão e do consentimento */}
+      <div className={styles.trust}>
+        <ul className={styles.secure}>
+          <li><LockIcon /> Pagamento seguro, processado pelo Asaas</li>
+          <li><LockIcon /> Conexão criptografada</li>
+        </ul>
+        <p className={styles.secureNote}><LockIcon /> Não guardamos o número nem o código do seu cartão</p>
       </div>
       </div>
     </form>

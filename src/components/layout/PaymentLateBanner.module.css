@@ -46,8 +46,8 @@
 @media (min-width: 900px) {
   .planStep { gap: 22px; }
   .planDesc { font-size: 1rem; }
-  .planSelector { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-  .planOption { gap: 8px; padding: 32px 18px; border-radius: var(--radius-card); }
+  .planSelector { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .planOption { gap: 8px; padding: 22px 14px; border-radius: var(--radius-card); }
   .planOptionLabel { font-size: 1.1rem; }
   .planOptionPrice { font-size: 1.3rem; }
   .planOptionDesc { font-size: 0.88rem; line-height: 1.45; }

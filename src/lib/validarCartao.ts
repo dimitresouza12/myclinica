@@ -4,6 +4,7 @@
 import { hojeBrasil } from '@/lib/brasilDate'
 import { isValidCnpj, isValidCpf, luhnValido } from '@/lib/cartaoCheckout'
 import { isSellablePlan, type SellablePlan } from '@/lib/planCatalog'
+import { TERMO_VERSAO } from '@/lib/termoAssinatura'
 import { isValidBrPhone, normalizeBrPhone } from '@/lib/whatsapp/phone'
 import type { CardData, CardHolderInfo } from '@/lib/asaasCartao'
 
@@ -37,7 +38,8 @@ export function validarAssinaturaCartao(body: unknown, now: Date = new Date()): 
   if (!isObj(body)) return fail('Corpo inválido.')
   const clinicId = text(body.clinicId, 64)
   if (!clinicId) return fail('clinicId obrigatório.')
-  if (body.aceite !== true) return fail('É preciso aceitar os termos para continuar.')
+  if (body.termsAccepted !== true) return fail('É preciso aceitar os termos para continuar.')
+  if (body.termsVersion !== TERMO_VERSAO) return fail('Os termos foram atualizados. Recarregue a página e leia de novo antes de aceitar.')
   const plan = body.plan
   if (typeof plan !== 'string' || !isSellablePlan(plan)) return fail('Plano inválido.')
   const expectedFullValue = body.expectedFullValue

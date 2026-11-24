@@ -10,6 +10,8 @@ export interface ToastData {
   text: string
   href?: string
   actionLabel?: string
+  /** roda ao clicar no aviso, antes de abrir o href */
+  onAction?: () => void
 }
 
 // Store global simples sem zustand
@@ -19,9 +21,9 @@ const listeners: Listener[] = []
 
 function notify() { listeners.forEach(l => l([...toasts])) }
 
-export function showToast(type: 'ok' | 'error', text: string, options?: { href?: string; actionLabel?: string }) {
+export function showToast(type: 'ok' | 'error', text: string, options?: { href?: string; actionLabel?: string; onAction?: () => void }) {
   const id = Math.random().toString(36).slice(2)
-  toasts = [...toasts, { id, type, text, href: options?.href, actionLabel: options?.actionLabel }]
+  toasts = [...toasts, { id, type, text, href: options?.href, actionLabel: options?.actionLabel, onAction: options?.onAction }]
   notify()
   // Toasts clicáveis (com href) ficam mais tempo — o usuário precisa de
   // tempo pra ler e decidir clicar, não só constatar a mensagem.
@@ -58,8 +60,8 @@ export function ToastContainer() {
           className={`${styles.toast} ${t.type === 'ok' ? styles.toastOk : styles.toastError} ${t.href ? styles.toastClickable : ''}`}
           role={t.href ? 'button' : undefined}
           tabIndex={t.href ? 0 : undefined}
-          onClick={t.href ? () => { dismiss(t.id); router.push(t.href!) } : undefined}
-          onKeyDown={t.href ? (e) => { if (e.key === 'Enter') { dismiss(t.id); router.push(t.href!) } } : undefined}
+          onClick={t.href ? () => { dismiss(t.id); t.onAction?.(); router.push(t.href!) } : undefined}
+          onKeyDown={t.href ? (e) => { if (e.key === 'Enter') { dismiss(t.id); t.onAction?.(); router.push(t.href!) } } : undefined}
         >
           <span className={styles.icon}>{t.type === 'ok' ? <Icon name="check" size={12} /> : <Icon name="alert" size={12} />}</span>
           <span className={styles.text}>{t.text}</span>

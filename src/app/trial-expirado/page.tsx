@@ -1,14 +1,17 @@
 'use client'
 import { useState } from 'react'
 import { useAuthStore } from '@/store/auth'
-import { getPlanEntry } from '@/lib/planCatalog'
+import { getPlanEntry, type PublicPlan } from '@/lib/planCatalog'
+import { CheckoutCartaoModal } from '@/components/layout/CheckoutCartaoModal'
+import { AssinarEscolha } from '@/components/configuracoes/AssinarEscolha'
 import { Icon } from '@/components/ui/Icon'
 import styles from './trial-expirado.module.css'
 
 export default function TrialExpiradoPage() {
   const { clinic } = useAuthStore()
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
+  const [open, setOpen] = useState(false)
+  const [escolha, setEscolha] = useState(false)
+  const [plano, setPlano] = useState<PublicPlan | undefined>(undefined)
 
   const planInfo = getPlanEntry(clinic?.plan)
   const priceInt = Math.floor(planInfo.priceValue)
@@ -17,36 +20,22 @@ export default function TrialExpiradoPage() {
   const supportMsg = `Olá! Meu período de teste do MyClinica${clinic?.name ? ` (${clinic.name})` : ''} encerrou e preciso de ajuda.`
   const supportHref = `https://wa.me/5588920020570?text=${encodeURIComponent(supportMsg)}`
 
-  async function handleSubscribe() {
-    if (!clinic) return
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch('/api/asaas/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clinicId:   clinic.id,
-          clinicName: clinic.name,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.url) { setError(data.error ?? 'Não foi possível gerar o link de pagamento.'); return }
-      window.open(data.url, '_blank', 'noopener,noreferrer')
-    } catch {
-      setError('Não foi possível iniciar o pagamento. Tente novamente.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div className={styles.page}>
+      {open && <CheckoutCartaoModal plano={plano} onClose={() => setOpen(false)} />}
+      {escolha && clinic && (
+        <AssinarEscolha
+          clinic={clinic}
+          onClose={() => setEscolha(false)}
+          onCartao={p => { setEscolha(false); setPlano(p); setOpen(true) }}
+          onContratoConcluido={() => { setEscolha(false); window.location.reload() }}
+        />
+      )}
       <div className={styles.card}>
         <div className={styles.icon} aria-hidden="true"><Icon name="clock" size={28} /></div>
         <h1 className={styles.title}>Seu período de teste encerrou</h1>
         <p className={styles.desc}>
-          Para continuar com acesso completo ao MyClínica, assine o plano mensal.
+          Para continuar com acesso completo ao MyClínica, escolha o prazo e assine.
         </p>
 
         <div className={styles.divider}/>
@@ -70,14 +59,11 @@ export default function TrialExpiradoPage() {
 
         <div className={styles.divider}/>
 
-        {error && <p className={styles.errMsg} role="alert">{error}</p>}
-
         <button
           className={styles.btnContact}
-          onClick={handleSubscribe}
-          disabled={loading}
+          onClick={() => { const combinado = !!clinic?.customMonthlyPrice && clinic.customMonthlyPrice > 0; if (combinado) { setPlano(undefined); setOpen(true) } else setEscolha(true) }}
         >
-          {loading ? 'Aguarde...' : `Assinar agora — R$${priceInt}${priceCents}/mês`}
+          Escolher prazo e assinar
         </button>
 
         <a

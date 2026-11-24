@@ -63,9 +63,9 @@ export const RETRY_BACKOFF_MS = 15 * 60_000
 
 /**
  * Erros que dizem respeito ao paciente (telefone) ou que a rotina já trata de outro jeito
- * (desconexão, processo interrompido). Não indicam problema do número e não pausam.
+ * (desconexão, processo interrompido, confirmação que outra rotina já enviou). Não indicam problema do número e não pausam.
  */
-const NOT_A_SENDING_PROBLEM = new Set(['telefone_invalido', 'sem_whatsapp', 'interrompido', 'whatsapp_desconectado'])
+const NOT_A_SENDING_PROBLEM = new Set(['telefone_invalido', 'sem_whatsapp', 'interrompido', 'whatsapp_desconectado', 'confirmacao_ja_enviada'])
 
 export function countsTowardPause(error: string | null): boolean {
   return !NOT_A_SENDING_PROBLEM.has(error ?? '')

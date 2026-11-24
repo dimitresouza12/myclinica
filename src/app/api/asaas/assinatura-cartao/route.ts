@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createHash } from 'node:crypto'
 import { getAdminClient } from '@/lib/supabaseAdmin'
 import { requireSession } from '@/lib/sessionAuth'
 import { realAsaas } from '@/lib/asaas'
@@ -9,6 +10,8 @@ import { elegivelPromoPrimeiraCobranca, valorPrimeiraCobranca } from '@/lib/prom
 import { getPlanEntry, isPublicPlan } from '@/lib/planCatalog'
 import { validarAssinaturaCartao } from '@/lib/validarCartao'
 import { motivoDoErro } from '@/lib/nutri/erros'
+import { montarTermo } from '@/lib/termoAssinatura'
+import { formatDiaBr } from '@/lib/cartaoCheckout'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +44,41 @@ interface AsaasSubscriptionRow { creditCard?: unknown; id?: string; status?: str
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
+}
+
+// Prova do aceite do termo: uma linha em audit_logs (as clínicas só leem; INSERT só pelo service role aqui). O texto do
+// termo é remontado com os valores que o servidor calculou e o sha256 dele vai junto, com versão, IP e navegador.
+// Falha aqui não derruba o cadastro: a assinatura já existe no Asaas e cancelá-la por causa do log seria pior.
+async function registrarAceite(
+  db: ReturnType<typeof getAdminClient>,
+  p: { clinicId: string; userId: string; ip: string; userAgent: string | null; planoLabel: string; valorCheio: number; firstValue: number; firstDueDate: string; promo: boolean; subscriptionId: string },
+) {
+  try {
+    const termo = montarTermo({ planoLabel: p.planoLabel, valorCheio: p.valorCheio, valorPrimeira: p.firstValue, dataPrimeira: formatDiaBr(p.firstDueDate), promo: p.promo })
+    const { error } = await db.from('audit_logs').insert({
+      clinic_id: p.clinicId,
+      user_id: p.userId,
+      action: 'billing.terms_accepted',
+      module: 'billing',
+      resource_id: p.clinicId,
+      ip_address: p.ip,
+      user_agent: p.userAgent ? p.userAgent.slice(0, 300) : null,
+      details: {
+        terms_version: termo.versao,
+        terms_sha256: createHash('sha256').update(termo.texto, 'utf8').digest('hex'),
+        accepted_at: new Date().toISOString(),
+        plan: p.planoLabel,
+        first_value: p.firstValue,
+        full_value: p.valorCheio,
+        first_due: p.firstDueDate,
+        promo: p.promo,
+        subscription_id: p.subscriptionId,
+      },
+    })
+    if (error) console.error(TAG, 'ATENCAO aceite nao gravado', p.clinicId, error.code ?? '', motivoDoErro(error))
+  } catch (e) {
+    console.error(TAG, 'ATENCAO aceite nao gravado', p.clinicId, e instanceof Error ? e.message.slice(0, 120) : '')
+  }
 }
 
 export async function POST(req: Request) {
@@ -258,6 +296,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Já existe uma assinatura em andamento para esta clínica.' }, { status: 409 })
   }
 
+  await registrarAceite(db, {
+    clinicId, userId: session.userId, ip, userAgent: req.headers.get('user-agent'),
+    planoLabel: getPlanEntry(plan).label, valorCheio, firstValue, firstDueDate, promo, subscriptionId,
+  })
   console.log(TAG, 'aceite registrado', clinicId)
   return NextResponse.json({ ok: true, firstDueDate, firstValue, fullValue: valorCheio, promo, ...cardSummary })
 }

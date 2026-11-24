@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { TERMO_VERSAO } from './termoAssinatura'
 import { isValidCnpj, luhnValido, validarAssinaturaCartao } from './validarCartao'
 
 const NOW = new Date('2026-11-25T15:00:00Z')
 const base = () => ({
-  clinicId: 'c1', plan: 'completo', aceite: true, expectedFullValue: 129.9,
+  clinicId: 'c1', plan: 'completo', termsAccepted: true, termsVersion: TERMO_VERSAO, expectedFullValue: 129.9,
   card: { holderName: 'Fulano de Tal', number: '4111111111111111', expiryMonth: '11', expiryYear: '2026', ccv: '123' },
   holder: { name: 'Fulano de Tal', email: 'f@x.com', cpfCnpj: '529.982.247-25', postalCode: '60000-000', addressNumber: '100', phone: '(85) 99999-8888' },
 })
@@ -40,8 +41,11 @@ describe('validarAssinaturaCartao', () => {
   })
 
   const rejeita: [string, unknown][] = [
-    ['aceite ausente', { ...base(), aceite: undefined }],
-    ['aceite "true" string', { ...base(), aceite: 'true' }],
+    ['aceite ausente', { ...base(), termsAccepted: undefined }],
+    ['aceite "true" string', { ...base(), termsAccepted: 'true' }],
+    ['aceite false', { ...base(), termsAccepted: false }],
+    ['versão do termo ausente', { ...base(), termsVersion: undefined }],
+    ['versão do termo antiga', { ...base(), termsVersion: 'cobranca-cartao-1999-01-01' }],
     ['plano fora do catálogo', { ...base(), plan: 'gratis' }],
     ['valor esperado ausente', { ...base(), expectedFullValue: undefined }],
     ['valor esperado string', { ...base(), expectedFullValue: '129.9' }],

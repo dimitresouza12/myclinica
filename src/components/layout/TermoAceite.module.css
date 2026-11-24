@@ -1,0 +1,64 @@
+/* Aceite do termo de cobrança: linha com a caixa + link que abre o termo num modal; só libera depois de ler até o fim. */
+.wrap { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.resumo {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-inner);
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* área de toque inteira (>= 44px) para a caixa e o texto */
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-inner);
+  background: var(--surface-2);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.consent input { flex-shrink: 0; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--brand-primary); cursor: pointer; }
+.consent span { min-width: 0; overflow-wrap: anywhere; }
+.consentOff { cursor: default; }
+.consentOff input { cursor: not-allowed; opacity: 0.55; }
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--brand-text, var(--brand-primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.link:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; border-radius: 2px; }
+
+.hint { margin: 0; font-size: 0.76rem; color: var(--text-secondary); }
+.error { display: block; font-size: 0.76rem; line-height: 1.35; color: var(--st-bad); }
+
+/* conteúdo do modal do termo */
+.box { max-height: min(52dvh, 420px); overflow-y: auto; padding-right: 6px; font-size: 0.88rem; line-height: 1.6; color: var(--text-secondary); outline: none; }
+.section { margin-bottom: 14px; }
+.section:last-child { margin-bottom: 0; }
+.sectionTitle { margin: 0 0 4px; font-size: 0.9rem; font-weight: 700; color: var(--text-primary); }
+.par { margin: 0 0 8px; overflow-wrap: anywhere; }
+
+.foot { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.footHint { margin: 0; font-size: 0.78rem; color: var(--text-secondary); text-align: center; }
+.footBtns { display: flex; gap: 8px; justify-content: flex-end; }
+.footBtns > button { min-height: 44px; }
+@media (max-width: 600px) {
+  .footBtns > button { flex: 1; }
+}
