@@ -39,6 +39,10 @@ export interface Clinic {
   billing_paid: boolean
   billing_overdue_since: string | null
   next_billing_date: string | null
+  // Primeira cobrança combinada (assinatura de cartão cadastrada no fim do teste) e o valor cheio
+  // da mensalidade quando a 1ª teve desconto. Colunas novas: podem não existir ainda no banco.
+  billing_first_due?: string | null
+  billing_promo_full_value?: number | null
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
   // conta de demonstração: o login deixa escolher a área (coluna pode não existir ainda)
@@ -518,6 +522,14 @@ export interface AuthClinic {
   asaasSubscriptionId: string | null
   billingOverdueSince: string | null
   nextBillingDate: string | null
+  // clinics.billing_first_due: dia (AAAA-MM-DD) da primeira cobrança combinada no cartão. Ausente/null = nenhuma.
+  // A coluna pode não existir ainda no banco.
+  billingFirstDue?: string | null
+  // clinics.custom_monthly_price: preço mensal congelado da clínica (vale só para o plano atual). Ausente/null = preço da tabela.
+  customMonthlyPrice?: number | null
+  // Dados de apoio ao formulário de cartão do modal de fim de teste (preenchimento e elegibilidade à promoção).
+  createdAt?: string | null
+  billingPhone?: string | null
   monthlyRevenueGoal: number | null
   onboardingDismissed: string[]
   onboardingModalSeen: boolean

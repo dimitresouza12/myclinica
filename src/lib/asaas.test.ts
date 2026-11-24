@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextOccurrenceOfDay, daysUntilNextOccurrence } from './asaas'
+import { nextOccurrenceOfDay, daysUntilNextOccurrence, asaasBaseUrl } from './asaas'
 
 describe('nextOccurrenceOfDay', () => {
   it('dia ainda não chegou neste mês → usa este mês', () => {
@@ -35,5 +35,19 @@ describe('daysUntilNextOccurrence', () => {
   it('calcula corretamente quando precisa pular pro mês seguinte', () => {
     // 20 jul → dia 5: são 16 dias (21,22...31 jul = 11 dias + 5 ago = 16)
     expect(daysUntilNextOccurrence(5, new Date(2026, 6, 20))).toBe(16)
+  })
+})
+
+describe('asaasBaseUrl', () => {
+  it('ASAAS_ENV=sandbox usa o sandbox', () => {
+    expect(asaasBaseUrl('sandbox')).toBe('https://api-sandbox.asaas.com/v3')
+    expect(asaasBaseUrl(' Sandbox ')).toBe('https://api-sandbox.asaas.com/v3')
+  })
+
+  it('qualquer outro valor, vazio ou ausente mantém produção', () => {
+    expect(asaasBaseUrl(undefined)).toBe('https://api.asaas.com/v3')
+    expect(asaasBaseUrl('')).toBe('https://api.asaas.com/v3')
+    expect(asaasBaseUrl('production')).toBe('https://api.asaas.com/v3')
+    expect(asaasBaseUrl('sandbox2')).toBe('https://api.asaas.com/v3')
   })
 })

@@ -1,0 +1,99 @@
+/* Formulário de cartão do modal de fim de teste. Campos e linhas vêm de modalForm.module.css; aqui só o que é específico. */
+.form { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* celular e tablet estreito: uma coluna só, na ordem do HTML (as duas colunas do desktop se desfazem) */
+.side, .main { display: contents; }
+
+/* Resumo no topo: linha do tempo curta (Hoje, 1ª cobrança, depois mensal) */
+.timeline { margin: 0; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: var(--radius-inner); background: var(--surface-2); }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.step {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 6px 0 6px 20px;
+  font-size: 0.88rem;
+}
+.step::before { content: ''; position: absolute; left: 0; top: 14px; width: 9px; height: 9px; border-radius: 50%; background: var(--brand-primary); }
+.step::after { content: ''; position: absolute; left: 4px; top: 24px; bottom: -6px; width: 1px; background: var(--border-color); }
+.step:last-child::after { display: none; }
+.when { color: var(--text-secondary); font-weight: 500; min-width: 0; }
+.amount { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; color: var(--text-primary); font-weight: 700; text-align: right; min-width: 0; }
+.promoBadge { padding: 2px 8px; border-radius: 999px; background: var(--brand-light); color: var(--brand-text); font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+.cancel { margin: 6px 0 0; font-size: 0.8rem; color: var(--text-secondary); }
+
+/* Sinais de segurança (ícone SVG de cadeado + texto curto) */
+.secure { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: var(--text-secondary); }
+.secure li, .secureNote { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.secureNote { margin: 0; font-size: 0.78rem; color: var(--text-secondary); }
+.lock { flex-shrink: 0; color: var(--brand-text); }
+/* os avisos aparecem uma vez só: sob o número do cartão e do consentimento no celular, na coluna do resumo no desktop */
+.trust { display: none; }
+
+.group { display: flex; flex-direction: column; gap: 12px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.legend { padding: 0; margin-bottom: 10px; font-size: 0.82rem; font-weight: 700; color: var(--text-primary); }
+
+.fieldError { display: block; font-size: 0.76rem; line-height: 1.35; color: var(--st-bad); }
+
+/* área de toque inteira (>= 44px) para a caixa de autorização e o texto */
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-inner);
+  background: var(--surface-2);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.consent input { flex-shrink: 0; width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--brand-primary); cursor: pointer; }
+.consent span { min-width: 0; overflow-wrap: anywhere; }
+
+.actions { display: flex; flex-direction: column; gap: 10px; }
+.actions .block { width: 100%; height: auto; min-height: 44px; padding: 10px 18px; white-space: normal; text-align: center; }
+
+/* ── Desktop: duas colunas. Resumo + cartão ao vivo + segurança à esquerda; campos à direita. ──
+   O painel do modal tem ~760px de altura: gaps e paddings da coluna direita são compactos para tudo caber sem rolar. */
+@media (min-width: 900px) {
+  .form { display: grid; grid-template-columns: clamp(300px, 42%, 388px) minmax(0, 1fr); gap: 0; align-items: stretch; margin-block: auto; }
+  .side { display: flex; flex-direction: column; gap: 20px; min-width: 0; padding-right: 28px; }
+  .main { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding-left: 28px; border-left: 1px solid var(--border-color); }
+  /* bloco de segurança ancorado na base da coluna, na altura do botão */
+  .trust {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: auto;
+    padding: 14px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-inner);
+    background: var(--surface-2);
+  }
+  .trust .secure { gap: 10px; font-size: 0.82rem; }
+  .trust .secureNote { font-size: 0.82rem; }
+  .secureNoteMain { display: none; }
+  .secureInline { display: none; }
+  .timeline { padding: 16px 18px; }
+  .step { padding-block: 8px; font-size: 0.92rem; }
+  .step::before { top: 16px; }
+  .step::after { top: 26px; bottom: -8px; }
+
+  .group { gap: 8px; }
+  .legend { margin-bottom: 6px; }
+  .consent { padding: 8px 12px; }
+  .groupHolder { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 14px; align-items: start; }
+  /* CEP e número do endereço entram direto na grade do titular */
+  .groupHolder .rowFlat { display: contents; }
+  .span2 { grid-column: 1 / -1; }
+
+  /* Voltar à esquerda, ação principal à direita (o HTML mantém o botão principal primeiro) */
+  .actions { flex-direction: row-reverse; align-items: stretch; }
+  .actions .block { width: auto; }
+  .actions .block:first-child { flex: 1 1 auto; }
+}

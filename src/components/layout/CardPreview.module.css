@@ -1,0 +1,73 @@
+/* Cartão desenhado ao vivo (só visual, aria-hidden). As cores do cartão são arte e não mudam com o tema. */
+.card {
+  --card-a: #0f2f2b;
+  --card-b: #14524a;
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  aspect-ratio: 1.586;
+  min-height: 170px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-radius: 16px;
+  color: #f1f5f4;
+  background: linear-gradient(135deg, var(--card-a), var(--card-b));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  user-select: none;
+}
+.card[data-brand='visa']       { --card-a: #14295f; --card-b: #2b4fa8; }
+.card[data-brand='mastercard'] { --card-a: #3b1d1d; --card-b: #7a2e2e; }
+.card[data-brand='elo']        { --card-a: #1f1f23; --card-b: #44444c; }
+.card[data-brand='amex']       { --card-a: #12404f; --card-b: #2a7f99; }
+.card[data-brand='hipercard']  { --card-a: #5a1620; --card-b: #a02d3c; }
+
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.chip { color: rgba(255, 255, 255, 0.78); flex-shrink: 0; }
+/* espaço fixo da bandeira: o cartão não muda de tamanho quando ela aparece */
+.brandSlot { display: flex; align-items: center; justify-content: flex-end; min-width: 72px; min-height: 44px; margin-block: -8px; }
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: brandIn 0.28s ease-out;
+}
+.logo { display: block; height: 44px; width: auto; flex-shrink: 0; }
+@keyframes brandIn { from { opacity: 0; transform: translateY(-3px) scale(0.94); } to { opacity: 1; transform: none; } }
+
+.number {
+  font-size: clamp(0.95rem, 4.6vw, 1.2rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; min-width: 0; }
+.cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cellExpiry { flex-shrink: 0; text-align: right; }
+.caption { font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.62); }
+.name, .value { font-size: 0.84rem; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* desktop: o cartão ocupa a largura da coluna do resumo */
+@media (min-width: 900px) {
+  .card { max-width: 360px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand { animation: none; }
+}

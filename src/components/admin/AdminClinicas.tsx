@@ -61,6 +61,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
   const PLAN_COLORS: Record<string, string> = {
     essencial:     PLAN_CATALOG.essencial.color,
     completo:      PLAN_CATALOG.completo.color,
+    equipe:        PLAN_CATALOG.equipe.color,
     ilimitado:     PLAN_CATALOG.ilimitado.color,
     completo_plus: PLAN_CATALOG.completo_plus.color,
     // Legados — não vendidos mais, só pra clínica antiga que ainda não migrou.
@@ -84,6 +85,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
               { value: 'active', label: 'Ativa' },
               { value: 'trial', label: 'Trial' },
               { value: 'trial_expired', label: 'Trial expirado' },
+              { value: 'awaiting_first_charge', label: 'Aguardando 1ª cobrança' },
               { value: 'suspended', label: 'Suspensa (atraso)' },
             ]} />
         </div>

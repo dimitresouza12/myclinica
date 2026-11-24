@@ -1,31 +1,48 @@
 'use client'
 import { useState } from 'react'
 import { useAuthStore } from '@/store/auth'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import styles from './PaymentLateBanner.module.css'
 import { Icon } from '@/components/ui/Icon'
 import { Modal } from '@/components/ui/Modal'
 import btn from '@/components/ui/button.module.css'
-import { PLAN_CATALOG, type SellablePlan } from '@/lib/planCatalog'
+import { PLAN_CATALOG, PUBLIC_PLANS, isSellablePlan, type SellablePlan } from '@/lib/planCatalog'
+import { primeiraCobrancaCombinada, primeiraCobrancaVencida } from '@/lib/clinicStatus'
+import { firstDueDateFor } from '@/lib/campanha'
+import { elegivelPromoPrimeiraCobranca, valorPrimeiraCobranca } from '@/lib/promoPrimeiraCobranca'
+import { formatBrl, formatDiaBr, CARD_BRAND_LABELS } from '@/lib/cartaoCheckout'
+import { TrialCardForm, type TrialCardResult } from './TrialCardForm'
 
 const WHATSAPP = 'https://wa.me/5588920020570?text=Olá!%20Quero%20mais%20tempo%20para%20testar%20o%20MyClinica.'
 
-// Completo+ fica de fora do seletor de autoatendimento — é sob consulta
-// (mesmo padrão do cadastro em login/page.tsx).
-const PLANS = (['essencial', 'completo', 'ilimitado'] as const).map(value => ({
-  value,
-  label: PLAN_CATALOG[value].label,
-  price: PLAN_CATALOG[value].price,
-  desc: PLAN_CATALOG[value].description,
-}))
+const WHATSAPP_COBRANCA = 'https://wa.me/5588920020570?text=Olá!%20Preciso%20de%20ajuda%20com%20a%20cobrança%20do%20MyClinica.'
+
+// Planos de autoatendimento = PUBLIC_PLANS (o mesmo que o endpoint de cartão aceita). O plano atual da
+// clínica só entra se estiver fora dessa lista (ex.: Ilimitado de quem já está nele).
+function plansFor(currentPlan: string | null | undefined) {
+  const values: SellablePlan[] = [...PUBLIC_PLANS]
+  if (isSellablePlan(currentPlan) && !values.includes(currentPlan)) values.push(currentPlan)
+  return values.map(value => ({
+    value,
+    label: PLAN_CATALOG[value].label,
+    price: PLAN_CATALOG[value].price,
+    desc: PLAN_CATALOG[value].description,
+  }))
+}
 
 type PlanValue = SellablePlan
 
 export function PaymentLateBanner() {
-  const { clinic, user } = useAuthStore()
+  const { clinic, user, setSession } = useAuthStore()
   const [loadingPortal, setLoadingPortal] = useState(false)
   const [portalError,   setPortalError]   = useState('')
+  const [step, setStep] = useState<'plan' | 'card'>('plan')
+  // cartão cadastrado: o acesso já foi liberado no store; esta tela só confirma e fecha no clique
+  const [success, setSuccess] = useState<TrialCardResult | null>(null)
   const [dismissedDue, setDismissedDue]   = useState(false)
   const [selectedPlan, setSelectedPlan]   = useState<PlanValue | null>(null)
+  // desktop: escolha de plano e cartão usam o modal largo (duas colunas); abaixo disso segue o modal estreito de sempre
+  const wideLayout = useMediaQuery('(min-width: 900px)')
 
   if (!clinic || user?.isSuperAdmin) return null
 
@@ -40,6 +57,8 @@ export function PaymentLateBanner() {
     ? Math.ceil((new Date(clinic.nextBillingDate).getTime() - now) / 86_400_000)
     : null
   const dueTomorrow  = daysUntilDue !== null && daysUntilDue <= 1 && clinic.billingPaid && !isOverdue
+  // cartão já cadastrado com 1ª cobrança combinada: acesso liberado até 2 dias depois do vencimento
+  const primeiraCobranca = primeiraCobrancaCombinada({ billing_first_due: clinic.billingFirstDue, billing_paid: clinic.billingPaid }, new Date(now))
 
   async function handlePortal(planOverride?: string) {
     if (!clinic) return
@@ -64,19 +83,128 @@ export function PaymentLateBanner() {
     }
   }
 
+  // ── Cartão cadastrado — confirmação (o acesso já está liberado; F5 aqui segue normal, sem esta tela) ──
+  if (success) {
+    const brandLabel = success.cardBrand ? CARD_BRAND_LABELS[success.cardBrand] : null
+    const cardLine = [brandLabel, success.cardLast4 ? `final ${success.cardLast4}` : null].filter(Boolean).join(' ')
+    return (
+      <Modal open onClose={() => setSuccess(null)} title="Cartão cadastrado">
+        <div className={styles.successHead}>
+          <span className={styles.successIcon} aria-hidden="true"><Icon name="checkCircle" size={26} /></span>
+          <div className={styles.successText}>
+            {cardLine && <p className={styles.successCard}>{cardLine}</p>}
+            <p className={styles.desc}>Seu acesso segue liberado e nada muda no seu uso.</p>
+          </div>
+        </div>
+
+        <dl className={styles.successList}>
+          <div className={styles.successRow}>
+            <dt>Primeira cobrança</dt>
+            <dd>{formatDiaBr(success.firstDueDate)}, {formatBrl(success.firstValue)}</dd>
+          </div>
+          <div className={styles.successRow}>
+            <dt>Depois</dt>
+            <dd>{formatBrl(success.fullValue)} por mês</dd>
+          </div>
+        </dl>
+
+        <div className={styles.modalActions}>
+          <button type="button" className={`${btn.primary} ${styles.block}`} onClick={() => setSuccess(null)}>
+            Começar a usar
+          </button>
+        </div>
+      </Modal>
+    )
+  }
+
+  // ── 1ª cobrança combinada passou da tolerância sem pagamento — modal bloqueante ──
+  // Decide só por data (não depende do webhook) e vale mesmo com billing_overdue_since preenchido.
+  if (primeiraCobrancaVencida({ billing_first_due: clinic.billingFirstDue, billing_paid: clinic.billingPaid }, new Date(now))) {
+    return (
+      <Modal open onClose={() => {}} dismissible={false} title="Não conseguimos confirmar sua cobrança">
+        <p className={styles.desc}>
+          A cobrança do cartão cadastrado não foi confirmada. Seus dados estão salvos. Pague agora para liberar o acesso, ou fale com o suporte.
+        </p>
+
+        {portalError && <p className={styles.errMsg} role="alert">{portalError}</p>}
+
+        <div className={styles.modalActions}>
+          <button
+            type="button"
+            className={`${btn.primary} ${styles.block}`}
+            onClick={() => void handlePortal()}
+            disabled={loadingPortal}
+          >
+            {loadingPortal ? 'Aguarde...' : 'Pagar agora'}
+          </button>
+          <a
+            href={WHATSAPP_COBRANCA}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${btn.secondary} ${styles.block}`}
+          >
+            Falar com o suporte
+          </a>
+        </div>
+      </Modal>
+    )
+  }
+
   // ── Trial encerrado — modal bloqueante ───────────────────────────────
-  if (trialExpired && neverPaid) {
-    const activePlan = selectedPlan ?? (PLANS.find(p => p.value === clinic.plan)?.value ?? 'essencial')
-    const planInfo   = PLANS.find(p => p.value === activePlan) ?? PLANS[0]
+  if (trialExpired && neverPaid && !primeiraCobranca) {
+    const plans      = plansFor(clinic.plan)
+    const activePlan = selectedPlan && plans.some(p => p.value === selectedPlan)
+      ? selectedPlan
+      : (plans.find(p => p.value === clinic.plan)?.value ?? 'essencial')
+    const planInfo   = plans.find(p => p.value === activePlan) ?? plans[0]
+
+    // Preço congelado (custom_monthly_price) vale só para o plano atual da clínica; igual ao servidor.
+    const frozen     = clinic.customMonthlyPrice
+    const hasFrozen  = typeof frozen === 'number' && Number.isFinite(frozen) && frozen > 0
+    const fullValue  = Math.round((activePlan === clinic.plan && hasFrozen ? frozen : PLAN_CATALOG[activePlan].priceValue) * 100) / 100
+    // Rótulo de preço de cada plano: o plano atual mostra o preço congelado.
+    const priceLabel = (value: PlanValue, tablePrice: string) =>
+      value === clinic!.plan && hasFrozen ? `${formatBrl(Math.round(frozen * 100) / 100)}/mês` : tablePrice
+    const planPrice  = priceLabel(planInfo.value, planInfo.price)
+    const promo      = elegivelPromoPrimeiraCobranca(clinic.createdAt)
+    const firstValue = valorPrimeiraCobranca(fullValue, promo)
+    const dueDay     = firstDueDateFor(clinic.trialEndsAt)
+    const dueLabel   = formatDiaBr(dueDay)
+
+    function handleCardSuccess(result: TrialCardResult) {
+      if (!clinic || !user) return
+      setSession({ ...clinic, plan: activePlan, billingFirstDue: result.firstDueDate }, user)
+      setSuccess(result)
+      setStep('plan')
+    }
+
+    if (step === 'card') {
+      return (
+        <Modal open onClose={() => {}} dismissible={false} title="Cadastrar cartão" size={wideLayout ? 'xl' : 'md'}>
+          <TrialCardForm
+            clinicId={clinic.id}
+            plan={activePlan}
+            fullValue={fullValue}
+            firstValue={firstValue}
+            promo={promo}
+            dueLabel={dueLabel}
+            defaultPhone={clinic.billingPhone ?? ''}
+            onBack={() => setStep('plan')}
+            onSuccess={handleCardSuccess}
+          />
+        </Modal>
+      )
+    }
 
     return (
-      <Modal open onClose={() => {}} dismissible={false} title="Seu período de teste encerrou">
-        <p className={styles.desc}>
-          Seus dados estão salvos. Escolha um plano e continue usando o MyClinica sem perder nada.
+      <Modal open onClose={() => {}} dismissible={false} title="Seu período de teste encerrou" size={wideLayout ? 'xl' : 'md'}>
+        <div className={styles.planStep}>
+        <p className={`${styles.desc} ${styles.planDesc}`}>
+          Seus dados estão salvos. Escolha um plano para continuar usando o MyClinica sem perder nada. A primeira cobrança só acontece em {dueLabel}.
         </p>
 
         <div className={styles.planSelector}>
-          {PLANS.map(p => (
+          {plans.map(p => (
             <button
               key={p.value}
               type="button"
@@ -85,22 +213,19 @@ export function PaymentLateBanner() {
               onClick={() => setSelectedPlan(p.value)}
             >
               <span className={styles.planOptionLabel}>{p.label}</span>
-              <span className={styles.planOptionPrice}>{p.price}</span>
+              <span className={styles.planOptionPrice}>{priceLabel(p.value, p.price)}</span>
               <span className={styles.planOptionDesc}>{p.desc}</span>
             </button>
           ))}
         </div>
 
-        {portalError && <p className={styles.errMsg} role="alert">{portalError}</p>}
-
         <div className={styles.modalActions}>
           <button
             type="button"
             className={`${btn.primary} ${styles.block}`}
-            onClick={() => void handlePortal(activePlan)}
-            disabled={loadingPortal}
+            onClick={() => setStep('card')}
           >
-            {loadingPortal ? 'Aguarde...' : `Assinar plano ${planInfo.label} — ${planInfo.price}`}
+            {`Continuar com o plano ${planInfo.label} — ${planPrice}`}
           </button>
           <a
             href={WHATSAPP}
@@ -110,6 +235,7 @@ export function PaymentLateBanner() {
           >
             Falar com o suporte
           </a>
+        </div>
         </div>
       </Modal>
     )

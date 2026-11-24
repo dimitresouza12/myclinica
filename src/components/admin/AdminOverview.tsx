@@ -55,7 +55,7 @@ export function AdminOverview() {
       // exclui quem está travado no modal de trial expirado ou suspenso por atraso
       const clinicasAtivas = (clinicStatuses.data ?? []).filter((c) => {
         const s = computeClinicStatus(c)
-        return s === 'active' || s === 'trial'
+        return s === 'active' || s === 'trial' || s === 'awaiting_first_charge'
       }).length
 
       setKpi({

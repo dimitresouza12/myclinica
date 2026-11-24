@@ -2,23 +2,64 @@ import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabaseAdmin'
 import { asaasPost, asaasGet, daysUntilNextOccurrence } from '@/lib/asaas'
 import { getPlanEntry } from '@/lib/planCatalog'
+import { requireSession } from '@/lib/sessionAuth'
 
 interface AsaasPaymentLink { id: string; url?: string; deleted?: boolean; active?: boolean }
+interface AsaasSubPayment { id?: string; status?: string; dueDate?: string; invoiceUrl?: string | null; deleted?: boolean }
+
+/**
+ * Assinatura no cartão já existe: em vez de abrir outro link (que criaria uma segunda assinatura), devolve a fatura da
+ * cobrança que o cliente precisa pagar: a vencida mais antiga, ou a pendente mais próxima. Sem nenhuma, null.
+ */
+function pickInvoiceUrl(payments: AsaasSubPayment[]): string | null {
+  const byDue = (a: AsaasSubPayment, b: AsaasSubPayment) => (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
+  const usable = payments.filter(p => p && !p.deleted && typeof p.invoiceUrl === 'string' && p.invoiceUrl)
+  const overdue = usable.filter(p => p.status === 'OVERDUE').sort(byDue)[0]
+  if (overdue) return overdue.invoiceUrl as string
+  const pending = usable.filter(p => p.status === 'PENDING').sort(byDue)[0]
+  return pending ? (pending.invoiceUrl as string) : null
+}
 
 function buildLinkUrl(id: string) {
   return `https://www.asaas.com/c/${id}`
 }
 
 export async function POST(req: Request) {
+  // Cobrança é da clínica do usuário logado (ou de qualquer uma, se superadmin): sem sessão não gera link.
+  const session = await requireSession(req)
+  if (session instanceof NextResponse) return session
+
   try {
     const { clinicId, clinicName, plan: planOverride } = await req.json()
-    if (!clinicId) return NextResponse.json({ error: 'clinicId required' }, { status: 400 })
+    if (!clinicId || typeof clinicId !== 'string') return NextResponse.json({ error: 'clinicId required' }, { status: 400 })
+    if (clinicId !== session.clinicId && !session.isSuperadmin) {
+      return NextResponse.json({ error: 'Clínica não autorizada' }, { status: 403 })
+    }
 
-    const { data: clinic } = await getAdminClient()
+    const { data: clinic, error: clinicErr } = await getAdminClient()
       .from('clinics')
-      .select('asaas_customer_id, name, plan, billing_due_day, custom_monthly_price')
+      .select('asaas_customer_id, name, plan, billing_due_day, custom_monthly_price, asaas_subscription_id, billing_first_due')
       .eq('id', clinicId)
-      .single()
+      .maybeSingle()
+    if (clinicErr) {
+      console.error('[asaas/checkout] clinics', clinicErr.code ?? '', clinicErr.message)
+      return NextResponse.json({ error: 'Não foi possível carregar a clínica.' }, { status: 500 })
+    }
+    if (!clinic) return NextResponse.json({ error: 'Clínica não encontrada' }, { status: 404 })
+
+    // Assinatura no cartão já criada: não cria link novo (evita assinatura duplicada), devolve a fatura em aberto.
+    if (clinic.asaas_subscription_id && clinic.billing_first_due) {
+      let payments: AsaasSubPayment[]
+      try {
+        const list = await asaasGet<{ data?: AsaasSubPayment[] }>(`/subscriptions/${encodeURIComponent(clinic.asaas_subscription_id as string)}/payments?limit=100`)
+        payments = list?.data ?? []
+      } catch (e) {
+        console.error('[asaas/checkout] cobrancas da assinatura', clinicId, e instanceof Error ? e.message : '')
+        return NextResponse.json({ error: 'Não foi possível consultar a cobrança agora. Tente de novo em instantes.' }, { status: 502 })
+      }
+      const invoiceUrl = pickInvoiceUrl(payments)
+      if (invoiceUrl) return NextResponse.json({ url: invoiceUrl })
+    }
 
     // Se a clínica já tem um dia de vencimento preferido, a 1ª cobrança já
     // nasce vencendo nesse dia; senão mantém o padrão de 5 dias.

@@ -677,6 +677,14 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
         asaasSubscriptionId: c.asaas_subscription_id ?? null,
         billingOverdueSince: c.billing_overdue_since ?? null,
         nextBillingDate: c.next_billing_date ?? null,
+        // clinics(*) traz billing_first_due quando a coluna existe; sem ela vem undefined
+        billingFirstDue: c.billing_first_due ?? null,
+        // clinics(*) traz custom_monthly_price (numeric pode vir como string); inválido ou ausente vira null
+        customMonthlyPrice: c.custom_monthly_price != null && Number.isFinite(Number(c.custom_monthly_price))
+          ? Number(c.custom_monthly_price)
+          : null,
+        createdAt: c.created_at ?? null,
+        billingPhone: c.billing_phone ?? null,
         monthlyRevenueGoal: c.monthly_revenue_goal ?? null,
         onboardingDismissed: c.onboarding_dismissed ?? [],
         onboardingModalSeen: c.onboarding_modal_seen ?? false,

@@ -105,7 +105,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     async function syncClinicData() {
       const { data } = await supabase
         .from('clinics')
-        .select('gcal_connected, billing_paid, billing_overdue_since, next_billing_date, asaas_subscription_id, monthly_revenue_goal, specialties, is_multi_specialty')
+        .select('gcal_connected, billing_paid, billing_overdue_since, next_billing_date, asaas_subscription_id, monthly_revenue_goal, specialties, is_multi_specialty, created_at, billing_phone')
         .eq('id', currentClinic.id)
         .single()
       if (!data) return
@@ -117,6 +117,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if ((data.billing_paid ?? false) !== currentClinic.billingPaid) updates.billingPaid = data.billing_paid ?? false
       if ((data.billing_overdue_since ?? null) !== currentClinic.billingOverdueSince) updates.billingOverdueSince = data.billing_overdue_since ?? null
       if ((data.next_billing_date ?? null) !== currentClinic.nextBillingDate) updates.nextBillingDate = data.next_billing_date ?? null
+      if ((data.created_at ?? null) !== (currentClinic.createdAt ?? null)) updates.createdAt = data.created_at ?? null
+      if ((data.billing_phone ?? null) !== (currentClinic.billingPhone ?? null)) updates.billingPhone = data.billing_phone ?? null
       if ((data.asaas_subscription_id ?? null) !== currentClinic.asaasSubscriptionId) updates.asaasSubscriptionId = data.asaas_subscription_id ?? null
       if ((data.monthly_revenue_goal ?? null) !== currentClinic.monthlyRevenueGoal) updates.monthlyRevenueGoal = data.monthly_revenue_goal ?? null
       // Áreas atendidas: uma área adicionada por outro admin/dispositivo (ou o RPC de membro) chega aqui.
@@ -153,6 +155,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if ((latest.clinic.demoMode ?? false) !== demo) setSession({ ...latest.clinic, demoMode: demo }, latest.user)
     }
 
+    // billing_first_due (1ª cobrança combinada no cartão) em consulta separada, pelo mesmo motivo do
+    // demo_mode: enquanto a coluna não existir, o erro é ignorado e o resto da sincronização segue.
+    async function syncBillingFirstDue() {
+      const { data, error } = await supabase
+        .from('clinics')
+        .select('billing_first_due')
+        .eq('id', currentClinic.id)
+        .maybeSingle()
+      if (error || !data) return
+      const due = (data as { billing_first_due?: string | null }).billing_first_due ?? null
+      const latest = useAuthStore.getState()
+      if (!latest.clinic || !latest.user || latest.clinic.id !== currentClinic.id) return
+      if ((latest.clinic.billingFirstDue ?? null) !== due) setSession({ ...latest.clinic, billingFirstDue: due }, latest.user)
+    }
+
     // professional_scoped_access também em consulta separada, pelo mesmo motivo do demo_mode.
     async function syncScopedAccess() {
       const { data, error } = await supabase
@@ -186,6 +203,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     syncClinicData()
     syncDemoMode()
+    syncBillingFirstDue()
     syncScopedAccess()
     syncAvatar()
 

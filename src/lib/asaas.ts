@@ -1,4 +1,10 @@
-const ASAAS_BASE = 'https://api.asaas.com/v3'
+const ASAAS_PROD_BASE = 'https://api.asaas.com/v3'
+const ASAAS_SANDBOX_BASE = 'https://api-sandbox.asaas.com/v3'
+
+/** ASAAS_ENV=sandbox aponta para o sandbox do Asaas; qualquer outro valor (ou ausente) é produção. */
+export function asaasBaseUrl(env: string | undefined = process.env.ASAAS_ENV): string {
+  return env?.trim().toLowerCase() === 'sandbox' ? ASAAS_SANDBOX_BASE : ASAAS_PROD_BASE
+}
 
 function headers() {
   return {
@@ -8,36 +14,45 @@ function headers() {
 }
 
 export async function asaasPost<T>(path: string, body: object): Promise<T> {
-  const res = await fetch(`${ASAAS_BASE}${path}`, {
+  const res = await fetch(`${asaasBaseUrl()}${path}`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(body),
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Asaas POST ${path}: ${text}`)
+    throw new Error(`Asaas POST ${path} [${res.status}]: ${text}`)
   }
   return res.json()
 }
 
 export async function asaasGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${ASAAS_BASE}${path}`, { headers: headers() })
+  const res = await fetch(`${asaasBaseUrl()}${path}`, { headers: headers() })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Asaas GET ${path}: ${text}`)
+    throw new Error(`Asaas GET ${path} [${res.status}]: ${text}`)
   }
   return res.json()
 }
 
 export async function asaasPut<T>(path: string, body: object): Promise<T> {
-  const res = await fetch(`${ASAAS_BASE}${path}`, {
+  const res = await fetch(`${asaasBaseUrl()}${path}`, {
     method: 'PUT',
     headers: headers(),
     body: JSON.stringify(body),
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Asaas PUT ${path}: ${text}`)
+    throw new Error(`Asaas PUT ${path} [${res.status}]: ${text}`)
+  }
+  return res.json()
+}
+
+export async function asaasDelete<T>(path: string): Promise<T> {
+  const res = await fetch(`${asaasBaseUrl()}${path}`, { method: 'DELETE', headers: headers() })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Asaas DELETE ${path} [${res.status}]: ${text}`)
   }
   return res.json()
 }
@@ -70,3 +85,17 @@ function startOfDay(d: Date): Date {
 function toISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+/** Cliente mínimo da API do Asaas. Os fluxos de contrato recebem isto por parâmetro para os testes usarem um mock. */
+export interface AsaasApi {
+  post<T>(path: string, body: object): Promise<T>
+  get<T>(path: string): Promise<T>
+  put<T>(path: string, body: object): Promise<T>
+}
+
+/** AsaasApi + DELETE (cancelar assinatura). Separado para não obrigar os mocks dos fluxos de contrato a implementar delete. */
+export interface AsaasApiWithDelete extends AsaasApi {
+  delete<T>(path: string): Promise<T>
+}
+
+export const realAsaas: AsaasApiWithDelete = { post: asaasPost, get: asaasGet, put: asaasPut, delete: asaasDelete }

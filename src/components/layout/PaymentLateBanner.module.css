@@ -27,9 +27,34 @@
 .planOptionPrice { font-size: 0.8rem; font-weight: 600; color: var(--brand-text); }
 .planOptionDesc { font-size: 0.72rem; line-height: 1.3; color: var(--text-secondary); }
 
+.successHead { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.successIcon { display: inline-flex; flex-shrink: 0; color: var(--brand-primary); }
+.successText { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.successCard { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary); overflow-wrap: anywhere; }
+.successList { display: flex; flex-direction: column; margin: 0; border: 1px solid var(--border-color); border-radius: var(--radius-inner); background: var(--surface-2); }
+.successRow { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; padding: 10px 14px; font-size: 0.88rem; }
+.successRow + .successRow { border-top: 1px solid var(--border-color); }
+.successRow dt { color: var(--text-secondary); }
+.successRow dd { margin: 0; font-weight: 700; color: var(--text-primary); text-align: right; }
+
 .modalActions { display: flex; flex-direction: column; gap: 10px; }
 /* botões do padrão (button.module.css) esticados; o rótulo do plano é longo e pode quebrar */
 .modalActions .block { width: 100%; height: auto; min-height: 44px; padding: 10px 18px; white-space: normal; text-align: center; text-decoration: none; }
+
+/* Desktop: o modal largo (xl) mostra os planos lado a lado e centraliza o conteúdo na altura */
+.planStep { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+@media (min-width: 900px) {
+  .planStep { gap: 22px; }
+  .planDesc { font-size: 1rem; }
+  .planSelector { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .planOption { gap: 8px; padding: 32px 18px; border-radius: var(--radius-card); }
+  .planOptionLabel { font-size: 1.1rem; }
+  .planOptionPrice { font-size: 1.3rem; }
+  .planOptionDesc { font-size: 0.88rem; line-height: 1.45; }
+  .planStep .modalActions { flex-direction: row; align-items: stretch; }
+  .planStep .modalActions .block { width: auto; min-height: 48px; }
+  .planStep .modalActions .block:first-child { flex: 1 1 auto; }
+}
 
 @media (max-width: 480px) {
   .planSelector { grid-template-columns: 1fr; }

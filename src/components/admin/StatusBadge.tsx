@@ -8,10 +8,11 @@ const STATUS_CLASS: Record<ComputedClinicStatus, string> = {
   trial:         styles.statusTrial,
   trial_expired: styles.statusTrialExpired,
   suspended:     styles.statusSuspended,
+  awaiting_first_charge: styles.statusAwaiting,
 }
 
 interface Props {
-  clinic: Pick<Clinic, 'trial_ends_at' | 'billing_paid' | 'billing_overdue_since'>
+  clinic: Pick<Clinic, 'trial_ends_at' | 'billing_paid' | 'billing_overdue_since'> & Partial<Pick<Clinic, 'billing_first_due'>>
 }
 
 export function StatusBadge({ clinic }: Props) {
