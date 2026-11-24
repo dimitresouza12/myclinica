@@ -105,7 +105,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     async function syncClinicData() {
       const { data } = await supabase
         .from('clinics')
-        .select('gcal_connected, billing_paid, billing_overdue_since, next_billing_date, asaas_subscription_id, monthly_revenue_goal, specialties, is_multi_specialty, created_at, billing_phone')
+        .select('gcal_connected, billing_paid, billing_overdue_since, next_billing_date, asaas_subscription_id, monthly_revenue_goal, specialties, is_multi_specialty, created_at, billing_phone, custom_monthly_price')
         .eq('id', currentClinic.id)
         .single()
       if (!data) return
@@ -119,6 +119,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if ((data.next_billing_date ?? null) !== currentClinic.nextBillingDate) updates.nextBillingDate = data.next_billing_date ?? null
       if ((data.created_at ?? null) !== (currentClinic.createdAt ?? null)) updates.createdAt = data.created_at ?? null
       if ((data.billing_phone ?? null) !== (currentClinic.billingPhone ?? null)) updates.billingPhone = data.billing_phone ?? null
+      const customPrice = data.custom_monthly_price == null ? null : Number(data.custom_monthly_price)
+      if (customPrice !== (currentClinic.customMonthlyPrice ?? null)) updates.customMonthlyPrice = customPrice
       if ((data.asaas_subscription_id ?? null) !== currentClinic.asaasSubscriptionId) updates.asaasSubscriptionId = data.asaas_subscription_id ?? null
       if ((data.monthly_revenue_goal ?? null) !== currentClinic.monthlyRevenueGoal) updates.monthlyRevenueGoal = data.monthly_revenue_goal ?? null
       // Áreas atendidas: uma área adicionada por outro admin/dispositivo (ou o RPC de membro) chega aqui.
