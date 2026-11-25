@@ -1,14 +1,14 @@
 'use client'
 import type { Clinic } from '@/types'
 import { computeClinicStatus, CLINIC_STATUS_LABELS, type ComputedClinicStatus } from '@/lib/clinicStatus'
-import styles from './admin.module.css'
+import { Badge, type BadgeTone } from '@/components/ui/Badge'
 
-const STATUS_CLASS: Record<ComputedClinicStatus, string> = {
-  active:        styles.statusActive,
-  trial:         styles.statusTrial,
-  trial_expired: styles.statusTrialExpired,
-  suspended:     styles.statusSuspended,
-  awaiting_first_charge: styles.statusAwaiting,
+const STATUS_TONE: Record<ComputedClinicStatus, BadgeTone> = {
+  active:        'success',
+  trial:         'info',
+  trial_expired: 'warning',
+  suspended:     'danger',
+  awaiting_first_charge: 'warning',
 }
 
 interface Props {
@@ -17,5 +17,5 @@ interface Props {
 
 export function StatusBadge({ clinic }: Props) {
   const status = computeClinicStatus(clinic)
-  return <span className={`${styles.statusPill} ${STATUS_CLASS[status]}`}>{CLINIC_STATUS_LABELS[status]}</span>
+  return <Badge tone={STATUS_TONE[status]}>{CLINIC_STATUS_LABELS[status]}</Badge>
 }

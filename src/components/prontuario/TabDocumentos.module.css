@@ -3,7 +3,7 @@
 /* Seletor de tipo */
 .typeTabs { display: flex; gap: 2px; background: var(--bg-secondary); border-radius: var(--radius-sm); padding: 3px; flex-wrap: wrap; }
 .typeTab { padding: 0.35rem 0.75rem; border: none; background: none; border-radius: calc(var(--radius-sm) - 2px); font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all .15s; white-space: nowrap; }
-.typeTabActive { background: var(--brand-primary); color: #fff; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.typeTabActive { background: var(--brand-primary); color: #0D2421; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 
 /* Profissional responsável (só aparece quando há mais de um e quem logou não é profissional) */
 .professionalPicker { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; color: var(--text-secondary); }

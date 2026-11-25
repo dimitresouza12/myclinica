@@ -6,10 +6,10 @@ import {
 import styles from './admin.module.css'
 
 const PLAN_COLORS: Record<string, string> = {
-  basico:  '#0D9488',
-  pro:     '#0EA5E9',
-  premium: '#F59E0B',
-  trial:   '#A855F7',
+  basico:  'var(--brand-primary)',
+  pro:     'var(--st-info)',
+  premium: 'var(--st-wait)',
+  trial:   'var(--st-idle)',
 }
 
 interface PlanData { name: string; value: number }
@@ -32,11 +32,11 @@ export default function AdminCharts({ planData, monthData }: Props) {
               labelLine={false}
             >
               {planData.map((entry) => (
-                <Cell key={entry.name} fill={PLAN_COLORS[entry.name] ?? '#6B7280'} />
+                <Cell key={entry.name} fill={PLAN_COLORS[entry.name] ?? 'var(--st-idle)'} />
               ))}
             </Pie>
             <Tooltip
-              contentStyle={{ borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', boxShadow: 'var(--shadow-md)' }}
+              contentStyle={{ borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--surface)', boxShadow: 'var(--shadow-card)' }}
             />
             <Legend />
           </PieChart>
@@ -51,9 +51,9 @@ export default function AdminCharts({ planData, monthData }: Props) {
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
             <YAxis tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} allowDecimals={false} />
             <Tooltip
-              contentStyle={{ borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', boxShadow: 'var(--shadow-md)' }}
+              contentStyle={{ borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--surface)', boxShadow: 'var(--shadow-card)' }}
             />
-            <Bar dataKey="clinicas" fill="#0D9488" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="clinicas" fill="var(--brand-primary)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -57,6 +57,8 @@ export interface ContractPdfInput {
   verificacao?: string
   /** Dados da CONTRATADA impressos no papel timbrado da primeira página. */
   timbre?: { nome: string; documento: string; local: string; site?: string }
+  /** true = versão para leitura, ainda sem assinatura: sem página de registro e com rodapé de prévia. */
+  previa?: boolean
 }
 
 // Paleta da marca (RGB)
@@ -257,7 +259,8 @@ export function buildContractPdf(input: ContractPdfInput): Uint8Array {
     y += 44
   }
 
-  // Registro da assinatura (p\u00e1gina final)
+  // Registro da assinatura (p\u00e1gina final): a pr\u00e9via para leitura n\u00e3o tem
+  if (!input.previa) {
   novaPagina()
   doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...TEAL)
   doc.text('Registro da assinatura eletr\u00f4nica', MARGIN, y)
@@ -285,6 +288,7 @@ export function buildContractPdf(input: ContractPdfInput): Uint8Array {
     vLines.forEach((line, i) => doc.text(line, MARGIN + labelW, y + i * 4.2))
     y += h
   }
+  }
 
   // Rodap\u00e9 em todas as p\u00e1ginas
   const total = doc.getNumberOfPages()
@@ -292,7 +296,7 @@ export function buildContractPdf(input: ContractPdfInput): Uint8Array {
     doc.setPage(p)
     doc.setDrawColor(230); doc.line(MARGIN, PAGE_H - 14, PAGE_W - MARGIN, PAGE_H - 14); doc.setDrawColor(0)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...CINZA)
-    doc.text(input.verificacao ? `Documento assinado eletronicamente  |  Verifica\u00e7\u00e3o: ${pdfSafe(input.verificacao)}` : 'Documento assinado eletronicamente', MARGIN, PAGE_H - 9.5)
+    doc.text(input.previa ? 'Pr\u00e9via para leitura  |  ainda n\u00e3o assinado' : input.verificacao ? `Documento assinado eletronicamente  |  Verifica\u00e7\u00e3o: ${pdfSafe(input.verificacao)}` : 'Documento assinado eletronicamente', MARGIN, PAGE_H - 9.5)
     doc.text(`P\u00e1gina ${p} de ${total}`, PAGE_W - MARGIN, PAGE_H - 9.5, { align: 'right' })
     doc.setTextColor(0)
   }

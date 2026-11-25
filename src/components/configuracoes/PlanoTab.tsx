@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AuthClinic } from '@/types'
 import { Icon } from '@/components/ui/Icon'
 import { IntegerInput } from '@/components/ui/NumericInput'
-import { PLAN_CATALOG, getPlanEntry } from '@/lib/planCatalog'
+import { PLAN_CATALOG, PUBLIC_PLANS, getPlanEntry } from '@/lib/planCatalog'
 import { CARD_BRAND_LABELS, formatBrl, formatDiaBr, normalizeCardBrand } from '@/lib/cartaoCheckout'
 import { CheckoutCartaoModal } from '@/components/layout/CheckoutCartaoModal'
 import { AssinarEscolha } from './AssinarEscolha'
@@ -117,10 +117,13 @@ export function PlanoTab({ clinic }: { clinic: AuthClinic }) {
     } catch { setDueDayMsg({ ok: false, text: 'Erro de conexão. Tente novamente.' }) } finally { setBusy(false) }
   }
 
+  const publicCatalog = Object.fromEntries(PUBLIC_PLANS.map(k => [k, PLAN_CATALOG[k]])) as Record<string, { label: string; price: string }>
   // 'avancado' some da grade de upgrade; só reaparece se a própria clínica ainda estiver nele.
   const planos: Record<string, { label: string; price: string }> = clinic.plan === 'avancado'
-    ? { avancado: { label: 'Avançado', price: 'R$119,90/mês' }, ...PLAN_CATALOG }
-    : PLAN_CATALOG
+    ? { avancado: { label: 'Avançado', price: 'R$119,90/mês' }, ...publicCatalog }
+    : clinic.plan && !(PUBLIC_PLANS as readonly string[]).includes(clinic.plan) && clinic.plan in PLAN_CATALOG
+      ? { [clinic.plan]: PLAN_CATALOG[clinic.plan as keyof typeof PLAN_CATALOG], ...publicCatalog }
+      : publicCatalog
 
   const marca = resumo?.card?.brand ? (normalizeCardBrand(resumo.card.brand) ? CARD_BRAND_LABELS[normalizeCardBrand(resumo.card.brand)!] : resumo.card.brand) : null
 

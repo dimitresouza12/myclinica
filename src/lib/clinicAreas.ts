@@ -1,8 +1,8 @@
 import type { ClinicType, UserRole } from '@/types'
 import { getSpecialtyConfig, roleForSpecialty } from '@/lib/specialtyConfig'
 
-// Regras puras de "áreas de atuação" da clínica, usadas em Equipe e em
-// Configurações → Equipe. A clínica nasce com uma área (clinic.type), mas
+// Regras puras de "áreas de atuação" da clínica, usadas em Equipe e na seção
+// Acessos e permissões. A clínica nasce com uma área (clinic.type), mas
 // qualquer admin pode cadastrar profissional de QUALQUER das 9 áreas; a área
 // nova entra em clinic.specialties e a clínica passa a ser multi-área.
 
@@ -69,4 +69,26 @@ export function specialtyOptions(area: ClinicType | '' | null | undefined, curre
 /** Texto de apoio do campo Especialidade (só Medicina precisa: a área é ampla). */
 export function specialtyHint(area: ClinicType | '' | null | undefined): string | null {
   return area === 'medico' ? 'Em Medicina, a especialidade médica entra aqui (Cardiologia, Pediatria, Ginecologia...).' : null
+}
+
+/** Especialidades de um profissional: o campo de texto guarda várias separadas por vírgula. */
+export function parseSpecialties(text: string | null | undefined): string[] {
+  return (text ?? '').split(',').map(v => v.trim()).filter(Boolean)
+}
+
+export function joinSpecialties(list: string[]): string {
+  return Array.from(new Set(list.map(v => v.trim()).filter(Boolean))).join(', ')
+}
+
+/** Marca ou desmarca uma especialidade no texto salvo. */
+export function toggleSpecialty(text: string | null | undefined, value: string): string {
+  const list = parseSpecialties(text)
+  return joinSpecialties(list.includes(value) ? list.filter(v => v !== value) : [...list, value])
+}
+
+/** Opções do multi-seletor: as da área mais as já salvas fora da lista (cadastro antigo em texto livre). */
+export function specialtyChoices(area: ClinicType | '' | null | undefined, current?: string | null): string[] {
+  const list = area ? getSpecialtyConfig(area).professionalSpecialties : []
+  const extra = parseSpecialties(current).filter(v => !list.includes(v))
+  return [...list, ...extra]
 }

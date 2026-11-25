@@ -50,7 +50,7 @@
 .bubble { background: #DCF8C6; color: #111; border-radius: 12px 12px 12px 4px; padding: 0.7rem 0.9rem; font-size: 0.875rem; line-height: 1.5; white-space: pre-wrap; max-width: 420px; overflow-wrap: anywhere; }
 
 .actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-.btnPrimary { min-height: 44px; padding: 0 1.25rem; background: var(--brand-primary); color: #fff; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.btnPrimary { min-height: 44px; padding: 0 1.25rem; background: var(--brand-primary); color: #0D2421; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; }
 .btnPrimary:hover:not(:disabled) { opacity: 0.9; }
 .btnPrimary:disabled { opacity: 0.55; cursor: not-allowed; }
 .btnPrimary:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }

@@ -5,6 +5,7 @@ import { getSpecialtyConfig, specialtyRoleLabel } from '@/lib/specialtyConfig'
 import type { ClinicUser, Clinic } from '@/types'
 import styles from './admin.module.css'
 import { SelectMenu } from '@/components/ui/SelectMenu'
+import { Badge } from '@/components/ui/Badge'
 
 type UserWithClinic = ClinicUser & { clinics?: { name: string } | null }
 
@@ -73,9 +74,7 @@ export function AdminUsuarios({ users, clinics }: Props) {
                 <td data-label="Clínica">{u.clinics?.name ?? <span className={styles.dimText}>—</span>}</td>
                 <td data-label="Função"><span className={styles.roleChip}>{roleLabel(u)}</span></td>
                 <td data-label="Status">
-                  <span className={`${styles.statusPill} ${u.is_active ? styles.statusActive : styles.statusInactive}`}>
-                    {u.is_active ? 'Ativo' : 'Inativo'}
-                  </span>
+                  <Badge tone={u.is_active ? 'success' : 'neutral'}>{u.is_active ? 'Ativo' : 'Inativo'}</Badge>
                 </td>
                 <td data-label="Cadastro" className={styles.dateCell}>{formatDate(u.created_at, true)}</td>
               </tr>

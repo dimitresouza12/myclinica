@@ -447,6 +447,20 @@
 .totalName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .totalsHint { margin-top: 0.4rem; font-size: 0.7rem; color: var(--text-secondary); }
 
+/* Alvos de toque de 44px em tela de toque (mesmo padrão do corpograma); o desktop com mouse não muda */
+.pointHit { display: none; }
+@media (pointer: coarse) {
+  .sessionTab, .btnNewSession, .toolBtn, .typeBtn, .annItem { min-height: 44px; }
+  .sessionDel { width: 44px; height: 44px; margin: 0 -0.55rem 0 -0.35rem; font-size: 1.05rem; background: none; }
+  .annDel { width: 44px; height: 44px; }
+  .annInput, .btnSave { min-height: 44px; }
+  .annItem { align-items: center; }
+  .pointHit { display: inline; pointer-events: all; }
+}
+@media (max-width: 680px) {
+  .annInput, .btnSave { min-height: 44px; }
+}
+
 /* ── Tela cheia (ZoomCanvas): mesmo estado, painel de ferramentas em alvos de 44px ── */
 .fsPanel { display: flex; flex-direction: column; gap: 0.6rem; }
 .fsPanel .toolbar { padding: 0.4rem 0.5rem; }

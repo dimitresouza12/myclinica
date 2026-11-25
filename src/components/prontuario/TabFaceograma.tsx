@@ -306,6 +306,8 @@ export function TabFaceograma({ record, patient, clinicId, onSaved, onDirtyChang
                 if (dragRef.current?.moved) { setSelId(a.id); return }
                 setSelId(a.id === selId ? null : a.id)
               }}>
+              {/* Área de toque ampliada (~44px), só em tela de toque (ver .pointHit no CSS); invisível */}
+              <circle className={styles.pointHit} cx={a.x} cy={a.y} r={22} fill="transparent"/>
               {isSel && (
                 <circle cx={a.x} cy={a.y} r={20} fill="none"
                   stroke={col} strokeWidth="1.2" strokeDasharray="3,2" opacity="0.7"/>

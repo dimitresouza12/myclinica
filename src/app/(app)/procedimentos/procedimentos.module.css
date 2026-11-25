@@ -34,3 +34,16 @@
 }
 .suggestionItem:hover, .suggestionItem:focus-visible { background:var(--bg-secondary); }
 .suggestionItem:not(:last-child) { border-bottom:1px solid var(--border-subtle); }
+
+/* Preço direto na lista (procedimento "a definir"): campo compacto, 44px de altura no toque */
+.priceEdit { display:inline-flex; align-items:center; gap:6px; }
+.pricePrefix { font-size:.78rem; color:var(--text-secondary); }
+.priceInput {
+  width:104px; height:36px; padding:0 10px; text-align:right; font:inherit; font-size:.875rem;
+  font-variant-numeric:tabular-nums; color:var(--text-primary);
+  background:var(--surface); border:1px dashed var(--st-wait); border-radius:var(--radius-sm); outline:none;
+}
+.priceInput::placeholder { color:var(--text-tertiary); }
+.priceInput:focus { border-style:solid; border-color:var(--brand-accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--brand-primary) 30%, transparent); }
+.priceInput:disabled { opacity:.6; }
+@media (max-width:768px) { .priceInput { height:44px; width:120px; font-size:1rem; } }

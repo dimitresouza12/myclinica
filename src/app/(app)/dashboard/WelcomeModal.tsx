@@ -49,7 +49,7 @@ export function WelcomeModal() {
         <p className={styles.onboardingItemLabel}>Nenhum módulo liberado ainda — fale com o administrador da clínica.</p>
       ) : (
         <p className={styles.onboardingItemLabel}>
-          Você tem acesso a: <strong>{accessible.join(', ')}</strong>. Se precisar de mais alguma coisa, peça pro administrador ajustar suas permissões em Configurações → Equipe.
+          Você tem acesso a: <strong>{accessible.join(', ')}</strong>. Se precisar de mais alguma coisa, peça pro administrador ajustar suas permissões em Equipe, na seção Acessos e permissões.
         </p>
       )}
     </Modal>

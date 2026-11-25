@@ -7,6 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import googleCalendarPlugin from '@fullcalendar/google-calendar'
 import type { EventClickArg, DateSelectArg, DatesSetArg } from '@fullcalendar/core'
 import type { EventDropArg } from '@fullcalendar/core'
+import type { DateClickArg } from '@fullcalendar/interaction'
 import './fullcalendar.css'
 
 export interface CalendarEvent {
@@ -41,6 +42,8 @@ interface Props {
   googleCalendarId?: string
   onEventClick: (id: string) => void
   onDateSelect: (dateStr: string) => void
+  /** toque simples num dia (sem arrastar nem segurar); a tela decide se isso abre o dia */
+  onDayClick?: (dateStr: string) => void
   onTitleChange?: (title: string) => void
   /** período visível (fim exclusivo), a cada navegação, para o mini calendário e a contagem da agenda */
   onRangeChange?: (start: Date, end: Date) => void
@@ -66,7 +69,7 @@ export function statusColor(status: string) {
 }
 
 const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullCalendarWrapper(
-  { events, view, googleCalendarId, onEventClick, onDateSelect, onTitleChange, onRangeChange, onEventDrop, slotMinTime = '06:00:00', slotMaxTime = '21:00:00', canEdit = true },
+  { events, view, googleCalendarId, onEventClick, onDateSelect, onDayClick, onTitleChange, onRangeChange, onEventDrop, slotMinTime = '06:00:00', slotMaxTime = '21:00:00', canEdit = true },
   ref
 ) {
   const GAPI_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
@@ -107,6 +110,7 @@ const FullCalendarWrapper = forwardRef<FullCalendarHandle, Props>(function FullC
         else arg.revert()
       }}
       select={(arg: DateSelectArg) => onDateSelect(arg.startStr)}
+      dateClick={(arg: DateClickArg) => onDayClick?.(arg.dateStr)}
       eventClick={(arg: EventClickArg) => {
         arg.jsEvent.preventDefault()
         const id = arg.event.id

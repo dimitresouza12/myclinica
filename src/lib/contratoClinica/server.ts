@@ -271,6 +271,37 @@ export async function getAgreement(ctx: Ctx, id: string, deps: ContractDeps = de
   return { ok: true, detail: { agreement: view(row, true), pdfUrl, pdfUrlExpiresInSeconds: pdfUrl ? SIGNED_URL_TTL_S : null } }
 }
 
+/** PDF de leitura (sem assinatura) de um contrato pendente: é o que o cliente abre antes de pedir o código. */
+export async function previewAgreementPdf(ctx: Ctx, id: string, deps: ContractDeps = defaultDeps()): Promise<{ ok: true; pdf: Uint8Array } | Falha> {
+  const { data, error } = await deps.db.from('clinic_agreements').select(`${PUBLIC_COLS}, content_text`)
+    .eq('id', id).eq('clinic_id', ctx.clinicId).maybeSingle()
+  if (error) return dbFail(error, 'previa')
+  if (!data) return fail(404, 'Contrato não encontrado.')
+  const row = data as unknown as Row
+  if (row.status !== 'pending') return fail(409, 'Este contrato não está mais aguardando assinatura.')
+  try {
+    const contratada = contratadaFromEnv()
+    const cpf = String(row.signer_cpf ?? '')
+    const nome = String(row.signer_name ?? '')
+    const pdf = buildContractPdf({
+      title: CONTRATO_TITULO, text: String(row.content_text), manifest: [], signatureImage: null, signerName: nome, previa: true,
+      resumo: [
+        ['Plano', PLAN_CATALOG[row.plan as keyof typeof PLAN_CATALOG]?.label ?? String(row.plan)],
+        ['Prazo', `${Number(row.months)} meses`],
+        [row.payment_mode === 'upfront' ? 'Valor do contrato' : 'Mensalidade', `R$ ${formatBrl(row.payment_mode === 'upfront' ? Number(row.total_value) : Number(row.monthly_value))}`],
+        ['1ª cobrança', row.first_due_date ? formatDateBr(String(row.first_due_date)) : '-'],
+      ],
+      contratada: { nome: contratada.razaoSocial, documento: rotuloDocContratada(contratada.cnpj), assinadoEm: 'Assinatura digital (gov.br) a ser anexada ao registro', imagem: null, pendente: true },
+      contratante: { nome, documento: `CPF ${formatCpf(cpf) || cpf}`, assinadoEm: 'Aguardando assinatura', imagem: null, pendente: true },
+      timbre: { nome: contratada.razaoSocial, documento: rotuloDocContratada(contratada.cnpj), local: contratada.cidadeUf, site: 'myclinica.online' },
+    })
+    return { ok: true, pdf }
+  } catch (e) {
+    console.error('[contratoClinica:previa]', e instanceof Error ? e.message : e)
+    return fail(500, 'Não foi possível gerar o contrato para leitura. Tente de novo.')
+  }
+}
+
 // ── Código por WhatsApp ─────────────────────────────────────────────────────
 
 export interface SendCodeResult { ok: true; sentTo: string; expiresAt: string; resendAvailableAt: string; codeValidMinutes: number }

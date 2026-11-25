@@ -1,14 +1,15 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { usePermissions } from '@/hooks/usePermissions'
 import { formatDate } from '@/lib/utils'
 import { getSpecialtyConfig, specialtyRoleLabel, roleForSpecialty, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
-import { isClinicalRole, isMultiArea, defaultProfessionalArea, clinicalRoleForArea, specialtyPlaceholder, specialtyHint, specialtyOptions } from '@/lib/clinicAreas'
+import { isClinicalRole, isMultiArea, defaultProfessionalArea, clinicalRoleForArea, specialtyPlaceholder, specialtyHint, specialtyChoices, parseSpecialties, toggleSpecialty } from '@/lib/clinicAreas'
 import { registerClinicArea } from '@/lib/registerClinicArea'
 import { presetPermissions } from '@/lib/permissionPresets'
 import { normalizeUsername } from '@/lib/username'
+import Link from 'next/link'
 import { professionalLimitFor } from '@/lib/planCatalog'
 import { councilForProfessional, registrationFieldLabel } from '@/lib/professionalCouncil'
 import { useProfessionalRqeColumn } from '@/lib/professionalColumns'
@@ -24,11 +25,14 @@ import { IntegerInput } from '@/components/ui/NumericInput'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { useTeamDirectory } from '@/hooks/useTeamChat'
 import { Card } from '@/components/ui/Card'
+import { AcessosSection } from '@/components/equipe/AcessosSection'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatusDot } from '@/components/ui/StatusDot'
 import { MoreMenu } from '@/components/ui/MoreMenu'
 import btn from '@/components/ui/button.module.css'
+import { ErrorNotice } from '@/components/ui/ErrorNotice'
+import { EmptyState } from '@/components/ui/EmptyState'
 import f from '@/components/ui/modalForm.module.css'
 import t from '@/components/ui/table.module.css'
 import { SelectMenu } from '@/components/ui/SelectMenu'
@@ -107,7 +111,7 @@ function permissionsFailedMessage(error: { message?: string; code?: string }): s
   const reason = (error.message ?? '').includes('cannot_grant_permission')
     ? ' Você não pode conceder permissões acima das suas.'
     : ''
-  return `O login foi criado, mas ficou sem permissões.${reason} Peça ao administrador para ajustá-las em Configurações → Equipe.`
+  return `O login foi criado, mas ficou sem permissões.${reason} Peça ao administrador para ajustá-las em Acessos e permissões, nesta tela.`
 }
 
 type PermRow = { module: string; can_view: boolean; can_edit: boolean; metadata: Record<string, unknown> }
@@ -137,6 +141,7 @@ function EquipeContent() {
   const { canEdit } = usePermissions('equipe')
   const [professionals, setProfessionals] = useState<ProfessionalRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<NewProf>(BLANK)
   // Conselho (rótulo do campo de registro) segue a área escolhida no formulário.
@@ -148,13 +153,16 @@ function EquipeContent() {
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [activeUserCount, setActiveUserCount] = useState(0)
+  // Muda a cada recarga dos profissionais depois da primeira: a seção Acessos e permissões recarrega os logins junto.
+  const [accessReload, setAccessReload] = useState(0)
+  const firstLoadDone = useRef(false)
   const [createdCredentials, setCreatedCredentials] = useState<{ displayName: string; username: string; email: string; password: string; reset?: boolean } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProfessionalRow | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   // Profissional em edição — quando setado, handleSave faz UPDATE em vez de
   // criar um novo. Além dos campos de `professionals`, o bloco de acesso permite
   // criar o login (se não tem), redefinir a senha ou remover o acesso.
-  // Permissões finas continuam em Configurações → Equipe.
+  // Permissões finas ficam na seção Acessos e permissões, mais abaixo nesta tela.
   const [editingProf, setEditingProf] = useState<ProfessionalRow | null>(null)
   // Usuário/e-mail do login vinculado (busca separada: pode não estar legível dependendo da permissão)
   const [accessInfo, setAccessInfo] = useState<{ username: string | null; email: string | null } | null>(null)
@@ -185,13 +193,16 @@ function EquipeContent() {
 
   async function loadData() {
     if (!clinic) return
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('professionals')
       .select('*, clinic_users(role, is_active, specialty_type)')
       .eq('clinic_id', clinic.id)
       .order('name')
-    setProfessionals((data ?? []) as unknown as ProfessionalRow[])
+    setLoadError(!!error)
+    if (!error) setProfessionals((data ?? []) as unknown as ProfessionalRow[])
     setLoading(false)
+    if (firstLoadDone.current) setAccessReload(n => n + 1)
+    firstLoadDone.current = true
   }
 
   async function loadUserCount() {
@@ -268,7 +279,7 @@ function EquipeContent() {
       }).eq('id', editingProf.id).eq('clinic_id', clinic.id)
       if (error) { setSaving(false); setErrorMsg('Erro ao salvar profissional: ' + error.message); return }
       // Profissional com login vinculado — resincroniza o nome de exibição
-      // também no login, senão diverge do que aparece em Configurações → Equipe.
+      // também no login, senão diverge do que aparece em Acessos e permissões.
       // Se a área mudou, o login acompanha (specialty_type e, quando é cargo clínico, o cargo da área).
       if (editingProf.clinic_user_id && editingProf.clinic_users) {
         const loginRole = editingProf.clinic_users.role
@@ -331,7 +342,7 @@ function EquipeContent() {
       return setErrorMsg('Escolha a área de atuação do profissional.')
     }
     if (blockedByProfessionalLimit) {
-      return setErrorMsg(`Seu plano permite até ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'}. Fale com o suporte para migrar de plano ou liberar uma exceção.`)
+      return setErrorMsg(`Seu plano permite até ${professionalLimit} ${professionalLimit === 1 ? 'profissional' : 'profissionais'}. Veja os planos em Configurações > Plano para fazer o upgrade.`)
     }
     setSaving(true)
 
@@ -354,8 +365,8 @@ function EquipeContent() {
       return
     }
 
-    // Criando também o login — mesma validação usada em Configurações →
-    // Equipe. Login em si não tem limite de plano (só profissional tem,
+    // Criando também o login — mesma validação usada na seção Acessos e
+    // permissões. Login em si não tem limite de plano (só profissional tem,
     // checado acima antes dos dois caminhos).
     if (!form.username.trim()) { setSaving(false); return setErrorMsg('Nome de usuário é obrigatório.') }
     if (!form.email.trim())    { setSaving(false); return setErrorMsg('E-mail é obrigatório.') }
@@ -526,7 +537,9 @@ function EquipeContent() {
       </div>
 
       <Card flush title="Profissionais">
-        {loading ? <p className={styles.loading}>Carregando...</p> : (
+        {loading ? <p className={styles.loading}>Carregando...</p> : loadError ? (
+          <ErrorNotice message="Não foi possível carregar a equipe. Confira a conexão." onRetry={() => { setLoading(true); loadData() }} />
+        ) : (
           <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
             <table className={`${t.table} resp-table`}>
               <thead>
@@ -539,7 +552,7 @@ function EquipeContent() {
               </thead>
               <tbody>
                 {professionals.length === 0 ? (
-                  <tr><td colSpan={4} className={t.empty}>Nenhum profissional cadastrado.</td></tr>
+                  <tr><td colSpan={4} className={t.empty}><EmptyState compact title="Nenhum profissional cadastrado" description={canEdit ? 'Cadastre quem atende para liberar a agenda.' : undefined} action={canEdit ? <button type="button" className={btn.primary} onClick={openNewModal}><Icon name="plus" size={15} /> Novo profissional</button> : undefined} /></td></tr>
                 ) : professionals.map(p => (
                   <tr key={p.id} className={`${canEdit ? t.clickable : ''} ${styles.row}`} onClick={() => openEditModal(p)}>
                     <td>
@@ -584,6 +597,14 @@ function EquipeContent() {
         )}
       </Card>
 
+      {isAdmin && (
+        <AcessosSection
+          professionalCount={professionals.length}
+          reloadKey={accessReload}
+          onChanged={() => { loadData(); loadUserCount() }}
+        />
+      )}
+
       <Modal
         open={showModal}
         onClose={() => setShowModal(false)}
@@ -599,7 +620,7 @@ function EquipeContent() {
       >
         {!editingProf && blockedByProfessionalLimit && (
           <p className={f.hint}>
-            Limite de profissionais do plano atingido ({professionals.length}/{professionalLimit}). Fale com o suporte para migrar de plano ou liberar uma exceção
+            Limite de profissionais do plano atingido ({professionals.length}/{professionalLimit}). <Link href="/configuracoes?tab=plano">Ver planos e fazer upgrade</Link>
             {!form.hasAccess ? '' : ' — recepção e auxiliar continuam sem limite, mude o cargo abaixo'}.
           </p>
         )}
@@ -618,12 +639,12 @@ function EquipeContent() {
               const area = v as ClinicType
               // Troca a área: o cargo clínico do login acompanha, e uma especialidade que era só
               // sugestão da área anterior (ex: Ortodontia) não fica pra trás na nova.
-              const wasSuggestion = !!p.specialty_type && getSpecialtyConfig(p.specialty_type).professionalSpecialties.includes(p.specialty)
+              const antigas = p.specialty_type ? getSpecialtyConfig(p.specialty_type).professionalSpecialties : []
               return {
                 ...p,
                 specialty_type: area,
                 role: isClinicalRole(p.role) ? roleForSpecialty(area) : p.role,
-                specialty: wasSuggestion ? '' : p.specialty,
+                specialty: parseSpecialties(p.specialty).filter(v => !antigas.includes(v)).join(', '),
               }
             })}
             options={CLINIC_TYPE_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
@@ -631,16 +652,24 @@ function EquipeContent() {
           <p className={f.hint}>Define o conselho profissional, as especialidades disponíveis e a duração padrão.</p>
         </div>
         <div className={f.field}>
-          <label>Especialidade</label>
-          <SelectMenu
-            variant="field"
-            ariaLabel="Especialidade"
-            placeholder={specialtyPlaceholder(form.specialty_type)}
-            disabled={!form.specialty_type}
-            value={form.specialty}
-            onChange={v => setForm(p => ({ ...p, specialty: v }))}
-            options={specialtyOptions(form.specialty_type, form.specialty)}
-          />
+          <label>Especialidades</label>
+          {!form.specialty_type ? (
+            <p className={f.hint}>{specialtyPlaceholder(form.specialty_type)}</p>
+          ) : (
+            <div className={styles.chips} role="group" aria-label="Especialidades">
+              {specialtyChoices(form.specialty_type, form.specialty).map(v => {
+                const on = parseSpecialties(form.specialty).includes(v)
+                return (
+                  <button key={v} type="button" aria-pressed={on}
+                    className={`${styles.chip} ${on ? styles.chipOn : ''}`}
+                    onClick={() => setForm(p => ({ ...p, specialty: toggleSpecialty(p.specialty, v) }))}>
+                    {v}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {form.specialty_type && <p className={f.hint}>Pode marcar mais de uma, se o profissional atua em várias.</p>}
           {specialtyHint(form.specialty_type) && <p className={f.hint}>{specialtyHint(form.specialty_type)}</p>}
         </div>
 
@@ -709,7 +738,7 @@ function EquipeContent() {
                   {isAdmin ? 'Remover acesso' : 'Desativar acesso'}
                 </button>
               </div>
-              <p className={f.hint}>As permissões deste acesso são ajustadas em Configurações → Equipe, por quem é administrador.</p>
+              <p className={f.hint}>As permissões deste acesso são ajustadas em Acessos e permissões, nesta tela, por quem é administrador.</p>
             </>
           ) : (
             <>
@@ -770,7 +799,7 @@ function EquipeContent() {
                       placeholder="mín. 8 caracteres"
                     />
                   </div>
-                  <p className={f.hint}>As permissões vêm pré-marcadas pro cargo — dá pra ajustar depois em Configurações → Equipe.</p>
+                  <p className={f.hint}>As permissões vêm pré-marcadas pro cargo — dá pra ajustar depois em Acessos e permissões, nesta tela.</p>
                 </>
               )}
             </>

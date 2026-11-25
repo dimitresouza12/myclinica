@@ -62,6 +62,16 @@ export function TeamSchedule({ open, onClose, professionals, schedules, shifts, 
     showToast('ok', 'Semana copiada')
   }
 
+  function renderCell(prof: Professional, sched: ReturnType<typeof scheduleOf>, d: string) {
+    const st = dayStatus(sched, d)
+    const cls = st.state === 'atende' ? styles.on : st.state === 'nao_atende' ? styles.off : st.state === 'por_definir' ? styles.todo : styles.none
+    return (
+      <button type="button" className={`${styles.cell} ${cls}`} onClick={() => onEdit(prof, parseDate(d))} aria-label={`${prof.name}, ${DOW[parseDate(d).getDay()]} ${d.slice(8)}: ${describeDay(st, shifts)}. Editar escala`}>
+        {describeDay(st, shifts)}
+      </button>
+    )
+  }
+
   return (
     <Modal open={open} onClose={onClose} title="Escala da equipe" subtitle="Quem atende em cada dia" size="xl">
       <div className={styles.body}>
@@ -79,7 +89,7 @@ export function TeamSchedule({ open, onClose, professionals, schedules, shifts, 
           </button>
         </div>
 
-        <div className={styles.scroll}>
+        <div className={styles.scroll} data-hscroll>
           <table className={styles.table}>
             <thead>
               <tr>
@@ -94,22 +104,31 @@ export function TeamSchedule({ open, onClose, professionals, schedules, shifts, 
                     <span className={styles.avatar} style={{ background: colorOf(prof.id) }} aria-hidden="true">{initialsOf(prof.name)}</span>
                     <span className={styles.name}>{prof.name}</span>
                   </th>
-                  {dates.map(d => {
-                    const st = dayStatus(sched, d)
-                    const cls = st.state === 'atende' ? styles.on : st.state === 'nao_atende' ? styles.off : st.state === 'por_definir' ? styles.todo : styles.none
-                    return (
-                      <td key={d}>
-                        <button type="button" className={`${styles.cell} ${cls}`} onClick={() => onEdit(prof, parseDate(d))} aria-label={`${prof.name}, ${DOW[parseDate(d).getDay()]} ${d.slice(8)}: ${describeDay(st, shifts)}. Editar escala`}>
-                          {describeDay(st, shifts)}
-                        </button>
-                      </td>
-                    )
-                  })}
+                  {dates.map(d => <td key={d}>{renderCell(prof, sched, d)}</td>)}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {/* Celular: a grade de 7 colunas vira um cartão por profissional, com um dia por linha (sem rolar de lado) */}
+        <ul className={styles.cards} aria-label="Escala por profissional">
+          {rows.map(({ prof, sched }) => (
+            <li key={prof.id} className={styles.card}>
+              <div className={styles.cardHead}>
+                <span className={styles.avatar} style={{ background: colorOf(prof.id) }} aria-hidden="true">{initialsOf(prof.name)}</span>
+                <span className={styles.name}>{prof.name}</span>
+              </div>
+              <ul className={styles.dayList}>
+                {dates.map((d, i) => (
+                  <li key={d} className={styles.dayRow}>
+                    <span className={styles.dayLabel}>{DOW[i]} {d.slice(8)}</span>
+                    {renderCell(prof, sched, d)}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
         {withoutSchedule > 0 && (
           <p className={styles.hint}>{withoutSchedule} {withoutSchedule === 1 ? 'profissional está' : 'profissionais estão'} sem escala: atendem em qualquer horário. Toque numa célula para definir.</p>
         )}

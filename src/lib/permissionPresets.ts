@@ -25,7 +25,7 @@ export const MODULES: ModuleDef[] = [
   { key: 'relatorios',    label: 'Relatórios',     icon: '', plusOnly: false, desc: 'Relatórios de desempenho e planilhas' },
   { key: 'metas',         label: 'Metas',          icon: '', plusOnly: false, desc: 'Meta de receita da clínica' },
   { key: 'estoque',       label: 'Estoque',        icon: '', plusOnly: false, desc: 'Produtos, lotes e movimentações' },
-  { key: 'equipe',        label: 'Equipe',         icon: '', plusOnly: false, desc: 'Profissionais da agenda e seus logins', note: 'Quem tem Equipe pode criar profissionais e acessos, mas nunca administradores nem permissões acima das suas. A aba Equipe das Configurações (acessos e permissões) é só do administrador.' },
+  { key: 'equipe',        label: 'Equipe',         icon: '', plusOnly: false, desc: 'Profissionais da agenda e seus logins', note: 'Quem tem Equipe pode criar profissionais e acessos, mas nunca administradores nem permissões acima das suas. A seção Acessos e permissões da tela Equipe é só do administrador.' },
   { key: 'crm',           label: 'CRM',            icon: '', plusOnly: false, desc: 'Funil de contatos e conversas', note: 'Mensagens (WhatsApp) usa este módulo.' },
   { key: 'campanhas',     label: 'Campanhas',      icon: '', plusOnly: true,  desc: 'Envio de campanhas por WhatsApp' },
   { key: 'configuracoes', label: 'Configurações',  icon: '', plusOnly: false, desc: 'Dados da clínica, plano e integrações' },
@@ -58,7 +58,7 @@ export const MODULE_EXTRAS: Record<string, { key: string; label: string; hint?: 
 // que era o comportamento antigo e é o motivo de recepcionistas reais em
 // produção terem hoje edição total de Financeiro e Configurações).
 export const ROLE_PRESET_MODULES: Record<string, { edit?: string[]; view?: string[] }> = {
-  recepcao:     { edit: ['agenda', 'pacientes'],                    view: ['dashboard', 'procedimentos'] },
+  recepcao:     { edit: ['agenda', 'pacientes', 'crm'],                   view: ['dashboard', 'procedimentos'] },
   auxiliar:     { edit: ['agenda', 'estoque'],                      view: ['dashboard', 'pacientes', 'prontuario', 'procedimentos'] },
   dentista:     { edit: ['agenda', 'pacientes', 'prontuario'],      view: ['dashboard', 'procedimentos', 'relatorios'] },
   medico:       { edit: ['agenda', 'pacientes', 'prontuario'],      view: ['dashboard', 'procedimentos', 'relatorios'] },

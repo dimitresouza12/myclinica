@@ -13,6 +13,23 @@ interface Props {
   onChange: (d: PerioDados) => void
 }
 
+/** Traz o campo para a área visível (a coluna de rótulos fixa e o teclado virtual cobrem o que vem logo ao lado). */
+function trazerParaVista(el: HTMLElement) {
+  try {
+    el.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' })
+  } catch {
+    // navegador sem suporte às opções: o foco já rola o mínimo sozinho
+  }
+}
+
+function telaPequena() {
+  try {
+    return window.matchMedia('(max-width: 600px)').matches
+  } catch {
+    return false
+  }
+}
+
 const tomPs = (ps: number | null) => (ps === null ? undefined : ps >= 6 ? 'bad' : ps >= 4 ? 'warn' : undefined)
 
 /**
@@ -31,7 +48,10 @@ export function PerioGrade({ dados, onChange }: Props) {
     if (!nav || !raiz.current) return
     const campos = Array.from(raiz.current.querySelectorAll<HTMLInputElement>(`input[data-nav="${nav}"]:not(:disabled)`))
     const i = campos.indexOf(el)
-    campos[i + 1]?.focus()
+    const prox = campos[i + 1]
+    if (!prox) return
+    prox.focus()
+    trazerParaVista(prox)
   }
 
   function cicla(atual: number | null, max: number): number | null {
@@ -183,6 +203,7 @@ export function PerioGrade({ dados, onChange }: Props) {
 
   return (
     <div ref={raiz} className={styles.arcadas}>
+      <p className={styles.mobileHint}>Digite os valores em sequência; o campo avança sozinho</p>
       {renderArcada('Arcada superior', PERIO_SUPERIOR, true)}
       {renderArcada('Arcada inferior', PERIO_INFERIOR, false)}
     </div>
@@ -217,7 +238,7 @@ function MmCampo({ valor, max, nav, rotulo, disabled, tom, onValor, onAvancar }:
       disabled={disabled}
       aria-label={rotulo}
       value={valor === null ? '' : String(valor)}
-      onFocus={e => e.currentTarget.select()}
+      onFocus={e => { e.currentTarget.select(); if (telaPequena()) trazerParaVista(e.currentTarget) }}
       onChange={e => {
         const bruto = e.target.value
         onValor(lerMm(bruto, max))

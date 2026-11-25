@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Portal } from '@/components/ui/Portal'
+import { patientSearchOr } from '@/lib/patientSearchFilter'
 import { patientHref } from '@/lib/prontuario/navigation'
 import { canLeave } from '@/lib/prontuario/leaveGuard'
 import type { Patient } from '@/types'
@@ -57,7 +58,7 @@ export function GlobalSearch({ size = 'default', placeholder = 'Buscar paciente'
         .select('id, name, phone, pet_name')
         .eq('clinic_id', clinic.id)
         .eq('is_active', true)
-        .or(`name.ilike.%${term}%,phone.ilike.%${term}%,pet_name.ilike.%${term}%`)
+        .or(patientSearchOr(term))
         .limit(6)
       setResults((data ?? []) as Patient[])
       setOpen(true)

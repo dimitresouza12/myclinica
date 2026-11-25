@@ -94,7 +94,8 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
     // Chat da equipe: sem permissão por módulo, vale para qualquer login (se a clínica tiver o chat)
     if (item.teamChat) return teamChatOn
     // Filtra plano plus
-    if (item.plusOnly && !isPlus) return false
+    // item do plano superior: só o admin o enxerga (bloqueado, leva aos planos); os demais nem veem
+    if (item.plusOnly && !isPlus) return isAdmin
     // Admin e superadmin sempre veem tudo
     if (isAdmin) return true
     // Aguarda permissões carregarem para não piscar
@@ -119,11 +120,12 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
     : null
 
   function renderItem(item: NavItem) {
-    const active = pathname.startsWith(item.path)
+    const locked = !!item.plusOnly && !isPlus
+    const active = !locked && pathname.startsWith(item.path)
     return (
       <Link
         key={item.path}
-        href={item.path}
+        href={locked ? '/configuracoes?tab=plano' : item.path}
         className={`${styles.navItem} ${active ? styles.active : ''}`}
         aria-current={active ? 'page' : undefined}
         title={isCollapsed ? item.label : undefined}
@@ -133,6 +135,7 @@ export function AppSidebar({ clinic, user, mobileOpen = false, onMobileClose }: 
           <Icon name={item.icon} size={16} />
         </span>
         <span className={styles.navLabel}>{item.label}</span>
+        {locked && <span className={styles.navBadge} title="Disponível no plano Ilimitado + IA">Plus</span>}
         {item.path === '/chat-equipe' && teamUnread > 0 && (
           <span className={styles.navBadge} aria-label={`${teamUnread} mensagens não lidas no chat da equipe`}>
             {teamUnread > 99 ? '99+' : teamUnread}

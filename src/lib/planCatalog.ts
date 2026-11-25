@@ -34,7 +34,7 @@ export const PLAN_CATALOG: Record<SellablePlan, PlanCatalogEntry> = {
     price: 'R$ 99,90/mês',
     priceValue: 99.90,
     professionalLimit: 1,
-    description: 'Agenda, prontuário e financeiro básico para 1 profissional.',
+    description: 'Agenda, prontuário, financeiro e relatórios para 1 profissional.',
     color: '#0D9488',
   },
   completo: {
@@ -42,7 +42,7 @@ export const PLAN_CATALOG: Record<SellablePlan, PlanCatalogEntry> = {
     price: 'R$ 129,90/mês',
     priceValue: 129.90,
     professionalLimit: 3,
-    description: 'Tudo do Essencial + equipe, relatórios avançados e até 3 profissionais.',
+    description: 'Tudo do Essencial, para clínicas com até 3 profissionais.',
     color: '#7c3aed',
   },
   equipe: {
@@ -50,7 +50,7 @@ export const PLAN_CATALOG: Record<SellablePlan, PlanCatalogEntry> = {
     price: 'R$ 169,90/mês',
     priceValue: 169.90,
     professionalLimit: 6,
-    description: 'Tudo do Completo + equipe maior, com até 6 profissionais.',
+    description: 'Tudo do Completo, para clínicas com até 6 profissionais.',
     color: '#0891b2',
   },
   ilimitado: {

@@ -104,8 +104,9 @@ export function statusChangePatch(a: FlowAppt, newStatus: string, now: Date, use
   }
   if (newStatus === 'agendado' || newStatus === 'confirmado') {
     const stage = stageOf(a)
-    if (stage === 'waiting' || stage === 'in_progress') {
-      return { arrived_at: null, called_at: null, started_at: null, started_by: null }
+    // Também zera quando a consulta vinha de "concluído" com chegada/início/fim preenchidos (senão aparece "Aguardando").
+    if (stage === 'waiting' || stage === 'in_progress' || a.arrived_at || a.called_at || a.started_at || a.finished_at) {
+      return { arrived_at: null, called_at: null, started_at: null, started_by: null, finished_at: null, finished_by: null }
     }
   }
   return {}

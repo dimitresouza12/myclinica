@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { showToast } from '@/components/ui/Toast'
-import { confirmDialog } from '@/components/ui/ConfirmDialog'
+import { confirmDialog, choiceDialog } from '@/components/ui/ConfirmDialog'
 import { formatCurrency } from '@/lib/utils'
 import { lowBalanceMessage } from '@/lib/agenda/packages'
 import { resolveSessionPackage, unlinkAppointmentFromPackage } from '@/lib/agenda/packagesApi'
@@ -172,4 +172,31 @@ export async function removeRevenueForAppointment(clinicId: string, apptId: stri
       actionLabel: 'Ir para Pacientes',
     })
   }
+}
+
+// Logo depois de concluir, pergunta como o paciente pagou e grava na receita recém-lançada,
+// para a recepção não depender de achar o lançamento no Financeiro. "Depois" deixa sem forma
+// de pagamento (como antes). Devolve true quando o pagamento foi gravado.
+export async function askPaymentForRevenue(clinicId: string, result: EnsureRevenueResult, appt: Appointment): Promise<boolean> {
+  if (result.status !== 'created') return false
+  const value = result.partialCredit ? (appt.procedure_price ?? 0) - result.partialCredit.consumedAmount : (appt.procedure_price ?? 0)
+  const method = await choiceDialog({
+    title: 'Como o paciente pagou?',
+    message: `${appt.procedure_name ?? 'Atendimento'}: ${formatCurrency(value)}`,
+    cancelText: 'Definir depois',
+    choices: [
+      { value: 'pix', label: 'PIX' },
+      { value: 'dinheiro', label: 'Dinheiro' },
+      { value: 'cartao_credito', label: 'Cartão de crédito' },
+      { value: 'cartao_debito', label: 'Cartão de débito' },
+    ],
+  })
+  if (!method) return false
+  const { error } = await supabase.from('financial_records').update({ payment_method: method }).eq('id', result.recordId).eq('clinic_id', clinicId)
+  if (error) {
+    showToast('error', 'Não foi possível gravar a forma de pagamento. Defina em Financeiro.', { href: `/financeiro?record=${result.recordId}`, actionLabel: 'Definir pagamento' })
+    return false
+  }
+  showToast('ok', 'Agendamento concluído e pagamento registrado.')
+  return true
 }

@@ -1,4 +1,5 @@
 'use client'
+import { patientSearchOr } from '@/lib/patientSearchFilter'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
@@ -48,7 +49,7 @@ import { showToast } from '@/components/ui/Toast'
 import { Icon } from '@/components/ui/Icon'
 import { Modal } from '@/components/ui/Modal'
 import f from '@/components/ui/modalForm.module.css'
-import { ensureRevenueForAppointment, notifyRevenuePending, removeRevenueForAppointment, promptCreditUsage } from '@/lib/appointmentRevenue'
+import { ensureRevenueForAppointment, notifyRevenuePending, askPaymentForRevenue, removeRevenueForAppointment, promptCreditUsage } from '@/lib/appointmentRevenue'
 import { IntegerInput, MoneyInput } from '@/components/ui/NumericInput'
 import { usePageSearch } from '@/store/pageSearch'
 import { useAgendaExtras } from '@/hooks/useAgendaExtras'
@@ -330,6 +331,7 @@ function ApptDetailContent({
   const [savingPhone, setSavingPhone] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showStatus, setShowStatus] = useState(false)
+  const [showWa, setShowWa] = useState(false)
   const nextStep = canEdit ? NEXT_STEP[appt.status ?? ''] : undefined
   const canReschedule = canEdit && appt.status !== 'concluido' && appt.status !== 'arrived' && appt.status !== 'in_progress'
   // chegada: só no dia da consulta e enquanto ela está agendada, confirmada ou já aguardando
@@ -339,6 +341,16 @@ function ApptDetailContent({
   const inWaitingRoom = stageOf(appt) === 'waiting'
   // confirmada, hoje e ainda sem chegada: o passo da vez é receber o paciente; depois, concluir
   const arriveIsPrimary = canArrive && !appt.arrived_at && appt.status === 'confirmado'
+  // paciente na sala de espera e sem outro passo do fluxo pela frente: o passo da vez é chamar
+  const canCall = canEdit && !!onCall && inWaitingRoom
+  const callIsPrimary = canCall && !arriveIsPrimary && !nextStep
+  // ações de chegada/chamada que não são o passo da vez ficam recolhidas em "Mais"
+  const showArriveInMore = canArrive && !appt.arrived_at && !arriveIsPrimary
+  const showCallInMore = canCall && !callIsPrimary
+  const showUndoArriveInMore = canArrive && !!appt.arrived_at
+  // WhatsApp: um único botão com menu (lembrar, conversar, enviar confirmação)
+  const waNumber = waMeNumber(appt.patients?.phone)
+  const showWaMenu = !!waNumber || canSendWa
 
   async function savePhone() {
     if (!appt.patient_id) return
@@ -411,38 +423,24 @@ function ApptDetailContent({
           </div>
         )}
 
-        {(waLabel || canSendWa) && (
+        {waLabel && (
           <div className={styles.waBox}>
             <p className={styles.detailActionsLabel}>Confirmação pelo WhatsApp</p>
-            {waLabel && <span className={`${styles.waChip} ${styles[`waTone_${waLabel.tone}`]}`}>{waLabel.text}</span>}
-            {canSendWa && (
-              <button className={styles.waBtn} onClick={sendWhatsAppNow} disabled={waSending || isDemo} aria-describedby={isDemo ? 'agenda-demo-wa-note' : undefined}>
-                {waSending ? 'Enviando…' : confirmation ? 'Reenviar mensagem agora' : 'Enviar confirmação agora'}
-              </button>
-            )}
-            {isDemo && <span id="agenda-demo-wa-note" className={styles.waHint}>Envio de mensagens desativado na conta de demonstração.</span>}
-            {waMsg && <span className={waMsg.ok ? styles.waOk : styles.waErr} role="status">{waMsg.text}</span>}
+            <span className={`${styles.waChip} ${styles[`waTone_${waLabel.tone}`]}`}>{waLabel.text}</span>
           </div>
         )}
 
         <div className={styles.detailActions}>
           {arriveIsPrimary ? (
             <button type="button" className={styles.btnNextStep} onClick={() => onArrive(appt, true)}>Paciente chegou</button>
+          ) : callIsPrimary && onCall ? (
+            <button type="button" className={styles.btnNextStep} onClick={() => onCall(appt)}>
+              {appt.called_at ? 'Chamar paciente de novo' : 'Chamar paciente'}
+            </button>
           ) : nextStep && (
             <button type="button" className={styles.btnNextStep} onClick={() => onUpdateStatus(appt.id, nextStep.status)}>
               {nextStep.label}
             </button>
-          )}
-          {canArrive && !arriveIsPrimary && !appt.arrived_at && (
-            <button type="button" className={styles.btnArrive} onClick={() => onArrive(appt, true)}>Paciente chegou</button>
-          )}
-          {canEdit && onCall && inWaitingRoom && (
-            <button type="button" className={styles.btnArrive} onClick={() => onCall(appt)}>
-              {appt.called_at ? 'Chamar paciente de novo' : 'Chamar paciente'}
-            </button>
-          )}
-          {canArrive && appt.arrived_at && (
-            <button type="button" className={styles.btnUndoArrive} onClick={() => onArrive(appt, false)}>Desfazer chegada</button>
           )}
           {canEdit && (
             <button type="button" className={styles.statusToggle} onClick={() => setShowStatus(v => !v)} aria-expanded={showStatus}>
@@ -469,29 +467,57 @@ function ApptDetailContent({
 
       <div className={styles.detailFooter}>
         <div className={styles.detailFooterWa}>
-          {waMeNumber(appt.patients?.phone) ? (
-            <>
-              <a
-                className={styles.btnWhatsApp}
-                href={isDemo ? undefined : `https://wa.me/${waMeNumber(appt.patients?.phone)}?text=${encodeURIComponent(
-                  `Olá, ${appt.patients?.name?.split(' ')[0]}! Passando para lembrar da sua consulta marcada para ${formatDate(appt.scheduled_at)}. Até lá!`
-                )}`}
-                target="_blank" rel="noopener noreferrer"
-                aria-disabled={isDemo || undefined}
+          {showWaMenu && (
+            <div className={styles.waMenuWrap}>
+              <button
+                type="button"
+                className={styles.waMenuBtn}
+                onClick={() => setShowWa(v => !v)}
+                aria-expanded={showWa}
+                aria-controls="agenda-wa-menu"
                 aria-describedby={isDemo ? 'agenda-demo-wa-note-footer' : undefined}
-                onClick={isDemo ? e => e.preventDefault() : undefined}
-              >Lembrar</a>
-              <a
-                className={styles.btnChat}
-                href={isDemo ? undefined : `https://wa.me/${waMeNumber(appt.patients?.phone)}`}
-                target="_blank" rel="noopener noreferrer"
-                aria-disabled={isDemo || undefined}
-                aria-describedby={isDemo ? 'agenda-demo-wa-note-footer' : undefined}
-                onClick={isDemo ? e => e.preventDefault() : undefined}
-              >Conversar</a>
+              >WhatsApp</button>
+              {showWa && (
+                <div id="agenda-wa-menu" className={styles.waMenu}>
+                  {waNumber && (
+                    <a
+                      className={styles.waMenuItem}
+                      href={isDemo ? undefined : `https://wa.me/${waNumber}?text=${encodeURIComponent(
+                        `Olá, ${appt.patients?.name?.split(' ')[0]}! Passando para lembrar da sua consulta marcada para ${formatDate(appt.scheduled_at)}. Até lá!`
+                      )}`}
+                      target="_blank" rel="noopener noreferrer"
+                      aria-disabled={isDemo || undefined}
+                      onClick={isDemo ? e => e.preventDefault() : () => setShowWa(false)}
+                    >Lembrar da consulta</a>
+                  )}
+                  {waNumber && (
+                    <a
+                      className={styles.waMenuItem}
+                      href={isDemo ? undefined : `https://wa.me/${waNumber}`}
+                      target="_blank" rel="noopener noreferrer"
+                      aria-disabled={isDemo || undefined}
+                      onClick={isDemo ? e => e.preventDefault() : () => setShowWa(false)}
+                    >Conversar</a>
+                  )}
+                  {canSendWa && (
+                    <button
+                      type="button"
+                      className={styles.waMenuItem}
+                      onClick={() => { setShowWa(false); void sendWhatsAppNow() }}
+                      disabled={waSending || isDemo}
+                    >{confirmation ? 'Reenviar mensagem agora' : 'Enviar confirmação agora'}</button>
+                  )}
+                </div>
+              )}
               {isDemo && <span id="agenda-demo-wa-note-footer" className={styles.waHint}>Envio de mensagens desativado na conta de demonstração.</span>}
-            </>
-          ) : showPhoneInput ? (
+              {(waSending || waMsg) && (
+                <span className={waSending ? styles.waHint : waMsg?.ok ? styles.waOk : styles.waErr} role="status">
+                  {waSending ? 'Enviando…' : waMsg?.text}
+                </span>
+              )}
+            </div>
+          )}
+          {!waNumber && (showPhoneInput ? (
             <div className={styles.phoneInputRow}>
               <PhoneInput
                 className={styles.phoneInput}
@@ -509,7 +535,7 @@ function ApptDetailContent({
             <button className={styles.btnWhatsAppNoPhone} onClick={() => setShowPhoneInput(true)}>
               + Adicionar telefone
             </button>
-          ) : null}
+          ) : null)}
         </div>
         <div className={styles.detailFooterActions}>
           {canReschedule && <button className={styles.btnDetailEdit} onClick={() => onReschedule(appt)}>Remarcar</button>}
@@ -518,6 +544,13 @@ function ApptDetailContent({
         </div>
         {showMore && (
           <div className={styles.moreActions}>
+            {showArriveInMore && <button type="button" className={styles.btnGcalLarge} onClick={() => { setShowMore(false); onArrive(appt, true) }}>Paciente chegou</button>}
+            {showCallInMore && onCall && (
+              <button type="button" className={styles.btnGcalLarge} onClick={() => { setShowMore(false); onCall(appt) }}>
+                {appt.called_at ? 'Chamar paciente de novo' : 'Chamar paciente'}
+              </button>
+            )}
+            {showUndoArriveInMore && <button type="button" className={styles.btnGcalLarge} onClick={() => { setShowMore(false); onArrive(appt, false) }}>Desfazer chegada</button>}
             {appt.gcal_event_id ? (
               <span className={styles.gcalSynced}><Icon name="check" size={12} /> No Google Agenda</span>
             ) : canEdit ? (
@@ -671,7 +704,7 @@ function AgendaContent() {
   const [savingBlock, setSavingBlock] = useState(false)
   const [blockError, setBlockError] = useState('')
   // Remarcar: escolhe só a nova data e hora; paciente, procedimento e profissional continuam os mesmos.
-  const [resched, setResched] = useState<{ appt: Appointment; date: string; time: string } | null>(null)
+  const [resched, setResched] = useState<{ appt: Appointment; date: string; time: string; professionalId: string } | null>(null)
   const [reschedSaving, setReschedSaving] = useState(false)
   const [reschedError, setReschedError] = useState('')
   const [reschedDone, setReschedDone] = useState<Appointment | null>(null)
@@ -994,14 +1027,12 @@ function AgendaContent() {
     const clinicId = clinic.id
     let cancelled = false
     const timer = setTimeout(async () => {
-      // vírgula, parênteses e % têm função na sintaxe do filtro: viram espaço
-      const safe = q.replace(/[%,()*\\]/g, ' ').trim()
       const { data, error } = await supabase
         .from('patients')
         .select('id, name, phone, pet_name')
         .eq('clinic_id', clinicId)
         .eq('is_active', true)
-        .or(`name.ilike.%${safe}%,pet_name.ilike.%${safe}%`)
+        .or(patientSearchOr(q))
         .order('name')
         .limit(8)
       if (!cancelled && !error) setPatientHits({ q, rows: (data ?? []) as Patient[] })
@@ -1332,10 +1363,25 @@ function AgendaContent() {
   function openNewAppt() {
     if (!canEditAgenda) return
     if (focusedProf) setForm({ ...blankAppt(), professional_id: focusedProf.id, duration_minutes: resolveProfessionalDuration(focusedProf.id) })
+    // só um profissional na clínica: já vem selecionado
+    else if (professionals.length === 1) setForm({ ...blankAppt(), professional_id: professionals[0].id, duration_minutes: resolveProfessionalDuration(professionals[0].id) })
     setShowModal(true)
   }
 
+  // Mês no celular: tocar num dia abre a visão Dia daquela data (a Semana nem existe nessa largura)
+  function openDayFromMonth(dateStr: string) {
+    const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number)
+    setCurrentDate(new Date(y, m - 1, d))
+    setSelected(null)
+    setViewMode('dia')
+  }
+
+  function handleDayClick(dateStr: string) {
+    if (isNarrow && viewMode === 'mes') openDayFromMonth(dateStr)
+  }
+
   function handleDateSelect(dateStr: string) {
+    if (isNarrow && viewMode === 'mes' && dateStr.length <= 10) { openDayFromMonth(dateStr); return }
     if (!canEditAgenda) return
     // Mês: clicou num dia inteiro, sem horário. Semana: clicou num horário, então pergunta o que fazer com ele.
     if (dateStr.length <= 10) {
@@ -1666,6 +1712,17 @@ function AgendaContent() {
       if (scope === 'following') alsoCancel = appointmentsInScope(appointments, appt, 'following').slice(1).map(a => a.id)
     }
 
+    // cancelar sem série: confirma antes (um clique errado apagava a consulta e a receita)
+    if (status === 'cancelado' && appt && !(appt.series_id && extras.series)) {
+      const ok = await confirmDialog({
+        message: appt.status === 'concluido'
+          ? 'Esta consulta já foi concluída. Cancelar remove também a receita lançada no Financeiro. Deseja cancelar?'
+          : 'Cancelar esta consulta?',
+        confirmText: 'Cancelar consulta',
+      })
+      if (!ok) return
+    }
+
     if (status === 'concluido' && appt) {
       const linkedProc = procedures.find(p => p.id === appt.procedure_id)
       // consulta de pacote de sessões não tem preço próprio: a venda do pacote já foi lançada
@@ -1691,7 +1748,7 @@ function AgendaContent() {
       const concludedAppt = { ...appt, status: 'concluido' as const }
       const creditUsage = await promptCreditUsage(clinic!.id, concludedAppt.patient_id, concludedAppt)
       const result = await ensureRevenueForAppointment(clinic!.id, concludedAppt, creditUsage)
-      notifyRevenuePending(result, concludedAppt)
+      if (!(await askPaymentForRevenue(clinic!.id, result, concludedAppt))) notifyRevenuePending(result, concludedAppt)
       if (creditUsage.useCredit) queryClient.invalidateQueries({ queryKey: ['patient-credits', clinic?.id] })
     } else if (appt?.status === 'concluido' && status !== 'concluido') {
       await removeRevenueForAppointment(clinic!.id, id)
@@ -1864,7 +1921,7 @@ function AgendaContent() {
     if (!canEditAgenda) return
     setReschedError('')
     setReschedDone(null)
-    setResched({ appt, date: toLocalInput(appt.scheduled_at).slice(0, 10), time: '' })
+    setResched({ appt, date: toLocalInput(appt.scheduled_at).slice(0, 10), time: '', professionalId: appt.professional_id ?? '' })
     setSelected(null)
   }
 
@@ -1877,13 +1934,15 @@ function AgendaContent() {
   // Horários ocupados do profissional no dia escolhido, sem contar a própria consulta que está sendo remarcada
   const reschedBusy = useMemo<Map<string, string>>(
     () => resched
-      ? buildBusyMap(appointments, { dateStr: resched.date, professionalId: resched.appt.professional_id ?? '', ignoreId: resched.appt.id, slots: TIME_SLOTS })
+      ? buildBusyMap(appointments, { dateStr: resched.date, professionalId: resched.professionalId, ignoreId: resched.appt.id, slots: TIME_SLOTS })
       : new Map(),
     [resched, appointments, TIME_SLOTS],
   )
 
   // Remarcar de verdade: confere conflito, grava, atualiza o Google Agenda. Devolve a mensagem de erro, ou os novos status e observações.
-  async function applyReschedule(appt: Appointment, newStart: Date, extraReason: string | null): Promise<{ error: string } | { status: Appointment['status']; notes: string }> {
+  async function applyReschedule(appt0: Appointment, newStart: Date, extraReason: string | null, newProfessionalId?: string): Promise<{ error: string } | { status: Appointment['status']; notes: string }> {
+    const profChanged = !!newProfessionalId && newProfessionalId !== appt0.professional_id
+    const appt = profChanged ? { ...appt0, professional_id: newProfessionalId! } : appt0
     const duration = appt.duration_minutes ?? 60
     if (appt.professional_id) {
       const result = await checkConflict(clinic!.id, appt.professional_id, newStart.getTime(), duration, appt.id)
@@ -1895,11 +1954,11 @@ function AgendaContent() {
     }
     // a confirmação era para o horário antigo: volta para "agendado". Concluído nem chega aqui.
     const status = appt.status === 'confirmado' || appt.status === 'cancelado' || appt.status === 'faltou' ? 'agendado' : appt.status
-    const trail = `Remarcada de ${formatDate(appt.scheduled_at)}.`
+    const trail = `Remarcada de ${formatDate(appt0.scheduled_at)}${profChanged ? ' com troca de profissional' : ''}.`
     const notes = appt.notes ? `${appt.notes}\n${trail}` : trail
     const { error } = await supabase
       .from('appointments')
-      .update({ scheduled_at: newStart.toISOString(), status, notes, ...(extraReason ? { extra_slot_reason: extraReason } : {}) })
+      .update({ scheduled_at: newStart.toISOString(), status, notes, ...(profChanged ? { professional_id: appt.professional_id } : {}), ...(extraReason ? { extra_slot_reason: extraReason } : {}) })
       .eq('id', appt.id)
       .eq('clinic_id', clinic!.id)
     if (error) return { error: `Erro ao remarcar: ${error.message}` }
@@ -1924,7 +1983,7 @@ function AgendaContent() {
     if (!clinic || !resched || !resched.date || !resched.time) return
     const { appt } = resched
     const newStart = new Date(`${resched.date}T${resched.time}`)
-    if (newStart.getTime() === new Date(appt.scheduled_at).getTime()) {
+    if (newStart.getTime() === new Date(appt.scheduled_at).getTime() && resched.professionalId === (appt.professional_id ?? '')) {
       setReschedError('Escolha um horário diferente do atual.')
       return
     }
@@ -1954,9 +2013,9 @@ function AgendaContent() {
     }
     setReschedSaving(true)
     setReschedError('')
-    const sched = appt.professional_id ? scheduleFor(appt.professional_id) : undefined
+    const sched = resched.professionalId ? scheduleFor(resched.professionalId) : undefined
     const outside = !!sched && !slotInSchedule(sched, resched.date, resched.time, appt.duration_minutes ?? 60)
-    const res = await applyReschedule(appt, newStart, outside ? 'Remarcada para fora da escala' : null)
+    const res = await applyReschedule(appt, newStart, outside ? 'Remarcada para fora da escala' : null, resched.professionalId)
     if ('error' in res) {
       setReschedError(res.error)
       setReschedSaving(false)
@@ -1968,7 +2027,7 @@ function AgendaContent() {
       else showToast('ok', `${followingTargets.length + 1} consultas da série remarcadas.`)
     }
     setReschedSaving(false)
-    setReschedDone({ ...appt, scheduled_at: newStart.toISOString(), status: res.status, notes: res.notes })
+    setReschedDone({ ...appt, professional_id: resched.professionalId || appt.professional_id, scheduled_at: newStart.toISOString(), status: res.status, notes: res.notes })
     setCurrentDate(newStart)
     loadData()
   }
@@ -2282,7 +2341,7 @@ function AgendaContent() {
                   )}
                 </div>
                 {sched && (
-                  <ul className={styles.weekStrip} aria-label="Escala da semana">
+                  <ul className={styles.weekStrip} data-hscroll aria-label="Escala da semana">
                     {weekDates(currentDate).map(d => {
                       const st = dayStatus(sched, d)
                       const free = freeSlotsOfDay(appointments, { professionalId: focusedProf.id, dateStr: d, durationMin: resolveProfessionalDuration(focusedProf.id), slots: TIME_SLOTS, schedule: sched }).length
@@ -2302,7 +2361,7 @@ function AgendaContent() {
           {canEditAgenda && focusNextFree.length > 0 && (
             <div className={styles.focusFree}>
               <span className={styles.focusFreeLabel}>Próximos horários livres</span>
-              <div className={styles.nextFreeRow}>
+              <div className={styles.nextFreeRow} data-hscroll>
                 {focusNextFree.map(s => (
                   <button
                     key={`${s.date}T${s.time}`}
@@ -2374,6 +2433,7 @@ function AgendaContent() {
                   events={calendarEvents}
                   onEventClick={handleEventClick}
                   onDateSelect={handleDateSelect}
+                  onDayClick={handleDayClick}
                   onTitleChange={setCalendarTitle}
                   onRangeChange={(start, end) => setCalRange({ start, end })}
                   onEventDrop={handleEventDrop}
@@ -2493,6 +2553,11 @@ function AgendaContent() {
                             onClick={() => setSelected(a)}
                             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(a) } }}
                           >
+                            {canEditAgenda && a.status === 'agendado' ? (
+                              <button type="button" className={styles.lrQuick} onClick={e => { e.stopPropagation(); updateStatus(a.id, 'confirmado') }}>Confirmar</button>
+                            ) : canEditAgenda && flowEnabled && a.status === 'confirmado' && localDateStr(new Date(a.scheduled_at)) === localDateStr(new Date()) ? (
+                              <button type="button" className={styles.lrQuick} onClick={e => { e.stopPropagation(); markArrived(a, true) }}>Chegou</button>
+                            ) : (
                             <button
                               className={styles.lrGcal}
                               onClick={e => { e.stopPropagation(); openGCal(a) }}
@@ -2500,6 +2565,7 @@ function AgendaContent() {
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                             </button>
+                            )}
                             <strong className={styles.lrCardName}>{a.patients ? petLabel(a.patients) : '-'}</strong>
                             <span className={styles.lrCardProc}>{a.procedure_name ?? 'Consulta'}</span>
                             <div className={styles.lrCardFoot}>
@@ -2717,7 +2783,7 @@ function AgendaContent() {
               <button
                 type="button"
                 className={styles.btnNewPatient}
-                onClick={() => { setShowNewPatient(p => !p); setPatientSearch(''); setNpAckKey('') }}
+                onClick={() => { if (!showNewPatient && !form.patient_id && patientSearch.trim() && !/\d{3}/.test(patientSearch)) setNpName(patientSearch.trim()); setShowNewPatient(p => !p); setPatientSearch(''); setNpAckKey('') }}
               >
                 {showNewPatient ? <><Icon name="chevronLeft" size={12} /> Voltar à lista</> : '+ Novo paciente'}
               </button>
@@ -2754,7 +2820,7 @@ function AgendaContent() {
             <div className={styles.patientCombo}>
               <input
                 className={`${styles.patientSearch}${form.patient_id ? ` ${styles.patientSearchSelected}` : ''}`}
-                placeholder="Digite o nome do paciente..."
+                placeholder="Nome, telefone ou CPF do paciente..."
                 value={patientSearch}
                 autoComplete="off"
                 onChange={e => {
@@ -2785,7 +2851,7 @@ function AgendaContent() {
                         <span className={styles.patientDropInitial}>
                           {(p.pet_name?.trim() || p.name).split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
                         </span>
-                        {petLabel(p)}
+                        <span>{petLabel(p)}{p.phone ? <small style={{ display: 'block', opacity: 0.7, fontSize: 12 }}>{p.phone}</small> : null}</span>
                       </button>
                     ))}
                   {patientOptions.length === 0 && (
@@ -3011,7 +3077,7 @@ function AgendaContent() {
               <label>Duração (min)</label>
               <IntegerInput value={form.duration_minutes || ''} onChange={v => setForm(p => ({ ...p, duration_minutes: v === '' ? 0 : Number(v) }))} min={5} max={720} placeholder="60" />
             </div>
-            {form.procedure_id && form.procedure_id !== 'outro' && (
+            {form.procedure_id && (
               <div className={f.field}>
                 <label>Valor (R$)</label>
                 <MoneyInput
@@ -3119,6 +3185,14 @@ function AgendaContent() {
         ) : (
           <>
             <p className={styles.reschedFrom}>Hoje: {formatDate(resched.appt.scheduled_at)} · {resched.appt.duration_minutes ?? 60} min</p>
+            {professionals.length > 1 && !resched.appt.series_id && (
+              <div className={f.field}>
+                <label>Profissional</label>
+                <SelectMenu variant="field" ariaLabel="Profissional" value={resched.professionalId}
+                  onChange={v => setResched(r => r ? { ...r, professionalId: v, time: '' } : r)}
+                  options={professionals.map(p => ({ value: p.id, label: p.name }))} />
+              </div>
+            )}
             <div className={f.field}>
               <label>Nova data *</label>
               <DatePicker
@@ -3138,7 +3212,7 @@ function AgendaContent() {
                   const busyName = resched.date ? conflictInSpan(slot, resched.appt.duration_minutes ?? 60, reschedBusy, TIME_SLOTS) : undefined
                   const isBusy = !!busyName
                   // fora da escala do profissional: só quem pode encaixar escolhe, e fica registrado
-                  const reschedSched = resched.appt.professional_id ? scheduleFor(resched.appt.professional_id) : undefined
+                  const reschedSched = resched.professionalId ? scheduleFor(resched.professionalId) : undefined
                   const isOutside = !!resched.date && !!reschedSched && !slotInSchedule(reschedSched, resched.date, slot, resched.appt.duration_minutes ?? 60)
                   const closed = isOutside && !canExtra
                   return (

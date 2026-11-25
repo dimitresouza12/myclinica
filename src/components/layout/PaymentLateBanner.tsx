@@ -13,6 +13,7 @@ import { elegivelPromoPrimeiraCobranca, valorPrimeiraCobranca } from '@/lib/prom
 import { formatBrl, formatDiaBr, CARD_BRAND_LABELS } from '@/lib/cartaoCheckout'
 import { TrialCardForm, type TrialCardResult } from './TrialCardForm'
 import { CheckoutCartaoModal } from './CheckoutCartaoModal'
+import { AssinarEscolha } from '@/components/configuracoes/AssinarEscolha'
 
 const WHATSAPP = 'https://wa.me/5588920020570?text=Olá!%20Quero%20mais%20tempo%20para%20testar%20o%20MyClinica.'
 
@@ -37,6 +38,7 @@ export function PaymentLateBanner() {
   const { clinic, user, setSession } = useAuthStore()
   const [portalOpen, setPortalOpen] = useState(false)
   const [step, setStep] = useState<'plan' | 'card'>('plan')
+  const [escolhaOpen, setEscolhaOpen] = useState(false)
   // cartão cadastrado: o acesso já foi liberado no store; esta tela só confirma e fecha no clique
   const [success, setSuccess] = useState<TrialCardResult | null>(null)
   const [dismissedDue, setDismissedDue]   = useState(false)
@@ -176,6 +178,15 @@ export function PaymentLateBanner() {
     }
 
     return (
+      <>
+      {escolhaOpen && (
+        <AssinarEscolha
+          clinic={clinic}
+          onClose={() => setEscolhaOpen(false)}
+          onCartao={p => { setEscolhaOpen(false); setSelectedPlan(p); setStep('card') }}
+          onContratoConcluido={() => { setEscolhaOpen(false); window.location.reload() }}
+        />
+      )}
       <Modal open onClose={() => {}} dismissible={false} title="Seu período de teste encerrou" size={wideLayout ? 'lg' : 'md'}>
         <div className={styles.planStep}>
         <p className={`${styles.desc} ${styles.planDesc}`}>
@@ -206,6 +217,9 @@ export function PaymentLateBanner() {
           >
             {`Continuar com o plano ${planInfo.label} — ${planPrice}`}
           </button>
+          <button type="button" className={`${btn.secondary} ${styles.block}`} onClick={() => setEscolhaOpen(true)}>
+            Ver contratos de 3, 6 ou 12 meses com desconto
+          </button>
           <a
             href={WHATSAPP}
             target="_blank"
@@ -217,6 +231,7 @@ export function PaymentLateBanner() {
         </div>
         </div>
       </Modal>
+      </>
     )
   }
 

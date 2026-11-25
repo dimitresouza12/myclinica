@@ -109,7 +109,7 @@ export function ContactPanel({ conversation, open }: { conversation: WaConversat
             {next && <div><dt>Situação</dt><dd>{next.status === 'confirmado' ? 'Confirmada' : 'Agendada'}</dd></div>}
           </dl>
           <div className={styles.stack}>
-            <Link className={`${styles.btn} ${styles.btnPrimary}`} href="/agenda"><Icon name="calendar" size={16} />Abrir a agenda</Link>
+            <Link className={`${styles.btn} ${styles.btnPrimary}`} href={`/agenda?paciente=${c.patient_id}`}><Icon name="calendar" size={16} />Agendar consulta</Link>
             <Link className={styles.linkRow} href={patientHref(c.patient_id)}><Icon name="patients" size={16} /><span>{openLabel}</span><Icon name="chevronRight" size={16} /></Link>
           </div>
         </>

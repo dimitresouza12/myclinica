@@ -19,12 +19,12 @@ interface KPI {
 interface PlanData { name: string; value: number }
 interface MonthData { month: string; clinicas: number }
 
-const KPIS: { key: keyof KPI; label: string; icon: string; color: string; grad: string; format?: string }[] = [
-  { key: 'clinicasAtivas',      label: 'Clínicas Ativas',      icon: '', color: '#0D9488', grad: 'linear-gradient(135deg,#0D9488,#5EEAD4)' },
-  { key: 'totalUsuarios',       label: 'Usuários na plataforma',icon: '', color: '#0EA5E9', grad: 'linear-gradient(135deg,#0EA5E9,#38BDF8)' },
-  { key: 'totalAgendamentos',   label: 'Agendamentos totais',   icon: '', color: '#F59E0B', grad: 'linear-gradient(135deg,#F59E0B,#FCD34D)' },
-  { key: 'receitaTotal',        label: 'Receita acumulada',     icon: '', color: '#10B981', grad: 'linear-gradient(135deg,#10B981,#34D399)', format: 'currency' },
-  { key: 'novasMes',            label: 'Novas clínicas no mês', icon: '', color: '#A855F7', grad: 'linear-gradient(135deg,#A855F7,#C084FC)' },
+const KPIS: { key: keyof KPI; label: string; icon: string; color: string; format?: string }[] = [
+  { key: 'clinicasAtivas',      label: 'Clínicas Ativas',      icon: '', color: 'var(--brand-primary)' },
+  { key: 'totalUsuarios',       label: 'Usuários na plataforma',icon: '', color: 'var(--st-info)' },
+  { key: 'totalAgendamentos',   label: 'Agendamentos totais',   icon: '', color: 'var(--st-wait)' },
+  { key: 'receitaTotal',        label: 'Receita acumulada',     icon: '', color: 'var(--st-ok)', format: 'currency' },
+  { key: 'novasMes',            label: 'Novas clínicas no mês', icon: '', color: 'var(--av2-fg)' },
 ]
 
 export function AdminOverview() {
@@ -103,7 +103,7 @@ export function AdminOverview() {
           const val = kpi[k.key]
           const display = k.format === 'currency' ? formatCurrency(val as number) : String(val)
           return (
-            <div key={k.key} className={styles.kpiCard} style={{ '--kpi-color': k.color, '--kpi-grad': k.grad } as React.CSSProperties}>
+            <div key={k.key} className={styles.kpiCard} style={{ '--kpi-color': k.color } as React.CSSProperties}>
               <div className={styles.kpiIcon}>{k.icon}</div>
               <div className={styles.kpiBody}>
                 <span className={styles.kpiValue}>{display}</span>

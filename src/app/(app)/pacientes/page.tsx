@@ -30,6 +30,8 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { StatusDot } from '@/components/ui/StatusDot'
 import { MoreMenu } from '@/components/ui/MoreMenu'
 import btn from '@/components/ui/button.module.css'
+import { ErrorNotice } from '@/components/ui/ErrorNotice'
+import { EmptyState } from '@/components/ui/EmptyState'
 import t from '@/components/ui/table.module.css'
 import { loadListFilter, patientHref, saveListState } from '@/lib/prontuario/navigation'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
@@ -63,7 +65,7 @@ function PacientesContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { data: pacientesData, isLoading: loading } = usePacientesData(clinic?.id)
+  const { data: pacientesData, isLoading: loading, isError: loadError, refetch: refetchPacientes, isRefetching } = usePacientesData(clinic?.id)
   const patients = useMemo(() => pacientesData?.patients ?? [], [pacientesData])
   const appointments = useMemo(() => pacientesData?.appointments ?? [], [pacientesData])
 
@@ -245,6 +247,8 @@ function PacientesContent() {
       >
         {loading ? (
           <p className={styles.loading}>Carregando...</p>
+        ) : loadError && !pacientesData ? (
+          <ErrorNotice message="Não foi possível carregar os pacientes. Confira a conexão." onRetry={() => { refetchPacientes() }} retrying={isRefetching} />
         ) : (
           <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
             <table className={`${t.table} resp-table`}>
@@ -260,7 +264,7 @@ function PacientesContent() {
               </thead>
               <tbody>
                 {visible.length === 0 ? (
-                  <tr><td colSpan={6} className={t.empty}>{filter === 'todos' ? 'Nenhum paciente cadastrado ainda.' : 'Nenhum paciente neste filtro.'}</td></tr>
+                  <tr><td colSpan={6} className={t.empty}><EmptyState compact title={filter === 'todos' ? 'Nenhum paciente cadastrado ainda' : 'Nenhum paciente neste filtro'} action={filter === 'todos' && !cannotCreatePatient && canEdit ? <button type="button" className={btn.primary} onClick={() => setShowNewPatient(true)}><Icon name="plus" size={15} /> Novo paciente</button> : undefined} /></td></tr>
                 ) : visible.map(p => {
                   const s = summary.get(p.id)
                   const balance = creditBalances.get(p.id)
@@ -315,6 +319,7 @@ function PacientesContent() {
                             label={`Mais ações de ${p.name}`}
                             items={[
                               { label: openLabel, icon: 'procedures', onClick: () => openProntuario(p) },
+                              { label: 'Agendar consulta', icon: 'calendar' as const, onClick: () => router.push(`/agenda?paciente=${p.id}`) },
                               ...(canEdit ? [{ label: 'Editar cadastro', icon: 'edit' as const, onClick: () => setEditPatient(p) }] : []),
                               ...(pkgData?.available ? [{ label: canEdit ? 'Pacotes de sessões' : 'Ver pacotes de sessões', icon: 'receipt' as const, onClick: () => setPackagesPatient(p) }] : []),
                             ]}

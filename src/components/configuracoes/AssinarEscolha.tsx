@@ -62,7 +62,20 @@ export function AssinarEscolha({ clinic, onClose, onCartao, onContratoConcluido 
   }
 
   return (
-    <Modal open onClose={onClose} title="Escolher plano e prazo" size="lg">
+    <Modal open onClose={onClose} title="Escolher plano e prazo" size="lg" footer={
+      <div className={styles.acoes}>
+          <button type="button" className={btn.primary} onClick={continuar} disabled={!!resumo.erro}>
+            {contrato ? 'Ler e assinar o contrato' : 'Cadastrar cartão e assinar'}
+          </button>
+          <a
+            className={btn.secondary} target="_blank" rel="noopener noreferrer"
+            href={suporteUrl(`Olá! Estou escolhendo o plano ${PLAN_CATALOG[plan].label} (${prazo === 1 ? 'mensal' : `${prazo} meses`}) no MyClinica e preciso de ajuda para entender os valores e descontos.`)}
+          >
+            Dúvidas? Falar com o suporte
+          </a>
+          <button type="button" className={btn.secondary} onClick={onClose}>Cancelar</button>
+        </div>
+    }>
       <div className={styles.fluxo}>
         <fieldset className={styles.grupo}>
           <legend className={styles.legenda}>Plano</legend>
@@ -180,18 +193,6 @@ export function AssinarEscolha({ clinic, onClose, onCartao, onContratoConcluido 
           )}
         </section>
 
-        <div className={styles.acoes}>
-          <button type="button" className={btn.primary} onClick={continuar} disabled={!!resumo.erro}>
-            {contrato ? 'Ler e assinar o contrato' : 'Cadastrar cartão e assinar'}
-          </button>
-          <a
-            className={btn.secondary} target="_blank" rel="noopener noreferrer"
-            href={suporteUrl(`Olá! Estou escolhendo o plano ${PLAN_CATALOG[plan].label} (${prazo === 1 ? 'mensal' : `${prazo} meses`}) no MyClinica e preciso de ajuda para entender os valores e descontos.`)}
-          >
-            Dúvidas? Falar com o suporte
-          </a>
-          <button type="button" className={btn.secondary} onClick={onClose}>Cancelar</button>
-        </div>
       </div>
     </Modal>
   )

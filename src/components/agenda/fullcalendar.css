@@ -253,6 +253,11 @@
   .fc .fc-col-header-cell-cushion { padding: 3px 1px; }
 }
 
+/* Mês no celular: a célula inteira é o alvo de toque (abre o dia), então não pode ficar menor que 44px */
+@media (max-width: 600px) {
+  .fc .fc-daygrid-day-frame { min-height: 56px; }
+}
+
 /* Escala do profissional em foco: faixas de fundo atrás das consultas */
 .fc .fc-bg-event.sched-off,
 .fc .fc-bg-event.sched-pending {

@@ -60,3 +60,9 @@
 .suggestionItem:hover, .suggestionItem:focus-visible { background:var(--bg-secondary); }
 .suggestionItem:not(:last-child) { border-bottom:1px solid var(--border-subtle); }
 
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 44px; padding: 0 14px; font: inherit; font-size: 0.86rem; font-weight: 600; color: var(--text-secondary); background: var(--surface); border: 1px solid var(--border-color); border-radius: 999px; cursor: pointer; }
+.chip:hover { border-color: var(--text-tertiary); }
+.chip:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.chipOn, .chipOn:hover { color: var(--text-primary); background: var(--brand-light); border-color: var(--brand-primary); box-shadow: 0 0 0 1px var(--brand-primary); }

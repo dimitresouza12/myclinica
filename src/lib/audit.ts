@@ -42,6 +42,7 @@ export type AuditAction =
   | 'user.delete'
   | 'user.deactivate'
   | 'user.reactivate'
+  | 'auth.password_changed'
 
 interface AuditPayload {
   action: AuditAction

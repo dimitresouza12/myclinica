@@ -18,6 +18,7 @@ import { showToast } from '@/components/ui/Toast'
 import { CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { PLAN_CATALOG } from '@/lib/planCatalog'
 import { SelectMenu } from '@/components/ui/SelectMenu'
+import { Badge } from '@/components/ui/Badge'
 
 function waLink(phone: string, clinicName: string): string {
   const number = waMeNumber(phone)
@@ -65,9 +66,9 @@ export function AdminClinicas({ clinics, onReload }: Props) {
     ilimitado:     PLAN_CATALOG.ilimitado.color,
     completo_plus: PLAN_CATALOG.completo_plus.color,
     // Legados — não vendidos mais, só pra clínica antiga que ainda não migrou.
-    avancado:      '#3B82F6',
-    basico:        '#64748B',
-    plus:          '#64748B',
+    avancado:      'var(--st-info)',
+    basico:        'var(--st-idle)',
+    plus:          'var(--st-idle)',
   }
   return (
     <>
@@ -89,7 +90,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
               { value: 'suspended', label: 'Suspensa (atraso)' },
             ]} />
         </div>
-        <button className={styles.btnPrimary} onClick={() => setShowNewModal(true)}>+ Nova Clínica</button>
+        <button className={btn.primary} onClick={() => setShowNewModal(true)}>+ Nova Clínica</button>
       </div>
 
       <div className={`${styles.richTable} resp-table-wrap`}>
@@ -118,7 +119,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                     <div className={styles.clinicLogo}>
                       {c.logo_url
                         ? <img src={c.logo_url} alt={c.name} className={styles.logoThumb} />
-                        : <div className={styles.logoInitials} style={{ background: c.primary_color ?? '#0D9488' }}>{c.name[0]}</div>
+                        : <div className={styles.logoInitials} style={c.primary_color ? { background: c.primary_color, color: '#FFFFFF' } : undefined}>{c.name[0]}</div>
                       }
                     </div>
                     <div>
@@ -129,27 +130,25 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                 </td>
                 <td data-label="Tipo"><span className={styles.typeChip}>{c.clinic_type}</span></td>
                 <td data-label="Plano">
-                  <span className={styles.planPill} style={{ background: `${PLAN_COLORS[c.plan ?? 'basico']}22`, color: PLAN_COLORS[c.plan ?? 'basico'], borderColor: `${PLAN_COLORS[c.plan ?? 'basico']}55` }}>
+                  <span className={styles.planPill} style={{ '--tone': PLAN_COLORS[c.plan ?? 'basico'] ?? 'var(--st-idle)' } as React.CSSProperties}>
                     {c.plan ?? 'basico'}
                   </span>
                 </td>
                 <td data-label="Status"><StatusBadge clinic={c} /></td>
                 <td data-label="Trial">
                   {!c.trial_ends_at ? (
-                    <span style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 600 }}>Permanente</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--st-ok)', fontWeight: 600 }}>Permanente</span>
                   ) : new Date() > new Date(c.trial_ends_at) ? (
-                    <span style={{ fontSize: '0.75rem', color: '#EF4444', fontWeight: 600 }}>Expirado</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--danger-text)', fontWeight: 600 }}>Expirado</span>
                   ) : (
-                    <span style={{ fontSize: '0.75rem', color: '#F59E0B', fontWeight: 600 }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--st-wait)', fontWeight: 600 }}>
                       até {new Date(c.trial_ends_at).toLocaleDateString('pt-BR')}
                     </span>
                   )}
                 </td>
                 <td data-label="Pacientes" className={styles.patientCount}>{c.max_patients ?? 200}</td>
                 <td data-label="Mensalidade">
-                  <span className={c.billing_paid ? styles.paidBadge : styles.unpaidBadge}>
-                    {c.billing_paid ? <><Icon name="check" size={11} /> Pago</> : <><Icon name="alert" size={11} /> Pendente</>}
-                  </span>
+                  <Badge tone={c.billing_paid ? 'success' : 'warning'}>{c.billing_paid ? 'Pago' : 'Pendente'}</Badge>
                   {c.billing_due_day && (
                     <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
                       vence dia {c.billing_due_day}
@@ -177,7 +176,7 @@ export function AdminClinicas({ clinics, onReload }: Props) {
                 <td data-label="Criada" className={styles.dateCell}>{formatDate(c.created_at, true)}</td>
                 <td data-label="Ações">
                   <div className={styles.rowActions}>
-                    <button className={styles.actionBtnSecondary} onClick={() => setEditTarget(c)} title="Editar clínica">
+                    <button className={btn.secondary} onClick={() => setEditTarget(c)} title="Editar clínica">
                       Editar
                     </button>
                   </div>

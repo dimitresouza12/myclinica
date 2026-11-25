@@ -59,8 +59,9 @@ export function ContratoFluxo({ plan, months, paymentMode, installments, default
   const [nome, setNome] = useState('')
   const [cpf, setCpf] = useState('')
   const [leu, setLeu] = useState(false)
-  // O aceite só libera depois que o texto foi rolado até o fim (ou se ele cabe inteiro na caixa).
-  const [rolou, setRolou] = useState(false)
+  // O aceite só libera depois que o cliente abriu o documento.
+  const [abriu, setAbriu] = useState(false)
+  const [verDoc, setVerDoc] = useState(false)
   const [phone, setPhone] = useState(defaultPhone)
   const [enviadoPara, setEnviadoPara] = useState('')
   const [reenvioEm, setReenvioEm] = useState(0)
@@ -74,7 +75,6 @@ export function ContratoFluxo({ plan, months, paymentMode, installments, default
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const desenhando = useRef(false)
   const ultimo = useRef<{ x: number; y: number } | null>(null)
-  const textoRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (reenvioEm <= Date.now()) return
@@ -83,11 +83,6 @@ export function ContratoFluxo({ plan, months, paymentMode, installments, default
   }, [reenvioEm])
 
   useEffect(() => { if (etapa === 'assinar' && metodo === 'desenho') limpar() }, [etapa, metodo])
-  // Texto curto que cabe na caixa não tem o que rolar: libera o aceite.
-  useEffect(() => {
-    const t = textoRef.current
-    if (etapa === 'leitura' && t && t.scrollHeight <= t.clientHeight + 4) setRolou(true)
-  }, [etapa, ag])
 
   function limpar() {
     const c = canvasRef.current
@@ -213,13 +208,27 @@ export function ContratoFluxo({ plan, months, paymentMode, installments, default
             {ag.cardFeeValue > 0 && <div><dt>Taxa do parcelamento</dt><dd>{formatBrl(ag.cardFeeValue)}</dd></div>}
             {ag.firstDueDate && <div><dt>Primeira cobrança</dt><dd>{formatDiaBr(ag.firstDueDate)}</dd></div>}
           </dl>
-          <div ref={textoRef} className={styles.texto} tabIndex={0} aria-label="Texto do contrato"
-            onScroll={e => { const t = e.currentTarget; if (t.scrollTop + t.clientHeight >= t.scrollHeight - 4) setRolou(true) }}>
-            {ag.contentText}
+          <div className={styles.doc}>
+            <span className={styles.docIcone}><Icon name="file" size={22} /></span>
+            <div className={styles.docInfo}>
+              <strong>Contrato de prestação de serviços</strong>
+              <span>Documento em PDF, com o plano e as condições que você escolheu</span>
+            </div>
+            <button type="button" className={btn.secondary} onClick={() => { setVerDoc(v => !v); setAbriu(true) }}>
+              {verDoc ? 'Fechar contrato' : 'Abrir contrato'}
+            </button>
           </div>
+          {verDoc && (
+            <div className={styles.docVisor}>
+              <iframe title="Contrato em PDF" src={`/api/contrato-clinica/${ag.id}/previa#view=FitH`} className={styles.docFrame} />
+              <a className={styles.link} href={`/api/contrato-clinica/${ag.id}/previa`} target="_blank" rel="noopener noreferrer">
+                Não aparece? Abrir em nova aba
+              </a>
+            </div>
+          )}
           <label className={styles.check}>
-            <input type="checkbox" checked={leu} disabled={!rolou} onChange={e => setLeu(e.target.checked)} />
-            <span>{rolou ? 'Li o contrato inteiro.' : 'Role o contrato até o fim para poder marcar que leu.'}</span>
+            <input type="checkbox" checked={leu} disabled={!abriu} onChange={e => setLeu(e.target.checked)} />
+            <span>{abriu ? 'Li o contrato.' : 'Abra o contrato para poder marcar que leu.'}</span>
           </label>
           <p className={styles.desc}>Para assinar, vamos enviar um código por WhatsApp.</p>
           <label className={styles.label} htmlFor="cf-fone">Celular com WhatsApp</label>

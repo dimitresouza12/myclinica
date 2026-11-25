@@ -14,7 +14,7 @@ describe('joinPt', () => {
 describe('permissionSummary', () => {
   it('descreve o preset da recepção', () => {
     const text = permissionSummary('Recepção', presetPermissions('recepcao'))
-    expect(text).toContain('Recepção: edita Pacientes e Agenda; vê Dashboard e Procedimentos.')
+    expect(text).toContain('Recepção: edita Pacientes, Agenda e CRM; vê Dashboard e Procedimentos.')
     expect(text).toContain('Não acessa Prontuário, Financeiro')
     // Configurações e Metas entram na conta como qualquer outro módulo
     expect(text).toContain('Configurações')

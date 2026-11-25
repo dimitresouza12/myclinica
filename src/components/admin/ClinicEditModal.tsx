@@ -13,6 +13,7 @@ import { isCompleteBrPhone, phoneInputError, toInputValue, waMeNumber } from '@/
 import { StatusBadge } from './StatusBadge'
 import styles from './admin.module.css'
 import { Icon } from '@/components/ui/Icon'
+import { Badge } from '@/components/ui/Badge'
 import { IntegerInput } from '@/components/ui/NumericInput'
 import { DatePicker } from '@/components/ui/DatePicker'
 
@@ -224,7 +225,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
       title={`Editar clínica: ${clinic.name}`}
       footer={
         <>
-          <button type="button" className={styles.btnDeleteClinic} onClick={confirmAndDelete} disabled={deleting || saving}>
+          <button type="button" className={`${btn.secondary} ${styles.btnDeleteClinic}`} onClick={confirmAndDelete} disabled={deleting || saving}>
             {deleting ? 'Excluindo...' : 'Excluir clínica'}
           </button>
           <button type="button" className={btn.secondary} onClick={onClose}>Cancelar</button>
@@ -354,9 +355,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
               className={styles.billingPaidCheck}
             />
             <span>Mensalidade paga</span>
-            <span className={billingPaid ? styles.paidBadge : styles.unpaidBadge}>
-              {billingPaid ? <><Icon name="check" size={11} /> Pago</> : <><Icon name="alert" size={11} /> Pendente</>}
-            </span>
+            <Badge tone={billingPaid ? 'success' : 'warning'}>{billingPaid ? 'Pago' : 'Pendente'}</Badge>
           </label>
 
           {canCharge && (
@@ -364,7 +363,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
               href={buildWhatsAppUrl(billingPhone, clinic.name, billingDueDay ? Number(billingDueDay) : null)}
               target="_blank"
               rel="noopener noreferrer"
-              className={styles.btnWhatsApp}
+              className={`${btn.secondary} ${styles.btnWhatsApp}`}
             >
               <Icon name="phone" size={13} /> Cobrar via WhatsApp
             </a>
@@ -372,23 +371,23 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
         </div>
 
         {/* — Link de cobrança — */}
-        <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-color, #e5e7eb)' }}>
+        <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-color)' }}>
           {!generatedLink ? (
             <button
               type="button"
               onClick={handleGenerateLink}
               disabled={generatingLink}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'none', border: '1px solid var(--teal, #0D9488)', color: 'var(--teal, #0D9488)', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600, cursor: generatingLink ? 'not-allowed' : 'pointer', opacity: generatingLink ? 0.6 : 1 }}
+              className={btn.secondary}
             >
               {generatingLink ? 'Gerando...' : 'Gerar link de cobrança'}
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-              <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary, #94a3b8)', margin: 0 }}>
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', margin: 0 }}>
                 Pagamentos feitos por este link marcam a mensalidade como paga automaticamente.
               </p>
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <code style={{ flex: 1, minWidth: '180px', padding: '0.4rem 0.6rem', background: 'var(--bg-tertiary, #f8fafc)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '6px', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <code style={{ flex: 1, minWidth: '180px', padding: '0.4rem 0.6rem', background: 'var(--surface-2)', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {generatedLink}
                 </code>
                 <button type="button" onClick={handleCopyLink} className={btn.secondary}>
@@ -399,7 +398,7 @@ export function ClinicEditModal({ clinic, onClose, onSaved }: Props) {
                     href={buildPaymentLinkWhatsAppUrl(billingPhone, generatedLink)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={styles.btnWhatsApp}
+                    className={`${btn.secondary} ${styles.btnWhatsApp}`}
                   >
                     <Icon name="phone" size={13} /> Enviar no WhatsApp
                   </a>

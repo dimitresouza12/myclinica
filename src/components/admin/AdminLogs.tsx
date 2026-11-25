@@ -6,22 +6,24 @@ import type { AuditLog, Clinic } from '@/types'
 import styles from './admin.module.css'
 import { SelectMenu } from '@/components/ui/SelectMenu'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { Badge, type BadgeTone } from '@/components/ui/Badge'
+import btn from '@/components/ui/button.module.css'
 
-const ACTION_COLORS: Record<string, string> = {
-  create: '#10B981',
-  insert: '#10B981',
-  update: '#0EA5E9',
-  delete: '#EF4444',
-  login:  '#A855F7',
-  logout: '#6B7280',
+const ACTION_TONES: Record<string, BadgeTone> = {
+  create: 'success',
+  insert: 'success',
+  update: 'info',
+  delete: 'danger',
+  login:  'brand',
+  logout: 'neutral',
 }
 
-function actionColor(action: string) {
+function actionTone(action: string): BadgeTone {
   const lower = action.toLowerCase()
-  for (const [key, color] of Object.entries(ACTION_COLORS)) {
-    if (lower.includes(key)) return color
+  for (const [key, tone] of Object.entries(ACTION_TONES)) {
+    if (lower.includes(key)) return tone
   }
-  return '#6B7280'
+  return 'neutral'
 }
 
 interface LogWithClinic extends AuditLog {
@@ -87,7 +89,7 @@ export function AdminLogs({ clinics }: { clinics: Clinic[] }) {
         <div className={styles.dateFilter}><DatePicker ariaLabel="Data inicial" placeholder="De" value={filterFrom} onChange={setFilterFrom} /></div>
         <div className={styles.dateFilter}><DatePicker ariaLabel="Data final" placeholder="Até" value={filterTo} onChange={setFilterTo} /></div>
         {(filterClinic || filterModule || filterAction || filterFrom || filterTo) && (
-          <button className={styles.btnClear} onClick={() => { setFilterClinic(''); setFilterModule(''); setFilterAction(''); setFilterFrom(''); setFilterTo('') }}>
+          <button className={btn.secondary} onClick={() => { setFilterClinic(''); setFilterModule(''); setFilterAction(''); setFilterFrom(''); setFilterTo('') }}>
             Limpar
           </button>
         )}
@@ -109,16 +111,14 @@ export function AdminLogs({ clinics }: { clinics: Clinic[] }) {
             {logs.length === 0 && !loading ? (
               <tr><td colSpan={6} className={styles.empty}>Nenhum log encontrado.</td></tr>
             ) : logs.map((l) => {
-              const color = actionColor(l.action)
+              const tone = actionTone(l.action)
               return (
                 <tr key={l.id} className={styles.logRow}>
                   <td className={styles.dateCell}>{formatDate(l.created_at)}</td>
                   <td data-label="Clínica">{l.clinics?.name ?? <span className={styles.dimText}>—</span>}</td>
                   <td data-label="Módulo"><span className={styles.moduleChip}>{l.module}</span></td>
                   <td data-label="Ação">
-                    <span className={styles.actionBadge} style={{ background: `${color}22`, color, borderColor: `${color}44` }}>
-                      {l.action}
-                    </span>
+                    <Badge tone={tone}>{l.action}</Badge>
                   </td>
                   <td data-label="IP" className={styles.dimText}>{l.ip_address ?? '—'}</td>
                   <td data-label="Detalhes">
@@ -138,7 +138,7 @@ export function AdminLogs({ clinics }: { clinics: Clinic[] }) {
 
       {loading && <p className={styles.loading}>Carregando...</p>}
       {hasMore && !loading && (
-        <button className={styles.btnLoadMore} onClick={loadMore}>Carregar mais</button>
+        <button className={`${btn.secondary} ${styles.btnLoadMore}`} onClick={loadMore}>Carregar mais</button>
       )}
     </div>
   )

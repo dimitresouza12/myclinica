@@ -59,6 +59,8 @@
 .mm {
   display: block; width: 100%; height: 44px; padding: 0; border: none; border-radius: 0; background: transparent;
   color: var(--text-primary); font: inherit; font-size: var(--fs-md); text-align: center; outline: none; font-variant-numeric: tabular-nums;
+  /* folga para o scrollIntoView: sai de trás da coluna de rótulos (esquerda) e do teclado virtual (embaixo) */
+  scroll-margin: 16px 56px 160px 124px;
 }
 .mm:focus { background: color-mix(in srgb, var(--brand-primary) 22%, var(--surface)); box-shadow: inset 0 0 0 2px var(--brand-accent); }
 .mm:disabled { cursor: default; }
@@ -92,3 +94,10 @@
 .sentence { font-size: var(--fs-md); line-height: 1.55; color: var(--text-primary); }
 .pickRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 @media (max-width: 480px) { .pickRow { grid-template-columns: minmax(0, 1fr); } }
+
+/* celular: dica de preenchimento e folga embaixo para o último campo não ficar atrás do teclado virtual */
+.mobileHint { display: none; margin: 0; font-size: var(--fs-xs); color: var(--text-secondary); }
+@media (max-width: 600px) {
+  .mobileHint { display: block; }
+  .arcadas { padding-bottom: min(50vh, 320px); }
+}

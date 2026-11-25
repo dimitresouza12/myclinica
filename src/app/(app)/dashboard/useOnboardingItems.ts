@@ -37,10 +37,15 @@ export function useOnboardingItems(procedures: Procedure[], patientsCount: numbe
 
   const items: OnboardingItem[] = [
     {
+      key: 'appointment',
+      label: 'Crie seu primeiro agendamento',
+      done: (counts?.appointmentsCount ?? 0) > 0,
+      href: '/agenda',
+      cta: 'Ir para Agenda',
+    },
+    {
       key: 'pricing',
-      label: activeProcedures.length === 0
-        ? 'Cadastre seus procedimentos e defina os preços'
-        : `Defina o preço de ${pendingPriceCount} procedimento${pendingPriceCount > 1 ? 's' : ''}`,
+      label: 'Depois de agendar, defina os preços',
       done: pricingDone,
       href: '/procedimentos',
       cta: 'Ir para Procedimentos',
@@ -62,13 +67,6 @@ export function useOnboardingItems(procedures: Procedure[], patientsCount: numbe
       cta: 'Ir para Pacientes',
     },
     {
-      key: 'appointment',
-      label: 'Crie seu primeiro agendamento',
-      done: (counts?.appointmentsCount ?? 0) > 0,
-      href: '/agenda',
-      cta: 'Ir para Agenda',
-    },
-    {
       key: 'logo',
       label: 'Adicione a logo da sua clínica',
       done: !!clinic?.logo,
@@ -84,8 +82,8 @@ export function useOnboardingItems(procedures: Procedure[], patientsCount: numbe
       key: 'team_access',
       label: 'Dê acesso ao restante da equipe',
       done: (counts?.activeUsersCount ?? 0) > 1,
-      href: '/configuracoes?tab=equipe',
-      cta: 'Ir para Equipe em Configurações',
+      href: '/equipe',
+      cta: 'Ir para Equipe',
     }
     // Dono que não atende (delegou tudo) provavelmente é quem vai montar a
     // clínica pra outra pessoa usar — esse item entra primeiro pra ele.

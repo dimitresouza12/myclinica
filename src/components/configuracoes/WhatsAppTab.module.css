@@ -28,7 +28,7 @@
 .input:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
 
 .btnPrimary, .btnGhost, .btnDanger { min-height: 44px; padding: 0 1.1rem; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: opacity .15s, background .15s; }
-.btnPrimary { background: var(--brand-primary); color: #fff; border: none; }
+.btnPrimary { background: var(--brand-primary); color: #0D2421; border: none; }
 .btnPrimary:hover:not(:disabled) { opacity: 0.9; }
 .btnGhost { background: none; color: var(--text-primary); border: 1px solid var(--border-color); }
 .btnGhost:hover:not(:disabled) { background: var(--bg-tertiary); }

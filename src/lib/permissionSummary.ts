@@ -5,7 +5,7 @@ import {
   type PermissionsForm,
 } from './permissionPresets'
 
-// Textos e ações em lote da tela de permissões do usuário (Configurações > Equipe).
+// Textos e ações em lote da tela de permissões do usuário (Equipe > Acessos e permissões).
 // Funções puras: a tela só liga isso aos botões e ao estado do formulário.
 
 // Cargos de apoio: só para o aviso informativo de dados sensíveis (não bloqueia nada)

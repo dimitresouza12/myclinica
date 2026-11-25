@@ -9,7 +9,17 @@ import { PasswordInput } from '@/components/ui/PasswordInput'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { compressAvatar } from '@/lib/avatar/compress'
 import { ImageCompressError } from '@/lib/teamChat/compress'
+import { audit } from '@/lib/audit'
 import styles from './MinhaConta.module.css'
+
+function passwordErrorText(err: unknown): string {
+  const code = (err as { code?: string } | null)?.code
+  if (code === 'same_password') return 'A nova senha precisa ser diferente da atual.'
+  if (code === 'weak_password') return 'Senha fraca. Use pelo menos 8 caracteres, misturando letras e números.'
+  if (code === 'reauthentication_needed') return 'Por segurança, saia e entre de novo antes de trocar a senha.'
+  if (err instanceof Error && err.message) return err.message
+  return 'Não foi possível alterar a senha. Tente novamente.'
+}
 
 function planLabel(plan: string | undefined): string {
   // 'avancado' é legado (aposentado) — só sobrevive aqui pra não quebrar a
@@ -101,27 +111,42 @@ export function MinhaConta() {
     if (pwNew !== pwConfirm) return setPwMsg({ type: 'error', text: 'As senhas não coincidem.' })
     setPwSaving(true)
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      const email = userData.user?.email
-      if (email && pwCurrent) {
-        const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: pwCurrent })
-        if (signInErr) {
-          setPwMsg({ type: 'error', text: 'Senha atual incorreta.' })
-          setPwSaving(false)
-          return
-        }
+      if (!pwCurrent) {
+        setPwMsg({ type: 'error', text: 'Informe a senha atual.' })
+        setPwSaving(false)
+        return
       }
-      const { error } = await supabase.auth.updateUser({ password: pwNew })
-      if (error) throw error
-      setPwMsg({ type: 'ok', text: 'Senha alterada com sucesso!' })
+      const { data: sessionData } = await supabase.auth.getSession()
+      const res = await fetch('/api/auth/alterar-senha', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionData.session?.access_token ?? ''}` },
+        body: JSON.stringify({ atual: pwCurrent, nova: pwNew }),
+      })
+      const json = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) throw new Error(json.error ?? 'Não foi possível alterar a senha.')
+      if (user && clinic) {
+        void audit({ action: 'auth.password_changed', user_id: user.id, clinic_id: clinic.id, module: 'auth', details: { origin: 'minha_conta' } }).catch(() => {})
+      }
+      setPwMsg({ type: 'ok', text: 'Senha alterada com sucesso! Use a nova senha no próximo acesso.' })
       setPwCurrent('')
       setPwNew('')
       setPwConfirm('')
     } catch (err: unknown) {
-      setPwMsg({ type: 'error', text: err instanceof Error ? err.message : 'Erro ao alterar senha.' })
+      setPwMsg({ type: 'error', text: passwordErrorText(err) })
     } finally {
       setPwSaving(false)
     }
+  }
+
+  async function handleSendResetLink() {
+    setPwMsg(null)
+    const { data } = await supabase.auth.getUser()
+    const email = data.user?.email
+    if (!email) return setPwMsg({ type: 'error', text: 'Não foi possível identificar o seu e-mail. Entre de novo.' })
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${appUrl}/login` })
+    if (error) return setPwMsg({ type: 'error', text: 'Não foi possível enviar o link. Tente novamente em alguns minutos.' })
+    setPwMsg({ type: 'ok', text: `Enviamos um link para ${email}. Abra o e-mail, clique no link e defina a nova senha.` })
   }
 
   return (
@@ -182,6 +207,9 @@ export function MinhaConta() {
           <div className={styles.saveRow}>
             <button type="submit" className={styles.btnSave} disabled={pwSaving || !pwCurrent || !pwNew || !pwConfirm}>
               {pwSaving ? 'Alterando...' : 'Alterar Senha'}
+            </button>
+            <button type="button" className={styles.btnGhost} onClick={handleSendResetLink} disabled={pwSaving}>
+              Não sei a senha atual
             </button>
           </div>
         </form>

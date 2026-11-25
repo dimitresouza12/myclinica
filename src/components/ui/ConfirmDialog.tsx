@@ -13,9 +13,13 @@ export interface ConfirmOptions {
   danger?: boolean
 }
 
+export interface ChoiceOption { value: string; label: string }
+
 interface ConfirmState extends ConfirmOptions {
   id: string
   resolve: (value: boolean) => void
+  choices?: ChoiceOption[]
+  resolveChoice?: (value: string | null) => void
 }
 
 type Listener = (state: ConfirmState | null) => void
@@ -32,9 +36,25 @@ export function confirmDialog(options: ConfirmOptions | string): Promise<boolean
   })
 }
 
+// Pergunta com várias respostas (ex.: forma de pagamento). Devolve o valor escolhido ou null se fechar.
+export function choiceDialog(options: ConfirmOptions & { choices: ChoiceOption[] }): Promise<string | null> {
+  return new Promise<string | null>((resolve) => {
+    current = { id: Math.random().toString(36).slice(2), resolve: () => {}, resolveChoice: resolve, ...options }
+    notify()
+  })
+}
+
+function pick(value: string) {
+  if (!current) return
+  current.resolveChoice?.(value)
+  current = null
+  notify()
+}
+
 function close(value: boolean) {
   if (!current) return
   current.resolve(value)
+  current.resolveChoice?.(null)
   current = null
   notify()
 }
@@ -77,6 +97,16 @@ export function ConfirmDialogContainer() {
           {/* Sem título, a própria pergunta vira o título */}
           <h2 id="confirm-dialog-title" className={styles.title}>{state.title ?? state.message}</h2>
           {state.title && <p id="confirm-dialog-message" className={styles.message}>{state.message}</p>}
+          {state.choices ? (
+            <div className={styles.actions} style={{ flexWrap: 'wrap' }}>
+              {state.choices.map((c, i) => (
+                <button key={c.value} type="button" className={i === 0 ? btn.primary : btn.secondary} onClick={() => pick(c.value)} autoFocus={i === 0}>
+                  {c.label}
+                </button>
+              ))}
+              <button type="button" className={btn.secondary} onClick={() => close(false)}>{state.cancelText ?? 'Depois'}</button>
+            </div>
+          ) : (
           <div className={styles.actions}>
             <button type="button" className={btn.secondary} onClick={() => close(false)}>
               {state.cancelText ?? 'Cancelar'}
@@ -90,6 +120,7 @@ export function ConfirmDialogContainer() {
               {state.confirmText ?? 'Confirmar'}
             </button>
           </div>
+          )}
         </div>
       </div>
     </Portal>

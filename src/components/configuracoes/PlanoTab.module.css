@@ -37,7 +37,7 @@
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .btnGhost { padding: 0 1.25rem; min-height: 44px; background: transparent; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 999px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
 .btnGhost:disabled { opacity: 0.6; cursor: not-allowed; }
-.link { font-size: 0.82rem; font-weight: 600; color: var(--teal); background: none; border: none; cursor: pointer; padding: 0.5rem 0; min-height: 44px; text-decoration: underline; }
+.link { font-size: 0.82rem; font-weight: 600; color: var(--brand-text); background: none; border: none; cursor: pointer; padding: 0.5rem 0; min-height: 44px; text-decoration: underline; }
 .soon { font-size: var(--fs-xs); font-weight: 600; color: var(--text-secondary); }
 
 .msgErr { display: flex; align-items: center; gap: 0.3rem; font-size: 0.82rem; color: #DC2626; margin: 0; }
@@ -47,10 +47,10 @@
 
 .plans { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.5rem; }
 .planOpt { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.65rem 0.85rem; border: 2px solid var(--border-color); border-radius: 8px; background: var(--bg-primary, var(--surface)); text-decoration: none; min-height: 44px; }
-.planOptCur { border-color: var(--teal); cursor: default; }
+.planOptCur { border-color: var(--brand-text); cursor: default; }
 .planName { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
 .planPrice { font-size: 0.75rem; color: var(--text-secondary); }
-.planCta { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.72rem; color: var(--teal); font-weight: 600; margin-top: 0.15rem; }
+.planCta { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.72rem; color: var(--brand-text); font-weight: 600; margin-top: 0.15rem; }
 
 .skel { height: 14px; border-radius: 6px; background: var(--border-subtle, #e5e7eb); opacity: .6; }
 .retry { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }

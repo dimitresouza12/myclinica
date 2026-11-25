@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -18,11 +18,52 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { StatusDot } from '@/components/ui/StatusDot'
 import { MoreMenu } from '@/components/ui/MoreMenu'
 import btn from '@/components/ui/button.module.css'
+import { ErrorNotice } from '@/components/ui/ErrorNotice'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { showToast } from '@/components/ui/Toast'
 import f from '@/components/ui/modalForm.module.css'
 import t from '@/components/ui/table.module.css'
 
 interface FormData { name: string; price: string; is_free: boolean; category: string; is_active: boolean }
 const BLANK: FormData = { name: '', price: '', is_free: false, category: '', is_active: true }
+
+/**
+ * Preço direto na lista, para procedimento ainda "a definir". Salva ao sair do campo (blur) ou no Enter;
+ * Esc descarta. Clicar no campo não abre o modal de edição da linha.
+ */
+function PrecoInline({ nome, onSalvar }: { nome: string; onSalvar: (preco: number) => Promise<boolean> }) {
+  const [valor, setValor] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const cancelado = useRef(false)
+
+  async function confirmar() {
+    if (cancelado.current) { cancelado.current = false; return }
+    const preco = parseFloat(valor)
+    if (!(preco > 0) || salvando) return
+    setSalvando(true)
+    const ok = await onSalvar(preco)
+    setSalvando(false)
+    if (ok) setValor('')
+  }
+
+  return (
+    <span className={styles.priceEdit} onClick={e => e.stopPropagation()}>
+      <span className={styles.pricePrefix} aria-hidden="true">R$</span>
+      <MoneyInput
+        className={styles.priceInput}
+        aria-label={`Definir preço de ${nome}`}
+        value={valor}
+        onChange={setValor}
+        disabled={salvando}
+        onBlur={confirmar}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() }
+          else if (e.key === 'Escape') { cancelado.current = true; setValor(''); e.currentTarget.blur() }
+        }}
+      />
+    </span>
+  )
+}
 
 function ProcedimentosContent() {
   const { clinic } = useAuthStore()
@@ -44,6 +85,7 @@ function ProcedimentosContent() {
       ]))
     : []
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormData>(BLANK)
@@ -62,12 +104,13 @@ function ProcedimentosContent() {
 
   async function loadData() {
     if (!clinic) return
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('procedures')
       .select('*')
       .eq('clinic_id', clinic.id)
       .order('name')
-    setProcedures((data ?? []) as Procedure[])
+    setLoadError(!!error)
+    if (!error) setProcedures((data ?? []) as Procedure[])
     setLoading(false)
   }
 
@@ -118,6 +161,22 @@ function ProcedimentosContent() {
     loadData()
   }
 
+  async function salvarPreco(p: Procedure, price: number): Promise<boolean> {
+    if (!clinic || !canEdit) return false
+    const { error } = await supabase
+      .from('procedures')
+      .update({ price })
+      .eq('id', p.id)
+      .eq('clinic_id', clinic.id)
+    if (error) {
+      showToast('error', 'Não foi possível salvar o preço. Tente de novo.')
+      return false
+    }
+    showToast('ok', `Preço de ${p.name} salvo.`)
+    await loadData()
+    return true
+  }
+
   async function handleDelete(p: Procedure) {
     if (!(await confirmDialog({ message: `Excluir o procedimento "${p.name}"? Esta ação não pode ser desfeita.`, confirmText: 'Excluir', danger: true }))) return
     await supabase.from('procedures').delete().eq('id', p.id).eq('clinic_id', clinic!.id)
@@ -164,6 +223,8 @@ function ProcedimentosContent() {
       <Card flush title="Lista de procedimentos">
         {loading ? (
           <p className={styles.loading}>Carregando...</p>
+        ) : loadError ? (
+          <ErrorNotice message="Não foi possível carregar os procedimentos. Confira a conexão." onRetry={() => { setLoading(true); loadData() }} />
         ) : (
           <div className={`${t.wrap} ${styles.wrap} resp-table-wrap`}>
             <table className={`${t.table} resp-table`}>
@@ -178,7 +239,7 @@ function ProcedimentosContent() {
               </thead>
               <tbody>
                 {procedures.length === 0 ? (
-                  <tr><td colSpan={5} className={t.empty}>{canEdit ? 'Nenhum procedimento cadastrado. Clique em "Novo procedimento" para começar.' : 'Nenhum procedimento cadastrado.'}</td></tr>
+                  <tr><td colSpan={5} className={t.empty}><EmptyState compact title="Nenhum procedimento cadastrado" description={canEdit ? 'Cadastre o que a clínica realiza para agendar e cobrar.' : undefined} action={canEdit ? <button type="button" className={btn.primary} onClick={openNew}><Icon name="plus" size={15} /> Novo procedimento</button> : undefined} /></td></tr>
                 ) : procedures.map(p => (
                   <tr key={p.id} className={`${canEdit ? t.clickable : ''} ${styles.row}`} onClick={() => openEdit(p)}>
                     <td className={t.strong}>{p.name}</td>
@@ -188,7 +249,9 @@ function ProcedimentosContent() {
                         ? formatCurrency(p.price)
                         : p.is_free
                           ? <span className={t.muted}>Gratuito</span>
-                          : <StatusDot tone="warn">A definir</StatusDot>}
+                          : canEdit
+                            ? <PrecoInline nome={p.name} onSalvar={preco => salvarPreco(p, preco)} />
+                            : <StatusDot tone="warn">A definir</StatusDot>}
                     </td>
                     <td data-label="Status">
                       <StatusDot tone={p.is_active ? 'ok' : 'idle'}>{p.is_active ? 'Ativo' : 'Inativo'}</StatusDot>

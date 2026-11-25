@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { audit } from '@/lib/audit'
-import { normalizeUsername } from '@/lib/username'
+import { usernameFromEmail } from '@/lib/username'
 import { getSpecialtyConfig, CLINIC_TYPE_OPTIONS } from '@/lib/specialtyConfig'
 import { MEDICO_AREA_OPTIONS } from '@/lib/medicoSpecialties'
 import { PLAN_CATALOG, PUBLIC_PLANS, isPublicPlan } from '@/lib/planCatalog'
@@ -111,8 +111,11 @@ const QUIZ_STEPS = [
 // vem junto com a pergunta de equipe. O antigo bucket "completo" virou
 // "equipe" (o antigo "ilimitado") e "avancado" virou "completo" (ver planCatalog.ts).
 function calcPlan([team, patients, focus]: string[]): typeof QUIZ_PLANS[number] {
-  if (team === 'multi' || team === 'large' || patients === 'many' || focus === 'relatorios') return 'equipe'
-  if (team === 'small' || patients === 'medium' || focus === 'financeiro') return 'completo'
+  // Todos os recursos vêm em todos os planos; o que muda é o nº de profissionais.
+  // Por isso a recomendação olha só o tamanho da equipe e o volume de pacientes.
+  void focus
+  if (team === 'multi' || team === 'large' || patients === 'many') return 'equipe'
+  if (team === 'small' || patients === 'medium') return 'completo'
   return 'essencial'
 }
 
@@ -145,7 +148,6 @@ interface RegisterForm {
   clinic_type: ClinicTypeValue | ''
   clinic_name: string
   admin_name: string
-  username: string
   email: string
   password: string
   phone: string
@@ -258,6 +260,12 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
 
   useEffect(() => {
     const hash = window.location.hash
+    if (hash && /error_code=|error=/.test(hash) && !hash.includes('access_token')) {
+      // link do e-mail vencido ou já usado (o leitor de e-mail pode abrir o link antes da pessoa)
+      setError('O link de recuperação venceu ou já foi usado. Peça um novo em "Esqueci minha senha".')
+      router.replace('/login')
+      return
+    }
     if (!hash || !hash.includes('type=recovery')) return
     const params = new URLSearchParams(hash.slice(1))
     const access_token = params.get('access_token')
@@ -268,6 +276,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
     supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
       setRecoveryChecking(false)
       if (!error) setRecovering(true)
+      else setError('Não foi possível abrir o link de recuperação. Peça um novo em "Esqueci minha senha".')
       // Limpa o hash da URL — não deve ficar reutilizável no histórico
       router.replace('/login')
     })
@@ -277,12 +286,16 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
   async function handleSetNewPassword(e: React.FormEvent) {
     e.preventDefault()
     setRecoveryError('')
-    if (newPassword.length < 6) { setRecoveryError('A senha precisa ter no mínimo 6 caracteres.'); return }
+    if (newPassword.length < 8) { setRecoveryError('A senha precisa ter no mínimo 8 caracteres.'); return }
     if (newPassword !== newPasswordConfirm) { setRecoveryError('As senhas não coincidem.'); return }
     setRecoverySaving(true)
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     setRecoverySaving(false)
-    if (error) { setRecoveryError('Não foi possível salvar a nova senha. Peça um novo link e tente de novo.'); return }
+    if (error) {
+      const code = (error as { code?: string }).code
+      setRecoveryError(code === 'same_password' ? 'A nova senha precisa ser diferente da anterior.' : code === 'weak_password' ? 'Senha fraca. Use pelo menos 8 caracteres, misturando letras e números.' : 'Não foi possível salvar a nova senha. Peça um novo link e tente de novo.')
+      return
+    }
     await supabase.auth.signOut()
     setRecoveryDone(true)
   }
@@ -396,7 +409,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
   const [loginStalled, setLoginStalled] = useState(false)
 
   // Register state
-  const BLANK_REG: RegisterForm = { clinic_type: '', clinic_name: '', admin_name: '', username: '', email: '', password: '', phone: '', cpf: '', plan: 'essencial' }
+  const BLANK_REG: RegisterForm = { clinic_type: '', clinic_name: '', admin_name: '', email: '', password: '', phone: '', cpf: '', plan: 'essencial' }
   const [reg, setReg] = useState<RegisterForm>(() => {
     const planParam = planFromParam(searchParams.get('plan'))
     return planParam ? { ...BLANK_REG, plan: planParam } : BLANK_REG
@@ -488,15 +501,13 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
     if (needsMedicoArea && medicoArea === 'Outra' && !medicoAreaOther.trim()) return { step: 1, msg: 'Digite a área da medicina.' }
     if (!reg.clinic_name.trim()) return { step: 1, msg: 'Nome da clínica é obrigatório.' }
     if (!reg.admin_name.trim())  return { step: 2, msg: 'Seu nome é obrigatório.' }
-    const cpfError = cpfInputError(reg.cpf, { required: true })
+    const cpfError = cpfInputError(reg.cpf)
     if (cpfError) return { step: 2, msg: cpfError }
     const regPhoneError = phoneInputError(reg.phone)
     if (regPhoneError) return { step: 2, msg: regPhoneError }
     if (founderIsProfessional === null) return { step: 2, msg: 'Diga se você também atende pacientes pessoalmente.' }
     if (founderHasTeam === null)        return { step: 2, msg: 'Diga se você vai ter mais gente usando o sistema com você.' }
     if (!reg.email.trim())       return { step: 3, msg: 'E-mail é obrigatório.' }
-    const usernameLen = normalizeUsername(reg.username).length
-    if (usernameLen < 3 || usernameLen > 30) return { step: 3, msg: 'Nome de usuário deve ter 3-30 caracteres (letras minúsculas, números, _ . -).' }
     if (reg.password.length < 6) return { step: 3, msg: 'Senha deve ter pelo menos 6 caracteres.' }
     if (!acceptedTerms)     return { step: 3, msg: 'Você precisa aceitar os Termos de Uso para continuar.' }
     return null
@@ -760,8 +771,6 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
       if (err.step !== regStep) changeStep(err.step)
       return setRegError(err.msg)
     }
-    const usernameClean = normalizeUsername(reg.username)
-
     setRegLoading(true)
     try {
       const slug = toSlug(reg.clinic_name)
@@ -787,17 +796,25 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
       }
 
       // 2. Create clinic + admin via SECURITY DEFINER RPC (bypasses RLS atomically)
-      const { error: rpcErr } = await supabase.rpc('register_clinic_and_admin', {
-        p_clinic_name: reg.clinic_name.trim(),
-        p_slug: slug,
-        p_clinic_type: reg.clinic_type,
-        p_phone: reg.phone.trim(),
-        p_admin_name: reg.admin_name.trim(),
-        p_username: usernameClean,
-        p_email: reg.email.trim(),
-        p_plan: reg.plan,
-        p_cpf: reg.cpf.replace(/\D/g, '') || null,
-      })
+      // O usuário não escolhe nome de usuário: sai do prefixo do e-mail. Se já existir
+      // (username_taken), tenta de novo até 3 vezes com um sufixo numérico novo; a RPC é
+      // atômica, então a nova tentativa pode reaproveitar o mesmo usuário de autenticação.
+      let rpcErr: { message: string } | null = null
+      for (let tentativa = 0; tentativa < 4; tentativa++) {
+        const { error } = await supabase.rpc('register_clinic_and_admin', {
+          p_clinic_name: reg.clinic_name.trim(),
+          p_slug: slug,
+          p_clinic_type: reg.clinic_type,
+          p_phone: reg.phone.trim(),
+          p_admin_name: reg.admin_name.trim(),
+          p_username: usernameFromEmail(reg.email, tentativa > 0),
+          p_email: reg.email.trim(),
+          p_plan: reg.plan,
+          p_cpf: reg.cpf.replace(/\D/g, '') || null,
+        })
+        rpcErr = error
+        if (!error || !error.message.includes('username_taken')) break
+      }
       if (rpcErr) {
         // Limpa o usuário órfão — aguarda para garantir que o e-mail seja liberado antes de exibir o erro
         await fetch('/api/auth/cleanup-orphan', {
@@ -806,8 +823,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
         }).catch(() => {})
         console.error('register_clinic_and_admin error:', rpcErr)
         if (rpcErr.message.includes('slug_taken')) throw new Error('Já existe uma clínica com esse nome. Tente um nome diferente.')
-        if (rpcErr.message.includes('username_taken')) throw new Error('Esse nome de usuário já está em uso. Escolha outro.')
-        if (rpcErr.message.includes('username_invalid')) throw new Error('Nome de usuário inválido. Use 3-30 caracteres (letras minúsculas, números, _ . -).')
+        if (rpcErr.message.includes('username_taken') || rpcErr.message.includes('username_invalid')) throw new Error('Não foi possível gerar seu acesso automaticamente. Tente de novo ou use outro e-mail.')
         if (rpcErr.message.includes('user_already_linked')) throw new Error('Este e-mail já está vinculado a uma clínica.')
         if (rpcErr.message.includes('cpf_taken')) throw new Error('Este CPF já está cadastrado. Tente fazer login.')
         if (rpcErr.message.includes('cpf_invalid')) throw new Error('CPF inválido. Verifique e tente novamente.')
@@ -1347,7 +1363,7 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
                       </div>
 
                       <p className={styles.regAside}>
-                        Sua clínica já usa o MyClínica? Não crie uma conta nova: peça a quem administra para te cadastrar em <strong>Configurações → Equipe</strong>.
+                        Sua clínica já usa o MyClínica? Não crie uma conta nova: peça a quem administra para te cadastrar em <strong>Equipe → Acessos e permissões</strong>.
                       </p>
                     </>
                   )}
@@ -1368,9 +1384,9 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
 
                       <div className={styles.regRow2}>
                         <div className={styles.field}>
-                          <label htmlFor="regCpf">CPF</label>
+                          <label htmlFor="regCpf">CPF (opcional)</label>
                           <CpfInput id="regCpf" value={reg.cpf} onChange={v => setReg(p => ({ ...p, cpf: v }))} />
-                          <span className={styles.regHint}>Também serve para entrar</span>
+                          {reg.cpf.trim() && <span className={styles.regHint}>Também serve para entrar</span>}
                         </div>
                         <div className={styles.field}>
                           <label htmlFor="regPhone">Telefone</label>
@@ -1409,19 +1425,6 @@ export function AuthFlow({ variant }: { variant: 'login' | 'demo' }) {
                           placeholder="contato@clinica.com"
                           autoComplete="email"
                         />
-                      </div>
-
-                      <div className={styles.field}>
-                        <label htmlFor="regUsername">Nome de usuário</label>
-                        <input
-                          id="regUsername"
-                          type="text"
-                          value={reg.username}
-                          onChange={e => setReg(p => ({ ...p, username: normalizeUsername(e.target.value) }))}
-                          placeholder="ex: drjoao"
-                          autoComplete="username"
-                        />
-                        <span className={styles.regHint}>Letras minúsculas, números, _ . - (3 a 30 caracteres).</span>
                       </div>
 
                       <div className={styles.field}>
